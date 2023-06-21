@@ -18,7 +18,10 @@
 
 /// Extensions for additional features.
 pub mod ext {
-    use crate::errors::{ExtError, Result};
+    use crate::{
+        errors::{ExtError, Result, SyscallError},
+        CostIdentifier,
+    };
 
     /// Gets the cost of something.
     ///
@@ -26,20 +29,25 @@ pub mod ext {
     ///
     /// ```
     /// use gcore::ext;
+    /// use gcore::CostIdentifier;
     ///
     /// #[no_mangle]
     /// extern "C" fn handle() {
-    ///     let cost = ext::cost(String::from("waitlist")).expect("Unable to get cost");
+    ///     let cost = ext::cost(CostIdentifier::Waitlist).expect("Unable to get cost");
     /// }
     /// ```
-    pub fn cost(name: u32) -> Result<u128> {
-        let mut cost = 0u128;
-        let cost_ptr = &mut cost as *mut u128;
-
+    pub fn cost(name: CostIdentifier) -> Result<u128> {
+        let name = name as u32;
         let name_ptr = &name as *const u32;
         let name_len = 1;
 
-        unsafe { gsys::gr_cost(name_ptr, name_len, cost_ptr) }
+        let mut cost = 0u128;
+        let cost_ptr = &mut cost as *mut u128;
+
+        let mut len = 0u32;
+        unsafe { gsys::gr_cost(name_ptr, name_len, cost_ptr, &mut len as *mut u32) }
+
+        SyscallError(len).into_result()?;
 
         Ok(cost)
     }

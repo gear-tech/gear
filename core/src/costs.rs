@@ -548,6 +548,6 @@ pub enum CostIdentifier {
     Rent = 2,
     /// Reservation cost.
     Reservation = 3,
-    /// Wailist cost.
-    Wailist = 4,
+    /// Waitlist cost.
+    Waitlist = 4,
 }

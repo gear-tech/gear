@@ -221,3 +221,20 @@ impl CodeId {
         &self.0
     }
 }
+
+/// Cost identifier for various user costs.
+#[derive(Clone, PartialEq, Eq, Copy)]
+#[allow(clippy::unnecessary_cast)]
+#[repr(u32)]
+pub enum CostIdentifier {
+    /// Dispatch hold cost.
+    DispatchHold = 0,
+    /// Mailbox threshold cost.
+    MailboxThreshold = 1,
+    /// Rent cost.
+    Rent = 2,
+    /// Reservation cost.
+    Reservation = 3,
+    /// Waitlist cost.
+    Waitlist = 4,
+}

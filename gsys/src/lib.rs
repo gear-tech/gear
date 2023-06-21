@@ -313,7 +313,13 @@ extern "C" {
     /// - `cost_name_ptr`: `const ptr` for the cost name identifier.
     /// - `cost_name_len`: `u32` length of the cost name.
     /// - `cost_ptr`: `mut ptr` for `u128`.
-    pub fn gr_cost(cost_name_ptr: *const u32, cost_name_len: Length, cost_ptr: *const Value);
+    /// - `err_len`: `mut ptr` for `u32` error length.
+    pub fn gr_cost(
+        cost_name_ptr: *const u32,
+        cost_name_len: Length,
+        cost_ptr: *const Value,
+        err_len: *mut Length,
+    );
 
     /// Fallible `gr_create_program_wgas` send syscall.
     ///

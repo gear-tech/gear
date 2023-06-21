@@ -516,7 +516,7 @@ impl Externalities for Ext {
             CostIdentifier::MailboxThreshold => self.context.mailbox_threshold.into(),
             CostIdentifier::Rent => self.context.rent_cost,
             CostIdentifier::Reservation => self.context.reservation.into(),
-            CostIdentifier::Wailist => self.context.waitlist_cost.into(),
+            CostIdentifier::Waitlist => self.context.waitlist_cost.into(),
         };
 
         Ok(cost)
