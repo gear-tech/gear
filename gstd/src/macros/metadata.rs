@@ -30,6 +30,7 @@
 /// as the metadata:
 ///
 /// ```
+/// #![allow(deprecated)]
 /// use gstd::{metadata, msg, prelude::*};
 ///
 /// #[derive(Decode, Encode, TypeInfo)]

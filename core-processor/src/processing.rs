@@ -24,14 +24,16 @@ use crate::{
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
-    ext::ProcessorExt,
+    ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
-use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
+use gear_backend_common::{
+    BackendExternalities, BackendExternalitiesError, Environment, SystemReservationContext,
+};
 use gear_core::{
-    env::Ext,
-    ids::ProgramId,
+    env::Externalities,
+    ids::{MessageId, ProgramId},
     memory::{GearPage, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
@@ -47,8 +49,8 @@ pub fn process<E>(
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <E::Ext as Externalities>::Error: BackendExternalitiesError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
@@ -90,7 +92,6 @@ where
     let balance = execution_context.balance;
     let program_id = execution_context.program.id();
     let execution_context = WasmExecutionContext {
-        origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
         gas_reserver: execution_context.gas_reserver,
@@ -290,6 +291,7 @@ pub fn process_success(
         program_id,
         context_store,
         allocations,
+        reply_deposits,
         ..
     } = dispatch_result;
 
@@ -386,6 +388,14 @@ pub fn process_success(
             payer,
             program_id,
             block_count,
+        });
+    }
+
+    for (message_id_sent, amount) in reply_deposits {
+        journal.push(JournalNote::ReplyDeposit {
+            message_id,
+            future_reply_id: MessageId::generate_reply(message_id_sent),
+            amount,
         });
     }
 

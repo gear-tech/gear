@@ -58,7 +58,7 @@ impl GearApi {
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
-    /// Get up to `count` messages from the mailbox from
+    /// Get up to `count` messages from the mailbox for
     /// the provided `account_id`.
     pub async fn get_mailbox_account_messages(
         &self,

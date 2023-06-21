@@ -349,9 +349,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
 
-    /// Weight of calling `gr_origin`.
-    pub gr_origin: Weight,
-
     /// Weight of calling `gr_pay_program_rent`.
     pub gr_pay_program_rent: Weight,
 
@@ -384,6 +381,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
+
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: Weight,
 
     /// Weight of calling `gr_send`.
     pub gr_send: Weight,
@@ -745,7 +745,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 6,
+            version: 7,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -848,7 +848,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_origin: self.gr_origin.ref_time(),
             gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
@@ -860,6 +859,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
+            gr_reply_deposit: self.gr_reply_deposit.ref_time(),
             gr_send: self.gr_send.ref_time(),
             gr_send_per_byte: self.gr_send_per_byte.ref_time(),
             gr_send_wgas: self.gr_send_wgas.ref_time(),
@@ -920,6 +920,9 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
+            gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
+                .saturating_sub(to_weight!(cost_batched!(gr_send))),
+
             gr_send: to_weight!(cost_batched!(gr_send)),
             gr_send_per_byte: to_weight!(cost_byte_batched!(gr_send_per_kb)),
             gr_send_wgas: to_weight!(cost_batched!(gr_send_wgas)),
@@ -962,7 +965,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_origin: to_weight!(cost_batched!(gr_origin)),
             gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),

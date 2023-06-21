@@ -34,7 +34,9 @@ mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
-pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
+pub use context::{
+    ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
+};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
@@ -118,7 +120,7 @@ pub enum DispatchKind {
 }
 
 /// Trait defining type could be used as entry point for a wasm module.
-pub trait WasmEntry: Sized {
+pub trait WasmEntryPoint: Sized {
     /// Converting self into entry point name.
     fn as_entry(&self) -> &str;
 
@@ -127,11 +129,11 @@ pub trait WasmEntry: Sized {
 
     /// Tries to convert self into `DispatchKind`.
     fn try_into_kind(&self) -> Option<DispatchKind> {
-        <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+        <DispatchKind as WasmEntryPoint>::try_from_entry(self.as_entry())
     }
 }
 
-impl WasmEntry for String {
+impl WasmEntryPoint for String {
     fn as_entry(&self) -> &str {
         self
     }
@@ -141,7 +143,7 @@ impl WasmEntry for String {
     }
 }
 
-impl WasmEntry for DispatchKind {
+impl WasmEntryPoint for DispatchKind {
     fn as_entry(&self) -> &str {
         match self {
             Self::Init => "init",
@@ -210,8 +212,8 @@ impl DispatchKind {
 ///
 /// Provides common behavior for any message's packet: accessing to payload, gas limit and value.
 pub trait Packet {
-    /// Packet payload reference.
-    fn payload(&self) -> &[u8];
+    /// Packet payload bytes.
+    fn payload_bytes(&self) -> &[u8];
 
     /// Packet optional gas limit.
     fn gas_limit(&self) -> Option<GasLimit>;

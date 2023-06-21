@@ -45,6 +45,7 @@ pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
+pallet-gear-voucher = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']

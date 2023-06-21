@@ -28,6 +28,35 @@ pub use gcore::exec::{
     value_available, wait, wait_for, wait_up_to,
 };
 
+/// Provide gas deposit from current message to handle reply message on given
+/// message id.
+///
+/// This message id should be sent within the execution. Once destination actor
+/// or system sends reply on it, the gas limit ignores, if the program gave
+/// deposit - the only it will be used for execution of `handle_reply`.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let message_id =
+///         msg::send(msg::source(), b"Outgoing message", 0).expect("Failed to send message");
+///
+///     exec::reply_deposit(message_id, 100_000).expect("Failed to deposit reply");
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn handle_reply() {
+///     // I will be executed for pre-defined (deposited) 100_000 of gas!
+/// }
+/// ```
+pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
+    gcore::exec::reply_deposit(message_id.into(), amount).map_err(Into::into)
+}
+
 /// Terminate the execution of a program.
 ///
 /// The program and all corresponding data are removed from the storage. It may
@@ -96,11 +125,11 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, ActorId};
+/// use gstd::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let (unused_value, paid_block_count) =
+///     let (_unused_value, paid_block_count) =
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
@@ -113,7 +142,7 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, ActorId};
+/// use gstd::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -122,21 +151,4 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 /// ```
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
-}
-
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the present processing message was created.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let user = exec::origin();
-/// }
-/// ```
-pub fn origin() -> ActorId {
-    gcore::exec::origin().into()
 }

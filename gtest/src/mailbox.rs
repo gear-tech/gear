@@ -111,9 +111,7 @@ impl<'a> MessageReplier<'a> {
             raw_payload.as_ref().to_vec().try_into().unwrap(),
             None,
             value,
-            self.log
-                .status_code()
-                .map(|status_code| ReplyDetails::new(self.log.id(), status_code).into()),
+            Some(ReplyDetails::new(self.log.id(), 0).into()),
         );
 
         self.manager
@@ -188,9 +186,12 @@ mod tests {
         assert!(!second_message_result.main_failed);
         assert!(!second_message_result.others_failed);
         assert_eq!(reply_log.len(), 1);
-        assert_eq!(last_reply_log.payload(), encoded_reply_payload.get());
-        assert_eq!(message_log.payload(), encoded_message_payload.get());
-        assert_eq!(second_message_log.payload(), encoded_message_payload.get());
+        assert_eq!(last_reply_log.payload(), encoded_reply_payload.inner());
+        assert_eq!(message_log.payload(), encoded_message_payload.inner());
+        assert_eq!(
+            second_message_log.payload(),
+            encoded_message_payload.inner()
+        );
     }
 
     #[test]
@@ -262,7 +263,7 @@ mod tests {
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
 
-        assert_eq!(last_result_log.payload(), reply_payload.get());
+        assert_eq!(last_result_log.payload(), reply_payload.inner());
     }
 
     #[test]

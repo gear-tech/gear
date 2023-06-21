@@ -45,7 +45,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
-        Event,
+        Convert, Event,
     },
     types, Error as GsdkError,
 };
@@ -279,7 +279,7 @@ impl GearApi {
         let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
-            .map(|gr| gr.0.clone().into())
+            .map(|gr| gr.0.into())
             .collect();
 
         let src_program_reserved_gas_nodes = self
@@ -533,15 +533,18 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let mut values = BTreeMap::new();
-        for message_id in args.clone().into_iter() {
-            values.insert(
-                message_id,
-                self.get_mailbox_message(message_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
+        let message_ids: Vec<_> = args.clone().into_iter().collect();
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<_, _> = messages
+            .into_iter()
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .collect();
 
         let calls: Vec<_> = args
             .into_iter()
@@ -561,7 +564,6 @@ impl GearApi {
             match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
-                    .flatten()
                     .expect("Data appearance guaranteed above"))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
@@ -753,15 +755,18 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let mut values = BTreeMap::new();
-        for (message_id, _, _, _) in args.clone().into_iter() {
-            values.insert(
-                message_id,
-                self.get_mailbox_message(message_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
+        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<_, _> = messages
+            .into_iter()
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .collect();
 
         let calls: Vec<_> = args
             .into_iter()
@@ -792,7 +797,6 @@ impl GearApi {
                     destination.into(),
                     values
                         .remove(&reply_to_id.into())
-                        .flatten()
                         .expect("Data appearance guaranteed above"),
                 ))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -1183,7 +1187,7 @@ impl GearApi {
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
-                    who: to.into(),
+                    who: to.into().convert(),
                     new_free,
                     new_reserved,
                 }),

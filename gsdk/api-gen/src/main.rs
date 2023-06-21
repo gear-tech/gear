@@ -16,16 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use color_eyre::eyre::Result;
-use frame_metadata::{RuntimeMetadata, RuntimeMetadataPrefixed, RuntimeMetadataV14};
+use frame_metadata::RuntimeMetadataPrefixed;
+use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use std::{
     collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
+use subxt_metadata::Metadata;
 use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
@@ -71,15 +73,10 @@ fn main() -> Result<()> {
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
         .expect("decode metadata failed");
 
-    let metadata_v14 = if let RuntimeMetadata::V14(v14) = &metadata.1 {
-        v14
-    } else {
-        panic!("Unsupported metadata version, only support v14.");
-    };
-
-    // Customized code here.
-    let calls = generate_calls(metadata_v14);
-    let storage = generate_storage(metadata_v14);
+    let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
+    let calls = generate_calls(&metadata);
+    let storage = generate_storage(&metadata);
+    let impls = generate_impls(&metadata);
     let types = generate_runtime_types(metadata);
 
     let output = quote! {
@@ -88,12 +85,12 @@ fn main() -> Result<()> {
         #calls
 
         #storage
+
+        #impls
     }
     .to_token_stream();
 
-    // Generate api.
     io::stdout().write_all((LICENSE.trim_start().to_string() + &output.to_string()).as_bytes())?;
-
     Ok(())
 }
 
@@ -126,7 +123,7 @@ fn metadata() -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
+fn generate_runtime_types(metadata: Metadata) -> TokenStream {
     let generator = RuntimeGenerator::new(metadata);
     let runtime_types_mod = parse_quote!(
         pub mod runtime_types {}
@@ -134,13 +131,31 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
 
     let crate_path = Default::default();
 
-    // TODO: extend `Copy` for Ids and Hashes. ( #2668 )
-    let derives = DerivesRegistry::new(&crate_path);
+    let mut derives = DerivesRegistry::new();
+    derives.extend_for_all(
+        [
+            parse_quote!(Debug),
+            parse_quote!(crate::gp::Encode),
+            parse_quote!(crate::gp::Decode),
+            parse_quote!(crate::gp::DecodeAsType),
+        ],
+        [],
+    );
+
+    for ty in [
+        parse_quote!(gear_core::ids::CodeId),
+        parse_quote!(gear_core::ids::MessageId),
+        parse_quote!(gear_core::ids::ProgramId),
+        parse_quote!(gear_core::ids::ReservationId),
+    ] {
+        derives.extend_for_type(ty, [parse_quote!(Copy)], []);
+    }
+
     generator
         .generate_runtime_types(
             runtime_types_mod,
             derives,
-            TypeSubstitutes::new(&crate_path),
+            TypeSubstitutes::with_default_substitutes(&crate_path),
             crate_path,
             true,
         )
@@ -148,24 +163,19 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
 }
 
 /// Generate a table for the calls.
-fn generate_calls(metadata: &RuntimeMetadataV14) -> ItemMod {
+fn generate_calls(metadata: &Metadata) -> ItemMod {
     let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for pallet in metadata.pallets.clone().into_iter() {
-        let pallet_name = pallet.name.clone();
-        let calls = pallet.calls.map(|call| {
-            let scale_info::TypeDef::Variant(variant) = &metadata.types.resolve(call.ty.id).expect("Unknown calls").type_def else {
-                panic!("Invalid call type {call:?}");
-            };
-
-            variant
-                .variants
+    for pallet in metadata.pallets() {
+        let pallet_name = pallet.name();
+        let calls = pallet.call_variants().map(|calls| {
+            calls
                 .iter()
-                .map(|variant| variant.name.clone())
+                .map(|call| call.name.clone())
                 .collect::<Vec<_>>()
         });
 
         if let Some(calls) = calls {
-            table.insert(pallet_name, calls);
+            table.insert(pallet_name.into(), calls);
         }
     }
 
@@ -242,21 +252,20 @@ fn generate_calls(metadata: &RuntimeMetadataV14) -> ItemMod {
 }
 
 /// Generate a table for the calls.
-fn generate_storage(metadata: &RuntimeMetadataV14) -> ItemMod {
+fn generate_storage(metadata: &Metadata) -> ItemMod {
     let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for pallet in metadata.pallets.clone().into_iter() {
-        let pallet_name = pallet.name.clone();
+    for pallet in metadata.pallets() {
+        let pallet_name = pallet.name();
 
-        let storage = pallet.storage.map(|storage| {
+        let storage = pallet.storage().map(|storage| {
             storage
-                .entries
-                .iter()
-                .map(|entry| entry.name.clone())
+                .entries()
+                .map(|entry| entry.name().into())
                 .collect::<Vec<_>>()
         });
 
         if let Some(storage) = storage {
-            table.insert(pallet_name, storage);
+            table.insert(pallet_name.into(), storage);
         }
     }
 
@@ -314,6 +323,94 @@ fn generate_storage(metadata: &RuntimeMetadataV14) -> ItemMod {
 
                  #ii
              )*
+        }
+    }
+}
+
+fn generate_impls(metadata: &Metadata) -> TokenStream {
+    let mut root_event_if_arms = Vec::new();
+    let mut exports = Vec::new();
+
+    for p in metadata.pallets() {
+        let variant_name_str = p.name();
+        let variant_name = format_ident!("{}", variant_name_str);
+        let mod_name = format_ident!("{}", variant_name_str.to_string().to_snake_case());
+
+        if p.event_ty_id().is_some() {
+            let ia = quote! {
+                if pallet_name == #variant_name_str {
+                    return Ok(Event::#variant_name(crate::metadata::#mod_name::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata
+                    )?));
+                }
+            };
+            root_event_if_arms.push(ia);
+
+            let export = {
+                let pallet_name = variant_name_str.to_snake_case();
+                let pallet = format_ident!(
+                    "{}",
+                    match pallet_name.as_str() {
+                        "system" => "frame_system".into(),
+                        "validator_set" => "substrate_validator_set".into(),
+                        "fellowship_collective" => "pallet_ranked_collective".into(),
+                        "fellowship_referenda" => "pallet_referenda".into(),
+                        "staking_rewards" => "pallet_gear_staking_rewards".into(),
+                        _ => "pallet_".to_string() + &pallet_name,
+                    }
+                );
+
+                let export = match pallet_name.as_str() {
+                    "staking" => quote! {
+                        pub use super::runtime_types::#pallet::pallet::pallet::Event;
+                    },
+                    "fellowship_referenda" => quote! {
+                        pub use super::runtime_types::#pallet::pallet::Event2 as Event;
+                    },
+                    _ => quote! {
+                        pub use super::runtime_types::#pallet::pallet::Event;
+                    },
+                };
+
+                let name = format_ident!("{}", pallet_name);
+                quote! {
+                    pub mod #name {
+                        #export
+                    }
+                }
+            };
+            exports.push(export);
+        }
+    }
+
+    quote! {
+        pub mod impls {
+            use crate::metadata::Event;
+
+            impl subxt::events::RootEvent for Event {
+                fn root_event(
+                    pallet_bytes: &[u8],
+                    pallet_name: &str,
+                    pallet_ty: u32,
+                    metadata: &subxt::Metadata
+                ) -> Result<Self, subxt::Error> {
+                    use subxt::metadata::DecodeWithMetadata;
+
+                    #( #root_event_if_arms )*
+
+                    Err(subxt::ext::scale_decode::Error::custom(
+                        format!("Pallet name '{}' not found in root Event enum", pallet_name)
+                    ).into())
+                }
+            }
+        }
+
+        pub mod exports {
+            use crate::metadata::runtime_types;
+
+            #( #exports )*
         }
     }
 }

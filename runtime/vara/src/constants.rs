@@ -90,7 +90,4 @@ pub mod time {
 
     // The free of charge period of rent.
     pub const RENT_FREE_PERIOD: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
-
-    // The minimal amount of blocks to resume.
-    pub const RENT_RESUME_PERIOD: BlockNumber = 86_400;
 }

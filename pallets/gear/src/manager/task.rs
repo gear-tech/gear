@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, WaitlistOf,
+    manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
+    QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -26,9 +26,10 @@ use common::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
         SystemReason, UserMessageReadSystemReason,
     },
+    paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
-    GasTree, Origin, PausedProgramStorage, Program, ProgramStorage,
+    Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use core::convert::TryInto;
 use frame_support::traits::{Currency, ExistenceRequirement};
@@ -171,14 +172,7 @@ where
         // So, the message id of this reply message will not be duplicated.
         let message = ReplyMessage::system(message_id, err_payload, err);
 
-        // Creating `GasNode` for the reply.
-        //
-        // # Safety
-        //
-        //  The error is unreachable since the `message_id` is new generated
-        //  from the checked `original_message`."
-        GasHandlerOf::<T>::create(user_id.clone(), message.id(), 0)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        Pallet::<T>::create(user_id.clone(), message.id(), 0, true);
 
         // Reading message from mailbox.
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
@@ -310,5 +304,11 @@ where
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
+    }
+
+    fn remove_resume_session(&mut self, session_id: SessionId) {
+        log::debug!("Execute task to remove resume session with session_id = {session_id}");
+        ProgramStorageOf::<T>::remove_resume_session(session_id)
+            .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
     }
 }

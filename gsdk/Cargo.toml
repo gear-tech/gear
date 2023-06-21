@@ -10,7 +10,6 @@ readme = "./README.md"
 
 [dependencies]
 anyhow.workspace = true
-async-recursion.workspace = true
 base64.workspace = true
 futures-util.workspace = true
 futures.workspace = true
@@ -18,7 +17,6 @@ gear-core.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
-parity-scale-codec.workspace = true
 scale-value.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -27,6 +25,11 @@ thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
 gsdk-codegen = { path = "codegen" }
+
+# Importing these two libraries for trimming
+# the the size of the generated file.
+scale-decode.workspace = true
+parity-scale-codec.workspace = true
 
 # deps for feature `testing`
 rand = { workspace = true, optional = true }

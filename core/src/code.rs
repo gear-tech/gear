@@ -21,14 +21,13 @@
 use crate::{
     ids::CodeId,
     memory::{PageU32Size, WasmPage},
-    message::{DispatchKind, WasmEntry},
+    message::{DispatchKind, WasmEntryPoint},
 };
-use alloc::{collections::BTreeSet, vec::Vec};
-use core::ops::ControlFlow;
+use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        elements::{Instruction, Internal, Module},
+        elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
     },
     wasm_instrument::{
         self,
@@ -72,61 +71,108 @@ fn get_exports(
     Ok(exports)
 }
 
-fn get_stack_end_init_code(module: &Module) -> Option<&[Instruction]> {
-    let global_index = module
+fn get_export_entry<'a>(module: &'a Module, name: &str) -> Option<&'a ExportEntry> {
+    module
         .export_section()?
         .entries()
         .iter()
-        .try_for_each(|entry| match entry.internal() {
-            Internal::Global(index) if entry.field() == STACK_END_EXPORT_NAME => {
-                ControlFlow::Break(*index)
-            }
-            _ => ControlFlow::Continue(()),
-        });
-
-    let ControlFlow::Break(global_index) = global_index else {
-        return None;
-    };
-
-    let section = module.global_section()?;
-    let entry = &section.entries()[global_index as usize];
-
-    Some(entry.init_expr().code())
+        .find(|export| export.field() == name)
 }
 
-fn get_offset_i32(init_code: &[Instruction]) -> Option<u32> {
-    use Instruction::{End, I32Const};
+fn get_export_entry_mut<'a>(module: &'a mut Module, name: &str) -> Option<&'a mut ExportEntry> {
+    module
+        .export_section_mut()?
+        .entries_mut()
+        .iter_mut()
+        .find(|export| export.field() == name)
+}
 
-    if init_code.len() != 2 {
-        return None;
-    }
-
-    match (&init_code[0], &init_code[1]) {
-        (I32Const(stack_end), End) => Some(*stack_end as u32),
+fn get_export_global_index<'a>(module: &'a Module, name: &str) -> Option<&'a u32> {
+    match get_export_entry(module, name)?.internal() {
+        Internal::Global(index) => Some(index),
         _ => None,
     }
 }
 
-fn check_gear_stack_end(module: &Module) -> Result<(), CodeError> {
-    let Some(init_expr) = get_stack_end_init_code(module) else {
+fn get_export_global_index_mut<'a>(module: &'a mut Module, name: &str) -> Option<&'a mut u32> {
+    match get_export_entry_mut(module, name)?.internal_mut() {
+        Internal::Global(index) => Some(index),
+        _ => None,
+    }
+}
+
+fn get_init_expr_const_i32(init_expr: &InitExpr) -> Option<i32> {
+    let init_code = init_expr.code();
+    if init_code.len() != 2 {
+        return None;
+    }
+    match (&init_code[0], &init_code[1]) {
+        (Instruction::I32Const(const_i32), Instruction::End) => Some(*const_i32),
+        _ => None,
+    }
+}
+
+fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> {
+    module
+        .global_section()?
+        .entries()
+        .get(global_index as usize)
+}
+
+fn get_global_init_const_i32(module: &Module, global_index: u32) -> Result<i32, CodeError> {
+    let init_expr = get_global_entry(module, global_index)
+        .ok_or(CodeError::IncorrectGlobalIndex)?
+        .init_expr();
+    get_init_expr_const_i32(init_expr).ok_or(CodeError::StackEndInitialization)
+}
+
+fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
+    let Some(&stack_end_global_index) = get_export_global_index(module, STACK_END_EXPORT_NAME) else {
         return Ok(());
     };
+    let stack_end_offset = get_global_init_const_i32(module, stack_end_global_index)?;
 
-    let stack_end = get_offset_i32(init_expr).ok_or(CodeError::StackEndInitialization)?;
-    let Some(section) = module.data_section() else {
-        return Ok(());
-    };
+    // Checks, that each data segment does not overlap with stack.
+    if let Some(data_section) = module.data_section() {
+        for data_segment in data_section.entries() {
+            let offset = data_segment
+                .offset()
+                .as_ref()
+                .and_then(get_init_expr_const_i32)
+                .ok_or(CodeError::DataSegmentInitialization)?;
 
-    for data_segment in section.entries() {
-        let offset = data_segment
-            .offset()
-            .as_ref()
-            .and_then(|init_expr| get_offset_i32(init_expr.code()))
-            .ok_or(CodeError::DataSegmentInitialization)?;
-
-        if offset < stack_end {
-            return Err(CodeError::StackEndOverlaps);
+            if offset < stack_end_offset {
+                return Err(CodeError::StackEndOverlaps);
+            }
         }
+    };
+
+    // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
+    // with the same init expr and change the export internal to point to the new global.
+    if get_global_entry(module, stack_end_global_index)
+        .ok_or(CodeError::IncorrectGlobalIndex)?
+        .global_type()
+        .is_mutable()
+    {
+        // Panic is impossible, because we have checked above, that global section exists.
+        let global_section = module
+            .global_section_mut()
+            .unwrap_or_else(|| unreachable!("Cannot find global section"));
+        let new_global_index = u32::try_from(global_section.entries().len())
+            .map_err(|_| CodeError::IncorrectGlobalIndex)?;
+        global_section.entries_mut().push(GlobalEntry::new(
+            GlobalType::new(parity_wasm::elements::ValueType::I32, false),
+            InitExpr::new(vec![
+                Instruction::I32Const(stack_end_offset),
+                Instruction::End,
+            ]),
+        ));
+
+        // Panic is impossible, because we have checked above,
+        // that stack end export exists and it points to global.
+        get_export_global_index_mut(module, STACK_END_EXPORT_NAME)
+            .map(|global_index| *global_index = new_global_index)
+            .unwrap_or_else(|| unreachable!("Cannot find stack end export"))
     }
 
     Ok(())
@@ -186,6 +232,12 @@ pub enum CodeError {
     /// Pointer to the stack end overlaps data segment.
     #[display(fmt = "Pointer to the stack end overlaps data segment")]
     StackEndOverlaps,
+    /// Incorrect global export index. Can occur when export refers to not existing global index.
+    #[display(fmt = "Global index in export is incorrect")]
+    IncorrectGlobalIndex,
+    /// Gear protocol restriction for now.
+    #[display(fmt = "Program cannot have mutable globals in export section")]
+    MutGlobalExport,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -202,6 +254,38 @@ pub struct Code {
     instruction_weights_version: u32,
 }
 
+fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
+    let global_exports_indexes = module
+        .export_section()
+        .iter()
+        .flat_map(|export_section| export_section.entries().iter())
+        .filter_map(|export| match export.internal() {
+            Internal::Global(index) => Some(*index as usize),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if global_exports_indexes.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(globals_section) = module.global_section() {
+        for index in global_exports_indexes {
+            if globals_section
+                .entries()
+                .get(index)
+                .ok_or(CodeError::IncorrectGlobalIndex)?
+                .global_type()
+                .is_mutable()
+            {
+                return Err(CodeError::MutGlobalExport);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl Code {
     /// Create the code by checking and instrumenting `original_code`.
     pub fn try_new<R, GetRulesFn>(
@@ -216,8 +300,11 @@ impl Code {
     {
         wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
 
-        let module: Module =
+        let mut module: Module =
             parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
+
+        check_and_canonize_gear_stack_end(&mut module)?;
+        check_mut_global_exports(&module)?;
 
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
@@ -241,8 +328,6 @@ impl Code {
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
         }
-
-        check_gear_stack_end(&module)?;
 
         let exports = get_exports(&module, true)?;
 

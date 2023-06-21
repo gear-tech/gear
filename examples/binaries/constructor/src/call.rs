@@ -14,6 +14,7 @@ pub enum Call {
         Arg<u128>,
         Arg<u32>,
     ),
+    ReplyDeposit(Arg<[u8; 32]>, Arg<u64>),
     Vec(Vec<u8>),
     Store(String),
     StoreVec(String),
@@ -35,6 +36,9 @@ pub enum Call {
     IfElse(Arg<bool>, Box<Self>, Box<Self>),
     Load,
     LoadBytes,
+    Wait,
+    Wake(Arg<[u8; 32]>),
+    MessageId,
 }
 
 #[cfg(not(feature = "std"))]
@@ -78,6 +82,17 @@ mod wasm {
             let (_message_id, program_id) = res.expect("Failed to create program");
 
             Some(program_id.encode())
+        }
+
+        fn reply_deposit(self) -> Option<Vec<u8>> {
+            let Self::ReplyDeposit(message_id, gas_limit) = self else { unreachable!() };
+
+            let message_id = message_id.value().into();
+            let gas_limit = gas_limit.value();
+
+            exec::reply_deposit(message_id, gas_limit).expect("Failed to deposit reply");
+
+            None
         }
 
         fn vec(self) -> Option<Vec<u8>> {
@@ -240,6 +255,28 @@ mod wasm {
             Some(msg::load_bytes().expect("Failed to load bytes"))
         }
 
+        fn wait(self) -> ! {
+            (!matches!(self, Self::Wait)).then(|| unreachable!());
+
+            exec::wait()
+        }
+
+        fn wake(self) -> Option<Vec<u8>> {
+            let Self::Wake(message_id) = self else { unreachable!() };
+
+            let message_id = message_id.value().into();
+
+            exec::wake(message_id).expect("Failed to wake message");
+
+            None
+        }
+
+        fn message_id(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::MessageId)).then(|| unreachable!());
+
+            Some(msg::id().encode())
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -247,6 +284,7 @@ mod wasm {
             let value = match self {
                 Call::Bool(..) => self.bool(),
                 Call::CreateProgram(..) => self.create_program(),
+                Call::ReplyDeposit(..) => self.reply_deposit(),
                 Call::Vec(..) => self.vec(),
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),
@@ -262,6 +300,9 @@ mod wasm {
                 Call::Value => self.value(),
                 Call::Load => self.load(),
                 Call::LoadBytes => self.load_bytes(),
+                Call::Wait => self.wait(),
+                Call::Wake(..) => self.wake(),
+                Call::MessageId => self.message_id(),
             };
 
             (call, value)

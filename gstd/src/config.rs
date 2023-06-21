@@ -20,7 +20,7 @@
 //! Gear libs are `#![no_std]`, which makes them lightweight.
 
 //! This module is for configuring `gstd` inside gear programs.
-use crate::errors::{ContractError, Result};
+use crate::errors::{Error, Result};
 
 /// Wait types.
 #[derive(Clone, Copy, Default)]
@@ -86,7 +86,7 @@ impl Config {
     /// Set `wait_for` duration (in blocks).
     pub fn set_wait_for(duration: u32) -> Result<()> {
         if duration == 0 {
-            return Err(ContractError::EmptyWaitDuration);
+            return Err(Error::EmptyWaitDuration);
         }
 
         unsafe { CONFIG.wait_for = duration };
@@ -107,7 +107,7 @@ impl Config {
     /// Set the `wait_up_to` duration (in blocks).
     pub fn set_wait_up_to(duration: u32) -> Result<()> {
         if duration == 0 {
-            return Err(ContractError::EmptyWaitDuration);
+            return Err(Error::EmptyWaitDuration);
         }
 
         unsafe { CONFIG.wait_up_to = duration };
@@ -128,7 +128,7 @@ impl Config {
     /// Set `system_reserve` gas amount.
     pub fn set_system_reserve(amount: u64) -> Result<()> {
         if amount == 0 {
-            return Err(ContractError::ZeroSystemReservationAmount);
+            return Err(Error::ZeroSystemReservationAmount);
         }
 
         unsafe { CONFIG.system_reserve = amount };

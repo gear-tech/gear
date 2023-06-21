@@ -15,13 +15,14 @@ proc-macro2.workspace = true
 quote.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
+heck.workspace = true
 # NOTE: only required by this package.
 #
 # Same version from `/Cargo.lock`
 frame-metadata = "15.1.0"
-# NOTE: only required by this package.
-subxt-codegen = "0.28.0"
+subxt-metadata.workspace = true
+subxt-codegen.workspace = true
 # TODO: inherit from workspace
 #
-# use "1.0.1.9" because subxt-codegen-0.28.0 requires it.
-syn = { version = "1.0.109", features = ["full", "parsing"] }
+# use "2.0.15" because subxt-codegen-0.29.0 requires it.
+syn = { version = "2.0.15", features = ["full", "parsing"] }

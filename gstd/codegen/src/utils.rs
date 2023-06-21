@@ -48,7 +48,11 @@ const SPAN_IDENT: &str = "${IDENT}";
 const SPAN_IDENT_HREF: &str = "${IDENT_HREF}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
  Same as [`${IDENT}`](${IDENT_HREF}), but the program
- will interrupt until the reply is received. ${CODEC}
+ will interrupt until the reply is received.
+
+ Argument `reply_deposit: u64` used to provide gas for
+ future reply handling (skipped if zero).
+ ${CODEC}
 
  # See also
 

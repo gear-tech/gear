@@ -1,0 +1,60 @@
+[package]
+name = "pallet-gear-voucher"
+version = "1.0.0"
+authors = ['Gear Technologies']
+edition = '2021'
+license.workspace = true
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "Gear pallet implementing payment-voucher like functionality"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+log.workspace = true
+parity-wasm = { workspace = true, optional = true }
+primitive-types = { workspace = true, features = ["scale-info"] }
+
+# Internal deps
+common.workspace = true
+gear-core.workspace = true
+
+# Substrate deps
+frame-support.workspace = true
+frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
+sp-io = { workspace = true }
+sp-runtime.workspace = true
+sp-std.workspace = true
+pallet-balances.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+env_logger.workspace = true
+sp-core = {workspace = true, features = ["std"] }
+
+[features]
+default = ['std']
+std = [
+	"parity-scale-codec/std",
+	"log/std",
+	"common/std",
+	"frame-benchmarking?/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-std/std",
+	"sp-runtime/std",
+	"pallet-balances/std",
+	"primitive-types/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+]
+try-runtime = ["frame-support/try-runtime"]

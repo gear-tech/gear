@@ -31,7 +31,6 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -94,7 +93,7 @@ pub trait WasmProgram: Debug {
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
-        logger::debug!(target: "gwasm", "DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {}", data);
     }
 }
 
@@ -269,20 +268,9 @@ impl<'a> Program<'a> {
             "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
             Use Program::from_opt_and_meta() instead"
         );
-        let is_opt = filename.ends_with(".opt.wasm");
 
-        let opt_code = if !is_opt {
-            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
-            optimizer.insert_stack_and_export();
-            optimizer.strip_custom_sections();
-            optimizer
-                .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary")
-        } else {
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, None)
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        Self::from_opt_and_meta_code_with_id(system, id, code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(
@@ -551,9 +539,11 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+            137,
+            demo_futures_unordered::WASM_BINARY.to_vec(),
+            None,
         );
 
         let init_msg_payload = String::from("InvalidInput");
@@ -561,11 +551,7 @@ mod tests {
         assert!(run_result.main_failed);
 
         let log = run_result.log();
-        assert!(!log.is_empty());
-
-        assert!(log[0]
-            .payload()
-            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
+        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
@@ -616,9 +602,11 @@ mod tests {
         sys.mint_to(sender1, 10000);
         sys.mint_to(sender2, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");
@@ -658,10 +646,11 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_file_with_id(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         assert_eq!(sys.balance_of(user), 0);
@@ -681,9 +670,11 @@ mod tests {
 
         sys.mint_to(sender, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");

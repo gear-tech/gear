@@ -102,9 +102,9 @@ impl Message {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -132,7 +132,7 @@ impl Message {
     /// contains string representation of initial bytes,
     /// decoded into given type.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.get()) {
+        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
                 Ok(Self { payload, ..self })
             } else {
@@ -179,7 +179,8 @@ pub enum MessageDetails {
 impl MessageDetails {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        self.is_reply_details() && self.status_code() != 0
+        // TODO: issue #2739.
+        self.is_reply_details() && self.status_code().to_le_bytes()[0] != 0
     }
 
     /// Returns status code.

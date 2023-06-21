@@ -18,16 +18,20 @@
 
 //! gear api utils
 use crate::{
-    metadata::{runtime_types::sp_runtime::DispatchError, storage::StorageInfo},
+    config::GearConfig,
+    ext::sp_core::hashing,
+    metadata::{DispatchError, StorageInfo},
     result::Result,
     Api,
 };
 use parity_scale_codec::Encode;
+use sp_core::H256;
 use subxt::{
     dynamic::Value,
-    error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData},
-    metadata::EncodeWithMetadata,
-    storage::address::DynamicStorageAddress,
+    error::{DispatchError as SubxtDispatchError, Error},
+    metadata::{EncodeWithMetadata, Metadata},
+    storage::{DynamicAddress, Storage, StorageAddress},
+    OnlineClient,
 };
 
 impl Api {
@@ -47,34 +51,59 @@ impl Api {
 
     /// Decode `DispatchError` to `subxt::error::Error`.
     pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
-        if let DispatchError::Module(ref err) = dispatch_error {
-            if let Ok(error_details) = self.metadata().error(err.index, err.error[0]) {
-                return SubxtDispatchError::Module(ModuleError {
-                    pallet: error_details.pallet().to_string(),
-                    error: error_details.error().to_string(),
-                    description: error_details.docs().to_vec(),
-                    error_data: ModuleErrorData {
-                        pallet_index: err.index,
-                        error: err.error,
-                    },
-                })
-                .into();
-            }
+        match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
+            Ok(err) => err.into(),
+            Err(err) => err,
         }
+    }
 
-        SubxtDispatchError::Other(dispatch_error.encode()).into()
+    /// Get storage from optional block hash.
+    pub async fn get_storage(
+        &self,
+        block_hash: Option<H256>,
+    ) -> Result<Storage<GearConfig, OnlineClient<GearConfig>>> {
+        let client = self.storage();
+        let storage = if let Some(h) = block_hash {
+            client.at(h)
+        } else {
+            client.at_latest().await?
+        };
+
+        Ok(storage)
     }
 
     /// Get the storage address from storage info.
-    pub fn storage<'a, Encodable: EncodeWithMetadata, T: StorageInfo>(
+    pub fn storage<Encodable: EncodeWithMetadata, T: StorageInfo>(
         storage: T,
         encodable: Vec<Encodable>,
-    ) -> DynamicStorageAddress<'a, Encodable> {
+    ) -> DynamicAddress<Encodable> {
         subxt::dynamic::storage(T::PALLET, storage.storage_name(), encodable)
     }
 
     /// Get the storage root address from storage info.
-    pub fn storage_root<'a, T: StorageInfo>(storage: T) -> DynamicStorageAddress<'a, Value> {
+    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Value> {
         subxt::dynamic::storage_root(T::PALLET, storage.storage_name())
     }
+}
+
+/// Return the root of a given [`StorageAddress`]: hash the pallet name and entry name
+/// and append those bytes to the output.
+pub(crate) fn write_storage_address_root_bytes<Address: StorageAddress>(
+    addr: &Address,
+    out: &mut Vec<u8>,
+) {
+    out.extend(hashing::twox_128(addr.pallet_name().as_bytes()));
+    out.extend(hashing::twox_128(addr.entry_name().as_bytes()));
+}
+
+/// Outputs the [`storage_address_root_bytes`] as well as any additional bytes that represent
+/// a lookup in a storage map at that location.
+pub(crate) fn storage_address_bytes<Address: StorageAddress>(
+    addr: &Address,
+    metadata: &Metadata,
+) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    write_storage_address_root_bytes(addr, &mut bytes);
+    addr.append_entry_bytes(metadata, &mut bytes)?;
+    Ok(bytes)
 }
