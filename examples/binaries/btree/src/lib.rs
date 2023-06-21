@@ -121,7 +121,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let program = Program::current(&system);
+        let program = Program::current_opt(&system);
 
         let from = 42;
 

@@ -18,10 +18,11 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{DispatchKind, GasLimit, Payload, StatusCode, StoredDispatch, StoredMessage, Value},
+    message::{DispatchKind, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
 };
 use alloc::string::ToString;
 use core::{convert::TryInto, ops::Deref};
+use gear_core_errors::{ReplyCode, SignalCode};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -102,9 +103,9 @@ impl Message {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -118,21 +119,22 @@ impl Message {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<ReplyDetails> {
+    pub fn reply_details(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
     }
 
-    /// Status code of the message, if reply or signal.
-    pub fn status_code(&self) -> Option<StatusCode> {
-        self.details.map(|d| d.status_code())
+    /// Message signal.
+    pub fn signal_details(&self) -> Option<SignalDetails> {
+        self.details.and_then(|d| d.to_signal_details())
     }
 
     #[allow(clippy::result_large_err)]
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
+    // TODO: issue #2849.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.get()) {
+        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
                 Ok(Self { payload, ..self })
             } else {
@@ -150,7 +152,7 @@ impl Message {
 
     /// Returns bool defining if message is reply.
     pub fn is_reply(&self) -> bool {
-        self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+        self.reply_details().is_some()
     }
 }
 
@@ -179,16 +181,9 @@ pub enum MessageDetails {
 impl MessageDetails {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        // TODO: issue #2739.
-        self.is_reply_details() && self.status_code().to_le_bytes()[0] != 0
-    }
-
-    /// Returns status code.
-    pub fn status_code(&self) -> StatusCode {
-        match self {
-            MessageDetails::Reply(ReplyDetails { status_code, .. })
-            | MessageDetails::Signal(SignalDetails { status_code, .. }) => *status_code,
-        }
+        self.to_reply_details()
+            .map(|d| d.code.is_error())
+            .unwrap_or(false)
     }
 
     /// Check if kind is reply.
@@ -227,43 +222,30 @@ impl MessageDetails {
 )]
 pub struct ReplyDetails {
     /// Message id, this message replies on.
-    reply_to: MessageId,
-    /// Status code of the reply.
-    status_code: StatusCode,
+    to: MessageId,
+    /// Reply code.
+    code: ReplyCode,
 }
 
 impl ReplyDetails {
     /// Constructor for details.
-    pub fn new(reply_to: MessageId, status_code: StatusCode) -> Self {
-        Self {
-            reply_to,
-            status_code,
-        }
+    pub fn new(to: MessageId, code: ReplyCode) -> Self {
+        Self { to, code }
     }
 
-    /// Message id getter.
-    pub fn reply_to(&self) -> MessageId {
-        self.reply_to
+    /// Returns message id replied to.
+    pub fn to_message_id(&self) -> MessageId {
+        self.to
     }
 
-    /// Status code getter.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
+    /// Returns reply code of reply details.
+    pub fn to_reply_code(&self) -> ReplyCode {
+        self.code
     }
 
-    /// Destructs self in parts of components.
-    pub fn into_parts(self) -> (MessageId, StatusCode) {
-        (self.reply_to, self.status_code)
-    }
-
-    /// Destructs self in `MessageId` replied to.
-    pub fn into_reply_to(self) -> MessageId {
-        self.reply_to
-    }
-
-    /// Destructs self in `StatusCode` replied with.
-    pub fn into_status_code(self) -> StatusCode {
-        self.status_code
+    /// Destructs details into parts.
+    pub fn into_parts(self) -> (MessageId, ReplyCode) {
+        (self.to, self.code)
     }
 }
 
@@ -273,40 +255,30 @@ impl ReplyDetails {
 )]
 pub struct SignalDetails {
     /// Message id, which issues signal.
-    from: MessageId,
-    /// Status code of the reply.
-    status_code: StatusCode,
+    to: MessageId,
+    /// Signal code.
+    code: SignalCode,
 }
 
 impl SignalDetails {
     /// Constructor for details.
-    pub fn new(from: MessageId, status_code: StatusCode) -> Self {
-        Self { from, status_code }
+    pub fn new(to: MessageId, code: SignalCode) -> Self {
+        Self { to, code }
     }
 
-    /// Message id getter.
-    pub fn from(&self) -> MessageId {
-        self.from
+    /// Returns message id signal sent from.
+    pub fn to_message_id(&self) -> MessageId {
+        self.to
     }
 
-    /// Status code getter.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
+    /// Returns signal code of signal details.
+    pub fn to_signal_code(&self) -> SignalCode {
+        self.code
     }
 
-    /// Destructs self in parts of components.
-    pub fn into_parts(self) -> (MessageId, StatusCode) {
-        (self.from, self.status_code)
-    }
-
-    /// Destructs self in `MessageId` which issues signal.
-    pub fn into_from(self) -> MessageId {
-        self.from
-    }
-
-    /// Destructs self in `StatusCode` replied with.
-    pub fn into_status_code(self) -> StatusCode {
-        self.status_code
+    /// Destructs details into parts.
+    pub fn into_parts(self) -> (MessageId, SignalCode) {
+        (self.to, self.code)
     }
 }
 

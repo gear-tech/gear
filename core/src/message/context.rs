@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_core_errors::{ExecutionError, MessageError as Error};
+use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -252,9 +252,9 @@ impl MessageContext {
         &self.settings
     }
 
-    fn check_reply_availability(&self) -> Result<(), Error> {
+    fn check_reply_availability(&self) -> Result<(), ExecutionError> {
         if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
-            return Err(Error::IncorrectEntryForReply);
+            return Err(ExecutionError::IncorrectEntryForReply);
         }
 
         Ok(())
@@ -374,7 +374,7 @@ impl MessageContext {
             excluded_end,
         } = range;
 
-        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         Ok(())
@@ -385,7 +385,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
-        let input = self.current.payload();
+        let input = self.current.payload_bytes();
         let offset = offset as usize;
         if offset >= input.len() {
             return CheckedRange {
@@ -412,7 +412,7 @@ impl MessageContext {
         &mut self,
         packet: ReplyPacket,
         reservation: Option<ReservationId>,
-    ) -> Result<MessageId, Error> {
+    ) -> Result<MessageId, ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -434,12 +434,12 @@ impl MessageContext {
 
             Ok(message_id)
         } else {
-            Err(Error::DuplicateReply)
+            Err(Error::DuplicateReply.into())
         }
     }
 
     /// Pushes payload into stored reply payload.
-    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -449,7 +449,7 @@ impl MessageContext {
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -459,7 +459,7 @@ impl MessageContext {
     }
 
     /// Pushes the incoming message buffer into stored reply payload.
-    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
+    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -469,12 +469,12 @@ impl MessageContext {
             } = range;
 
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+            data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -494,14 +494,14 @@ impl MessageContext {
         &mut self,
         message_id: MessageId,
         amount: u64,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), MessageError> {
         if self
             .outcome
             .reply_deposits
             .iter()
             .any(|(mid, _)| mid == &message_id)
         {
-            return Err(ExecutionError::DuplicateReplyDeposit);
+            return Err(MessageError::DuplicateReplyDeposit);
         }
 
         if !self
@@ -515,7 +515,7 @@ impl MessageContext {
                 .iter()
                 .any(|(message, ..)| message.id() == message_id)
         {
-            return Err(ExecutionError::IncorrectMessageForReplyDeposit);
+            return Err(MessageError::IncorrectMessageForReplyDeposit);
         }
 
         self.outcome.reply_deposits.push((message_id, amount));
@@ -526,6 +526,11 @@ impl MessageContext {
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
+    }
+
+    /// Mutable reference to currently processed incoming message.
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        self.current.payload_mut()
     }
 
     /// Current program's id.
@@ -718,14 +723,28 @@ mod tests {
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
         // Checking that repeated call `reply_push(...)` returns error and does not do anything
         assert_err!(context.reply_push(&[1]), Error::LateAccess);
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
@@ -801,14 +820,14 @@ mod tests {
         // Checking that reply message not lost and matches our initial
         assert!(context.outcome.reply.is_some());
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload(),
+            context.outcome.reply.as_ref().unwrap().0.payload_bytes(),
             vec![1, 2, 3, 0, 0]
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
         let (expected_result, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
-        assert_eq!(expected_result.handle[0].0.payload(), vec![5, 7, 9]);
+        assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }
 
     #[test]
@@ -868,7 +887,7 @@ mod tests {
         assert!(message_context.reply_deposit(message_id, 1234).is_ok());
         assert_err!(
             message_context.reply_deposit(message_id, 1234),
-            ExecutionError::DuplicateReplyDeposit
+            MessageError::DuplicateReplyDeposit
         );
     }
 
@@ -897,11 +916,11 @@ mod tests {
 
         assert_err!(
             message_context.reply_deposit(message_id, 1234),
-            ExecutionError::IncorrectMessageForReplyDeposit
+            MessageError::IncorrectMessageForReplyDeposit
         );
         assert_err!(
             message_context.reply_deposit(Default::default(), 1234),
-            ExecutionError::IncorrectMessageForReplyDeposit
+            MessageError::IncorrectMessageForReplyDeposit
         );
     }
 }

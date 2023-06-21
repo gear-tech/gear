@@ -16,57 +16,134 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Runtime implementation for wasmi backend.
+
+use crate::{memory::MemoryWrapRef, state::HostState};
 use alloc::vec::Vec;
-use codec::MaxEncodedLen;
+use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
     memory::{
-        MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
-        WasmMemoryWrite, WasmMemoryWriteAs,
+        MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
+        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorTerminationReason, BackendExt, BackendState, TrapExplanation, PTR_SPECIAL,
+    runtime::Runtime,
+    ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
+use gear_core_errors::ExtError;
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use wasmi::{
+    core::{Trap, TrapCode, Value},
+    AsContextMut, Caller, Memory as WasmiMemory,
+};
 
-use super::*;
 use crate::state::State;
 
-pub(crate) fn caller_host_state_mut<'a, 'b: 'a, E>(
-    caller: &'a mut Caller<'b, Option<E>>,
-) -> &'a mut E {
+pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
+    caller: &'a mut Caller<'b, Option<Ext>>,
+) -> &'a mut Ext {
     caller
         .host_data_mut()
         .as_mut()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
+pub(crate) fn caller_host_state_take<'a, 'b: 'a, Ext>(
+    caller: &'a mut Caller<'b, Option<Ext>>,
+) -> Ext {
     caller
         .host_data_mut()
         .take()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, E> {
-    pub caller: Caller<'a, HostState<E>>,
-    pub manager: MemoryAccessManager<E>,
+pub(crate) struct CallerWrap<'a, Ext> {
+    pub caller: Caller<'a, HostState<Ext>>,
+    pub manager: MemoryAccessManager<Ext>,
     pub memory: WasmiMemory,
 }
 
-impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
-    /// !!! Usage warning: make sure to do it before any other read/write,
-    /// because it may contain register read.
-    pub fn register_and_read_value(&mut self, value_ptr: u32) -> Result<u128, MemoryAccessError> {
-        if value_ptr != PTR_SPECIAL {
-            let read_value = self.register_read_decoded(value_ptr);
-            return self.read_decoded(read_value);
-        }
+impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ext> {
+    type Error = Trap;
 
-        Ok(0)
+    fn ext_mut(&mut self) -> &mut Ext {
+        &mut self
+            .caller
+            .host_data_mut()
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+            .ext
+    }
+
+    fn unreachable_error() -> Self::Error {
+        Trap::Code(TrapCode::Unreachable)
+    }
+
+    fn fallible_syscall_error(&self) -> Option<&ExtError> {
+        self.caller
+            .host_data()
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+            .fallible_syscall_error
+            .as_ref()
     }
 
     #[track_caller]
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        self.with_globals_update(|ctx| {
+            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
+            f(ctx)
+        })
+    }
+
+    #[track_caller]
+    fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
+            let res = f(ctx);
+            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+    }
+
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
+        let mut state = caller_host_state_take(&mut self.caller);
+        let mut mem = CallerWrap::memory(&mut self.caller, self.memory);
+        let res = state.ext.alloc(pages, &mut mem);
+        self.caller.host_data_mut().replace(state);
+        res
+    }
+
+    fn memory_manager_write(
+        &mut self,
+        write: WasmMemoryWrite,
+        buff: &[u8],
+        gas_left: &mut GasLeft,
+    ) -> Result<(), MemoryAccessError> {
+        let mut memory = CallerWrap::memory(&mut self.caller, self.memory);
+        self.manager.write(&mut memory, write, buff, gas_left)
+    }
+}
+
+impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
+    #[track_caller]
     pub fn prepare(
-        caller: Caller<'a, HostState<E>>,
+        caller: Caller<'a, HostState<Ext>>,
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Result<Self, Trap> {
@@ -106,32 +183,19 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<E> {
+    pub fn host_state_mut(&mut self) -> &mut State<Ext> {
         caller_host_state_mut(&mut self.caller)
     }
 
     #[track_caller]
     pub fn memory<'b, 'c: 'b>(
-        caller: &'b mut Caller<'c, Option<State<E>>>,
+        caller: &'b mut Caller<'c, Option<State<Ext>>>,
         memory: WasmiMemory,
-    ) -> MemoryWrapRef<'b, E> {
+    ) -> MemoryWrapRef<'b, Ext> {
         MemoryWrapRef::<'b, _> {
             memory,
             store: caller.as_context_mut(),
         }
-    }
-
-    fn with_state_taken<F, T, Err>(&mut self, f: F) -> Result<T, Err>
-    where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, Err>,
-    {
-        let mut state = caller_host_state_take(&mut self.caller);
-
-        let res = f(self, &mut state);
-
-        self.caller.host_data_mut().replace(state);
-
-        res
     }
 
     fn update_globals(&mut self) {
@@ -160,8 +224,8 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
     where
         F: FnOnce(
-            &mut MemoryAccessManager<E>,
-            &mut MemoryWrapRef<E>,
+            &mut MemoryAccessManager<Ext>,
+            &mut MemoryWrapRef<Ext>,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
     {
@@ -189,72 +253,9 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
 
         result
     }
-
-    #[track_caller]
-    pub fn run<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-    {
-        self.with_globals_update(|ctx| {
-            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
-            f(ctx)
-        })
-    }
-
-    #[track_caller]
-    pub fn run_fallible<T: Sized, F, R>(
-        &mut self,
-        res_ptr: u32,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> Result<(), Trap>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-        R: From<Result<T, u32>> + Sized,
-    {
-        self.run(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
-            let res = f(ctx);
-            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
-
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.register_write_as::<R>(res_ptr);
-
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
-    }
-
-    #[track_caller]
-    pub fn run_fallible_state_taken<T: Sized, F, R>(
-        &mut self,
-        res_ptr: u32,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> Result<(), Trap>
-    where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
-        R: From<Result<T, u32>> + Sized,
-    {
-        self.run(cost, |ctx| {
-            let res = ctx.with_state_taken(f);
-            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
-
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.register_write_as::<R>(res_ptr);
-
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
-    }
-
-    #[track_caller]
-    pub fn run_state_taken<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
-    where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
-    {
-        self.run(cost, |ctx| ctx.with_state_taken(f))
-    }
 }
 
-impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
+impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
     }
@@ -279,7 +280,17 @@ impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
     }
 }
 
-impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
+impl<Ext> BackendState for CallerWrap<'_, Ext> {
+    fn set_termination_reason(&mut self, reason: TerminationReason) {
+        caller_host_state_mut(&mut self.caller).set_termination_reason(reason);
+    }
+
+    fn set_fallible_syscall_error(&mut self, err: ExtError) {
+        caller_host_state_mut(&mut self.caller).set_fallible_syscall_error(err);
+    }
+}
+
+impl<'a, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, Ext> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }

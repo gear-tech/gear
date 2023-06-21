@@ -298,14 +298,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcore"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gear-core-errors",
  "gsys",
@@ -334,7 +334,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bs58",
  "futures",
@@ -344,6 +344,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -360,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "hashbrown"
@@ -491,9 +492,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.4.0"
+version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "637935964ff85a605d114591d4d2c13c5d1ba2806dae97cea6bf180238a749ac"
+checksum = "2287753623c76f953acd29d15d8100bcab84d29db78fb6f352adb3c53e83b967"
 dependencies = [
  "arrayvec",
  "byte-slice-cast",
@@ -503,9 +504,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.1.4"
+version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86b26a931f824dd4eca30b3e43bb4f31cd5f0d3a403c5f5ff27106b805bfde7b"
+checksum = "2b6937b5e67bfba3351b87b040d48352a2fcb6ad72f81855412ce97b45c8f110"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -549,18 +550,18 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.56"
+version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
+checksum = "dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.26"
+version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc"
+checksum = "1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488"
 dependencies = [
  "proc-macro2",
 ]

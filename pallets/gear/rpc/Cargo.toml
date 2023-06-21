@@ -1,8 +1,8 @@
 [package]
 name = "pallet-gear-rpc"
 version = "2.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
+authors.workspace = true
+edition.workspace = true
 license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -19,5 +19,6 @@ sp-runtime.workspace = true
 
 # Local packages
 gear-core.workspace = true
+gear-core-errors = { workspace = true, features = ["codec"] }
 gear-common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true

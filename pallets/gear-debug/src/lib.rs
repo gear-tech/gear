@@ -186,7 +186,7 @@ pub mod pallet {
             msg.id(),
             ProgramId::from_origin(source),
             ProgramId::from_origin(destination),
-            (*msg.payload()).to_vec().try_into().unwrap(),
+            (*msg.payload_bytes()).to_vec().try_into().unwrap(),
             msg.value(),
             msg.details(),
         );

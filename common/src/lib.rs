@@ -45,7 +45,6 @@ pub mod benchmarking;
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
-    dispatch::DispatchError,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -165,16 +164,6 @@ pub trait QueueRunner {
     type Gas;
 
     fn run_queue(initial_gas: Self::Gas) -> Self::Gas;
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 /// Contains various limits for the block.
@@ -323,5 +312,29 @@ where
 {
     fn extract_call(&self) -> Call {
         self.function.clone()
+    }
+}
+
+pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
+    type VoucherId;
+    type Error;
+
+    fn redeem_with_id(
+        who: AccountId,
+        program: ProgramId,
+        amount: Balance,
+    ) -> Result<Self::VoucherId, Self::Error>;
+}
+
+impl<AccountId, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
+    type VoucherId = AccountId;
+    type Error = &'static str;
+
+    fn redeem_with_id(
+        _who: AccountId,
+        _program: ProgramId,
+        _amount: Balance,
+    ) -> Result<AccountId, Self::Error> {
+        Err("Payment vouchers are not supported")
     }
 }

@@ -88,7 +88,7 @@ impl Encode for PageBuf {
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        dest.write(self.0.get())
+        dest.write(self.0.inner())
     }
 }
 
@@ -96,7 +96,7 @@ impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
         let mut buffer = PageBufInner::new_default();
-        input.read(buffer.get_mut())?;
+        input.read(buffer.inner_mut())?;
         Ok(Self(buffer))
     }
 }
@@ -108,8 +108,8 @@ impl Debug for PageBuf {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0.get()[0..10],
-            &self.0.get()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.inner()[0..10],
+            &self.0.inner()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
         )
     }
 }
@@ -117,13 +117,13 @@ impl Debug for PageBuf {
 impl Deref for PageBuf {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        self.0.get()
+        self.0.inner()
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.get_mut()
+        self.0.inner_mut()
     }
 }
 
@@ -408,7 +408,7 @@ mod tests {
         .expect("cannot init logger");
 
         let mut data = PageBufInner::filled_with(199u8);
-        data.get_mut()[1] = 2;
+        data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }
