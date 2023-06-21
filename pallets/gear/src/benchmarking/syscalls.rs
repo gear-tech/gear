@@ -40,6 +40,7 @@ use gear_core::{
     message::{Message, Value},
     reservation::GasReservationSlot,
 };
+use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -972,12 +973,15 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1159,13 +1163,13 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_code(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::StatusCode],
+            imported_functions: vec![SysCallName::ReplyCode],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1183,12 +1187,15 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1234,40 +1241,6 @@ where
                     InstrI32Const(string_len),
                 ],
             )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle(module, 0)
-    }
-
-    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = COMMON_OFFSET;
-        let err_data_buffer_offset = res_offset + ERR_LEN_SIZE;
-
-        let mut handle_body = body::fallible_syscall(
-            repetitions,
-            res_offset,
-            &[
-                // error encoded data buffer offset
-                InstrI32Const(err_data_buffer_offset),
-            ],
-        );
-
-        // Insert first `gr_error` call, which returns error, so all other `gr_error` calls will be Ok.
-        handle_body.code_mut().elements_mut().splice(
-            0..0,
-            [
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-            ],
-        );
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Error],
-            handle_body: Some(handle_body),
             ..Default::default()
         };
 

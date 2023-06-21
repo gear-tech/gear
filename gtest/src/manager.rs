@@ -41,7 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{SimpleExecutionError, SimpleReplyError, SimpleSignalError};
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -646,7 +646,7 @@ impl ExtManager {
             .expect("method called for unknown destination");
         if let TestActor::Uninitialized(maybe_message_id, _) = actor {
             let id = maybe_message_id.expect("message in dispatch queue has id");
-            dispatch.reply().is_none() && id != dispatch.id()
+            dispatch.reply_details().is_none() && id != dispatch.id()
         } else {
             false
         }
@@ -725,7 +725,7 @@ impl ExtManager {
                 }
 
                 if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-                    let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
+                    let err = ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic);
                     let err_payload = expl
                         .as_bytes()
                         .to_vec()
@@ -923,10 +923,14 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.status_code().map(|code| code.to_le_bytes()[0]) {
-                Some(0) | None => message,
+            let message = match message
+                .details()
+                .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
+            {
+                None => message,
+                Some(code) if code.is_success() => message,
                 _ => message
-                    .with_string_payload::<ActorExecutionErrorReason>()
+                    .with_string_payload::<ActorExecutionErrorReplyReason>()
                     .unwrap_or_else(|e| e),
             };
 
@@ -1128,13 +1132,7 @@ impl JournalHandler for ExtManager {
 
     fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 
-    fn send_signal(
-        &mut self,
-        _message_id: MessageId,
-        _destination: ProgramId,
-        _err: SimpleSignalError,
-    ) {
-    }
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 

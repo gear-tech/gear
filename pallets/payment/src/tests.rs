@@ -28,7 +28,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch, UserStoredMessage},
 };
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
@@ -626,13 +626,12 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         let program_id = ProgramId::from_origin(H256::random());
         // Put message in BOB's mailbox
         assert_ok!(MailboxOf::<Test>::insert(
-            StoredMessage::new(
+            UserStoredMessage::new(
                 msg_id,
                 program_id,
                 ProgramId::from_origin(BOB.into_origin()),
                 Default::default(),
                 Default::default(),
-                None,
             ),
             5_u64
         ));

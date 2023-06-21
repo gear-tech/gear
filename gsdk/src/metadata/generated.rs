@@ -776,15 +776,15 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct ReplyDetails {
-                        pub reply_to: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::ReplyCode,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct SignalDetails {
-                        pub from: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::SignalCode,
                     }
                 }
                 pub mod context {
@@ -845,6 +845,40 @@ pub mod runtime_types {
                         >,
                     }
                 }
+                pub mod user {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct UserMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                        pub details: ::core::option::Option<
+                            runtime_types::gear_core::message::common::ReplyDetails,
+                        >,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct UserStoredMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                    }
+                }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
@@ -866,6 +900,74 @@ pub mod runtime_types {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
                     pub finish: ::core::primitive::u32,
+                }
+            }
+        }
+        pub mod gear_core_errors {
+            use super::runtime_types;
+            pub mod simple {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ErrorReplyReason {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    FailedToCreateProgram(
+                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
+                    ),
+                    #[codec(index = 2)]
+                    InactiveProgram,
+                    #[codec(index = 3)]
+                    RemovedFromWaitlist,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ReplyCode {
+                    #[codec(index = 0)]
+                    Success(runtime_types::gear_core_errors::simple::SuccessReplyReason),
+                    #[codec(index = 1)]
+                    Error(runtime_types::gear_core_errors::simple::ErrorReplyReason),
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SignalCode {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    RemovedFromWaitlist,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SimpleExecutionError {
+                    #[codec(index = 0)]
+                    RanOutOfGas,
+                    #[codec(index = 1)]
+                    MemoryOverflow,
+                    #[codec(index = 2)]
+                    BackendError,
+                    #[codec(index = 3)]
+                    UserspacePanic,
+                    #[codec(index = 4)]
+                    UnreachableInstruction,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SimpleProgramCreationError {
+                    #[codec(index = 0)]
+                    CodeNotExists,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SuccessReplyReason {
+                    #[codec(index = 0)]
+                    Auto,
+                    #[codec(index = 1)]
+                    Manual,
+                    #[codec(index = 255)]
+                    Unsupported,
                 }
             }
         }
@@ -1942,7 +2044,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "Somebody sent a message to the user."]
                     UserMessageSent {
-                        message: runtime_types::gear_core::message::stored::StoredMessage,
+                        message: runtime_types::gear_core::message::user::UserMessage,
                         expiration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 2)]
@@ -2080,8 +2182,7 @@ pub mod runtime_types {
                     pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_error: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_status_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,

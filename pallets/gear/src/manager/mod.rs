@@ -48,6 +48,7 @@
 mod journal;
 mod task;
 
+use gear_core_errors::{ReplyCode, SignalCode};
 pub use journal::*;
 pub use task::*;
 
@@ -69,10 +70,9 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::WasmPage,
-    message::{DispatchKind, SignalMessage, StatusCode},
+    message::{DispatchKind, SignalMessage},
     reservation::GasReservationSlot,
 };
-use gear_core_errors::SimpleSignalError;
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
@@ -87,8 +87,8 @@ pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
     Handle(ProgramId),
-    Reply(MessageId, StatusCode),
-    Signal(MessageId, StatusCode),
+    Reply(MessageId, ReplyCode),
+    Signal(MessageId, SignalCode),
 }
 
 impl fmt::Debug for HandleKind {
@@ -356,12 +356,7 @@ where
         }
     }
 
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    ) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
         let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         if reserved != 0 {
@@ -373,7 +368,7 @@ where
             );
 
             // Creating signal message.
-            let trap_signal = SignalMessage::new(message_id, err)
+            let trap_signal = SignalMessage::new(message_id, code)
                 .into_dispatch(message_id, destination)
                 .into_stored();
 

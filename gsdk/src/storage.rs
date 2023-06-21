@@ -23,7 +23,7 @@ use crate::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
+            gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
             pallet_balances::AccountData,
         },
         storage::{
@@ -317,7 +317,7 @@ impl Api {
         &self,
         account_id: AccountId32,
         message_id: impl AsRef<[u8]>,
-    ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
+    ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         let addr = Self::storage(
             GearMessengerStorage::Mailbox,
             vec![
@@ -326,7 +326,7 @@ impl Api {
             ],
         );
 
-        let data: Option<(StoredMessage, Interval<u32>)> = self.fetch_storage(&addr).await.ok();
+        let data: Option<(UserStoredMessage, Interval<u32>)> = self.fetch_storage(&addr).await.ok();
         Ok(data.map(|(m, i)| (m, i)))
     }
 
@@ -335,7 +335,7 @@ impl Api {
         &self,
         account_id: Option<AccountId32>,
         count: u32,
-    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+    ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         let storage = self.storage().at_latest().await?;
         let mut query_key = Self::storage_root(GearMessengerStorage::Mailbox).to_root_bytes();
 
@@ -345,10 +345,11 @@ impl Api {
 
         let keys = storage.fetch_keys(&query_key, count, None).await?;
 
-        let mut mailbox: Vec<(StoredMessage, Interval<u32>)> = vec![];
+        let mut mailbox: Vec<(UserStoredMessage, Interval<u32>)> = vec![];
         for key in keys {
             if let Some(storage_data) = storage.fetch_raw(&key.0).await? {
-                if let Ok(value) = <(StoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
+                if let Ok(value) =
+                    <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
                 {
                     mailbox.push(value);
                 }
