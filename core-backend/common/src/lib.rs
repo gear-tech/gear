@@ -48,7 +48,7 @@ use gear_core::{
     env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf},
+    memory::{Memory, MemoryInterval, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
         PayloadSizeError, WasmEntryPoint,

@@ -22,7 +22,7 @@ use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryWrite},
     BackendExternalities, BackendState, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_core_errors::ExtError;
 
 pub trait Runtime<Ext: BackendExternalities>:

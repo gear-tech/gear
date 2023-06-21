@@ -29,7 +29,7 @@ use gear_backend_common::{
     runtime::Runtime,
     ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{
