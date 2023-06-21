@@ -28,10 +28,10 @@ use gear_core::{
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
     reservation::GasReserver,
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -144,7 +144,10 @@ impl Externalities for MockExt {
     fn source(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        Ok(Default::default())
+    }
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
         Ok(Default::default())
     }
     fn message_id(&self) -> Result<MessageId, Self::Error> {

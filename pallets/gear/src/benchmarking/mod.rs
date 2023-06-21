@@ -93,6 +93,7 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
+use gear_core_errors::*;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
@@ -460,14 +461,14 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
         let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
         assert!(auto_reply.payload_bytes().is_empty());
-        assert_eq!(auto_reply.status_code().expect("Should be").to_le_bytes()[0], 0);
+        assert_eq!(auto_reply.reply_details().expect("Should be").to_reply_code(), ReplyCode::Success(SuccessReplyReason::Auto));
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
@@ -724,7 +725,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -756,7 +757,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
 
         // Add voucher for the (caller, program_id) pair
@@ -1433,21 +1434,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_error {
+    gr_reply_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_error(r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_status_code {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::gr_status_code(r)?;
+        let exec = Benches::<T>::gr_reply_code(r)?;
     }: {
         res.replace(run_process(exec));
     }

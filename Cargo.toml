@@ -106,12 +106,13 @@ arbitrary = "1.3.0"
 async-recursion = "1.0.4"
 async-trait = "0.1.68"
 base64 = "0.21.0"
+blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
 clap = { version = "4.2.1" }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
-blake2-rfc = { version = "0.2.18", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+const-str = "0.5"
 derive_more = "0.99.17"
 dirs = "4.0.0"
 dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "9135baa", default-features = false }
@@ -129,7 +130,7 @@ lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.17", default-features = false }
 once_cell = "1.17.1"
-parity-scale-codec = { version = "3.4.0", default-features = false }
+parity-scale-codec = { version = "3.6.1", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.1"
 path-clean = "1.0.1"
@@ -148,7 +149,22 @@ serde = "^1"
 serde_json = "^1"
 serde_yaml = "0.8.26"
 static_assertions = "1"
-subxt = { version = "^0.27.1", default-features = false }
+# # NOTE
+#
+# 1. subxt v0.29.0 breaks the logging in gsdk, our fork is based on the
+# unpublished v0.29.0 from the main repo with fixes.
+#
+# 2. subxt v0.29.0 upgrades the substrate dependencies which are not
+# compatible with our current dependencies.
+#
+# 3. changing but patching the source here for making these work out of
+# workspace.
+#
+# 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
+# gathering them here for easy management.
+subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.15"
 thiserror = "1.0.40"
 tokio = { version = "1.27.0" }
@@ -413,7 +429,9 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
+heck = "0.4.1"                                                           # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
+scale-decode = "0.7.0"                                                    # gsdk
 
 [profile.release]
 panic = "unwind"

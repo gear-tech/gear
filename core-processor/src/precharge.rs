@@ -16,7 +16,7 @@
 
 use crate::{
     common::{
-        ActorExecutionErrorReason, DispatchResult, ExecutableActorData, JournalNote,
+        ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote,
         PrechargedDispatch,
     },
     configs::{BlockConfig, PageCosts},
@@ -228,7 +228,7 @@ pub fn precharge_for_program(
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
-                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -300,7 +300,7 @@ pub fn precharge_for_code_length(
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -336,7 +336,7 @@ pub fn precharge_for_code(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -373,7 +373,7 @@ pub fn precharge_for_instrumentation(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -429,7 +429,7 @@ pub fn precharge_for_memory(
                     ));
                 }
                 PrechargeError::GasExceeded(op) => {
-                    ActorExecutionErrorReason::PreChargeGasLimitExceeded(op)
+                    ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op)
                 }
             };
 

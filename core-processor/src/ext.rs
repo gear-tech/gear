@@ -42,13 +42,13 @@ use gear_core::{
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket, StatusCode,
+        ReplyPacket,
     },
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReservationError,
-    WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ProgramRentError,
+    ReplyCode, ReservationError, SignalCode, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -166,6 +166,12 @@ impl From<ReservationError> for ExtError {
     }
 }
 
+impl From<ProgramRentError> for ExtError {
+    fn from(err: ProgramRentError) -> Self {
+        Self::Core(ExtErrorCore::ProgramRent(err))
+    }
+}
+
 impl From<ExecutionError> for ExtError {
     fn from(err: ExecutionError) -> Self {
         Self::Core(ExtErrorCore::Execution(err))
@@ -277,11 +283,7 @@ impl Ext {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if message_value != 0 && message_value < existential_deposit {
-            Err(MessageError::InsufficientValue {
-                message_value,
-                existential_deposit,
-            }
-            .into())
+            Err(MessageError::InsufficientValue.into())
         } else {
             Ok(())
         }
@@ -293,11 +295,7 @@ impl Ext {
 
         // Sending gas should apply the range {0} ∪ [mailbox_threshold; +inf)
         if gas_limit < mailbox_threshold && gas_limit != 0 {
-            Err(MessageError::InsufficientGasLimit {
-                message_gas_limit: gas_limit,
-                mailbox_threshold,
-            }
-            .into())
+            Err(MessageError::InsufficientGasLimit.into())
         } else {
             Ok(gas_limit)
         }
@@ -305,7 +303,7 @@ impl Ext {
 
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ExtError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
-            Err(MessageError::NotEnoughGas.into())
+            Err(ExecutionError::NotEnoughGas.into())
         } else {
             Ok(())
         }
@@ -313,11 +311,7 @@ impl Ext {
 
     fn charge_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
-            Err(MessageError::NotEnoughValue {
-                message_value,
-                value_left: self.context.value_counter.left(),
-            }
-            .into())
+            Err(ExecutionError::NotEnoughValue.into())
         } else {
             Ok(())
         }
@@ -615,9 +609,8 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details())
-            .map(|d| d.into_reply_to())
-            .ok_or_else(|| MessageError::NoReplyContext.into())
+            .and_then(|d| d.to_reply_details().map(|d| d.to_message_id()))
+            .ok_or_else(|| ExecutionError::NoReplyContext.into())
     }
 
     fn signal_from(&self) -> Result<MessageId, Self::Error> {
@@ -625,9 +618,8 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details())
-            .map(|d| d.from())
-            .ok_or_else(|| MessageError::NoSignalContext.into())
+            .and_then(|d| d.to_signal_details().map(|d| d.to_message_id()))
+            .ok_or_else(|| ExecutionError::NoSignalContext.into())
     }
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
@@ -643,13 +635,22 @@ impl Externalities for Ext {
         Ok(self.context.message_context.current().source())
     }
 
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
         self.context
             .message_context
             .current()
             .details()
-            .map(|d| d.status_code())
-            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
+            .ok_or_else(|| ExecutionError::NoReplyContext.into())
+    }
+
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.context
+            .message_context
+            .current()
+            .details()
+            .and_then(|d| d.to_signal_details().map(|d| d.to_signal_code()))
+            .ok_or_else(|| ExecutionError::NoSignalContext.into())
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {
@@ -675,7 +676,7 @@ impl Externalities for Ext {
 
         let (paid_blocks, blocks_to_pay) = match old_paid_blocks.overflowing_add(block_count) {
             (count, false) => (count, block_count),
-            (_, true) => return Err(ExecutionError::MaximumBlockCountPaid.into()),
+            (_, true) => return Err(ProgramRentError::MaximumBlockCountPaid.into()),
         };
 
         if blocks_to_pay == 0 {
@@ -687,13 +688,7 @@ impl Externalities for Ext {
             ChargeResult::Enough => {
                 self.context.program_rents.insert(program_id, paid_blocks);
             }
-            ChargeResult::NotEnough => {
-                return Err(ExecutionError::NotEnoughValueForRent {
-                    rent,
-                    value_left: self.context.value_counter.left(),
-                }
-                .into())
-            }
+            ChargeResult::NotEnough => return Err(ExecutionError::NotEnoughValue.into()),
         }
 
         Ok((rent.saturating_sub(cost), blocks_to_pay))
@@ -709,18 +704,10 @@ impl Externalities for Ext {
     }
 
     fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
-        let end = at
-            .checked_add(len)
-            .ok_or(MessageError::TooBigReadLen { at, len })?;
+        let end = at.checked_add(len).ok_or(ExecutionError::TooBigReadLen)?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
-        PayloadSliceLock::try_new((at, end), &mut self.context.message_context).map_err(|msg_len| {
-            MessageError::ReadWrongRange {
-                start: at,
-                end,
-                msg_len: msg_len as u32,
-            }
-            .into()
-        })
+        PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
+            .ok_or_else(|| ExecutionError::ReadWrongRange.into())
     }
 
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
@@ -746,7 +733,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.reservation);
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
-            return Err(ReservationError::InsufficientGasForReservation.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let id = self.context.gas_reserver.reserve(amount, duration)?;
@@ -775,7 +762,7 @@ impl Externalities for Ext {
         }
 
         if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
-            return Err(ReservationError::InsufficientGasForReservation.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let reservation = &mut self.context.system_reservation;
@@ -809,7 +796,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
@@ -823,14 +810,14 @@ impl Externalities for Ext {
         }
 
         if duration == 0 {
-            return Err(WaitError::InvalidArgument.into());
+            return Err(WaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
@@ -844,14 +831,14 @@ impl Externalities for Ext {
         }
 
         if duration == 0 {
-            return Err(WaitError::InvalidArgument.into());
+            return Err(WaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))

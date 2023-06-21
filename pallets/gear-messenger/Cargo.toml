@@ -21,6 +21,7 @@ log.workspace = true
 # Internal deps
 common.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 
 # Substrate deps
 frame-support.workspace = true

@@ -12,6 +12,7 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
@@ -105,6 +106,7 @@ gear-core-processor.workspace = true
 gear-backend-common.workspace = true
 
 [build-dependencies]
+substrate-build-script-utils.workspace = true
 substrate-wasm-builder = { workspace = true, optional = true }
 
 [features]
