@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This contract recursively composes itself with another contract (the other contract
-// being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract increments the internal `ITER` counter.
-// As soon as the counter reaches the `MAX_ITER`, the recursion stops.
-// Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
-// where the output of the previous call is fed to the input of the next call.
+//! This contract recursively calls payload stack allocated read or load,
+//! depends on actions vector, which is set in init.
+//! For each recursion step we call check_sum, which is sum of all payload bytes.
+//! Then reply summary check_sum back to source account.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -110,6 +108,7 @@ mod tests {
     use codec::Decode;
     use gtest::{Program, System};
     use rand::{Rng, SeedableRng};
+    use static_assertions::const_assert;
 
     #[test]
     fn stress() {
@@ -119,9 +118,11 @@ mod tests {
         const MAX_NUMBER: u8 = 255;
 
         // Check that check sum is less than u32::MAX
-        assert!(MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize);
+        const_assert!(
+            MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
+        );
         // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
-        assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        const_assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
 
         let from = 42;
         let system = System::new();
@@ -132,7 +133,7 @@ mod tests {
         for _ in 0..100 {
             let program = Program::current_opt(&system);
             let mut actions = Vec::new();
-            let actions_amount = rng.gen_range(1..=1000);
+            let actions_amount = rng.gen_range(1..=MAX_ACTIONS_AMOUNT);
             for _ in 0..actions_amount {
                 actions.push(if rng.gen_range(0..=1) == 0 {
                     Read
@@ -146,7 +147,7 @@ mod tests {
                 panic!("Init failed");
             }
 
-            let number: u8 = rng.gen_range(0..=255);
+            let number: u8 = rng.gen_range(0..=MAX_NUMBER);
             let expected_check_sum = actions_amount * number as usize * HANDLE_DATA_SIZE;
 
             // Send data to handle
