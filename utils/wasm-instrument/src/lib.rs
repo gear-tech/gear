@@ -31,7 +31,7 @@ use wasm_instrument::{
     },
 };
 
-use crate::syscalls::SysCallName;
+use crate::syscalls::{FakeSysCallName, SysCallName};
 pub use wasm_instrument::{self, parity_wasm};
 
 #[cfg(test)]
@@ -125,13 +125,13 @@ pub fn inject<R: Rules>(
     let gr_is_getter_called = get_import_index_by_name(
         &module,
         gas_module_name,
-        SysCallName::IsGetterCalled.to_str(),
+        FakeSysCallName::IsGetterCalled.to_str(),
     );
 
     let gr_set_getter_called = get_import_index_by_name(
         &module,
         gas_module_name,
-        SysCallName::SetGetterCalled.to_str(),
+        FakeSysCallName::SetGetterCalled.to_str(),
     );
 
     let mut mbuilder = builder::from_module(module);
@@ -436,7 +436,10 @@ pub fn inject<R: Rules>(
 
     // import gr_is_getter_called => gr_leave
     // import gr_set_getter_called => gr_leave
-    for syscall_name in [SysCallName::IsGetterCalled, SysCallName::SetGetterCalled] {
+    for syscall_name in [
+        FakeSysCallName::IsGetterCalled,
+        FakeSysCallName::SetGetterCalled,
+    ] {
         if let Some(import_entry) =
             get_import_entry_mut_by_name(&mut module, gas_module_name, syscall_name.to_str())
         {
