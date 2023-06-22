@@ -48,7 +48,7 @@ pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-fn get_import_index_by_bame(
+fn get_import_index_by_name(
     module: &elements::Module,
     gas_module_name: &str,
     name: &str,
@@ -57,12 +57,32 @@ fn get_import_index_by_bame(
         section
             .entries()
             .iter()
+            .filter(|entry| matches!(entry.external(), elements::External::Function(_)))
             .enumerate()
-            .find_map(|(i, entry)| match entry.external() {
+            .find_map(|(i, entry)| {
+                if entry.module() == gas_module_name && entry.field() == name {
+                    Some(i as u32)
+                } else {
+                    None
+                }
+            })
+    })
+}
+
+fn get_import_entry_mut_by_name<'a>(
+    module: &'a mut elements::Module,
+    gas_module_name: &str,
+    name: &str,
+) -> Option<&'a mut elements::ImportEntry> {
+    module.import_section_mut().and_then(|section| {
+        section
+            .entries_mut()
+            .iter_mut()
+            .find_map(|entry| match entry.external() {
                 elements::External::Function(_)
                     if entry.module() == gas_module_name && entry.field() == name =>
                 {
-                    Some(i as u32)
+                    Some(entry)
                 }
                 _ => None,
             })
@@ -102,13 +122,13 @@ pub fn inject<R: Rules>(
         return Err(module);
     }
 
-    let gr_is_getter_called = get_import_index_by_bame(
+    let gr_is_getter_called = get_import_index_by_name(
         &module,
         gas_module_name,
         SysCallName::IsGetterCalled.to_str(),
     );
 
-    let gr_set_getter_called = get_import_index_by_bame(
+    let gr_set_getter_called = get_import_index_by_name(
         &module,
         gas_module_name,
         SysCallName::SetGetterCalled.to_str(),
@@ -399,6 +419,33 @@ pub fn inject<R: Rules>(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    let types_count = module
+        .type_section()
+        .map(|section| section.types().len())
+        .unwrap_or(0);
+
+    if let Some(section) = module.type_section_mut() {
+        section
+            .types_mut()
+            .push(elements::Type::Function(elements::FunctionType::new(
+                vec![],
+                vec![],
+            )));
+    }
+
+    // import gr_is_getter_called => gr_leave
+    // import gr_set_getter_called => gr_leave
+    for syscall_name in [SysCallName::IsGetterCalled, SysCallName::SetGetterCalled] {
+        if let Some(import_entry) =
+            get_import_entry_mut_by_name(&mut module, gas_module_name, syscall_name.to_str())
+        {
+            *import_entry.field_mut() = SysCallName::Leave.to_str().into();
+            if let elements::External::Function(type_index) = import_entry.external_mut() {
+                *type_index = types_count as u32;
             }
         }
     }
