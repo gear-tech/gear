@@ -264,6 +264,7 @@ where
         .find_map(mapping_filter)
 }
 
+#[track_caller]
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -296,6 +297,7 @@ where
     (get_last_session_id_if_any::<T>().unwrap(), memory_pages)
 }
 
+#[track_caller]
 fn tasks_send_user_message_prepare<T: Config>(delay: u32)
 where
     T::AccountId: Origin,
@@ -322,6 +324,43 @@ where
     .expect("submit program failed");
 
     Gear::<T>::process_queue(Default::default());
+}
+
+#[track_caller]
+fn tasks_pause_program_prepare<T: Config>(c: u32, code: Vec<u8>) -> ProgramId
+where
+    T::AccountId: Origin,
+{
+    let caller = benchmarking::account("caller", 0, 0);
+    <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+
+    init_block::<T>(None);
+
+    let salt = vec![];
+    let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+    Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+    Gear::<T>::process_queue(Default::default());
+
+    let memory_page = {
+        let mut page = PageBuf::new_zeroed();
+        page[0] = 1;
+
+        page
+    };
+
+    for i in 0 .. c {
+        ProgramStorageOf::<T>::set_program_page_data(program_id, GearPage::from(i as u16), memory_page.clone());
+    }
+
+    ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+        program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+
+        let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
+        program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+    }).expect("program should exist");
+
+    program_id
 }
 
 /// An instantiated and deployed program.
@@ -3012,6 +3051,27 @@ benchmarks! {
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+    }
+
+    tasks_pause_program {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks_pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_uninited {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let program_id = tasks_pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

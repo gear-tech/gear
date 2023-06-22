@@ -352,7 +352,7 @@ demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-fungible-token = { path = "examples/binaries/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/binaries/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
-demo-init-wait = { path = "examples/binaries/init-wait" }
+demo-init-wait = { path = "examples/binaries/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/binaries/init-wait-reply-exit" }
 demo-messager = { path = "examples/binaries/messager" }
 demo-meta-io = { path = "examples/binaries/new-meta/io" }

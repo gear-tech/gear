@@ -36,6 +36,8 @@ use frame_support::traits::{Currency, ExistenceRequirement};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
+    code::MAX_WASM_PAGE_COUNT,
+    memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 use sp_runtime::traits::Zero;
@@ -44,7 +46,13 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
     use ScheduledTask::*;
 
     match task {
-        PauseProgram(_) => 0,
+        PauseProgram(_) => {
+            let count = u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
+            cmp::max(
+                <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
+                <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time()
+            )
+        }
         RemoveCode(_) => todo!("#646"),
         RemoveFromMailbox(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
@@ -81,6 +89,11 @@ where
         let program = ProgramStorageOf::<T>::get_program(program_id)
             .unwrap_or_else(|| unreachable!("Program to pause not found."));
 
+        let pages_with_data = match program {
+            Program::Active(ref p) => p.pages_with_data.len() as u32,
+            _ => unreachable!("Pause program task logic corrupted!"),
+        };
+
         let Some(init_message_id) = program.is_uninitialized() else {
             // pause initialized program
             let gas_reservation_map = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
@@ -101,7 +114,7 @@ where
                 change: ProgramChangeKind::Paused,
             });
 
-            return 0;
+            return <T as Config>::WeightInfo::tasks_pause_program(pages_with_data).ref_time();
         };
 
         // terminate uninitialized program
@@ -174,7 +187,7 @@ where
 
         Pallet::<T>::deposit_event(event);
 
-        0
+        <T as Config>::WeightInfo::tasks_pause_program_uninited(pages_with_data).ref_time()
     }
 
     fn remove_code(&mut self, _code_id: CodeId) -> Gas {
