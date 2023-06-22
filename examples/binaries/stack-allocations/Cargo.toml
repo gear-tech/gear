@@ -12,6 +12,8 @@ codec = { package = "parity-scale-codec", version = "3.4.0", default-features = 
 
 [dev-dependencies]
 gtest.workspace = true
+rand_pcg = { workspace = true }
+rand = "0.8"
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

@@ -48,9 +48,11 @@ pub enum Action {
     Load,
 }
 
+const HANDLE_DATA_SIZE: usize = 0x100;
+
 #[derive(Encode, Decode)]
 pub struct HandleData {
-    data: [u8; 0x100],
+    data: [u8; HANDLE_DATA_SIZE],
 }
 
 #[derive(Encode, Decode, MaxEncodedLen)]
@@ -61,7 +63,7 @@ pub struct ReplyData {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::{Action, HandleData, ReplyData, Vec};
-    use gstd::{msg, debug};
+    use gstd::msg;
 
     struct State {
         actions: Vec<Action>,
@@ -91,7 +93,6 @@ mod wasm {
     #[no_mangle]
     extern "C" fn handle() {
         let check_sum = do_actions(unsafe { STATE.actions.clone() });
-        debug!("check_sum: {}", check_sum);
         msg::reply_on_stack(ReplyData { check_sum }, 0).expect("Failed to reply");
     }
 
@@ -105,35 +106,63 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use super::{HandleData, InitConfig, ReplyData, Action};
-    use gtest::{Log, Program, System};
-
-    // #[test]
-    // fn program_can_be_initialized() {
-    //     let system = System::new();
-    //     system.init_logger();
-
-    //     let program = Program::current(&system);
-
-    //     let from = 42;
-
-    //     let res = program.(from, b"init");
-    //     let log = Log::builder().source(program.id()).dest(from);
-    //     assert!(res.contains(&log));
-    // }
+    use super::{Action, HandleData, InitConfig, ReplyData, HANDLE_DATA_SIZE};
+    use codec::Decode;
+    use gtest::{Program, System};
+    use rand::{Rng, SeedableRng};
 
     #[test]
     fn stress() {
         use Action::*;
 
+        const MAX_ACTIONS_AMOUNT: usize = 1000;
+        const MAX_NUMBER: u8 = 255;
+
+        // Check that check sum is less than u32::MAX
+        assert!(MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize);
+        // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
+        assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+
         let from = 42;
         let system = System::new();
         system.init_logger();
 
-        let program = Program::current_opt(&system);
-        let res = program.send(from, InitConfig { actions: vec![Read, Load, Load, Read] });
-        println!("{:?}", res);
-        let res = program.send(from, HandleData { data: [1; 0x100] });
-        println!("{:?}", u32::from_le_bytes(<[u8; 4]>::try_from(res.log()[0].payload()).expect("Reply must be 4 bytes long")));
+        let mut rng = rand_pcg::Pcg32::seed_from_u64(42);
+
+        for _ in 0..100 {
+            let program = Program::current_opt(&system);
+            let mut actions = Vec::new();
+            let actions_amount = rng.gen_range(1..=1000);
+            for _ in 0..actions_amount {
+                actions.push(if rng.gen_range(0..=1) == 0 {
+                    Read
+                } else {
+                    Load
+                });
+            }
+
+            // Init program
+            if program.send(from, InitConfig { actions }).main_failed() {
+                panic!("Init failed");
+            }
+
+            let number: u8 = rng.gen_range(0..=255);
+            let expected_check_sum = actions_amount * number as usize * HANDLE_DATA_SIZE;
+
+            // Send data to handle
+            let res = program.send(
+                from,
+                HandleData {
+                    data: [number; HANDLE_DATA_SIZE],
+                },
+            );
+
+            assert_eq!(
+                expected_check_sum as u32,
+                ReplyData::decode(&mut res.log()[0].payload())
+                    .expect("Cannot decode reply")
+                    .check_sum
+            );
+        }
     }
 }
