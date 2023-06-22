@@ -431,10 +431,7 @@ pub fn inject<R: Rules>(
     if let Some(section) = module.type_section_mut() {
         section
             .types_mut()
-            .push(elements::Type::Function(elements::FunctionType::new(
-                vec![],
-                vec![],
-            )));
+            .push(elements::Type::Function(elements::FunctionType::default()));
     }
 
     // import gr_is_getter_called => gr_leave
