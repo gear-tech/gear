@@ -332,11 +332,6 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 ///     });
 /// }
 /// ```
-///
-/// # See also
-///
-/// - [`message_read_on_stack`](crate::message_read_on_stack) - proc macro,
-///   which allows do the same but wraps external function.
 pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
     gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Ext)))
 }

@@ -30,14 +30,16 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod wasm {
     use gstd::{debug, exec, msg};
 
-    #[gstd::message_read_on_stack]
-    fn handle(msg: Result<&mut [u8]>) {
-        let available_value = exec::value_available();
-        debug!("inserted: {}, total: {}", msg::value(), available_value);
+    #[no_mangle]
+    extern "C" fn handle() {
+        msg::with_read_on_stack(|msg| {
+            let available_value = exec::value_available();
+            debug!("inserted: {}, total: {}", msg::value(), available_value);
 
-        if msg.expect("Failed to load payload bytes") == b"smash" {
-            debug!("smashing, total: {}", available_value);
-            msg::reply_bytes(b"send", available_value).unwrap();
-        }
+            if msg.expect("Failed to load payload bytes") == b"smash" {
+                debug!("smashing, total: {}", available_value);
+                msg::reply_bytes(b"send", available_value).unwrap();
+            }
+        });
     }
 }

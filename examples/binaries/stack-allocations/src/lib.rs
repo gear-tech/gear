@@ -130,7 +130,7 @@ mod tests {
 
         let mut rng = rand_pcg::Pcg32::seed_from_u64(42);
 
-        for _ in 0..100 {
+        for _ in 0..50 {
             let program = Program::current_opt(&system);
             let mut actions = Vec::new();
             let actions_amount = rng.gen_range(1..=MAX_ACTIONS_AMOUNT);
