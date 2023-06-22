@@ -49,6 +49,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_wait_for: () => { },
             gr_wait_up_to: () => { },
             gr_wake: () => { },
+            gr_is_getter_called: () => { },
+            gr_set_getter_called: () => { },
         }
     };
 
