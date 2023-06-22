@@ -152,7 +152,7 @@ pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
 pub use gcore::ext;
-pub use gstd_codegen::{async_init, async_main, message_read_on_stack};
+pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;
 
