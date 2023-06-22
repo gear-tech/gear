@@ -80,7 +80,7 @@ fn read_write_flag_works() {
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
         vec![WasmPage::size(), GearPage::size()],
-        vec!["".to_string(); 2],
+        vec!["".to_string(); 3],
         Default::default(),
     )
     .unwrap();
