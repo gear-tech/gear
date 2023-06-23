@@ -473,7 +473,7 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
     /// Converting a `PagesIterInclusive<GearPage>` to `PagesIterInclusive<WasmPage>`:
     ///
     /// ```
-    /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage};
+    /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage, PageNumber};
     ///
     /// let start_page = GearPage::new(5).expect("cannot create page");
     /// let end_page = GearPage::new(10).expect("cannot create page");
