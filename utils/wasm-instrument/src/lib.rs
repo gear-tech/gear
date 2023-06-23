@@ -89,6 +89,34 @@ fn get_import_entry_mut_by_name<'a>(
     })
 }
 
+fn get_function_type_or_insert(
+    module: &mut elements::Module,
+    function_type: &elements::Type,
+) -> u32 {
+    module
+        .type_section_mut()
+        .map(|section| {
+            section
+                .types()
+                .iter()
+                .enumerate()
+                .find_map(|(i, ty)| (ty == function_type).then_some(i as u32))
+                .unwrap_or_else(|| {
+                    let len = section.types().len() as u32;
+                    section.types_mut().push(function_type.clone());
+                    len
+                })
+        })
+        .unwrap_or_else(|| {
+            module
+                .sections_mut()
+                .push(elements::Section::Type(elements::TypeSection::with_types(
+                    vec![function_type.clone()],
+                )));
+            0
+        })
+}
+
 pub fn inject<R: Rules>(
     module: elements::Module,
     rules: &R,
@@ -423,29 +451,23 @@ pub fn inject<R: Rules>(
         }
     }
 
-    let types_count = module
-        .type_section()
-        .map(|section| section.types().len())
-        .unwrap_or(0);
-
-    if let Some(section) = module.type_section_mut() {
-        section
-            .types_mut()
-            .push(elements::Type::Function(elements::FunctionType::default()));
-    }
-
     // import gr_is_getter_called => gr_leave
     // import gr_set_getter_called => gr_leave
     for syscall_name in [
         FakeSysCallName::IsGetterCalled,
         FakeSysCallName::SetGetterCalled,
     ] {
+        let index = get_function_type_or_insert(
+            &mut module,
+            &elements::Type::Function(elements::FunctionType::default()),
+        );
+
         if let Some(import_entry) =
             get_import_entry_mut_by_name(&mut module, gas_module_name, syscall_name.to_str())
         {
             *import_entry.field_mut() = SysCallName::Leave.to_str().into();
             if let elements::External::Function(type_index) = import_entry.external_mut() {
-                *type_index = types_count as u32;
+                *type_index = index;
             }
         }
     }
