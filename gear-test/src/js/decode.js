@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { CreateType, getWasmMetadata } = require("@gear-js/api");
+const { CreateType, getWasmMetadata } = require("@stackoverflowexcept1on/gear-js-api-fork");
 const yargs = require("yargs");
 
 const argv = yargs

@@ -1,6 +1,6 @@
 {
     "dependencies": {
-        "@gear-js/api": "^0.29.4",
+        "@stackoverflowexcept1on/gear-js-api-fork": "^0.29.4",
         "yargs": "17.1.1"
     }
 }
