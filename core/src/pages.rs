@@ -460,3 +460,42 @@ impl<P: PageNumber> PagesIterInclusive<P> {
         self.end
     }
 }
+
+impl<P: PageU32Size> PagesIterInclusive<P> {
+    /// Converts a page iterator from one page type to another.
+    ///
+    /// Given a page iterator `iter` of type `P1`, this function returns a new page iterator
+    /// where each page in `iter` is converted to type `P2`. The resulting iterator will
+    /// iterate over pages of type `P2`.
+    ///
+    /// # Example
+    ///
+    /// Converting a `PagesIterInclusive<GearPage>` to `PagesIterInclusive<WasmPage>`:
+    ///
+    /// ```
+    /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage};
+    ///
+    /// let start_page = GearPage::new(5).expect("cannot create page");
+    /// let end_page = GearPage::new(10).expect("cannot create page");
+    ///
+    /// let gear_iter = start_page
+    ///     .iter_end_inclusive(end_page)
+    ///     .expect("cannot iterate");
+    ///
+    /// let wasm_iter = gear_iter.convert::<WasmPage>();
+    /// ```
+    ///
+    /// # Generic parameters
+    ///
+    /// - `P1`: The type of the pages to convert to.
+    ///
+    /// # Returns
+    ///
+    /// A new page iterator of type `P1`.
+    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
+        PagesIterInclusive::<P1> {
+            page: self.page.map(|p| p.to_page()),
+            end: self.end.to_last_page(),
+        }
+    }
+}
