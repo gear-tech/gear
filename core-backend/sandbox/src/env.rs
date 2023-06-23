@@ -34,7 +34,7 @@ use gear_backend_common::{
 use gear_core::{
     gas::GasLeft,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},

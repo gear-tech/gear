@@ -36,7 +36,7 @@ use gear_core::{
     gas::GasLeft,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{

@@ -32,7 +32,7 @@ use gear_core::{
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{

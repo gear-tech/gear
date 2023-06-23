@@ -18,7 +18,7 @@
 
 use gear_core::{
     memory::PageBuf,
-    pages::{GearPage, PageU32Size},
+    pages::{GearPage, PageNumber, PageU32Size},
 };
 use path_clean::PathClean;
 use serde::{Deserialize, Serialize};

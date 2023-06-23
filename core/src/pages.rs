@@ -93,18 +93,60 @@ impl From<WasmPage> for u32 {
     }
 }
 
+/// Page number trait - page, which can return it number as u32.
+pub trait PageNumber: Into<u32> + Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
+    /// Creates page from raw number.
+    ///
+    /// # Safety
+    /// This function is unsafe because it can create invalid page number.
+    unsafe fn from_raw(raw: u32) -> Self;
+
+    /// Returns raw (u32) page number.
+    fn raw(&self) -> u32 {
+        Into::<u32>::into(*self)
+    }
+
+    /// Checked subtraction.
+    fn checked_sub(&self, other: Self) -> Option<Self> {
+        self.raw()
+            .checked_sub(PageNumber::raw(&other))
+            .map(|p| unsafe { Self::from_raw(p) })
+    }
+
+    /// Returns iterator `self`..=`end`.
+    fn iter_end_inclusive(&self, end: Self) -> Result<PagesIterInclusive<Self>, PageError> {
+        if end.raw() >= self.raw() {
+            Ok(PagesIterInclusive {
+                page: Some(*self),
+                end,
+            })
+        } else {
+            Err(PageError::WrongRange(self.raw(), end.raw()))
+        }
+    }
+}
+
+impl PageNumber for WasmPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
+impl PageNumber for GearPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
 /// All operations with page guarantees, that no addr or page number can be overflowed.
-pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
+pub trait PageU32Size: PageNumber {
     /// Returns size of page.
     fn size_non_zero() -> NonZeroU32;
-    /// Returns raw page number.
-    fn raw(&self) -> u32;
     /// Constructs new page without any checks.
     /// # Safety
     /// Doesn't guarantee, that page offset or page end offset is in not overflowed.
     unsafe fn new_unchecked(num: u32) -> Self;
-
     /// Size as u32. Cannot be zero, because uses `Self::size_non_zero`.
     fn size() -> u32 {
         Self::size_non_zero().into()
@@ -196,17 +238,6 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
             Err(PageError::WrongRange(self.raw(), end.raw()))
         }
     }
-    /// Returns iterator `self`..=`end`.
-    fn iter_end_inclusive(&self, end: Self) -> Result<PagesIterInclusive<Self>, PageError> {
-        if end.raw() >= self.raw() {
-            Ok(PagesIterInclusive {
-                page: Some(*self),
-                end,
-            })
-        } else {
-            Err(PageError::WrongRange(self.raw(), end.raw()))
-        }
-    }
     /// Returns iterator `0`..=`self`
     fn iter_from_zero_inclusive(&self) -> PagesIterInclusive<Self> {
         PagesIterInclusive {
@@ -278,10 +309,6 @@ impl PageU32Size for GearPage {
         unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
     }
 
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
     unsafe fn new_unchecked(num: u32) -> Self {
         Self(num)
     }
@@ -291,10 +318,6 @@ impl PageU32Size for WasmPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
     }
 
     unsafe fn new_unchecked(num: u32) -> Self {
@@ -315,47 +338,6 @@ pub trait SizeManager {
 impl SizeManager for u32 {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
         NonZeroU32::new(*self).expect("Size cannot be zero")
-    }
-}
-
-/// Page number trait - page, which can return it number as u32.
-pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
-    /// Creates page from raw number.
-    ///
-    /// # Safety
-    /// This function is unsafe because it can create invalid page number.
-    unsafe fn from_raw(raw: u32) -> Self;
-
-    /// Returns raw (u32) page number.
-    fn raw(&self) -> u32 {
-        Into::<u32>::into(*self)
-    }
-
-    /// Checked subtraction.
-    fn checked_sub(&self, other: Self) -> Option<Self> {
-        PageNumber::raw(self)
-            .checked_sub(PageNumber::raw(&other))
-            .map(|p| unsafe { Self::from_raw(p) })
-    }
-
-    /// Returns iterator `self`..=`end`.
-    fn iter_end_inclusive(&self, end: Self) -> Option<PagesIterInclusive<Self>> {
-        (PageNumber::raw(&end) >= PageNumber::raw(self)).then_some(PagesIterInclusive {
-            page: Some(*self),
-            end,
-        })
-    }
-}
-
-impl PageNumber for WasmPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-}
-
-impl PageNumber for GearPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
     }
 }
 
@@ -442,12 +424,12 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
 
 /// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
 #[derive(Debug, Clone)]
-pub struct PagesIterInclusive<P: PageU32Size> {
+pub struct PagesIterInclusive<P: PageNumber> {
     page: Option<P>,
     end: P,
 }
 
-impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
+impl<P: PageNumber> Iterator for PagesIterInclusive<P> {
     type Item = P;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -456,7 +438,7 @@ impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
             end if end == page.raw() => self.page = None,
             end if end > page.raw() => unsafe {
                 // Safe, because we checked that `page` is less than `end`.
-                self.page = Some(P::new_unchecked(page.raw() + 1));
+                self.page = Some(P::from_raw(page.raw() + 1));
             },
             _ => unreachable!(
                 "`page` {} cannot be bigger than `end` {}",
@@ -468,7 +450,7 @@ impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
     }
 }
 
-impl<P: PageU32Size> PagesIterInclusive<P> {
+impl<P: PageNumber> PagesIterInclusive<P> {
     /// Returns current page.
     pub fn current(&self) -> Option<P> {
         self.page
@@ -476,42 +458,5 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
     /// Returns the end page.
     pub fn end(&self) -> P {
         self.end
-    }
-
-    /// Converts a page iterator from one page type to another.
-    ///
-    /// Given a page iterator `iter` of type `P1`, this function returns a new page iterator
-    /// where each page in `iter` is converted to type `P2`. The resulting iterator will
-    /// iterate over pages of type `P2`.
-    ///
-    /// # Example
-    ///
-    /// Converting a `PagesIterInclusive<GearPage>` to `PagesIterInclusive<WasmPage>`:
-    ///
-    /// ```
-    /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage};
-    ///
-    /// let start_page = GearPage::new(5).expect("cannot create page");
-    /// let end_page = GearPage::new(10).expect("cannot create page");
-    ///
-    /// let gear_iter = start_page
-    ///     .iter_end_inclusive(end_page)
-    ///     .expect("cannot iterate");
-    ///
-    /// let wasm_iter = gear_iter.convert::<WasmPage>();
-    /// ```
-    ///
-    /// # Generic parameters
-    ///
-    /// - `P1`: The type of the pages to convert to.
-    ///
-    /// # Returns
-    ///
-    /// A new page iterator of type `P1`.
-    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
-        PagesIterInclusive::<P1> {
-            page: self.page.map(|p| p.to_page()),
-            end: self.end.to_last_page(),
-        }
     }
 }

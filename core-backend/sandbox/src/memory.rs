@@ -20,7 +20,7 @@
 
 use gear_core::{
     memory::{HostPointer, Memory},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};

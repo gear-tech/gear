@@ -68,7 +68,7 @@ use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;

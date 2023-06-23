@@ -21,7 +21,7 @@
 use crate::{
     ids::CodeId,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{

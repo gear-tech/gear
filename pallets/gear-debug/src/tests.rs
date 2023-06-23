@@ -26,7 +26,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};

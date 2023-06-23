@@ -36,7 +36,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::*,
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;

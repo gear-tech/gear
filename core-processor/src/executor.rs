@@ -621,7 +621,10 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
-    use gear_core::{memory::PageBufInner, pages::WasmPage};
+    use gear_core::{
+        memory::PageBufInner,
+        pages::{PageNumber, WasmPage},
+    };
 
     struct TestExt;
     struct LazyTestExt;

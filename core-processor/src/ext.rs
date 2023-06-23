@@ -994,7 +994,7 @@ impl Ext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::message::ContextSettings;
+    use gear_core::{message::ContextSettings, pages::PageNumber};
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1171,7 +1171,10 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use gear_core::{memory::HostPointer, pages::PageError};
+        use gear_core::{
+            memory::HostPointer,
+            pages::{PageError, PageNumber},
+        };
         use proptest::{
             arbitrary::any,
             collection::size_range,

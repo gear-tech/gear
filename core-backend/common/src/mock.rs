@@ -29,7 +29,7 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{PageU32Size, WasmPage, WASM_PAGE_SIZE},
+    pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
 use gear_core_errors::{MemoryError, ReplyCode, SignalCode};

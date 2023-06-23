@@ -25,7 +25,7 @@ use gear_common::{
 use gear_core::{
     ids::*,
     memory::PageBuf,
-    pages::{GearPage, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gsdk::{
     config::GearConfig,

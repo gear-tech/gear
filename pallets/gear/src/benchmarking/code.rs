@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::{
     parity_wasm::{

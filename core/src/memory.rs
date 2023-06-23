@@ -362,7 +362,7 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of GearPage struct
 mod tests {
-    use crate::pages::GearPage;
+    use crate::pages::{GearPage, PageNumber};
 
     use super::*;
 
