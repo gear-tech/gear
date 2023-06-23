@@ -265,34 +265,20 @@ pub trait PageU32Size: PageNumber {
     /// # Example
     ///
     /// ```
-    /// use gear_core::pages::{PageU32Size, GearPage};
+    /// use gear_core::pages::{PageU32Size, GearPage, PageNumber};
     ///
-    /// let start_page = GearPage::new(2).expect("cannot create page");
-    /// let end_page = GearPage::new(5).expect("cannot create page");
+    /// let new_page = GearPage::new(5).expect("cannot create page");
     ///
-    /// let pages_iter = start_page.to_pages_iter::<GearPage>(end_page);
+    /// let pages_iter = new_page.to_pages_iter::<GearPage>();
     ///
     /// for page in pages_iter {
     ///     println!("Page number: {}", page.raw());
     /// }
-    ///
-    /// // Output:
-    /// // Page number: 2
-    /// // Page number: 3
-    /// // Page number: 4
-    /// // Page number: 5
     /// ```
-    ///
-    /// The iterator includes both `start_page` and `end_page` pages in the range.
     ///
     /// # Generic Parameters
     ///
     /// - `P`: The type of pages in the iterator, which must implement the `PageU32Size` trait.
-    ///
-    /// # Returns
-    ///
-    /// An iterator that yields pages from `self` to `end`, inclusive.
-    ///
     fn to_pages_iter<P: PageU32Size>(&self) -> PagesIterInclusive<P> {
         let start: P = self.to_page();
         let end: P = P::from_offset(self.end_offset());
