@@ -61,7 +61,7 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
 
 #[cfg(test)]
 mod tests {
-    use gear_core::pages::{GearPage, PageDynSize, PageNumber, PagesIterInclusive};
+    use gear_core::pages::{GearPage, PageU32Size, PagesIterInclusive};
 
     #[test]
     fn test_with_inclusive_range() {
@@ -73,10 +73,7 @@ mod tests {
             };
 
             super::with_inclusive_ranges(
-                &pages
-                    .iter()
-                    .map(|p| GearPage::new(*p, &10).unwrap())
-                    .collect(),
+                &pages.iter().map(|p| GearPage::new(*p).unwrap()).collect(),
                 slice_to_ranges,
             )
             .unwrap();

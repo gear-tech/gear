@@ -228,17 +228,40 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
             end: *self,
         }
     }
-    /// To another page iterator. For example: PAGE1 has size 4 and PAGE2 has size 2:
-    /// ````ignored
-    /// Memory is splitted into PAGE1:
-    /// [<====><====><====><====><====>]
-    ///  0     1     2     3     4
-    /// Memory splitted into PAGE2:
-    /// [<=><=><=><=><=><=><=><=><=><=>]
-    ///  0  1  2  3  4  5  6  7  8  9
-    /// Then PAGE1 with number 2 contains [4, 5] pages of PAGE2,
-    /// and we returns iterator over [4, 5] PAGE2.
-    /// ````
+    /// Returns an iterator that iterates over the range of pages from `self` to the end page,
+    /// inclusive. Each iteration yields a page of type `P`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use gear_core::pages::{PageU32Size, GearPage};
+    ///
+    /// let start_page = GearPage::new(2).expect("cannot create page");
+    /// let end_page = GearPage::new(5).expect("cannot create page");
+    ///
+    /// let pages_iter = start_page.to_pages_iter::<GearPage>(end_page);
+    ///
+    /// for page in pages_iter {
+    ///     println!("Page number: {}", page.raw());
+    /// }
+    ///
+    /// // Output:
+    /// // Page number: 2
+    /// // Page number: 3
+    /// // Page number: 4
+    /// // Page number: 5
+    /// ```
+    ///
+    /// The iterator includes both `start_page` and `end_page` pages in the range.
+    ///
+    /// # Generic Parameters
+    ///
+    /// - `P`: The type of pages in the iterator, which must implement the `PageU32Size` trait.
+    ///
+    /// # Returns
+    ///
+    /// An iterator that yields pages from `self` to `end`, inclusive.
+    ///
     fn to_pages_iter<P: PageU32Size>(&self) -> PagesIterInclusive<P> {
         let start: P = self.to_page();
         let end: P = P::from_offset(self.end_offset());
@@ -279,7 +302,6 @@ impl PageU32Size for WasmPage {
     }
 }
 
-//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
     /// Returns non-zero size of page.
@@ -296,7 +318,6 @@ impl SizeManager for u32 {
     }
 }
 
-//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
     /// Creates page from raw number.
@@ -338,7 +359,6 @@ impl PageNumber for GearPage {
     }
 }
 
-//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Page with dynamic size.
 pub trait PageDynSize: PageNumber {
     /// Returns size number of page.
@@ -457,7 +477,37 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
     pub fn end(&self) -> P {
         self.end
     }
-    /// Returns another page type iter, which pages intersect with `self` pages.
+
+    /// Converts a page iterator from one page type to another.
+    ///
+    /// Given a page iterator `iter` of type `P1`, this function returns a new page iterator
+    /// where each page in `iter` is converted to type `P2`. The resulting iterator will
+    /// iterate over pages of type `P2`.
+    ///
+    /// # Example
+    ///
+    /// Converting a `PagesIterInclusive<GearPage>` to `PagesIterInclusive<WasmPage>`:
+    ///
+    /// ```
+    /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage};
+    ///
+    /// let start_page = GearPage::new(5).expect("cannot create page");
+    /// let end_page = GearPage::new(10).expect("cannot create page");
+    ///
+    /// let gear_iter = start_page
+    ///     .iter_end_inclusive(end_page)
+    ///     .expect("cannot iterate");
+    ///
+    /// let wasm_iter = gear_iter.convert::<WasmPage>();
+    /// ```
+    ///
+    /// # Generic parameters
+    ///
+    /// - `P1`: The type of the pages to convert to.
+    ///
+    /// # Returns
+    ///
+    /// A new page iterator of type `P1`.
     pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
         PagesIterInclusive::<P1> {
             page: self.page.map(|p| p.to_page()),

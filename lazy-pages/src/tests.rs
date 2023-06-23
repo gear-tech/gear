@@ -104,7 +104,7 @@ fn test_mprotect_pages() {
 
     let page_size = 0x4000;
     let new_page = |p: u32| <GearPage as PageDynSize>::new(p, &page_size).unwrap();
-    let offset = |p: GearPage| gear_core::pages::PageDynSize::offset(&p, &page_size) as usize;
+    let offset = |p: GearPage| PageDynSize::offset(&p, &page_size) as usize;
 
     struct TestHandler;
 
