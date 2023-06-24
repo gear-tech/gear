@@ -48,14 +48,8 @@
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! debug {
-    ($arg:literal) => {
-        $crate::ext::debug(&$crate::prelude::format!("{}", $arg)).unwrap()
-    };
-    ($arg:expr) => {
-        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg)).unwrap()
-    };
-    ($fmt:literal $(, $args:expr)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt $(, $args)+)).unwrap()
+    ($($arg:tt)*) => {
+        $crate::ext::debug(&$crate::prelude::format!($($arg)*)).unwrap()
     };
 }
 
@@ -64,9 +58,5 @@ macro_rules! debug {
 #[allow(missing_docs)]
 #[macro_export]
 macro_rules! debug {
-    ($arg:expr) => { let _ = $arg; };
-    ($fmt:literal $(, $args:expr)+) => {
-        let _ = $fmt;
-        $(let _ = $args;) +
-    };
+    ($($arg:tt)*) => {};
 }
