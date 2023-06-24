@@ -92,6 +92,15 @@ jobs:
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
 
+      - name: "Test: Changes in gsdk generated code"
+        run: |
+          ./scripts/update-gsdk-metadata.sh
+          if [[ $(git diff --stat) != '' ]]; then
+            echo "Changes found in the gsdk generated code. Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            git --no-pager diff
+            exit 1
+          fi
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
