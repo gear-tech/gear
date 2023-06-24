@@ -7,5 +7,6 @@ set -ex
 
 cargo build --package vara-runtime --features debug-mode --release
 cargo build --package gsdk-api-gen --release
+touch gsdk/build.rs
 GSDK_API_GEN=1 cargo build --package gsdk --release
 cargo fmt
