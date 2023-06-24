@@ -118,8 +118,7 @@ mod wasm {
             let value = extra_encode.then(|| value.encode()).unwrap_or(value);
 
             debug!(
-                "\t[CONSTRUCTOR] >> Storing {:?}: {:?}",
-                key,
+                "\t[CONSTRUCTOR] >> Storing {key:?}: {:?}",
                 &value[extra_encode as usize..]
             );
 
@@ -278,7 +277,7 @@ mod wasm {
         }
 
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
-            debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
+            debug!("\t[CONSTRUCTOR] >> Processing {self:?}");
             let call = self.clone();
 
             let value = match self {

@@ -15,9 +15,9 @@ extern "C" fn handle() {
 
     unsafe {
         CHARGE += to_add;
-        debug!("Charge capacitor with {}, new charge {}", to_add, CHARGE);
+        debug!("Charge capacitor with {to_add}, new charge {CHARGE}");
         if CHARGE >= LIMIT {
-            debug!("Discharge #{} due to limit {}", CHARGE, LIMIT);
+            debug!("Discharge #{CHARGE} due to limit {LIMIT}");
             msg::send_bytes(msg::source(), format!("Discharged: {CHARGE}"), 0).unwrap();
             DISCHARGE_HISTORY.push(CHARGE);
             CHARGE = 0;
@@ -32,9 +32,5 @@ extern "C" fn init() {
         .expect("Invalid message: should be utf-8");
     let limit = u32::from_str(initstr.as_ref()).expect("Invalid number");
     unsafe { LIMIT = limit };
-    debug!(
-        "Init capacitor with limit capacity {}, {}",
-        unsafe { LIMIT },
-        initstr
-    );
+    debug!("Init capacitor with limit capacity {limit}, {initstr}");
 }

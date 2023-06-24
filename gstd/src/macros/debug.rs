@@ -40,9 +40,9 @@
 ///     debug!("String literal");
 ///
 ///     let value = 42;
-///     debug!(value);
+///     debug!("{value}");
 ///
-///     debug!("Formatted: value = {}", value);
+///     debug!("Formatted: value = {value}");
 /// }
 /// ```
 #[cfg(any(feature = "debug", debug_assertions))]
