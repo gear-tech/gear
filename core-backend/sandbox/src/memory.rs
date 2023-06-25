@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -66,7 +66,7 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::{AllocError, AllocInfo, AllocationsContext, NoopGrowHandler};
+    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
@@ -87,29 +87,23 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            }
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
+            16.into()
         );
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            }
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
+            16.into()
         );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
 
@@ -118,11 +112,8 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 137.into(),
-                not_grown: 1.into()
-            },
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            137.into()
         );
 
         // if we have 2 in a row we can allocate even 2
@@ -130,11 +121,8 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 117.into(),
-                not_grown: 2.into()
-            }
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            117.into()
         );
 
         // but if 2 are not in a row, bad luck
@@ -142,7 +130,7 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
     }

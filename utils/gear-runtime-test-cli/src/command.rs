@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use gear_common::{storage::*, GasPrice, GasTree, Origin as _, ProgramStorage};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::PageU32Size,
-    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage, UserMessage},
 };
 use gear_core_processor::common::ExecutableActorData;
 use gear_test::{
@@ -53,6 +53,7 @@ use std::{
 };
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
+const DEFAULT_INTERVAL: u32 = 1_000;
 
 impl CliConfiguration for RuntimeTestCmd {
     fn shared_params(&self) -> &SharedParams {
@@ -61,6 +62,7 @@ impl CliConfiguration for RuntimeTestCmd {
 }
 
 #[cfg(any(feature = "gear-native", feature = "vara-native"))]
+#[track_caller]
 macro_rules! command {
     () => {
         pub(crate) fn run(param: &RuntimeTestCmd) -> sc_cli::Result<()> {
@@ -145,7 +147,7 @@ macro_rules! command {
         fn init_fixture(
             test: &'_ sample::Test,
             snapshots: &mut Vec<DebugData>,
-            mailbox: &mut Vec<StoredMessage>,
+            mailbox: &mut Vec<UserMessage>,
         ) -> anyhow::Result<()> {
             if let Some(codes) = &test.codes {
                 for code in codes {
@@ -249,18 +251,15 @@ macro_rules! command {
                     static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
+                    expiration_block: DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
                 };
-                ProgramStorageOf::<Runtime>::add_program(
-                    ProgramId::from_origin(*id),
-                    program,
-                    DEFAULT_BLOCK_NUMBER.into(),
-                );
+                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
             }
 
             // Enable remapping of the source and destination of messages
             pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
             pallet_gear_debug::RemapId::<Runtime>::put(true);
-            let mut mailbox: Vec<StoredMessage> = vec![];
+            let mut mailbox: Vec<UserMessage> = vec![];
 
             if let Err(err) = init_fixture(test, &mut snapshots, &mut mailbox) {
                 return format!("Initialization error ({})", err).bright_red();
@@ -416,7 +415,7 @@ macro_rules! command {
                                 msg.id(),
                                 msg.source(),
                                 ProgramId::from(id.as_bytes()),
-                                msg.payload().to_vec().try_into().unwrap(),
+                                msg.payload_bytes().to_vec().try_into().unwrap(),
                                 msg.value(),
                                 msg.details(),
                             );
@@ -464,12 +463,12 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let (prog, _bn) =
+                                let program =
                                     ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
-                                }) = prog
+                                }) = program
                                 {
                                     gas_reservation_map
                                 } else {
@@ -567,10 +566,10 @@ macro_rules! command {
                 log::trace!("mailbox: {:?}", &mailbox);
 
                 let messages: Vec<(StoredMessage, GasLimit)> =
-                    mailbox.into_iter().map(|msg| (msg, 0)).collect();
+                    mailbox.into_iter().map(|msg| (msg.into(), 0)).collect();
 
                 for (message, _) in &messages {
-                    if let Ok(utf8) = core::str::from_utf8(message.payload()) {
+                    if let Ok(utf8) = core::str::from_utf8(message.payload_bytes()) {
                         log::trace!("log({})", utf8)
                     }
                 }

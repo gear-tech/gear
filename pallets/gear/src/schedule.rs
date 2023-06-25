@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ use frame_support::{
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GearPage, PageU32Size, WasmPage},
+    memory::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
     message,
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
@@ -260,6 +260,11 @@ pub struct InstructionWeights<T: Config> {
     pub i32popcnt: u32,
     pub i64eqz: u32,
     pub i32eqz: u32,
+    pub i32extend8s: u32,
+    pub i32extend16s: u32,
+    pub i64extend8s: u32,
+    pub i64extend16s: u32,
+    pub i64extend32s: u32,
     pub i64extendsi32: u32,
     pub i64extendui32: u32,
     pub i32wrapi64: u32,
@@ -344,8 +349,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
 
-    /// Weight of calling `gr_origin`.
-    pub gr_origin: Weight,
+    /// Weight of calling `gr_pay_program_rent`.
+    pub gr_pay_program_rent: Weight,
 
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: Weight,
@@ -377,6 +382,21 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
 
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: Weight,
+
+    /// Weight of calling `gr_send`.
+    pub gr_send: Weight,
+
+    /// Weight per payload byte in `gr_send`.
+    pub gr_send_per_byte: Weight,
+
+    /// Weight of calling `gr_send_wgas`.
+    pub gr_send_wgas: Weight,
+
+    /// Weight per payload byte in `gr_send_wgas`.
+    pub gr_send_wgas_per_byte: Weight,
+
     /// Weight of calling `gr_value_available`.
     pub gr_send_init: Weight,
 
@@ -389,29 +409,47 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_send_commit`.
     pub gr_send_commit: Weight,
 
-    /// Weight per payload byte by `gr_send_commit`.
-    pub gr_send_commit_per_byte: Weight,
+    /// Weight of calling `gr_send_commit_wgas`.
+    pub gr_send_commit_wgas: Weight,
+
+    /// Weight of calling `gr_reservation_send`.
+    pub gr_reservation_send: Weight,
+
+    /// Weight per payload byte in `gr_reservation_send`.
+    pub gr_reservation_send_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: Weight,
 
-    /// Weight per payload byte by `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit_per_byte: Weight,
-
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: Weight,
 
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: Weight,
+    /// Weight of calling `gr_reply_commit_wgas`.
+    pub gr_reply_commit_wgas: Weight,
+
+    /// Weight of calling `gr_reservation_reply`.
+    pub gr_reservation_reply: Weight,
+
+    /// Weight of calling `gr_reservation_reply` per one payload byte.
+    pub gr_reservation_reply_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: Weight,
 
-    /// Weight per payload byte by `gr_reservation_reply_commit`.
-    pub gr_reservation_reply_commit_per_byte: Weight,
-
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: Weight,
+
+    /// Weight of calling `gr_reply`.
+    pub gr_reply: Weight,
+
+    /// Weight of calling `gr_reply` per one payload byte.
+    pub gr_reply_per_byte: Weight,
+
+    /// Weight of calling `gr_reply_wgas`.
+    pub gr_reply_wgas: Weight,
+
+    /// Weight of calling `gr_reply_wgas` per one payload byte.
+    pub gr_reply_wgas_per_byte: Weight,
 
     /// Weight per payload byte by `gr_reply_push`.
     pub gr_reply_push_per_byte: Weight,
@@ -422,11 +460,23 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_signal_from`.
     pub gr_signal_from: Weight,
 
+    /// Weight of calling `gr_reply_input`.
+    pub gr_reply_input: Weight,
+
+    /// Weight of calling `gr_reply_input_wgas`.
+    pub gr_reply_input_wgas: Weight,
+
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: Weight,
 
     /// Weight per payload byte by `gr_reply_push_input`.
     pub gr_reply_push_input_per_byte: Weight,
+
+    /// Weight of calling `gr_send_input`.
+    pub gr_send_input: Weight,
+
+    /// Weight of calling `gr_send_input_wgas`.
+    pub gr_send_input_wgas: Weight,
 
     /// Weight of calling `gr_send_push_input`.
     pub gr_send_push_input: Weight,
@@ -440,11 +490,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: Weight,
 
-    /// Weight of calling `gr_error`.
-    pub gr_error: Weight,
-
-    /// Weight of calling `gr_status_code`.
-    pub gr_status_code: Weight,
+    /// Weight of calling `gr_reply_code`.
+    pub gr_reply_code: Weight,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: Weight,
@@ -464,6 +511,15 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wake`.
     pub gr_wake: Weight,
 
+    /// Weight of calling `gr_create_program`.
+    pub gr_create_program: Weight,
+
+    /// Weight per payload byte in `gr_create_program`.
+    pub gr_create_program_payload_per_byte: Weight,
+
+    /// Weight per salt byte in `gr_create_program`
+    pub gr_create_program_salt_per_byte: Weight,
+
     /// Weight of calling `create_program_wgas`.
     pub gr_create_program_wgas: Weight,
 
@@ -479,39 +535,44 @@ pub struct HostFnWeights<T: Config> {
 }
 
 /// Describes the weight for memory interaction.
+///
+/// Each weight with `lazy_pages_` prefix includes weight for storage read,
+/// because for each first page access we need to at least check whether page exists in storage.
+/// But they do not include cost for loading page data from storage into program memory.
+/// This weight is taken in account separately, when loading occurs.
+///
+/// Lazy-pages write accesses does not include cost for uploading page data to storage,
+/// because uploading happens after execution, so benchmarks do not include this cost.
+/// But they include cost for processing changed page data in runtime.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_read: Weight,
+    pub lazy_pages_signal_read: Weight,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_write: Weight,
+    pub lazy_pages_signal_write: Weight,
 
     /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_signal_write_after_read: Weight,
 
     /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_read: Weight,
 
     /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write: Weight,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write_after_read: Weight,
 
-    /// Cost per one [GearPage] data loading from storage
-    /// and moving it in program memory.
+    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
+    /// Does not include cost for storage read, because it is taken in account separately.
     pub load_page_data: Weight,
 
     /// Cost per one [GearPage] uploading data to storage.
+    /// Does not include cost for processing changed page data in runtime,
+    /// cause it is taken in account separately.
     pub upload_page_data: Weight,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
@@ -535,8 +596,8 @@ pub struct MemoryWeights<T: Config> {
 impl<T: Config> From<MemoryWeights<T>> for PageCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
-            signal_read: val.signal_read.ref_time().into(),
-            signal_write: val.signal_write.ref_time().into(),
+            lazy_pages_signal_read: val.lazy_pages_signal_read.ref_time().into(),
+            lazy_pages_signal_write: val.lazy_pages_signal_write.ref_time().into(),
             lazy_pages_signal_write_after_read: val
                 .lazy_pages_signal_write_after_read
                 .ref_time()
@@ -639,7 +700,7 @@ macro_rules! cost_byte_batched {
 
 macro_rules! to_weight {
     ($ref_time:expr $(, $proof_size:expr )?) => {
-        Weight::from_ref_time($ref_time)$(.set_proof_size($proof_size))?
+        Weight::from_parts($ref_time, 0)$(.set_proof_size($proof_size))?
     };
 }
 
@@ -681,7 +742,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 6,
+            version: 7,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -711,6 +772,11 @@ impl<T: Config> Default for InstructionWeights<T> {
             i32popcnt: cost_instr!(instr_i32popcnt, 1),
             i64eqz: cost_instr!(instr_i64eqz, 1),
             i32eqz: cost_instr!(instr_i32eqz, 1),
+            i32extend8s: cost_instr!(instr_i32extend8s, 0),
+            i32extend16s: cost_instr!(instr_i32extend16s, 0),
+            i64extend8s: cost_instr!(instr_i64extend8s, 1),
+            i64extend16s: cost_instr!(instr_i64extend16s, 1),
+            i64extend32s: cost_instr!(instr_i64extend32s, 1),
             i64extendsi32: cost_instr!(instr_i64extendsi32, 0),
             i64extendui32: cost_instr!(instr_i64extendui32, 0),
             i32wrapi64: cost_instr!(instr_i32wrapi64, 1),
@@ -779,7 +845,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_origin: self.gr_origin.ref_time(),
+            gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
             gr_value: self.gr_value.ref_time(),
@@ -790,35 +856,52 @@ impl<T: Config> HostFnWeights<T> {
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
+            gr_reply_deposit: self.gr_reply_deposit.ref_time(),
+            gr_send: self.gr_send.ref_time(),
+            gr_send_per_byte: self.gr_send_per_byte.ref_time(),
+            gr_send_wgas: self.gr_send_wgas.ref_time(),
+            gr_send_wgas_per_byte: self.gr_send_wgas_per_byte.ref_time(),
             gr_send_init: self.gr_send_init.ref_time(),
             gr_send_push: self.gr_send_push.ref_time(),
             gr_send_push_per_byte: self.gr_send_push_per_byte.ref_time(),
             gr_send_commit: self.gr_send_commit.ref_time(),
-            gr_send_commit_per_byte: self.gr_send_commit_per_byte.ref_time(),
+            gr_send_commit_wgas: self.gr_send_commit_wgas.ref_time(),
+            gr_reservation_send: self.gr_reservation_send.ref_time(),
+            gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time(),
             gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
-            gr_reservation_send_commit_per_byte: self
-                .gr_reservation_send_commit_per_byte
-                .ref_time(),
-            gr_reply_commit: self.gr_reply_commit.ref_time(),
-            gr_reply_commit_per_byte: self.gr_reply_commit_per_byte.ref_time(),
-            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
-            gr_reservation_reply_commit_per_byte: self
-                .gr_reservation_reply_commit_per_byte
-                .ref_time(),
+            gr_send_input: self.gr_send_input.ref_time(),
+            gr_send_input_wgas: self.gr_send_input_wgas.ref_time(),
+            gr_send_push_input: self.gr_send_push_input.ref_time(),
+            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
+            gr_reply: self.gr_reply.ref_time(),
+            gr_reply_per_byte: self.gr_reply_per_byte.ref_time(),
+            gr_reply_wgas: self.gr_reply_wgas.ref_time(),
+            gr_reply_wgas_per_byte: self.gr_reply_wgas_per_byte.ref_time(),
             gr_reply_push: self.gr_reply_push.ref_time(),
             gr_reply_push_per_byte: self.gr_reply_push_per_byte.ref_time(),
+            gr_reply_commit: self.gr_reply_commit.ref_time(),
+            gr_reply_commit_wgas: self.gr_reply_commit_wgas.ref_time(),
+            gr_reservation_reply: self.gr_reservation_reply.ref_time(),
+            gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time(),
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
+            gr_reply_input: self.gr_reply_input.ref_time(),
+            gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time(),
+            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
+            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
             gr_debug: self.gr_debug.ref_time(),
             gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
-            gr_error: self.gr_error.ref_time(),
             gr_reply_to: self.gr_reply_to.ref_time(),
             gr_signal_from: self.gr_signal_from.ref_time(),
-            gr_status_code: self.gr_status_code.ref_time(),
+            gr_reply_code: self.gr_reply_code.ref_time(),
             gr_exit: self.gr_exit.ref_time(),
             gr_leave: self.gr_leave.ref_time(),
             gr_wait: self.gr_wait.ref_time(),
             gr_wait_for: self.gr_wait_for.ref_time(),
             gr_wait_up_to: self.gr_wait_up_to.ref_time(),
             gr_wake: self.gr_wake.ref_time(),
+            gr_create_program: self.gr_create_program.ref_time(),
+            gr_create_program_payload_per_byte: self.gr_create_program_payload_per_byte.ref_time(),
+            gr_create_program_salt_per_byte: self.gr_create_program_salt_per_byte.ref_time(),
             gr_create_program_wgas: self.gr_create_program_wgas.ref_time(),
             gr_create_program_wgas_payload_per_byte: self
                 .gr_create_program_wgas_payload_per_byte
@@ -826,10 +909,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas_salt_per_byte: self
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time(),
-            gr_send_push_input: self.gr_send_push_input.ref_time(),
-            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
-            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
-            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
         }
     }
 }
@@ -837,14 +916,52 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
+            gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
+                .saturating_sub(to_weight!(cost_batched!(gr_send))),
+
+            gr_send: to_weight!(cost_batched!(gr_send)),
+            gr_send_per_byte: to_weight!(cost_byte_batched!(gr_send_per_kb)),
+            gr_send_wgas: to_weight!(cost_batched!(gr_send_wgas)),
+            gr_send_wgas_per_byte: to_weight!(cost_byte_batched!(gr_send_wgas_per_kb)),
+            gr_send_init: to_weight!(cost_batched!(gr_send_init)),
+            gr_send_push: to_weight!(cost_batched!(gr_send_push)),
+            gr_send_push_per_byte: to_weight!(cost_byte_batched!(gr_send_push_per_kb)),
+            gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
+            gr_send_commit_wgas: to_weight!(cost_batched!(gr_send_commit_wgas)),
+            gr_reservation_send: to_weight!(cost_batched!(gr_reservation_send)),
+            gr_reservation_send_per_byte: to_weight!(cost_byte_batched!(
+                gr_reservation_send_per_kb
+            )),
+            gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
+            gr_send_input: to_weight!(cost_batched!(gr_send_input)),
+            gr_send_input_wgas: to_weight!(cost_batched!(gr_send_input_wgas)),
+            gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
+            gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
+
+            gr_reply: to_weight!(cost!(gr_reply)),
+            gr_reply_per_byte: to_weight!(cost_byte!(gr_reply_per_kb)),
+            gr_reply_wgas: to_weight!(cost!(gr_reply_wgas)),
+            gr_reply_wgas_per_byte: to_weight!(cost_byte!(gr_reply_wgas_per_kb)),
+            gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
+            gr_reply_push_per_byte: to_weight!(cost_byte!(gr_reply_push_per_kb)),
+            gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
+            gr_reply_commit_wgas: to_weight!(cost!(gr_reply_commit_wgas)),
+            gr_reservation_reply: to_weight!(cost!(gr_reservation_reply)),
+            gr_reservation_reply_per_byte: to_weight!(cost!(gr_reservation_reply_per_kb)),
+            gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
+            gr_reply_input: to_weight!(cost!(gr_reply_input)),
+            gr_reply_input_wgas: to_weight!(cost!(gr_reply_input_wgas)),
+            gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
+            gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
+
             alloc: to_weight!(cost_batched!(alloc)),
             free: to_weight!(cost_batched!(free)),
-            gr_reserve_gas: to_weight!(cost_batched!(gr_reserve_gas)),
+            gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
-            gr_unreserve_gas: to_weight!(cost_batched!(gr_unreserve_gas)),
+            gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_origin: to_weight!(cost_batched!(gr_origin)),
+            gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
             gr_value: to_weight!(cost_batched!(gr_value)),
@@ -855,36 +972,29 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
             gr_random: to_weight!(cost_batched!(gr_random)),
-            gr_send_init: to_weight!(cost_batched!(gr_send_init)),
-            gr_send_push: to_weight!(cost_batched!(gr_send_push)),
-            gr_send_push_per_byte: to_weight!(cost_byte_batched!(gr_send_push_per_kb)),
-            gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
-            gr_send_commit_per_byte: to_weight!(cost_byte_batched!(gr_send_commit_per_kb)),
-            gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
-            gr_reservation_send_commit_per_byte: to_weight!(cost_byte_batched!(
-                gr_reservation_send_commit_per_kb
-            )),
-            gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
-            gr_reply_commit_per_byte: to_weight!(cost_byte!(gr_reply_commit_per_kb)),
-            gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
-            gr_reservation_reply_commit_per_byte: to_weight!(cost_byte!(
-                gr_reservation_reply_commit_per_kb
-            )),
-            gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
-            gr_reply_push_per_byte: to_weight!(cost_byte!(gr_reply_push_per_kb)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
-            // TODO: https://github.com/gear-tech/gear/issues/1846
-            gr_error: to_weight!(cost_batched!(gr_error)),
             gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
             gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
-            gr_status_code: to_weight!(cost_batched!(gr_status_code)),
+            gr_reply_code: to_weight!(cost_batched!(gr_reply_code)),
             gr_exit: to_weight!(cost!(gr_exit)),
             gr_leave: to_weight!(cost!(gr_leave)),
             gr_wait: to_weight!(cost!(gr_wait)),
             gr_wait_for: to_weight!(cost!(gr_wait_for)),
             gr_wait_up_to: to_weight!(cost!(gr_wait_up_to)),
             gr_wake: to_weight!(cost_batched!(gr_wake)),
+
+            gr_create_program: to_weight!(cost_batched!(gr_create_program)),
+            gr_create_program_payload_per_byte: to_weight!(cost_byte_batched_args!(
+                gr_create_program_per_kb,
+                1,
+                0
+            )),
+            gr_create_program_salt_per_byte: to_weight!(cost_byte_batched_args!(
+                gr_create_program_per_kb,
+                0,
+                1
+            )),
             gr_create_program_wgas: to_weight!(cost_batched!(gr_create_program_wgas)),
             gr_create_program_wgas_payload_per_byte: to_weight!(cost_byte_batched_args!(
                 gr_create_program_wgas_per_kb,
@@ -896,10 +1006,6 @@ impl<T: Config> Default for HostFnWeights<T> {
                 0,
                 1
             )),
-            gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
-            gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
-            gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
-            gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
             _phantom: PhantomData,
         }
     }
@@ -907,48 +1013,60 @@ impl<T: Config> Default for HostFnWeights<T> {
 
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
-        macro_rules! cost_per_gear_page {
+        // In benchmarks we calculate cost per wasm page,
+        // so here we must convert it to cost per gear page.
+        macro_rules! to_cost_per_gear_page {
             ($name:ident) => {
                 cost!($name) / (WasmPage::size() / GearPage::size()) as u64
             };
         }
 
+        const KB_SIZE: u64 = 1024;
+
         // Memory access thru host function benchmark uses a syscall,
         // which accesses memory. So, we have to subtract corresponding syscall weight.
         macro_rules! host_func_access {
-            ($name:ident, $syscall:ident) => {
-                cost_per_gear_page!($name).saturating_sub(cost_batched!($syscall))
-            };
+            ($name:ident, $syscall:ident) => {{
+                let syscall_per_kb_weight = cost_batched!($syscall);
+                let syscall_per_gear_page_weight =
+                    (syscall_per_kb_weight / KB_SIZE) * GearPage::size() as u64;
+                to_cost_per_gear_page!($name).saturating_sub(syscall_per_gear_page_weight)
+            }};
         }
 
-        let lazy_pages_signal_read = cost_per_gear_page!(lazy_pages_signal_read);
-        let lazy_pages_host_func_read = host_func_access!(lazy_pages_host_func_read, gr_debug);
-        let kb_number_in_one_gear_page = GearPage::size() as u64 / 1024;
+        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
+        static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
+        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
 
         Self {
-            signal_read: to_weight!(lazy_pages_signal_read),
-            signal_write: to_weight!(cost_per_gear_page!(lazy_pages_signal_write)),
-            lazy_pages_signal_write_after_read: to_weight!(cost_per_gear_page!(
+            lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),
+            lazy_pages_signal_write: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_write)),
+            lazy_pages_signal_write_after_read: to_weight!(to_cost_per_gear_page!(
                 lazy_pages_signal_write_after_read
             )),
-            lazy_pages_host_func_read: to_weight!(lazy_pages_host_func_read),
+            lazy_pages_host_func_read: to_weight!(host_func_access!(
+                lazy_pages_host_func_read,
+                gr_debug_per_kb
+            )),
             lazy_pages_host_func_write: to_weight!(host_func_access!(
                 lazy_pages_host_func_write,
-                gr_read
+                gr_read_per_kb
             )),
             lazy_pages_host_func_write_after_read: to_weight!(host_func_access!(
                 lazy_pages_host_func_write_after_read,
-                gr_random
-            )
-            .saturating_sub(lazy_pages_host_func_read)),
-            load_page_data: to_weight!(cost_per_gear_page!(lazy_pages_load_page_storage_data)
-                .saturating_sub(lazy_pages_signal_read)),
+                gr_read_per_kb
+            )),
+            // As you can see from calculation: `load_page_data` doesn't include weight for db read.
+            // This is correct situation, because this weight is already included in above
+            // lazy-pages weights.
+            load_page_data: to_weight!(to_cost_per_gear_page!(lazy_pages_load_page_storage_data)
+                .saturating_sub(to_cost_per_gear_page!(lazy_pages_signal_read))),
             upload_page_data: to_weight!(cost!(db_write_per_kb)
-                .saturating_mul(kb_number_in_one_gear_page)
-                .saturating_sub(T::DbWeight::get().writes(1).ref_time(),)),
+                .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
+                .saturating_add(T::DbWeight::get().writes(1).ref_time())),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
-            static_page: Weight::from_ref_time(100),
-            mem_grow: Weight::from_ref_time(100),
+            static_page: Weight::from_parts(100, 0),
+            mem_grow: Weight::from_parts(100, 0),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
@@ -980,7 +1098,7 @@ impl<T: Config> Schedule<T> {
 
 impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
     fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
-        use self::elements::Instruction::*;
+        use self::elements::{Instruction::*, SignExtInstruction::*};
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
@@ -1077,7 +1195,13 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-
+            SignExt(ref s) => match s {
+                I32Extend8S => w.i32extend8s,
+                I32Extend16S => w.i32extend16s,
+                I64Extend8S => w.i64extend8s,
+                I64Extend16S => w.i64extend16s,
+                I64Extend32S => w.i64extend32s,
+            },
             // Returning None makes the gas instrumentation fail which we intend for
             // unsupported or unknown instructions.
             _ => return None,
@@ -1099,6 +1223,7 @@ mod test {
     use super::*;
     use crate::mock::Test;
     use gas_metering::Rules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
@@ -1242,9 +1367,16 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
-        let rules = schedule.rules(&default_wasm_module());
-        all_measured_instructions()
-            .iter()
-            .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
+
+        // used in `pallet-gear` to estimate the gas used by the program
+        let schedule_rules = schedule.rules(&default_wasm_module());
+
+        // used in `gear-wasm-builder` to check program code at an early stage
+        let custom_cost_rules = CustomConstantCostRules::default();
+
+        all_measured_instructions().iter().for_each(|i| {
+            assert!(schedule_rules.instruction_cost(i).is_some());
+            assert!(custom_cost_rules.instruction_cost(i).is_some());
+        })
     }
 }

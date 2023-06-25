@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,20 +32,23 @@ mod init;
 mod reply;
 mod signal;
 mod stored;
+mod user;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
-pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
+pub use context::{
+    ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
+};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
-
-use core::fmt::Display;
-use gear_wasm_instrument::syscalls::SysCallName;
+pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
+use core::fmt::Display;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -81,9 +84,6 @@ pub type GasLimit = u64;
 /// Value type for message.
 pub type Value = u128;
 
-/// Status code type for message replies.
-pub type StatusCode = i32;
-
 /// Salt type for init message.
 pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
@@ -103,11 +103,14 @@ pub enum MessageWaitedType {
 }
 
 /// Entry point for dispatch processing.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
 pub enum DispatchKind {
     /// Initialization.
     Init,
     /// Common handle.
+    #[default]
     Handle,
     /// Handle reply.
     Reply,
@@ -116,7 +119,7 @@ pub enum DispatchKind {
 }
 
 /// Trait defining type could be used as entry point for a wasm module.
-pub trait WasmEntry: Sized {
+pub trait WasmEntryPoint: Sized {
     /// Converting self into entry point name.
     fn as_entry(&self) -> &str;
 
@@ -125,11 +128,11 @@ pub trait WasmEntry: Sized {
 
     /// Tries to convert self into `DispatchKind`.
     fn try_into_kind(&self) -> Option<DispatchKind> {
-        <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+        <DispatchKind as WasmEntryPoint>::try_from_entry(self.as_entry())
     }
 }
 
-impl WasmEntry for String {
+impl WasmEntryPoint for String {
     fn as_entry(&self) -> &str {
         self
     }
@@ -139,7 +142,7 @@ impl WasmEntry for String {
     }
 }
 
-impl WasmEntry for DispatchKind {
+impl WasmEntryPoint for DispatchKind {
     fn as_entry(&self) -> &str {
         match self {
             Self::Init => "init",
@@ -208,8 +211,8 @@ impl DispatchKind {
 ///
 /// Provides common behavior for any message's packet: accessing to payload, gas limit and value.
 pub trait Packet {
-    /// Packet payload reference.
-    fn payload(&self) -> &[u8];
+    /// Packet payload bytes.
+    fn payload_bytes(&self) -> &[u8];
 
     /// Packet optional gas limit.
     fn gas_limit(&self) -> Option<GasLimit>;

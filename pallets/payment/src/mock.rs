@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_payment;
+use crate::{self as pallet_gear_payment, Config, DelegateFee};
+use common::storage::Messenger;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
         ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
     },
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -39,9 +41,15 @@ use sp_std::{
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
-pub const ALICE: u64 = 1;
-pub const BLOCK_AUTHOR: u64 = 255;
+pub const ALICE: AccountId = 1;
+pub const BOB: AccountId = 2;
+pub const BLOCK_AUTHOR: AccountId = 255;
+pub const FEE_PAYER: AccountId = 201;
+pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -61,6 +69,7 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         GearPayment: pallet_gear_payment,
         GearProgram: pallet_gear_program,
+        GearVoucher: pallet_gear_voucher,
     }
 );
 
@@ -68,7 +77,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -107,7 +116,7 @@ impl pallet_timestamp::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 2400;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: Balance = 1;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(
         Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 2, u64::MAX)
     );
@@ -121,10 +130,10 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type RuntimeEvent = RuntimeEvent;
@@ -156,7 +165,7 @@ impl pallet_transaction_payment::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
@@ -164,6 +173,10 @@ parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = 11;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -184,9 +197,17 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = ();
+    type ProgramRentFreePeriod = RentFreePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
+    type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
+}
 
 impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
@@ -238,9 +259,41 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+// We want to test the way the fee delegate is calculated in real runtime
+// for the `send_reply_with_voucher` call. Hence, the actual trait implementation is used.
+// For the `send_message_with_voucher` call, a mock implementation is used.
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher { .. }) => {
+                Some(FEE_PAYER)
+            }
+            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id, ..
+            }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type DelegateFee = DelegateFeeAccountBuilder;
     type Messenger = GearMessenger;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
@@ -250,7 +303,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
+        balances: vec![
+            (ALICE, 100_000_000_000u128),
+            (BOB, 1_000u128),
+            (BLOCK_AUTHOR, 1_000u128),
+            (FEE_PAYER, 10_000_000u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

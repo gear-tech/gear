@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Args, Result};
+use crate::common::{self, Args, NodeExec, Result};
 use gsdk::Api;
-use parity_scale_codec::Encode;
+use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_reply_works() -> Result<()> {
@@ -31,7 +31,7 @@ async fn test_command_reply_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messager
     let id = hex::encode(mailbox[0].0.id.0);
@@ -40,8 +40,12 @@ async fn test_command_reply_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
-    assert_eq!(mailbox[0].0.payload.0, messager::REPLY_REPLY.encode());
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
+    assert_eq!(
+        mailbox[0].0.payload.0,
+        demo_messager::REPLY_REPLY.encode(),
+        "Alice should have received a reply"
+    );
 
     Ok(())
 }

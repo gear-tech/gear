@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use gstd::{msg, prelude::*, ActorId};
@@ -23,6 +24,8 @@ pub struct InputArgs {
     pub signatory: ActorId,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "demo async sign",
     init:
@@ -46,7 +49,7 @@ async fn main() {
     let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
-        msg::send_for_reply_as(unsafe { SIGNATORY }, &request, 0)
+        msg::send_for_reply_as(unsafe { SIGNATORY }, &request, 0, 0)
             .unwrap()
             .await;
 

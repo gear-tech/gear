@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,12 +44,24 @@ const SUP_REFERENDUM_CANCELLER: Curve =
 const APP_REFERENDUM_KILLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_REFERENDUM_KILLER: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const APP_SMALL_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_SMALL_TIPPER: Curve = Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
+const APP_BIG_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
+const SUP_BIG_TIPPER: Curve = Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
+const APP_SMALL_SPENDER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const SUP_SMALL_SPENDER: Curve =
+    Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const APP_MEDIUM_SPENDER: Curve = Curve::make_linear(23, 28, percent(50), percent(100));
+const SUP_MEDIUM_SPENDER: Curve =
+    Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
+const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
+const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
 const APP_WHITELISTED_CALLER: Curve =
     Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
     Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
-const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 8] = [
+const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 13] = [
     (
         0,
         pallet_referenda::TrackInfo {
@@ -162,6 +174,76 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 8]
             min_support: SUP_REFERENDUM_KILLER,
         },
     ),
+    (
+        30,
+        pallet_referenda::TrackInfo {
+            name: "small_tipper",
+            max_deciding: 200,
+            decision_deposit: DOLLARS,
+            prepare_period: MINUTES,
+            decision_period: 7 * DAYS,
+            confirm_period: 10 * MINUTES,
+            min_enactment_period: MINUTES,
+            min_approval: APP_SMALL_TIPPER,
+            min_support: SUP_SMALL_TIPPER,
+        },
+    ),
+    (
+        31,
+        pallet_referenda::TrackInfo {
+            name: "big_tipper",
+            max_deciding: 100,
+            decision_deposit: 10 * DOLLARS,
+            prepare_period: 10 * MINUTES,
+            decision_period: 7 * DAYS,
+            confirm_period: HOURS,
+            min_enactment_period: 10 * MINUTES,
+            min_approval: APP_BIG_TIPPER,
+            min_support: SUP_BIG_TIPPER,
+        },
+    ),
+    (
+        32,
+        pallet_referenda::TrackInfo {
+            name: "small_spender",
+            max_deciding: 50,
+            decision_deposit: 100 * DOLLARS,
+            prepare_period: 4 * HOURS,
+            decision_period: 14 * DAYS,
+            confirm_period: 12 * HOURS,
+            min_enactment_period: 24 * HOURS,
+            min_approval: APP_SMALL_SPENDER,
+            min_support: SUP_SMALL_SPENDER,
+        },
+    ),
+    (
+        33,
+        pallet_referenda::TrackInfo {
+            name: "medium_spender",
+            max_deciding: 50,
+            decision_deposit: 200 * DOLLARS,
+            prepare_period: 4 * HOURS,
+            decision_period: 14 * DAYS,
+            confirm_period: 24 * HOURS,
+            min_enactment_period: 24 * HOURS,
+            min_approval: APP_MEDIUM_SPENDER,
+            min_support: SUP_MEDIUM_SPENDER,
+        },
+    ),
+    (
+        34,
+        pallet_referenda::TrackInfo {
+            name: "big_spender",
+            max_deciding: 50,
+            decision_deposit: 400 * DOLLARS,
+            prepare_period: 4 * HOURS,
+            decision_period: 14 * DAYS,
+            confirm_period: 48 * HOURS,
+            min_enactment_period: 24 * HOURS,
+            min_approval: APP_BIG_SPENDER,
+            min_support: SUP_BIG_SPENDER,
+        },
+    ),
 ];
 
 pub struct TracksInfo;
@@ -188,6 +270,12 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
                 // Referendum admins
                 origins::Origin::ReferendumCanceller => Ok(20),
                 origins::Origin::ReferendumKiller => Ok(21),
+                // Limited treasury spenders
+                origins::Origin::SmallTipper => Ok(30),
+                origins::Origin::BigTipper => Ok(31),
+                origins::Origin::SmallSpender => Ok(32),
+                origins::Origin::MediumSpender => Ok(33),
+                origins::Origin::BigSpender => Ok(34),
                 _ => Err(()),
             }
         } else {

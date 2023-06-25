@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -74,7 +74,7 @@ impl System {
     }
 
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.0.borrow_mut().run_dispatch(dispatch)
+        self.0.borrow_mut().validate_and_run_dispatch(dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {

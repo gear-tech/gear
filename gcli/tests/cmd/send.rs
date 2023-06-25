@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Args, Result};
+use crate::common::{self, traits::NodeExec, Args, Result};
 use gsdk::Api;
-use parity_scale_codec::Encode;
+use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_send_works() -> Result<()> {
@@ -31,7 +31,7 @@ async fn test_command_send_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messager
     let dest = hex::encode(mailbox[0].0.source.0);
@@ -40,10 +40,14 @@ async fn test_command_send_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 2);
+    assert_eq!(
+        mailbox.len(),
+        2,
+        "Alice now should have 2 messages in mailbox"
+    );
     assert!(mailbox
         .iter()
-        .any(|mail| mail.0.payload.0 == messager::SEND_REPLY.encode()));
+        .any(|mail| mail.0.payload.0 == demo_messager::SEND_REPLY.encode()));
 
     Ok(())
 }

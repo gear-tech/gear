@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -68,8 +68,9 @@ where
             let max_block_weight =
                 <<T as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get().max_block;
             SystemPallet::<T>::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(frame_support::weights::Weight::from_ref_time(
+                max_block_weight.saturating_sub(frame_support::weights::Weight::from_parts(
                     remaining_weight,
+                    0,
                 )),
                 frame_support::dispatch::DispatchClass::Normal,
             );

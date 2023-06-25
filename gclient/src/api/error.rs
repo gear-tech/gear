@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::node::result::Error as NodeError;
 use anyhow::Error as AError;
+use gsdk::{testing::Error as NodeError, Error as GearSDKError};
 use std::{io::Error as IOError, result::Result as StdResult};
-use subxt::error::Error as SubxtError;
+use subxt::error::{DispatchError, Error as SubxtError};
 
 /// `Result` type with a predefined error type ([`Error`]).
-pub type Result<T, E = Error> = StdResult<T, E>;
+pub type Result<T = (), E = Error> = StdResult<T, E>;
 
 /// Common error type.
 #[derive(Debug, thiserror::Error)]
@@ -32,7 +32,7 @@ pub enum Error {
     Anyhow(#[from] AError),
     /// A wrapper around [`gsdk::Error`].
     #[error(transparent)]
-    GearSDK(#[from] gsdk::result::Error),
+    GearSDK(GearSDKError),
     /// Occurs when attempting to iterate events without a subscription.
     #[error("An attempt to iter events without subscription")]
     EventsSubscriptionNotFound,
@@ -41,7 +41,7 @@ pub enum Error {
     EventsStopped,
     /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
-    Subxt(#[from] SubxtError),
+    Subxt(SubxtError),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -89,4 +89,56 @@ pub enum Error {
     /// Occurs when node spawining failed.
     #[error(transparent)]
     Node(#[from] NodeError),
+    /// Occurs when parsing websocket domain failed.
+    #[error("Failed to parse WebSocket domain.")]
+    WSDomainInvalid,
+    /// Occurs when parsing domain url failed.
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
+    /// A wrapper of module error [`gsdk::metadata::ModuleError`].
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use gclient::{errors, Error, EventProcessor, GearApi};
+    ///
+    /// #[tokio::test]
+    /// async fn test_upload_failed() -> anyhow::Result<()> {
+    ///     let api = GearApi::dev_from_path("../target/release/gear").await?;
+    ///
+    ///     let err = api
+    ///         .upload_program(vec![], vec![], b"", u64::MAX, 0)
+    ///         .await
+    ///         .expect_err("Should fail");
+    ///
+    ///     assert!(matches!(
+    ///         err,
+    ///         Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+    ///     ));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[error(transparent)]
+    Module(gsdk::metadata::ModuleError),
+}
+
+impl From<SubxtError> for Error {
+    fn from(e: SubxtError) -> Self {
+        if let SubxtError::Runtime(DispatchError::Module(m)) = e {
+            return Error::Module(m.into());
+        }
+
+        Error::Subxt(e)
+    }
+}
+
+impl From<GearSDKError> for Error {
+    fn from(e: GearSDKError) -> Self {
+        if let GearSDKError::Subxt(SubxtError::Runtime(DispatchError::Module(m))) = e {
+            return Error::Module(m.into());
+        }
+
+        Error::GearSDK(e)
+    }
 }

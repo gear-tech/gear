@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -153,13 +153,14 @@ impl Key {
 
     #[cfg(feature = "node-key")]
     fn generate_node_key() {
-        let key = crate::keystore::node::generate();
+        use libp2p::identity::{ed25519::Keypair, PublicKey};
+        let pair = Keypair::generate();
 
+        println!("Secret:  0x{}", hex::encode(pair.secret().as_ref()));
         println!(
-            "Secret:  0x{}",
-            hex::encode(key.0.into_ed25519().expect("Infallible").secret().as_ref())
+            "Peer ID: {}",
+            PublicKey::Ed25519(pair.public()).to_peer_id()
         );
-        println!("Peer ID: {}", key.1)
     }
 
     fn info<P>(title: &str, signer: &P, seed: Option<Vec<u8>>)
@@ -192,10 +193,19 @@ impl Key {
 
     #[cfg(feature = "node-key")]
     fn inspect_node_key(secret: &str) -> Result<()> {
-        let data = hex::decode(secret.trim_start_matches("0x"))?;
-        let key = crate::keystore::node::inspect(data)?;
+        use libp2p::identity::{
+            ed25519::{Keypair, SecretKey},
+            PublicKey,
+        };
+        let pair = Keypair::from(
+            SecretKey::from_bytes(&mut hex::decode(secret)?)
+                .map_err(|_| crate::result::Error::BadNodeKey)?,
+        );
 
-        println!("Peer ID: {}", key.1);
+        println!(
+            "Peer ID: {}",
+            PublicKey::Ed25519(pair.public()).to_peer_id()
+        );
         Ok(())
     }
 

@@ -1,9 +1,9 @@
 [package]
 name = "gear-runtime-common"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
@@ -16,8 +16,10 @@ frame-support.workspace = true
 frame-system.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
+pallet-session.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+validator-set.workspace = true
 
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
@@ -26,6 +28,12 @@ frame-system-benchmarking = { workspace = true, optional = true }
 # Internal deps
 runtime-primitives.workspace = true
 gear-common.workspace = true
+gear-backend-common.workspace = true
+gear-core-processor.workspace = true
+pallet-gear.workspace = true
+
+# Utils
+log.workspace = true
 
 [features]
 default = ["std"]
@@ -35,9 +43,11 @@ std = [
 	"frame-system-benchmarking?/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-session/std",
 	"runtime-primitives/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"validator-set/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -50,4 +60,6 @@ runtime-benchmarks = [
 try-runtime = [
 	"frame-system/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-session/try-runtime",
+	"validator-set/try-runtime",
 ]

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,20 +24,26 @@ use frame_support::{
     parameter_types,
     traits::{ConstU64, FindAuthor, Get},
     weights::RuntimeDbWeight,
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
-    testing::Header,
+    generic,
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::{
+    cell::RefCell,
+    convert::{TryFrom, TryInto},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+pub type BlockNumber = u32;
+type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
@@ -77,6 +83,7 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
+        GearVoucher: pallet_gear_voucher,
         Balances: pallet_balances,
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
@@ -87,7 +94,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -96,13 +103,13 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
         Weight::from_parts(MAX_BLOCK, u64::MAX),
         NORMAL_DISPATCH_RATIO,
     );
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 500;
+    pub const ExistentialDeposit: Balance = 500;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
 }
 
@@ -114,12 +121,12 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Header = generic::Header<BlockNumber, BlakeTwo256>;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -135,17 +142,67 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
+}
 
 parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
-    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub ReserveThreshold: BlockNumber = 1;
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = 11;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
+}
+
+thread_local! {
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+}
+
+#[derive(Debug)]
+pub struct DynamicSchedule;
+
+impl DynamicSchedule {
+    pub fn mutate<F>(f: F) -> DynamicScheduleReset
+    where
+        F: FnOnce(&mut Schedule<Test>),
+    {
+        SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+        DynamicScheduleReset(())
+    }
+
+    pub fn get() -> Schedule<Test> {
+        SCHEDULE.with(|schedule| {
+            schedule
+                .borrow_mut()
+                .get_or_insert_with(Default::default)
+                .clone()
+        })
+    }
+}
+
+impl Get<Schedule<Test>> for DynamicSchedule {
+    fn get() -> Schedule<Test> {
+        Self::get()
+    }
+}
+
+#[must_use]
+pub struct DynamicScheduleReset(());
+
+impl Drop for DynamicScheduleReset {
+    fn drop(&mut self) {
+        SCHEDULE.with(|schedule| {
+            *schedule.borrow_mut() = Some(Default::default());
+        })
+    }
 }
 
 impl pallet_gear::Config for Test {
@@ -154,7 +211,7 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = GearSchedule;
+    type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
@@ -166,11 +223,16 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
+    type ProgramRentFreePeriod = RentFreePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
+    type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
 impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
+    type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
     type ReservationCost = ConstU64<100>;
@@ -214,6 +276,17 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = ();
+}
+
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
@@ -243,7 +316,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 pub fn get_min_weight() -> Weight {
     new_test_ext().execute_with(|| {
         dry_run!(weight, BlockGasLimitOf::<Test>::get());
-        Weight::from_ref_time(weight)
+        Weight::from_parts(weight, 0)
     })
 }
 
@@ -261,11 +334,19 @@ pub fn get_weight_of_adding_task() -> Weight {
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-        Weight::from_ref_time(gas_allowance - GasAllowanceOf::<Test>::get())
+        Weight::from_parts(gas_allowance - GasAllowanceOf::<Test>::get(), 0)
     }) - minimal_weight
 }
 
-pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
+pub fn run_to_block(n: BlockNumber, remaining_weight: Option<u64>) {
+    run_to_block_maybe_with_queue(n, remaining_weight, Some(true))
+}
+
+pub fn run_to_block_maybe_with_queue(
+    n: BlockNumber,
+    remaining_weight: Option<u64>,
+    gear_run: Option<bool>,
+) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
@@ -278,20 +359,29 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             GasAllowanceOf::<Test>::put(remaining_weight);
             let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 DispatchClass::Normal,
             );
         }
 
-        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        if let Some(process_messages) = gear_run {
+            if !process_messages {
+                QueueProcessingOf::<Test>::deny();
+            }
+
+            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        }
+
         Gear::on_finalize(System::block_number());
 
-        assert!(!System::events().iter().any(|e| {
-            matches!(
-                e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
-            )
-        }))
+        if gear_run.is_some() {
+            assert!(!System::events().iter().any(|e| {
+                matches!(
+                    e.event,
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                )
+            }))
+        }
     }
 }
 

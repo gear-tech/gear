@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,9 +37,19 @@ impl<Balance: BalanceTrait> Imbalance for PositiveImbalance<Balance> {
         self.0
     }
 
-    fn apply_to(&self, amount: &mut Option<Balance>) {
-        let new_value = amount.unwrap_or_else(Zero::zero).saturating_add(self.0);
-        *amount = Some(new_value);
+    fn apply_to(&self, amount: &mut Option<Balance>) -> Result<(), ImbalanceError> {
+        let amount_value = amount.unwrap_or_else(Zero::zero);
+        if let Some(amount_value) = amount_value.checked_add(&self.0) {
+            *amount = Some(amount_value);
+            Ok(())
+        } else {
+            Err(ImbalanceError)
+        }
+        // if self.0 > Balance::max_value() - amount_value {
+        //     return Err(ImbalanceError::Overflow);
+        // }
+        // *amount = Some(amount_value + self.0);
+        // Ok(())
     }
 }
 
@@ -52,18 +62,20 @@ mod tests {
         let imbalance = PositiveImbalance::<u32>::new(45);
         let mut amount = Some(44);
 
-        imbalance.apply_to(&mut amount);
+        let result = imbalance.apply_to(&mut amount);
 
-        assert_eq!(amount.unwrap(), 89);
+        assert_eq!(Ok(()), result);
+        assert_eq!(Some(89), amount);
     }
 
     #[test]
-    fn amount_increases_to_max_when_overflowing_imbalance_applied() {
+    fn error_returned_when_overflowing_imbalance_applied() {
         let imbalance = PositiveImbalance::<u32>::new(120);
         let mut amount = Some(u32::MAX - 100);
 
-        imbalance.apply_to(&mut amount);
+        let result = imbalance.apply_to(&mut amount);
 
-        assert_eq!(amount.unwrap(), u32::MAX);
+        assert_eq!(Err(ImbalanceError), result);
+        assert_eq!(Some(u32::MAX - 100), amount);
     }
 }

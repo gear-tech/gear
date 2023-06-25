@@ -1,13 +1,13 @@
 [package]
 name = "demo-init-fail-sender"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
+authors.workspace = true
+edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
+gstd.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
@@ -15,5 +15,6 @@ gear-wasm-builder.workspace = true
 [lib]
 
 [features]
+debug = ["gstd/debug"]
 std = []
 default = ["std"]

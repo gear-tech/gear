@@ -19,7 +19,10 @@
 mod runtime;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{CallGenRng, GearCall, GearProgGenConfig, SendMessageArgs, UploadProgramArgs};
+use gear_call_gen::{
+    CallGenRng, GearCall, GearProgGenConfig, GeneratableCallArgs, SendMessageArgs,
+    UploadProgramArgs,
+};
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
@@ -88,28 +91,24 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     let mut rand = Rng::seed_from_u64(seed);
     let programs = context.lock().programs.clone();
 
+    // Use (0..G)^3 / G^2 to produce more values closer to default_gas_limit.
+    let default_gas_limit = default_gas_limit();
+    let gas_limit = rand.gen_range(0..=default_gas_limit).pow(3) / default_gas_limit.pow(2);
+
     match rand.gen_range(0..=1) {
         0 => UploadProgramArgs::generate::<Rng>(
-            rand.next_u64(),
-            rand.next_u64(),
-            default_gas_limit(),
-            config,
-            programs,
+            (programs, rand.next_u64(), rand.next_u64()),
+            (gas_limit, config),
         )
         .into(),
         1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
-            Some(existing_programs) => SendMessageArgs::generate::<Rng>(
-                existing_programs,
-                rand.next_u64(),
-                default_gas_limit(),
-            )
-            .into(),
+            Some(existing_programs) => {
+                SendMessageArgs::generate::<Rng>((existing_programs, rand.next_u64()), (gas_limit,))
+                    .into()
+            }
             None => UploadProgramArgs::generate::<Rng>(
-                rand.next_u64(),
-                rand.next_u64(),
-                default_gas_limit(),
-                config,
-                programs,
+                (programs, rand.next_u64(), rand.next_u64()),
+                (gas_limit, config),
             )
             .into(),
         },
@@ -120,7 +119,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
 fn fuzzer_config() -> GearProgGenConfig {
     let mut config = GearProgGenConfig::new_normal();
     config.remove_recursion = (1, 1).into();
-    config.call_indirect_enabled = false;
+    config.call_indirect_enabled = false; // TODO #2187, note on call_indirect disabling, (test performance)
 
     config
 }
@@ -153,6 +152,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
 }
 
 fn update_context(context: &ContextMutex) {
+    log::debug!("Starting updating context");
     let mut initialized_programs: Vec<_> = System::events()
         .into_iter()
         .filter_map(|v| {
@@ -168,5 +168,10 @@ fn update_context(context: &ContextMutex) {
         })
         .collect();
 
+    System::reset_events();
+
+    log::debug!("Collected all the programs");
+
     context.lock().programs.append(&mut initialized_programs);
+    log::debug!("Context is stored");
 }

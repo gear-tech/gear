@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -106,8 +106,18 @@ pub fn handle_journal(
             JournalNote::SendSignal {
                 message_id,
                 destination,
-                err,
-            } => handler.send_signal(message_id, destination, err),
+                code,
+            } => handler.send_signal(message_id, destination, code),
+            JournalNote::PayProgramRent {
+                payer,
+                program_id,
+                block_count,
+            } => handler.pay_program_rent(payer, program_id, block_count),
+            JournalNote::ReplyDeposit {
+                message_id,
+                future_reply_id,
+                amount,
+            } => handler.reply_deposit(message_id, future_reply_id, amount),
         }
     }
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ use crate::Origin;
 use core::marker::PhantomData;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{StoredDispatch, StoredMessage},
+    message::{StoredDispatch, UserStoredMessage},
 };
 
 /// Represents logic of providing key as specified
@@ -51,7 +51,7 @@ pub struct MailboxKeyGen<T>(PhantomData<T>);
 // destination parameter.
 impl<T: Origin> KeyFor for MailboxKeyGen<T> {
     type Key = (T, MessageId);
-    type Value = StoredMessage;
+    type Value = UserStoredMessage;
 
     fn key_for(value: &Self::Value) -> Self::Key {
         (

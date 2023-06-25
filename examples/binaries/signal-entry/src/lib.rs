@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -50,9 +50,7 @@ pub enum HandleAction {
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{
-            ExtError, ReservationError, SimpleCodec, SimpleExecutionError, SimpleSignalError,
-        },
+        errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
         exec, msg,
         prelude::*,
         ActorId, MessageId,
@@ -89,7 +87,7 @@ mod wasm {
             HandleAction::Wait => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndPanic => {
@@ -101,7 +99,7 @@ mod wasm {
 
                 exec::system_reserve_gas(200).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndReserveWithPanic => {
@@ -114,7 +112,7 @@ mod wasm {
 
                 exec::system_reserve_gas(2_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndExit => {
@@ -127,7 +125,7 @@ mod wasm {
 
                 exec::system_reserve_gas(900).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::Panic => {
@@ -143,7 +141,7 @@ mod wasm {
 
                 exec::system_reserve_gas(gas_amount).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::Exit => {
@@ -159,7 +157,8 @@ mod wasm {
             HandleAction::OutOfGas => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
+                #[allow(clippy::empty_loop)]
                 loop {}
             }
             HandleAction::AcrossWaits => {
@@ -196,12 +195,14 @@ mod wasm {
         match unsafe { &HANDLE_SIGNAL_STATE } {
             HandleSignalState::Normal => {
                 msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
-                let status_code = msg::status_code().unwrap();
-                let err = SimpleSignalError::from_status_code(status_code).expect("Known error");
+                let signal_code = msg::signal_code()
+                    .expect("Incorrect call")
+                    .expect("Unsupported code");
                 assert!(matches!(
-                    err,
-                    SimpleSignalError::Execution(SimpleExecutionError::Panic)
-                        | SimpleSignalError::Execution(SimpleExecutionError::GasLimitExceeded)
+                    signal_code,
+                    SignalCode::Execution(
+                        SimpleExecutionError::UserspacePanic | SimpleExecutionError::RanOutOfGas
+                    )
                 ));
 
                 if let Some(handle_msg) = unsafe { HANDLE_MSG } {
@@ -232,9 +233,7 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    extern crate std;
-
-    use gstd::errors::{SimpleExecutionError, SimpleSignalError};
+    use gstd::errors::{SignalCode, SimpleExecutionError};
     use gtest::{Program, System};
 
     #[test]
@@ -244,7 +243,8 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_signal(0, SimpleSignalError::Execution(SimpleExecutionError::Panic));
+        let signal_code: SignalCode = SimpleExecutionError::UserspacePanic.into();
+        let res = program.send_signal(0, signal_code);
         assert!(!res.main_failed());
     }
 }

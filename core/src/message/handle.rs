@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -96,9 +96,9 @@ impl HandleMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -165,8 +165,8 @@ impl HandlePacket {
 }
 
 impl Packet for HandlePacket {
-    fn payload(&self) -> &[u8] {
-        self.payload.get()
+    fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

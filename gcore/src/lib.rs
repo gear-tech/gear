@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,6 @@
 //!
 //! ```
 //! #![no_std]
-//! #![feature(alloc_error_handler)]
 //!
 //! extern crate galloc;
 //!
@@ -49,17 +48,10 @@
 //! }
 //!
 //! # #[cfg(target = "wasm32")]
-//! #[alloc_error_handler]
-//! pub fn oom(_: core::alloc::Layout) -> ! {
-//!     core::arch::wasm32::unreachable()
-//! }
-//!
-//! # #[cfg(target = "wasm32")]
 //! #[panic_handler]
 //! fn panic(_: &core::panic::PanicInfo) -> ! {
 //!     core::arch::wasm32::unreachable()
 //! }
-//!
 //! # fn main() {}
 //! ```
 
@@ -67,6 +59,7 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
 

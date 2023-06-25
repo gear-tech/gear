@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,11 +19,14 @@
 //! Common utils for integration tests
 pub use self::{
     args::Args,
-    node::Node,
     result::{Error, Result},
+    traits::NodeExec,
 };
 use gear_core::ids::{CodeId, ProgramId};
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use gsdk::{
+    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
+    testing::Node,
+};
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
@@ -32,14 +35,12 @@ use std::{
 mod args;
 pub mod env;
 pub mod logs;
-mod node;
-mod port;
 mod result;
 pub mod traits;
 
 #[cfg(not(feature = "vara-testing"))]
 mod prelude {
-    pub use parity_scale_codec::Encode;
+    pub use scale_info::scale::Encode;
 
     pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
     pub const MESSAGER_SENT_VALUE: u128 = 5_000;
@@ -48,10 +49,13 @@ mod prelude {
 #[cfg(not(feature = "vara-testing"))]
 pub use prelude::*;
 
-// TODO: refactor this implementation after #2481.
-impl Node {
+impl NodeExec for Node {
+    fn ws(&self) -> String {
+        "ws://".to_string() + &self.address().to_string()
+    }
+
     /// Run binary `gcli`
-    pub fn run(&self, args: Args) -> Result<Output> {
+    fn run(&self, args: Args) -> Result<Output> {
         gcli(Vec::<String>::from(args.endpoint(self.ws())))
     }
 }
@@ -65,6 +69,22 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
                 .collect::<Vec<String>>(),
         )
         .output()?)
+}
+
+/// Run the dev node
+pub fn dev() -> Result<Node> {
+    #[cfg(not(feature = "vara-testing"))]
+    let args = vec!["--tmp", "--dev"];
+    #[cfg(feature = "vara-testing")]
+    let args = vec![
+        "--tmp",
+        "--chain=vara-dev",
+        "--alice",
+        "--validator",
+        "--reserved-only",
+    ];
+
+    Node::try_from_path(env::bin("gear"), args).map_err(Into::into)
 }
 
 /// Init env logger
@@ -94,10 +114,11 @@ pub fn alice_account_id() -> AccountId32 {
 /// Create program messager
 pub async fn create_messager() -> Result<Node> {
     login_as_alice()?;
-    let mut node = Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let args = Args::new("upload-program").program(env::wasm_bin("messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
+
     #[cfg(not(feature = "vara-testing"))]
     let args = args
         .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))

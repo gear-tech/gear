@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `create`
-use crate::{result::Result, utils};
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
 use gsdk::signer::Signer;
 
@@ -45,8 +45,8 @@ pub struct Create {
 impl Create {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code_id = utils::hex_to_hash(&self.code_id)?.into();
-        let payload = utils::hex_to_vec(&self.init_payload)?;
+        let code_id = self.code_id.to_hash()?.into();
+        let payload = self.init_payload.to_vec()?;
 
         let gas = if self.gas_limit == 0 {
             signer
@@ -62,13 +62,7 @@ impl Create {
 
         // create program
         signer
-            .create_program(
-                code_id,
-                utils::hex_to_vec(&self.salt)?,
-                payload,
-                gas_limit,
-                self.value,
-            )
+            .create_program(code_id, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
         Ok(())

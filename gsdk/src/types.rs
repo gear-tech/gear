@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,7 @@ use crate::{
         ActiveProgram,
     },
     result::Result,
+    BlockNumber,
 };
 use futures::{Stream, StreamExt};
 use gear_core::ids::*;
@@ -38,11 +39,10 @@ use subxt::{
     Error, OnlineClient,
 };
 
+type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
+
 /// Subscription of finalized blocks.
-#[allow(clippy::type_complexity)]
-pub struct Blocks(
-    pub Pin<Box<dyn Stream<Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, Error>>>>,
-);
+pub struct Blocks(pub Pin<Box<dyn Stream<Item = StdResult<SubxtBlock, Error>> + Send>>);
 
 impl Unpin for Blocks {}
 
@@ -99,6 +99,6 @@ pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
 /// Gear Program
 #[derive(Debug, Decode)]
 pub enum Program {
-    Active(ActiveProgram),
+    Active(ActiveProgram<BlockNumber>),
     Terminated,
 }

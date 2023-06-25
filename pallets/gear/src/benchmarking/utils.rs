@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
+    RentCostPerBlockOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
 use core_processor::{
@@ -44,6 +45,7 @@ use crate::ProgramStorageOf;
 use common::ProgramStorage;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
+const DEFAULT_INTERVAL: u32 = 1_000;
 
 pub fn prepare_block_config<T>() -> BlockConfig
 where
@@ -81,9 +83,10 @@ where
         write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
         read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
         module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-        max_reservations: u64::MAX,
+        max_reservations: T::ReservationsLimit::get(),
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+        rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
     }
 }
 
@@ -148,7 +151,7 @@ where
                 program_id,
                 &code_info,
                 root_message_id,
-                DEFAULT_BLOCK_NUMBER.into(),
+                DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
 
             Dispatch::new(
@@ -174,7 +177,7 @@ where
                 program_id,
                 &code_info,
                 root_message_id,
-                DEFAULT_BLOCK_NUMBER.into(),
+                DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
 
             Dispatch::new(
@@ -283,12 +286,10 @@ where
     )
     .map_err(|_| "core_processor::precharge_for_memory failed")?;
 
-    let origin = ProgramId::from_origin(source);
-
     Ok(Exec {
         ext_manager,
         block_config,
-        context: (context, code, balance, origin).into(),
+        context: (context, code, balance).into(),
         random_data: (vec![0u8; 32], 0),
         memory_pages: Default::default(),
     })

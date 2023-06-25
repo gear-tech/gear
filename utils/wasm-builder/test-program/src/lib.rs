@@ -29,7 +29,12 @@ mod gtest_tests {
         let this_program = Program::current(&system);
 
         let res = this_program.send_bytes(123, "INIT");
-        assert!(res.log().is_empty());
+        assert!(res.contains(
+            &Log::builder()
+                .source(1)
+                .dest(123)
+                .payload_bytes([])
+        ));
 
         let res = this_program.send_bytes(123, "Hi");
         assert!(res.contains(
@@ -38,6 +43,18 @@ mod gtest_tests {
                 .dest(123)
                 .payload_bytes("Hello world!")
         ));
+    }
+}
+
+#[cfg(test)]
+mod gclient_tests {
+    use gclient::WSAddress;
+
+    // Test has wrote this way to make sure rust doesn't optimize dependencies
+    // compilation and gclient got compiled.
+    #[test]
+    fn gclient_compiles() {
+        let _ws_addr = WSAddress::dev();
     }
 }
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,14 +23,14 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
+use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
-use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_core_errors::SignalCode;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -89,11 +89,11 @@ impl Gas {
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
-        logger::debug!(target: "gwasm", "DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {}", data);
     }
 }
 
@@ -268,27 +268,9 @@ impl<'a> Program<'a> {
             "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
             Use Program::from_opt_and_meta() instead"
         );
-        let is_opt = filename.ends_with(".opt.wasm");
 
-        let (opt_code, meta_code) = if !is_opt {
-            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
-            optimizer.insert_stack_and_export();
-            optimizer.strip_custom_sections();
-            let opt_code = optimizer
-                .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary");
-            let meta_code = optimizer
-                .optimize(OptType::Meta)
-                .expect("Failed to produce metadata binary");
-            (opt_code, Some(meta_code))
-        } else {
-            (
-                fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path)),
-                None,
-            )
-        };
-
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        Self::from_opt_and_meta_code_with_id(system, id, code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(
@@ -306,18 +288,6 @@ impl<'a> Program<'a> {
         optimized: P,
         metadata: P,
     ) -> Self {
-        let read_file = |path: P, ext| {
-            let path = env::current_dir()
-                .expect("Unable to get root directory of the project")
-                .join(path)
-                .clean();
-
-            let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
-
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
         let opt_code = read_file(optimized, ".opt.wasm");
         let meta_code = read_file(metadata, ".meta.wasm");
 
@@ -408,14 +378,10 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
-        system.run_dispatch(Dispatch::new(kind, message))
+        system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
-    pub fn send_signal<ID: Into<ProgramIdWrapper>>(
-        &self,
-        from: ID,
-        err: SimpleSignalError,
-    ) -> RunResult {
+    pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
@@ -425,7 +391,7 @@ impl<'a> Program<'a> {
             source,
             system.fetch_inc_message_nonce() as u128,
         );
-        let message = SignalMessage::new(origin_msg_id, err);
+        let message = SignalMessage::new(origin_msg_id, code);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -434,7 +400,7 @@ impl<'a> Program<'a> {
         };
 
         let dispatch = message.into_dispatch(origin_msg_id, self.id);
-        system.run_dispatch(dispatch)
+        system.validate_and_run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
@@ -497,6 +463,60 @@ impl<'a> Program<'a> {
         relative_path.set_extension(extension);
         current_dir.join(relative_path)
     }
+
+    pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
+        let manager = self.manager.borrow();
+        let mem = manager.read_memory_pages(&self.id);
+        let balance = manager.balance_of(&self.id);
+
+        ProgramMemoryDump {
+            balance,
+            reserved_balance: 0,
+            pages: mem
+                .iter()
+                .map(|(page_number, page_data)| {
+                    MemoryPageDump::new(*page_number, page_data.clone())
+                })
+                .collect(),
+        }
+        .save_to_file(path);
+    }
+
+    pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
+        let memory_dump = ProgramMemoryDump::load_from_file(path);
+        let mem = memory_dump
+            .pages
+            .into_iter()
+            .map(MemoryPageDump::into_gear_page)
+            .collect();
+
+        // @TODO : add support for gas reservation when implemented
+        let balance = memory_dump
+            .balance
+            .saturating_add(memory_dump.reserved_balance);
+
+        self.manager
+            .borrow_mut()
+            .override_memory_pages(&self.id, mem);
+        self.manager
+            .borrow_mut()
+            .override_balance(&self.id, balance);
+    }
+}
+
+fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
+    let path = env::current_dir()
+        .expect("Unable to get root directory of the project")
+        .join(path)
+        .clean();
+
+    let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+    assert!(
+        filename.ends_with(extension),
+        "Wrong file extension: {extension}",
+    );
+
+    fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
@@ -507,6 +527,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 mod tests {
     use super::Program;
     use crate::{Log, System};
+    use gear_core_errors::ErrorReplyReason;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -515,25 +536,25 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+            137,
+            demo_futures_unordered::WASM_BINARY.to_vec(),
+            None,
         );
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
-        assert!(run_result.main_failed);
+        assert!(run_result.main_failed());
 
         let log = run_result.log();
-        assert!(!log.is_empty());
-
-        assert!(log[0]
-            .payload()
-            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
+        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
-        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::InactiveProgram)
+            .source(prog.id())
+            .dest(user_id);
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
@@ -580,9 +601,11 @@ mod tests {
         sys.mint_to(sender1, 10000);
         sys.mint_to(sender2, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");
@@ -622,10 +645,11 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_file_with_id(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         assert_eq!(sys.balance_of(user), 0);
@@ -645,9 +669,11 @@ mod tests {
 
         sys.mint_to(sender, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");
@@ -662,5 +688,65 @@ mod tests {
         // Check receiver's balance
         sys.claim_value_from_mailbox(receiver);
         assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+    }
+
+    struct CleanupFolderOnDrop {
+        path: String,
+    }
+
+    impl Drop for CleanupFolderOnDrop {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
+        }
+    }
+
+    #[test]
+    fn save_load_memory_dump() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
+        );
+
+        let signer = 42;
+
+        // Init capacitor with CAPACITY = 15
+        prog.send_bytes(signer, b"15");
+
+        // Charge capacitor with CHARGE = 10
+        let response = dbg!(prog.send_bytes(signer, b"10"));
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes([]);
+        assert!(response.contains(&log));
+
+        let cleanup = CleanupFolderOnDrop {
+            path: "./296c6962726".to_string(),
+        };
+        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
+        sys.claim_value_from_mailbox(signer);
+
+        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        drop(cleanup);
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
+        sys.claim_value_from_mailbox(signer);
     }
 }

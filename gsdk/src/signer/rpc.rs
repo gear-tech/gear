@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -99,7 +99,6 @@ impl Signer {
         &self,
         origin: Option<H256>,
         message_id: MessageId,
-        status_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -109,7 +108,6 @@ impl Signer {
             .calculate_reply_gas(
                 origin.unwrap_or_else(|| self.source()),
                 message_id,
-                status_code,
                 payload,
                 value,
                 allow_other_panics,

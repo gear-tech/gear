@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -58,6 +58,10 @@ pub trait Mailbox {
         key1: Self::Key1,
         key2: Self::Key2,
     ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError>;
+
+    /// Peeks into the mailbox using the given keys to return a message,
+    /// if present. Does not destroy the message.
+    fn peek(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value>;
 
     /// Removes all values from all key's mailboxes.
     fn clear();
@@ -166,6 +170,10 @@ where
         } else {
             Err(Self::Error::element_not_found().into())
         }
+    }
+
+    fn peek(user_id: &Self::Key1, message_id: &Self::Key2) -> Option<Self::Value> {
+        T::get(user_id, message_id).map(|(stored, _)| stored)
     }
 
     fn clear() {

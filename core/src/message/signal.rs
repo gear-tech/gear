@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,9 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
+    message::{Dispatch, DispatchKind, Message, SignalDetails},
 };
-use gear_core_errors::{SimpleCodec, SimpleSignalError};
+use gear_core_errors::SignalCode;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -32,16 +32,15 @@ pub struct SignalMessage {
     /// Message id.
     id: MessageId,
     /// Reply status code.
-    status_code: StatusCode,
+    code: SignalCode,
 }
 
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
-    pub fn new(origin_msg_id: MessageId, err: SimpleSignalError) -> Self {
+    pub fn new(origin_msg_id: MessageId, code: SignalCode) -> Self {
         let id = MessageId::generate_signal(origin_msg_id);
-        let status_code = err.into_status_code();
 
-        Self { id, status_code }
+        Self { id, code }
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
@@ -53,7 +52,7 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(SignalDetails::new(origin_msg_id, self.status_code).into()),
+            Some(SignalDetails::new(origin_msg_id, self.code).into()),
         )
     }
 
@@ -71,7 +70,7 @@ impl SignalMessage {
     }
 
     /// Status code of the reply message.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
+    pub fn code(&self) -> SignalCode {
+        self.code
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -62,12 +62,12 @@ pub mod pallet {
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
-        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
+        type ProgramStorage: ProgramStorage
+            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
     }
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
-    #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
     #[pallet::event]
@@ -185,7 +185,7 @@ pub mod pallet {
             msg.id(),
             ProgramId::from_origin(source),
             ProgramId::from_origin(destination),
-            (*msg.payload()).to_vec().try_into().unwrap(),
+            (*msg.payload_bytes()).to_vec().try_into().unwrap(),
             msg.value(),
             msg.details(),
         );
@@ -200,8 +200,8 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, (prog, _bn))| {
-                    let active = match prog {
+                .map(|(id, program)| {
+                    let active = match program {
                         Program::Active(active) => active,
                         _ => {
                             return ProgramDetails {

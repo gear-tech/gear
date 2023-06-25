@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,6 +26,7 @@ use signer::Signer;
 use std::sync::Arc;
 pub use subxt::dynamic::Value;
 use subxt::OnlineClient;
+pub mod testing;
 
 mod client;
 pub mod config;
@@ -40,8 +41,17 @@ pub mod types;
 mod utils;
 pub mod ext {
     pub use sp_core;
-    pub use sp_runtime;
+    pub use sp_runtime::{self, codec, scale_info};
 }
+pub mod gp {
+    //! generated code preludes.
+    pub use subxt::ext::{
+        codec::{Decode, Encode},
+        scale_decode::DecodeAsType,
+    };
+}
+
+pub type BlockNumber = u32;
 
 /// Gear api wrapper.
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -90,9 +90,14 @@ impl IncomingMessage {
         self.source
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
+    }
+
+    /// Mutable reference to message payload.
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 
     /// Message gas limit.
@@ -114,10 +119,15 @@ impl IncomingMessage {
     pub fn is_error_reply(&self) -> bool {
         self.details.map(|d| d.is_error_reply()).unwrap_or(false)
     }
+
+    /// Returns bool defining if message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+    }
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,

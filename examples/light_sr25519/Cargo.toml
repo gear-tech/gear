@@ -1,8 +1,8 @@
 [package]
 name = "light_sr25519"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies.schnorrkel]
 version = "0.10.2"

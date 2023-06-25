@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,13 +24,14 @@ use sc_chain_spec::Properties;
 use sc_service::ChainType;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::UNITS as TOKEN, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
     GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
-    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, ValidatorSetConfig,
+    VestingConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -572,6 +573,12 @@ fn testnet_genesis(
                 .map(|k: &AccountId| (k.clone(), ENDOWMENT))
                 .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
                 .collect(),
+        },
+        validator_set: ValidatorSetConfig {
+            initial_validators: initial_authorities
+                .iter()
+                .map(|x| x.0.clone())
+                .collect::<Vec<_>>(),
         },
         babe: BabeConfig {
             authorities: Default::default(),

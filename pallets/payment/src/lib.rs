@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,6 +37,7 @@ use sp_std::borrow::Cow;
 
 pub use pallet::*;
 
+type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
 type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
@@ -75,6 +76,16 @@ impl<T: Config> sp_std::fmt::Debug for CustomChargeTransactionPayment<T> {
     }
 }
 
+pub trait DelegateFee<C, A> {
+    fn delegate_fee(call: &C, who: &A) -> Option<A>;
+}
+
+impl<C, A> DelegateFee<C, A> for () {
+    fn delegate_fee(_call: &C, _who: &A) -> Option<A> {
+        None
+    }
+}
+
 // Follow pallet-transaction-payment implementation
 impl<T: Config> SignedExtension for CustomChargeTransactionPayment<T>
 where
@@ -100,7 +111,8 @@ where
     ) -> TransactionValidity {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.validate(who, call, &info, len)
+        let payer = Self::fee_payer_account(call, who);
+        self.0.validate(&payer, call, &info, len)
     }
 
     fn pre_dispatch(
@@ -112,7 +124,9 @@ where
     ) -> Result<Self::Pre, TransactionValidityError> {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.pre_dispatch(who, call, &info, len)
+        // Replace payer if delegated
+        let payer = Self::fee_payer_account(call, who);
+        self.0.pre_dispatch(&payer, call, &info, len)
     }
 
     fn post_dispatch(
@@ -161,11 +175,12 @@ where
             let multiplier = TransactionPayment::<T>::next_fee_multiplier();
             if multiplier > Multiplier::saturating_from_integer(1) {
                 let mut info: DispatchInfo = *info;
-                info.weight = Weight::from_ref_time(
+                info.weight = Weight::from_parts(
                     multiplier
                         .reciprocal() // take inverse
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(info.weight.ref_time()),
+                    0,
                 );
                 Cow::Owned(info)
             } else {
@@ -173,6 +188,19 @@ where
             }
         } else {
             Cow::Borrowed(info)
+        }
+    }
+
+    fn fee_payer_account<'a>(
+        call: &'a <T as frame_system::Config>::RuntimeCall,
+        who: &'a <T as frame_system::Config>::AccountId,
+    ) -> Cow<'a, <T as frame_system::Config>::AccountId> {
+        // Check if the extrinsic being called allows to charge fee payment to another account.
+        // The only such call at the moment is `Gear::send_message_with_voucher`.
+        if let Some(acc) = T::DelegateFee::delegate_fee(call, who) {
+            Cow::Owned(acc)
+        } else {
+            Cow::Borrowed(who)
         }
     }
 }
@@ -237,11 +265,12 @@ impl<T: Config> Pallet<T> {
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             // If call is exempted from weight multiplication pre-divide it with the fee multiplier
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                Weight::from_ref_time(
+                Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(weight.ref_time()),
+                    0,
                 )
             } else {
                 weight
@@ -290,11 +319,12 @@ impl<T: Config> Pallet<T> {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                Weight::from_ref_time(
+                Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(weight.ref_time()),
+                    0,
                 )
             } else {
                 weight
@@ -326,6 +356,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config + pallet_transaction_payment::Config {
         /// Filter for calls subbject for extra fees
         type ExtraFeeCallFilter: Contains<CallOf<Self>>;
+
+        /// Filter for a call that delegates fee payment to another account
+        type DelegateFee: DelegateFee<CallOf<Self>, AccountIdOf<Self>>;
 
         /// Type representing message queue
         type Messenger: Messenger<Capacity = u32>;

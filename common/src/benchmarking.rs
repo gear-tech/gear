@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -135,7 +135,7 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 
 pub fn set_program<
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
-    BlockNumber: Zero,
+    BlockNumber: Zero + Copy + Saturating,
 >(
     program_id: ProgramId,
     code: Vec<u8>,
@@ -164,8 +164,8 @@ pub fn set_program<
             static_pages,
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
+            expiration_block: Zero::zero(),
         },
-        Zero::zero(),
     )
     .expect("benchmarking; program duplicates should not exist");
 }

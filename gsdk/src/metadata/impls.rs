@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,35 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Copyright (C) 2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-use super::runtime_types::{
-    frame_system::pallet::Call as SystemCall,
-    gear_common::{event::*, gas_provider::node::GasNodeId},
-    gear_core::{ids as generated_ids, message as generated_message},
+use super::{
     gear_runtime::{RuntimeCall, RuntimeEvent},
-    pallet_balances::pallet::Call as BalancesCall,
-    pallet_gear::pallet::Call as GearCall,
-    pallet_sudo::pallet::Call as SudoCall,
+    runtime_types::{
+        frame_system::pallet::Call as SystemCall,
+        gear_common::{
+            event::*,
+            gas_provider::node::{GasNodeId, NodeLock},
+        },
+        gear_core::{ids as generated_ids, message as generated_message},
+        gear_core_errors as generated_core_errors,
+        pallet_balances::pallet::Call as BalancesCall,
+        pallet_gear::pallet::Call as GearCall,
+        pallet_sudo::pallet::Call as SudoCall,
+    },
 };
-use gear_core::{ids, message, message::StoredMessage};
+use core::ops::{Index, IndexMut};
+use gear_core::{ids, message, message::UserMessage};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::MultiAddress;
-use subxt::dynamic::Value;
+use subxt::{dynamic::Value, utils::MultiAddress};
 
 type ApiEvent = super::Event;
 
@@ -90,32 +80,21 @@ impl From<generated_ids::ReservationId> for ids::ReservationId {
     }
 }
 
+impl From<generated_core_errors::simple::ReplyCode> for gear_core_errors::ReplyCode {
+    fn from(value: generated_core_errors::simple::ReplyCode) -> Self {
+        Self::decode(&mut value.encode().as_ref()).expect("Incompatible metadata")
+    }
+}
+
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        message::ReplyDetails::new(other.reply_to.into(), other.status_code)
+        message::ReplyDetails::new(other.to.into(), other.code.into())
     }
 }
 
-impl From<generated_message::common::SignalDetails> for message::SignalDetails {
-    fn from(other: generated_message::common::SignalDetails) -> Self {
-        message::SignalDetails::new(other.from.into(), other.status_code)
-    }
-}
-
-impl From<generated_message::common::MessageDetails> for message::MessageDetails {
-    fn from(other: generated_message::common::MessageDetails) -> Self {
-        match other {
-            generated_message::common::MessageDetails::Reply(reply) => Self::Reply(reply.into()),
-            generated_message::common::MessageDetails::Signal(signal) => {
-                Self::Signal(signal.into())
-            }
-        }
-    }
-}
-
-impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
-    fn from(other: generated_message::stored::StoredMessage) -> Self {
-        StoredMessage::new(
+impl From<generated_message::user::UserMessage> for message::UserMessage {
+    fn from(other: generated_message::user::UserMessage) -> Self {
+        message::UserMessage::new(
             other.id.into(),
             other.source.into(),
             other.destination.into(),
@@ -127,15 +106,16 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
     }
 }
 
-impl From<ApiEvent> for RuntimeEvent {
-    fn from(ev: ApiEvent) -> Self {
-        RuntimeEvent::decode(&mut ev.encode().as_ref()).expect("Infallible")
-    }
-}
-
-impl From<RuntimeEvent> for ApiEvent {
-    fn from(ev: RuntimeEvent) -> Self {
-        ApiEvent::decode(&mut ev.encode().as_ref()).expect("Infallible")
+impl From<generated_message::user::UserStoredMessage> for message::UserStoredMessage {
+    fn from(other: generated_message::user::UserStoredMessage) -> Self {
+        message::UserStoredMessage::new(
+            other.id.into(),
+            other.source.into(),
+            other.destination.into(),
+            // converting data from the same type
+            other.payload.0.try_into().expect("Infallible"),
+            other.value,
+        )
     }
 }
 
@@ -179,9 +159,10 @@ macro_rules! impl_basic {
 }
 
 impl_basic! {
-    ApiEvent, RuntimeEvent, generated_ids::MessageId,
+    ApiEvent, generated_ids::MessageId,
     generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
-    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>
+    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
+    generated_core_errors::simple::ReplyCode
 }
 
 impl From<RuntimeCall> for Value {
@@ -334,8 +315,41 @@ fn system_call_to_scale_value(call: SystemCall) -> Value {
                 [("items", Value::unnamed_composite(items_as_values))],
             )
         }
+        SystemCall::set_code { code } => {
+            Value::named_variant("set_code", [("code", Value::from_bytes(code))])
+        }
+        SystemCall::set_code_without_checks { code } => Value::named_variant(
+            "set_code_without_checks",
+            [("code", Value::from_bytes(code))],
+        ),
         _ => unreachable!("other calls aren't supported for now."),
     };
 
     Value::unnamed_variant("System", [variant])
+}
+
+/// Convert to type.
+pub trait Convert<T> {
+    fn convert(self) -> T;
+}
+
+impl Convert<subxt::utils::AccountId32> for sp_runtime::AccountId32 {
+    fn convert(self) -> subxt::utils::AccountId32 {
+        let hash: &[u8; 32] = self.as_ref();
+        subxt::utils::AccountId32::from(*hash)
+    }
+}
+
+impl Convert<subxt::utils::MultiAddress<subxt::utils::AccountId32, ()>>
+    for sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>
+{
+    fn convert(self) -> subxt::utils::MultiAddress<subxt::utils::AccountId32, ()> {
+        match self {
+            sp_runtime::MultiAddress::Address20(id) => subxt::utils::MultiAddress::Address20(id),
+            sp_runtime::MultiAddress::Address32(id) => subxt::utils::MultiAddress::Address32(id),
+            sp_runtime::MultiAddress::Id(id) => subxt::utils::MultiAddress::Id(id.convert()),
+            sp_runtime::MultiAddress::Index(index) => subxt::utils::MultiAddress::Index(index),
+            sp_runtime::MultiAddress::Raw(raw) => subxt::utils::MultiAddress::Raw(raw),
+        }
+    }
 }

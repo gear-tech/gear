@@ -2,8 +2,8 @@
 name = "pallet-gear"
 version = "2.0.0"
 authors = ['Gear Technologies']
-edition = '2018'
-license = "GPL-3.0"
+edition = '2021'
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
@@ -21,6 +21,7 @@ gear-wasm-instrument.workspace = true
 derive_more.workspace = true
 env_logger = { workspace = true, optional = true }
 scopeguard.workspace = true
+static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -33,6 +34,7 @@ gear-backend-sandbox.workspace = true
 gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
+pallet-gear-voucher.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -61,6 +63,10 @@ demo-proxy = { workspace = true, optional = true }
 wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
+gstd = { workspace = true, features = ["debug"] }
+demo-async.workspace = true
+demo-async-init.workspace = true
+demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
 demo-btree.workspace = true
@@ -70,38 +76,42 @@ demo-init-fail-sender.workspace = true
 demo-init-wait.workspace = true
 demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
-demo-exit-init.workspace = true
-demo-exit-handle.workspace = true
-demo-exit-handle-sender.workspace = true
+demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
 demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
-demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
-demo-init-with-value.workspace = true
-demo-gasless-wasting.workspace = true
+demo-incomplete-async-payloads.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true
 demo-calc-hash-over-blocks.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
+demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
-demo-value-sender.workspace = true
 demo-waiter.workspace = true
 demo-wait-timeout.workspace = true
+demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
+demo-rwlock.workspace = true
+demo-reservation-manager.workspace = true
 demo-send-from-reservation.workspace = true
 demo-signal-entry.workspace = true
+demo-state-rollback.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
+demo-ping.workspace = true
+demo-sync-duplicate.workspace = true
+test-syscalls.workspace = true
 page_size.workspace = true
-frame-support-test.workspace = true
-pallet-gear-gas.workspace = true
-pallet-gear-messenger.workspace = true
-pallet-gear-scheduler.workspace = true
-pallet-gear-program.workspace = true
+frame-support-test = { workspace = true, features = ["std"] }
+pallet-gear-gas = { workspace = true, features = ["std"] }
+pallet-gear-messenger = { workspace = true, features = ["std"] }
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
+pallet-gear-program = { workspace = true, features = ["std"] }
+pallet-gear-voucher = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
@@ -132,6 +142,7 @@ std = [
 	"pallet-gear-messenger/std",
 	"pallet-gear-scheduler/std",
 	"pallet-gear-program/std",
+	"pallet-gear-voucher/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
@@ -159,3 +170,4 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]
+fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

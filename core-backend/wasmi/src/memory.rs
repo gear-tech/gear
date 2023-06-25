@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,18 +20,18 @@
 
 use crate::state::HostState;
 use gear_core::{
-    env::Ext,
+    env::Externalities,
     memory::{HostPointer, Memory, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub(crate) struct MemoryWrapRef<'a, E: Ext + 'static> {
+pub(crate) struct MemoryWrapRef<'a, Ext: Externalities + 'static> {
     pub memory: WasmiMemory,
-    pub store: StoreContextMut<'a, HostState<E>>,
+    pub store: StoreContextMut<'a, HostState<Ext>>,
 }
 
-impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
+impl<'a, Ext: Externalities + 'static> Memory for MemoryWrapRef<'a, Ext> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -63,23 +63,23 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
 }
 
 /// Wrapper for [`wasmi::Memory`].
-pub struct MemoryWrap<E: Ext + 'static> {
+pub struct MemoryWrap<Ext: Externalities + 'static> {
     pub(crate) memory: WasmiMemory,
-    pub(crate) store: Store<HostState<E>>,
+    pub(crate) store: Store<HostState<Ext>>,
 }
 
-impl<E: Ext + 'static> MemoryWrap<E> {
+impl<Ext: Externalities + 'static> MemoryWrap<Ext> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
-    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
+    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<Ext>>) -> Self {
         MemoryWrap { memory, store }
     }
-    pub(crate) fn into_store(self) -> Store<HostState<E>> {
+    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
         self.store
     }
 }
 
 /// Memory interface for the allocator.
-impl<E: Ext + 'static> Memory for MemoryWrap<E> {
+impl<Ext: Externalities + 'static> Memory for MemoryWrap<Ext> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -116,7 +116,7 @@ mod tests {
 
     use super::*;
     use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
-    use gear_core::memory::{AllocError, AllocInfo, AllocationsContext, NoopGrowHandler};
+    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
@@ -151,29 +151,23 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            },
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
+            16.into()
         );
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            }
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
+            16.into()
         );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
 
@@ -182,11 +176,8 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 137.into(),
-                not_grown: 1.into()
-            },
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            137.into()
         );
 
         // if we have 2 in a row we can allocate even 2
@@ -194,11 +185,8 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            AllocInfo {
-                page: 117.into(),
-                not_grown: 2.into()
-            },
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            117.into()
         );
 
         // but if 2 are not in a row, bad luck
@@ -206,7 +194,7 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
     }

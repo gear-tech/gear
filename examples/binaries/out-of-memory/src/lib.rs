@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -35,6 +35,10 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn init() {
+        unsafe {
+            // Force rustc not to remove memory import
+            *(10usize as *mut u8) = 10;
+        }
         alloc::alloc::handle_alloc_error(Layout::new::<[u8; 64 * 1024]>());
     }
 }

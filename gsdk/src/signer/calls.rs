@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,19 +19,23 @@
 //! gear api calls
 use crate::{
     config::GearConfig,
-    metadata::runtime_types::{
-        frame_system::pallet::Call,
-        gear_common::{ActiveProgram, Program},
-        gear_core::code::InstrumentedCode,
+    metadata::{
         gear_runtime::RuntimeCall,
-        sp_weights::weight_v2::Weight,
+        runtime_types::{
+            frame_system::pallet::Call,
+            gear_common::{ActiveProgram, Program},
+            gear_core::code::InstrumentedCode,
+            sp_weights::weight_v2::Weight,
+        },
+        sudo::Event as SudoEvent,
+        Event,
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
-    Error,
+    utils::storage_address_bytes,
+    BlockNumber, Error,
 };
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 use gear_core::{
     ids::*,
     memory::{PageBuf, PageBufInner},
@@ -40,16 +44,17 @@ use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
+    blocks::ExtrinsicEvents,
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
-    tx::{DynamicTxPayload, TxProgress},
+    tx::{DynamicPayload, TxProgress},
+    utils::Static,
     Error as SubxtError, OnlineClient,
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
-
-const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
+type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 // pallet-balances
 impl Signer {
@@ -191,8 +196,24 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
+    async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
+        let tx = self.process(tx).await?;
+        let events = tx.wait_for_success().await?;
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.api().decode_error(err).into());
+            }
+        }
+
+        Ok(events)
+    }
+
     /// `pallet_sudo::sudo_unchecked_weight`
-    pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> InBlock {
+    pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         let tx = subxt::dynamic::tx(
             "Sudo",
             "sudo_unchecked_weight",
@@ -205,29 +226,28 @@ impl Signer {
                 ]),
             ],
         );
-
-        self.process(tx).await
+        self.process_sudo(tx).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> InBlock {
+    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
         let tx = subxt::dynamic::tx("Sudo", "sudo", vec![Value::from(call)]);
 
-        self.process(tx).await
+        self.process_sudo(tx).await
     }
 }
 
 // pallet-system
 impl Signer {
     /// Sets storage values via calling sudo pallet
-    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> InBlock {
+    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> EventsResult {
         let metadata = self.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
-            let item_key = subxt::storage::utils::storage_address_bytes(&item.0, &metadata)?;
+            let item_key = storage_address_bytes(&item.0, &metadata)?;
             let mut item_value_bytes = Vec::new();
             let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
-            subxt::metadata::EncodeStaticType(&item.1).encode_with_metadata(
+            Static(&item.1).encode_with_metadata(
                 item_value_type_id,
                 &metadata,
                 &mut item_value_bytes,
@@ -244,19 +264,21 @@ impl Signer {
 
 // pallet-gas
 impl Signer {
+    /// Writes gas total issuance into storage.
+    pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
+        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        self.set_storage(&[(addr, value)]).await
+    }
+
     /// Writes Gear gas nodes into storage at their ids.
     pub async fn set_gas_nodes(
         &self,
         gas_nodes: &impl AsRef<[(types::GearGasNodeId, types::GearGasNode)]>,
-    ) -> InBlock {
+    ) -> EventsResult {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
-                vec![subxt::metadata::EncodeStaticType(gas_node.0)],
-            );
+            let addr = subxt::dynamic::storage("GearGas", "GasNodes", vec![Static(gas_node.0)]);
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
@@ -266,7 +288,7 @@ impl Signer {
 // pallet-gear-program
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
-    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> InBlock {
+    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
@@ -276,7 +298,7 @@ impl Signer {
     }
 
     /// Writes `InstrumentedCode` into storage at `CodeId`
-    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> InBlock {
+    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
@@ -290,7 +312,7 @@ impl Signer {
         &self,
         program_id: ProgramId,
         program_pages: &types::GearPages,
-    ) -> InBlock {
+    ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
             let addr = subxt::dynamic::storage(
@@ -313,16 +335,14 @@ impl Signer {
     pub async fn set_gprog(
         &self,
         program_id: ProgramId,
-        program: ActiveProgram,
-        block_number: u32,
-    ) -> InBlock {
+        program: ActiveProgram<BlockNumber>,
+    ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
             vec![Value::from_bytes(program_id)],
         );
-        self.set_storage(&[(addr, &(Program::Active(program), block_number))])
-            .await
+        self.set_storage(&[(addr, &Program::Active(program))]).await
     }
 }
 
@@ -352,14 +372,12 @@ impl Signer {
         }
     }
 
-    /// Wrapper for submit and watch with error handling.
-    #[async_recursion(?Send)]
+    /// Wrapper for submit and watch with nonce.
     async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &DynamicTxPayload<'a>,
-        counter: u16,
+        tx: &DynamicPayload,
     ) -> Result<TxProgressT, SubxtError> {
-        let process = if let Some(nonce) = self.nonce {
+        if let Some(nonce) = self.nonce {
             self.api
                 .tx()
                 .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
@@ -370,34 +388,17 @@ impl Signer {
                 .tx()
                 .sign_and_submit_then_watch_default(tx, &self.signer)
                 .await
-        };
-
-        if counter >= self.api().retry {
-            return process;
         }
-
-        // TODO: Add more patterns for this retrying job.
-        if let Err(SubxtError::Rpc(rpc_error)) = &process {
-            let error_string = rpc_error.to_string();
-            for error in ERRORS_REQUIRE_RETRYING {
-                if error_string.contains(error) {
-                    return self.sign_and_submit_then_watch(tx, counter + 1).await;
-                }
-            }
-        }
-
-        process
     }
 
     /// Listen transaction process and print logs.
-    async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
+    async fn process<'a>(&self, tx: DynamicPayload) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
-
-        // Get extrinsic details.
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
         let (pallet, name) = (tx.pallet_name(), tx.call_name());
+
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
         while let Some(status) = process.next_item().await {
@@ -405,10 +406,6 @@ impl Signer {
             self.log_status(&status);
             match status {
                 Future | Ready | Broadcast(_) | InBlock(_) => (),
-                Dropped | Invalid | Usurped(_) | FinalityTimeout(_) | Retracted(_) => {
-                    self.log_balance_spent(before).await?;
-                    return Err(status.into());
-                }
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
@@ -420,6 +417,10 @@ impl Signer {
 
                     self.log_balance_spent(before).await?;
                     return Ok(b);
+                }
+                _ => {
+                    self.log_balance_spent(before).await?;
+                    return Err(status.into());
                 }
             }
         }

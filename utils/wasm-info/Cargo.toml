@@ -1,9 +1,9 @@
 [package]
 name = "wasm-info"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
-hex.workspace = true
+clap = { workspace = true, features = ["derive"] }
+hex = { workspace = true, features = ["std"] }
 parity-wasm.workspace = true
-structopt = "0.3.26" # TODO: use clap instead

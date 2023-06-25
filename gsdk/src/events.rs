@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ use crate::{
 use subxt::{
     blocks::ExtrinsicEvents as TxEvents,
     error::{DispatchError, Error as SubxtError},
-    events::{EventDetails, Phase},
+    events::EventDetails,
     tx::TxInBlock,
     OnlineClient,
 };
@@ -47,8 +47,8 @@ impl Api {
 
                     return Err(SubxtError::from(DispatchError::decode_from(
                         ev.field_bytes(),
-                        &self.metadata(),
-                    ))
+                        self.metadata(),
+                    )?)
                     .into());
                 }
 
@@ -63,8 +63,8 @@ impl Api {
     }
 
     /// Parse transaction fee from InBlockEvents
-    pub fn capture_weight_info(details: &EventDetails) -> Result<()> {
-        let event: Event = details.as_root_event::<(Phase, Event)>()?.1;
+    pub fn capture_weight_info(details: &EventDetails<GearConfig>) -> Result<()> {
+        let event: Event = details.as_root_event::<Event>()?;
 
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event

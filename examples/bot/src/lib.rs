@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 //!
 //! Hi! I'm bot. I can be configured in `init` and then reply
@@ -151,6 +152,8 @@ pub struct Handler {
     repeated: bool,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "demo bot",
     init:

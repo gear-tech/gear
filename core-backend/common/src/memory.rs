@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,15 +18,14 @@
 
 //! Work with WASM program memory in backends.
 
-// TODO: make unit tests for `MemoryAccessManager` (issue #2068)
-
-use crate::BackendExt;
+use crate::BackendExternalities;
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
     marker::PhantomData,
     mem,
     mem::{size_of, MaybeUninit},
+    result::Result,
     slice,
 };
 use gear_core::{
@@ -130,13 +129,14 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E> {
-    reads: Vec<MemoryInterval>,
-    writes: Vec<MemoryInterval>,
-    _phantom: PhantomData<E>,
+pub struct MemoryAccessManager<Ext> {
+    // Contains non-zero length intervals only.
+    pub(crate) reads: Vec<MemoryInterval>,
+    pub(crate) writes: Vec<MemoryInterval>,
+    pub(crate) _phantom: PhantomData<Ext>,
 }
 
-impl<E> Default for MemoryAccessManager<E> {
+impl<Ext> Default for MemoryAccessManager<Ext> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -146,17 +146,19 @@ impl<E> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        self.reads.push(MemoryInterval { offset: ptr, size });
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryRead { ptr, size }
     }
 
     fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        self.reads.push(MemoryInterval {
-            offset: ptr,
-            size: size_of::<T>() as u32,
-        });
+        let size = size_of::<T>() as u32;
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryReadAs {
             ptr,
             _phantom: PhantomData,
@@ -167,10 +169,10 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
-        self.reads.push(MemoryInterval {
-            offset: ptr,
-            size: T::max_encoded_len() as u32,
-        });
+        let size = T::max_encoded_len() as u32;
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryReadDecoded {
             ptr,
             _phantom: PhantomData,
@@ -178,15 +180,17 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 
     fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.writes.push(MemoryInterval { offset: ptr, size });
+        if size > 0 {
+            self.writes.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryWrite { ptr, size }
     }
 
     fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.writes.push(MemoryInterval {
-            offset: ptr,
-            size: size_of::<T>() as u32,
-        });
+        let size = size_of::<T>() as u32;
+        if size > 0 {
+            self.writes.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryWriteAs {
             ptr,
             _phantom: PhantomData,
@@ -194,9 +198,9 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessManager<E> {
+impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
-    fn pre_process_memory_accesses(
+    pub(crate) fn pre_process_memory_accesses(
         &mut self,
         gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
@@ -204,7 +208,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
             return Ok(());
         }
 
-        let res = E::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
+        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
 
         self.reads.clear();
         self.writes.clear();
@@ -231,8 +235,13 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         read: WasmMemoryRead,
         gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+        let buff = if read.size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            buff
+        };
         Ok(buff)
     }
 
@@ -243,8 +252,14 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         read: WasmMemoryReadDecoded<T>,
         gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
-        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+        let size = T::max_encoded_len();
+        let buff = if size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            buff
+        };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
@@ -271,8 +286,12 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if buff.len() != write.size as usize {
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
-        self.pre_process_memory_accesses(gas_left)?;
-        memory.write(write.ptr, buff).map_err(Into::into)
+        if write.size == 0 {
+            Ok(())
+        } else {
+            self.pre_process_memory_accesses(gas_left)?;
+            memory.write(write.ptr, buff).map_err(Into::into)
+        }
     }
 
     /// Pre-process registered accesses if need and write `obj` data to `memory`.
@@ -294,40 +313,46 @@ fn write_memory_as<T: Sized>(
     ptr: u32,
     obj: T,
 ) -> Result<(), MemoryError> {
-    // # Safety:
-    //
-    // Given object is `Sized` and we own them in the context of calling this
-    // function (it's on stack), it's safe to take ptr on the object and
-    // represent it as slice. Object will be dropped after `memory.write`
-    // finished execution and no one will rely on this slice.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let slice =
-        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+    let size = mem::size_of::<T>();
+    if size > 0 {
+        // # Safety:
+        //
+        // Given object is `Sized` and we own them in the context of calling this
+        // function (it's on stack), it's safe to take ptr on the object and
+        // represent it as slice. Object will be dropped after `memory.write`
+        // finished execution and no one will rely on this slice.
+        //
+        // Bytes in memory always stored continuously and without paddings, properly
+        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+        let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
 
-    memory.write(ptr, slice)
+        memory.write(ptr, slice)
+    } else {
+        Ok(())
+    }
 }
 
 /// Reads bytes from given pointer to construct type T from them.
 fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
     let mut buf = MaybeUninit::<T>::uninit();
 
-    // # Safety:
-    //
-    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
-    //
-    // It's also safe to construct T from any bytes, because we use the fn
-    // only for reading primitive const-size types that are `[repr(C)]`,
-    // so they always represented from sequence of bytes.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let mut_slice =
-        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+    let size = mem::size_of::<T>();
+    if size > 0 {
+        // # Safety:
+        //
+        // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+        // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+        //
+        // It's also safe to construct T from any bytes, because we use the fn
+        // only for reading primitive const-size types that are `[repr(C)]`,
+        // so they always represented from sequence of bytes.
+        //
+        // Bytes in memory always stored continuously and without paddings, properly
+        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+        let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
 
-    memory.read(ptr, mut_slice)?;
+        memory.read(ptr, mut_slice)?;
+    }
 
     // # Safety:
     //
@@ -340,30 +365,30 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
 
 /// Read static size type access wrapper.
 pub struct WasmMemoryReadAs<T> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
 pub struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
 pub struct WasmMemoryRead {
-    ptr: u32,
-    size: u32,
+    pub(crate) ptr: u32,
+    pub(crate) size: u32,
 }
 
 /// Write static size type access wrapper.
 pub struct WasmMemoryWriteAs<T> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
 pub struct WasmMemoryWrite {
-    ptr: u32,
-    size: u32,
+    pub(crate) ptr: u32,
+    pub(crate) size: u32,
 }

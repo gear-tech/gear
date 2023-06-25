@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,8 @@ pub use pallet_custom_origins::*;
 pub mod pallet_custom_origins {
     use frame_support::pallet_prelude::*;
 
+    use crate::{Balance, UNITS};
+
     #[pallet::config]
     pub trait Config: frame_system::Config {}
 
@@ -45,6 +47,16 @@ pub mod pallet_custom_origins {
         ReferendumCanceller,
         /// Origin able to kill referenda.
         ReferendumKiller,
+        /// Origin able to spend up to 1,000 VARA from the treasury at once.
+        SmallTipper,
+        /// Origin able to spend up to 5,000 VARA from the treasury at once.
+        BigTipper,
+        /// Origin able to spend up to 50,000 VARA from the treasury at once.
+        SmallSpender,
+        /// Origin able to spend up to 500,000 VARA from the treasury at once.
+        MediumSpender,
+        /// Origin able to spend up to 5,000,000 VARA from the treasury at once.
+        BigSpender,
         /// Origin able to dispatch a whitelisted call.
         WhitelistedCaller,
         /// Origin commanded by any members of the Vara Fellowship (no grade needed).
@@ -149,6 +161,17 @@ pub mod pallet_custom_origins {
                     _result
                 }
             }
+        }
+    }
+
+    decl_ensure! {
+        pub type Spender: EnsureOrigin<Success = Balance> {
+            SmallTipper = 1_000 * UNITS,
+            BigTipper = 5_000 * UNITS,
+            SmallSpender = 50_000 * UNITS,
+            MediumSpender = 500_000 * UNITS,
+            BigSpender = 5_000_000 * UNITS,
+            Treasurer = 50_000_000 * UNITS, // TODO: do we need to limit `Treasurer`'s spending?
         }
     }
 

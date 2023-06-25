@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -276,9 +276,6 @@ pub enum ChargeError {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
@@ -292,53 +289,10 @@ pub trait CountersOwner {
     fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
     /// Charge gas if enough, else just returns error.
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
-    /// Refund gas limit and gas allowance.
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
     /// Set gas limit and gas allowance left.
     fn set_gas_left(&mut self, gas_left: GasLeft);
-}
-
-/// Provide functionality to safely make gas refund after charge,
-/// it checks, that it's not refunded more gas than has been charged.
-pub struct GasRefunder {
-    amount: u64,
-}
-
-/// [GasRefunder] error, in case somebody tries to refund more than was charged.
-#[derive(Debug, derive_more::Display)]
-#[display(fmt = "Trying to refund {charged}, but {refunded} was charged")]
-pub struct RefundError {
-    charged: u64,
-    refunded: u64,
-}
-
-impl GasRefunder {
-    /// Charge gas.
-    pub fn charge_if_enough<C: CountersOwner>(
-        counters: &mut C,
-        amount: u64,
-    ) -> Result<Self, ChargeError> {
-        counters.charge_gas_if_enough(amount)?;
-        Ok(Self { amount })
-    }
-
-    /// Refund gas.
-    pub fn refund<C: CountersOwner>(
-        self,
-        counters: &mut C,
-        amount: u64,
-    ) -> Result<Result<(), ChargeError>, RefundError> {
-        if self.amount < amount {
-            return Err(RefundError {
-                charged: self.amount,
-                refunded: amount,
-            });
-        }
-
-        Ok(counters.refund_gas(amount))
-    }
 }
 
 /// Gas limit and gas allowance left.

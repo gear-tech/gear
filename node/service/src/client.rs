@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,8 @@
 use gear_runtime_interface as gear_ri;
 pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use sc_client_api::{
-    AuxStore, Backend as BackendT, BlockBackend, BlockchainEvents, KeyIterator, UsageProvider,
+    AuxStore, Backend as BackendT, BlockBackend, BlockchainEvents, KeysIter, PairsIter,
+    UsageProvider,
 };
 use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
@@ -100,7 +101,7 @@ pub trait RuntimeApiCollection:
     sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
     + sp_api::ApiExt<Block>
     + sp_consensus_babe::BabeApi<Block>
-    + sp_finality_grandpa::GrandpaApi<Block>
+    + sp_consensus_grandpa::GrandpaApi<Block>
     + sp_block_builder::BlockBuilder<Block>
     + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
     + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -118,7 +119,7 @@ where
     Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
         + sp_api::ApiExt<Block>
         + sp_consensus_babe::BabeApi<Block>
-        + sp_finality_grandpa::GrandpaApi<Block>
+        + sp_consensus_grandpa::GrandpaApi<Block>
         + sp_block_builder::BlockBuilder<Block>
         + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
         + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -398,14 +399,17 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 
     fn storage_keys(
         &self,
-        id: <Block as BlockT>::Hash,
-        key_prefix: &StorageKey,
-    ) -> sp_blockchain::Result<Vec<StorageKey>> {
+        hash: <Block as BlockT>::Hash,
+        prefix: Option<&StorageKey>,
+        start_key: Option<&StorageKey>,
+    ) -> sp_blockchain::Result<
+        KeysIter<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+    > {
         with_client! {
             self,
             client,
             {
-                client.storage_keys(id, key_prefix)
+                client.storage_keys(hash, prefix, start_key)
             }
         }
     }
@@ -427,30 +431,16 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
     fn storage_pairs(
         &self,
         id: <Block as BlockT>::Hash,
-        key_prefix: &StorageKey,
-    ) -> sp_blockchain::Result<Vec<(StorageKey, StorageData)>> {
-        with_client! {
-            self,
-            client,
-            {
-                client.storage_pairs(id, key_prefix)
-            }
-        }
-    }
-
-    fn storage_keys_iter(
-        &self,
-        id: <Block as BlockT>::Hash,
         prefix: Option<&StorageKey>,
         start_key: Option<&StorageKey>,
     ) -> sp_blockchain::Result<
-        KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+        PairsIter<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
     > {
         with_client! {
             self,
             client,
             {
-                client.storage_keys_iter(id, prefix, start_key)
+                client.storage_pairs(id, prefix, start_key)
             }
         }
     }
@@ -473,32 +463,17 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
     fn child_storage_keys(
         &self,
         id: <Block as BlockT>::Hash,
-        child_info: &ChildInfo,
-        key_prefix: &StorageKey,
-    ) -> sp_blockchain::Result<Vec<StorageKey>> {
-        with_client! {
-            self,
-            client,
-            {
-                client.child_storage_keys(id, child_info, key_prefix)
-            }
-        }
-    }
-
-    fn child_storage_keys_iter(
-        &self,
-        id: <Block as BlockT>::Hash,
         child_info: ChildInfo,
         prefix: Option<&StorageKey>,
         start_key: Option<&StorageKey>,
     ) -> sp_blockchain::Result<
-        KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+        KeysIter<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
     > {
         with_client! {
             self,
             client,
             {
-                client.child_storage_keys_iter(id, child_info, prefix, start_key)
+                client.child_storage_keys(id, child_info, prefix, start_key)
             }
         }
     }

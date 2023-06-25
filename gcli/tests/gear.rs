@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,6 @@ use std::path::PathBuf;
 
 mod cmd;
 mod common;
-mod rpc;
 
 #[tokio::test]
 async fn api_timeout() {
@@ -37,9 +36,8 @@ fn paths() {
     [
         env::bin("gear"),
         env::bin("gcli"),
-        // ( issue #2367 )
-        // env::wasm_bin("demo_meta.opt.wasm"),
-        // env::wasm_bin("demo_meta.meta.wasm"),
+        env::wasm_bin("demo_new_meta.opt.wasm"),
+        env::example_path("new-meta/demo_new_meta.meta.txt"),
     ]
     .into_iter()
     .for_each(|path| {

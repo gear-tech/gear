@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,35 @@ pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, random, system_reserve_gas,
     value_available, wait, wait_for, wait_up_to,
 };
+
+/// Provide gas deposit from current message to handle reply message on given
+/// message id.
+///
+/// This message id should be sent within the execution. Once destination actor
+/// or system sends reply on it, the gas limit ignores, if the program gave
+/// deposit - the only it will be used for execution of `handle_reply`.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let message_id =
+///         msg::send(msg::source(), b"Outgoing message", 0).expect("Failed to send message");
+///
+///     exec::reply_deposit(message_id, 100_000).expect("Failed to deposit reply");
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn handle_reply() {
+///     // I will be executed for pre-defined (deposited) 100_000 of gas!
+/// }
+/// ```
+pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
+    gcore::exec::reply_deposit(message_id.into(), amount).map_err(Into::into)
+}
 
 /// Terminate the execution of a program.
 ///
@@ -90,24 +119,8 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
-/// Return the identifier of the current program.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, ActorId};
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let whoami = exec::program_id();
-/// }
-/// ```
-pub fn program_id() -> ActorId {
-    gcore::exec::program_id().into()
-}
-
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the present processing message was created.
+/// Pay specified rent for the program. The result contains the remainder of
+/// rent value and the count of paid blocks.
 ///
 /// # Examples
 ///
@@ -116,9 +129,26 @@ pub fn program_id() -> ActorId {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let user = exec::origin();
+///     let (_unused_value, paid_block_count) =
+///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn origin() -> ActorId {
-    gcore::exec::origin().into()
+pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
+    Ok(gcore::exec::pay_program_rent(program_id.into(), value)?)
+}
+
+/// Return the identifier of the current program.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::exec;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let whoami = exec::program_id();
+/// }
+/// ```
+pub fn program_id() -> ActorId {
+    gcore::exec::program_id().into()
 }

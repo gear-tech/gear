@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "1024")]
 
 extern crate alloc;
 
@@ -45,29 +45,28 @@ mod tests;
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, Schedule},
+    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
 use common::{
-    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
-    QueueRunner,
+    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
+    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
+    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{
-        BalanceStatus, ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency,
-        Randomness, ReservableCurrency, StorageVersion,
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        ReservableCurrency, StorageVersion,
     },
     weights::Weight,
 };
@@ -75,12 +74,15 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf},
+    memory::{GearPage, PageBuf, WasmPage},
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
-use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{One, Saturating, UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -114,17 +116,23 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
-pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type FirstIncompleteTasksBlockOf<T> =
+    <<T as Config>::Scheduler as Scheduler>::FirstIncompleteTasksBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
-pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::DispatchStash;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
+pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
-pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
+pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
+pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
+pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
+pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
+pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -207,7 +215,11 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
+        type ProgramStorage: PausedProgramStorage<
+            BlockNumber = Self::BlockNumber,
+            Error = DispatchError,
+            AccountId = Self::AccountId,
+        >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -230,7 +242,7 @@ pub mod pallet {
             OutputError = DispatchError,
             MailboxFirstKey = Self::AccountId,
             MailboxSecondKey = MessageId,
-            MailboxedMessage = StoredMessage,
+            MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
@@ -241,31 +253,52 @@ pub mod pallet {
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
-            Key = MessageId,
-            ReservationKey = ReservationId,
+            NodeId = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
             Error = DispatchError,
         >;
 
         /// Block limits.
-        type BlockLimiter: BlockLimiter<Balance = u64>;
+        type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
             BlockNumber = Self::BlockNumber,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
 
         /// Message Queue processing routing provider.
-        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
+        type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
+
+        /// Type that allows to check calller's eligibility for using voucher for payment.
+        type Voucher: PaymentVoucher<
+            Self::AccountId,
+            ProgramId,
+            BalanceOf<Self>,
+            VoucherId = Self::AccountId,
+        >;
+
+        /// The free of charge period of rent.
+        #[pallet::constant]
+        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The minimal amount of blocks to resume.
+        #[pallet::constant]
+        type ProgramResumeMinimalRentPeriod: Get<BlockNumberFor<Self>>;
+
+        /// The program rent cost per block.
+        #[pallet::constant]
+        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
+
+        /// The amount of blocks for processing resume session.
+        #[pallet::constant]
+        type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
     #[pallet::storage_version(GEAR_STORAGE_VERSION)]
     #[pallet::without_storage_info]
-    #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::event]
@@ -289,7 +322,7 @@ pub mod pallet {
         /// Somebody sent a message to the user.
         UserMessageSent {
             /// Message sent.
-            message: StoredMessage,
+            message: UserMessage,
             /// Block number of expiration from `Mailbox`.
             ///
             /// Equals `Some(_)` with block number when message
@@ -379,6 +412,18 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
+
+        /// Program resume session has been started.
+        ProgramResumeSessionStarted {
+            /// Id of the session.
+            session_id: SessionId,
+            /// Owner of the session.
+            account_id: T::AccountId,
+            /// Id of the program affected.
+            program_id: ProgramId,
+            /// Block number when the session will be removed if not finished.
+            session_end_block: T::BlockNumber,
+        },
     }
 
     // Gear pallet error.
@@ -386,10 +431,10 @@ pub mod pallet {
     pub enum Error<T> {
         /// Message wasn't found in the mailbox.
         MessageNotFound,
-        /// Not enough balance to reserve.
+        /// Not enough balance to execute an action.
         ///
         /// Usually occurs when the gas_limit specified is such that the origin account can't afford the message.
-        InsufficientBalanceForReserve,
+        InsufficientBalance,
         /// Gas limit too high.
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
@@ -425,6 +470,12 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
+        /// Block count doesn't cover MinimalResumePeriod.
+        ResumePeriodLessThanMinimal,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
+        /// Voucher can't be redemmed
+        FailureRedeemingVoucher,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -568,7 +619,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -577,7 +628,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             let origin = who.clone().into_origin();
 
@@ -594,25 +645,21 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
 
             ExtManager::<T>::default().set_program(
                 program_id,
                 &code_info,
                 message_id,
-                block_number,
+                block_number.saturating_add(RentFreePeriodOf::<T>::get()),
             );
 
-            // # Safety
-            //
-            // This is unreachable since the `message_id` is new generated
-            // with `Self::next_message_id`.
-            GasHandlerOf::<T>::create(
+            Self::create(
                 who.clone(),
                 message_id,
-                packet.gas_limit().expect("Can't fail"),
-            )
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                packet.gas_limit().expect("Infallible"),
+                false,
+            );
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -706,6 +753,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -716,6 +764,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            allow_skip_zero_replies: bool,
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
@@ -731,6 +780,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
@@ -748,6 +798,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map(
                     |GasInfo {
@@ -794,42 +845,42 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_initialized())
+                .map(|program| program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_active())
+                .map(|program| program.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_terminated())
+                .map(|program| program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_exited())
+                .map(|program| program.is_exited())
                 .unwrap_or_default()
         }
 
-        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(_p, bn)| bn)
-                .unwrap_or_default()
+        /// Returns true if there is a program with the specified id (it may be paused).
+        pub fn program_exists(program_id: ProgramId) -> bool {
+            ProgramStorageOf::<T>::program_exists(program_id)
+                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| {
-                    if let Program::Exited(inheritor) = p {
+                .map(|program| {
+                    if let Program::Exited(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None
@@ -841,8 +892,8 @@ pub mod pallet {
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| {
-                    if let Program::Terminated(inheritor) = p {
+                .map(|program| {
+                    if let Program::Terminated(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None
@@ -864,40 +915,41 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn = Self::block_number();
+            let current_bn = Self::block_number();
 
-            // Taking block numbers, where some incomplete tasks held.
-            // If there are no such values, we charge for single read, because
+            // Taking the first block number, where some incomplete tasks held.
+            // If there is no such value, we charge for single read, because
             // nothing changing in database, otherwise we delete previous
             // value and charge for single write.
             //
-            // We also append current bn to process it together, by iterating
-            // over sorted bns set (that's the reason why `BTreeSet` used).
-            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
-                .map(|mut set| {
+            // We also iterate up to current bn (including) to process it together
+            let (first_incomplete_block, were_empty) = FirstIncompleteTasksBlockOf::<T>::take()
+                .map(|block| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
-                    set.insert(bn);
-                    (set, false)
+                    (block, false)
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
-                    ([bn].into(), true)
+                    (current_bn, true)
                 });
 
             // When we had to stop processing due to insufficient gas allowance.
             let mut stopped_at = None;
 
             // Iterating over blocks.
-            for bn in &missed_blocks {
+            let missing_blocks = (first_incomplete_block.saturated_into::<u64>()
+                ..=current_bn.saturated_into())
+                .map(|block| block.saturated_into::<BlockNumberFor<T>>());
+            for bn in missing_blocks {
                 // Tasks drain iterator.
-                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
 
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
-                // or update missed blocks.
+                // or update the first block of incomplete tasks.
                 if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                    stopped_at = Some(*bn);
+                    stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
@@ -919,9 +971,9 @@ pub mod pallet {
                     // Checking gas allowance.
                     //
                     // Making sure we have gas to remove next task
-                    // or update missed blocks.
+                    // or update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(*bn);
+                        stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
@@ -934,27 +986,31 @@ pub mod pallet {
             }
 
             // If we didn't process all tasks and stopped at some block number,
-            // then there is new missed blocks set we should store.
+            // then there are missed blocks set we should handle in next time.
             if let Some(stopped_at) = stopped_at {
-                // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                let stopped_at: u32 = stopped_at.unique_saturated_into();
-
-                let actual_missed_blocks = missed_blocks
-                    .into_iter()
-                    .skip_while(|&x| {
-                        // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                        let x: u32 = x.unique_saturated_into();
-                        x != stopped_at
-                    })
-                    .collect();
-
-                // Charging for inserting into missing blocks,
+                // Charging for inserting into storage of the first block of incomplete tasks,
                 // if we were reading it only (they were empty).
                 if were_empty {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                MissedBlocksOf::<T>::put(actual_missed_blocks);
+                FirstIncompleteTasksBlockOf::<T>::put(stopped_at);
+            }
+        }
+
+        pub(crate) fn enable_lazy_pages() -> bool {
+            #[cfg(feature = "lazy-pages")]
+            {
+                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
+                }
+                true
+            }
+
+            #[cfg(not(feature = "lazy-pages"))]
+            {
+                false
             }
         }
 
@@ -1015,6 +1071,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
             }
         }
 
@@ -1080,7 +1137,7 @@ pub mod pallet {
             code
         }
 
-        pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
+        pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
             let schedule = T::Schedule::get();
 
             ensure!(
@@ -1149,7 +1206,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1158,7 +1215,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             Ok(packet)
         }
@@ -1171,23 +1228,29 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
+            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
                 &code_info,
                 message_id,
-                block_number,
+                expiration_block,
             );
 
-            // # Safety
-            //
-            // This is unreachable since the `message_id` is new generated
-            // with `Self::next_message_id`.
-            let _ = GasHandlerOf::<T>::create(
+            let program_id = packet.destination();
+            let program_event = Event::ProgramChanged {
+                id: program_id,
+                change: ProgramChangeKind::ProgramSet {
+                    expiration: expiration_block,
+                },
+            };
+
+            Self::create(
                 who.clone(),
                 message_id,
-                packet.gas_limit().expect("Can't fail"),
+                packet.gas_limit().expect("Infallible"),
+                false,
             );
 
             let message = InitMessage::from_packet(message_id, packet);
@@ -1204,6 +1267,11 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
+            let task = ScheduledTask::PauseProgram(program_id);
+            TaskPoolOf::<T>::add(expiration_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            Self::deposit_event(program_event);
             Self::deposit_event(event);
 
             Ok(())
@@ -1211,6 +1279,12 @@ pub mod pallet {
 
         pub fn run_call() -> Call<T> {
             Call::run {}
+        }
+
+        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
+            let block_count: u64 = block_count.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1243,7 +1317,8 @@ pub mod pallet {
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
+            let code_id =
+                Self::set_code_with_metadata(Self::try_new_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1311,7 +1386,7 @@ pub mod pallet {
 
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
-            let code_and_id = Self::check_code(code)?;
+            let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
@@ -1435,28 +1510,22 @@ pub mod pallet {
                 ),
             );
 
-            // Program interaction.
-            if ProgramStorageOf::<T>::program_exists(destination) {
+            if Self::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalance)?;
 
-                // # Safety
-                //
-                // This is unreachable since the `message_id` is new generated
-                // with `Self::next_message_id`.
-                GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Self::create(who.clone(), message.id(), gas_limit, false);
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
@@ -1473,6 +1542,26 @@ pub mod pallet {
                         <T as Config>::WeightInfo::send_message_program_interaction(payload_len),
                     ),
                     pays_fee: Pays::No,
+                    });
+            } else {
+                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message: UserMessage = message
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+
+                CurrencyOf::<T>::transfer(
+                    &who,
+                    &<T as frame_system::Config>::AccountId::from_origin(
+                        message.destination().into_origin(),
+                    ),
+                    value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: None,
                 });
             }
 
@@ -1526,16 +1615,12 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            let payload_len = payload.len() as u32;
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
 
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
-
-            // Validating origin.
-            let origin = ensure_signed(origin)?;
-
-            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
@@ -1544,11 +1629,22 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
             // Checking that program, origin replies to, is not terminated.
             ensure!(
                 Self::is_active(mailboxed.source()),
                 Error::<T>::InactiveProgram
             );
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
 
             // Converting applied gas limit into value to reserve.
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1558,22 +1654,15 @@ pub mod pallet {
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
             CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id(), 0),
+                reply_id,
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 
-            // Creating `GasNode` for the reply.
-            //
-            // # Safety
-            //
-            //  The error is unreachable since the `message_id` is new generated
-            //  from the checked `original_message`."
-            GasHandlerOf::<T>::create(origin.clone(), message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            Self::create(origin.clone(), message.id(), gas_limit, true);
 
             // Converting reply message into appropriate type for queueing.
             let dispatch = message.into_stored_dispatch(
@@ -1630,12 +1719,33 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            let mailboxed = Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
+
+            if Self::is_active(mailboxed.source()) {
+                // Creating reply message.
+                let message = ReplyMessage::auto(mailboxed.id());
+
+                Self::create(origin.clone(), message.id(), 0, true);
+
+                // Converting reply message into appropriate type for queueing.
+                let dispatch = message.into_stored_dispatch(
+                    ProgramId::from_origin(origin.into_origin()),
+                    mailboxed.source(),
+                    mailboxed.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            };
 
             if mailboxed.value().is_zero() {
                 return Ok(PostDispatchInfo {
@@ -1691,7 +1801,7 @@ pub mod pallet {
 
             Ok(PostDispatchInfo {
                 actual_weight: Some(
-                    Weight::from_ref_time(actual_weight)
+                    Weight::from_parts(actual_weight, 0)
                         .saturating_add(T::DbWeight::get().writes(1)),
                 ),
                 pays_fee: Pays::No,
@@ -1712,13 +1822,357 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Pay additional rent for the program.
+        #[pallet::call_index(8)]
+        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        pub fn pay_program_rent(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::update_active_program(
+                program_id,
+                |program| -> Result<(), Error<T>> {
+                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalance)
+                },
+            )??;
+
+            Ok(().into())
+        }
+
+        /// Starts a resume session of the previously paused program.
+        ///
+        /// The origin must be Signed.
+        ///
+        /// Parameters:
+        /// - `program_id`: id of the program to resume.
+        /// - `allocations`: memory allocations of program prior to stop.
+        /// - `code_hash`: id of the program binary code.
+        #[pallet::call_index(9)]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
+        pub fn resume_session_init(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            allocations: BTreeSet<WasmPage>,
+            code_hash: CodeId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let session_end_block =
+                Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
+            let session_id = ProgramStorageOf::<T>::resume_session_init(
+                who.clone(),
+                session_end_block,
+                program_id,
+                allocations,
+                code_hash,
+            )?;
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            TaskPoolOf::<T>::add(session_end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            Self::deposit_event(Event::ProgramResumeSessionStarted {
+                session_id,
+                account_id: who,
+                program_id,
+                session_end_block,
+            });
+
+            Ok(().into())
+        }
+
+        /// Appends memory pages to the resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `memory_pages`: program memory (or its part) before it was paused.
+        #[pallet::call_index(10)]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(memory_pages.len() as u32))]
+        pub fn resume_session_push(
+            origin: OriginFor<T>,
+            session_id: SessionId,
+            memory_pages: Vec<(GearPage, PageBuf)>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
+
+            Ok(().into())
+        }
+
+        /// Finishes the program resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `block_count`: the specified period of rent.
+        #[pallet::call_index(11)]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
+        pub fn resume_session_commit(
+            origin: OriginFor<T>,
+            session_id: SessionId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ensure!(
+                block_count >= ResumeMinimalPeriodOf::<T>::get(),
+                Error::<T>::ResumePeriodLessThanMinimal
+            );
+
+            let rent_fee = Self::rent_fee_for(block_count);
+            ensure!(
+                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
+                Error::<T>::InsufficientBalance
+            );
+
+            let result = ProgramStorageOf::<T>::resume_session_commit(
+                session_id,
+                who.clone(),
+                Self::block_number().saturating_add(block_count),
+            )?;
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            TaskPoolOf::<T>::delete(result.end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            if let Some((program_id, expiration_block)) = result.info {
+                let task = ScheduledTask::PauseProgram(program_id);
+                TaskPoolOf::<T>::add(expiration_block, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                CurrencyOf::<T>::transfer(
+                    &who,
+                    &block_author,
+                    rent_fee,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
+
+                Self::deposit_event(Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Active {
+                        expiration: expiration_block,
+                    },
+                });
+            }
+
+            Ok(().into())
+        }
+
+        /// Sends a message to a program using pre-allocated funds.
+        ///
+        /// The origin must be Signed and the sender must have been issued a `voucher` -
+        /// a record for the (`AccountId`, `ProgramId`) pair exists in the `Voucher` pallet
+        /// and the respective synthesize account for such pair has funds in it.
+        /// The `gas` and transaction fees will, therefore, be paid from this synthesize account.
+        ///
+        /// Parameters:
+        /// - `destination`: the message destination (must be an initialized program).
+        /// - `payload`: in case of a program destination, parameters of the `handle` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
+        #[pallet::call_index(12)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message_with_voucher(payload.len() as u32))]
+        pub fn send_message_with_voucher(
+            origin: OriginFor<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+            let who = ensure_signed(origin)?;
+            let origin = who.clone().into_origin();
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
+            );
+
+            ensure!(
+                Self::program_exists(destination) && Self::is_active(destination),
+                Error::<T>::InactiveProgram
+            );
+
+            // Message is not guaranteed to be executed, that's why value is not immediately
+            // transferred. That's because destination can fail to be initialized by the time
+            // this dispatch message is next in the queue.
+            //
+            // Note: reservaton is made from the user's account as voucher can only be used
+            // to pay for gas or settle transaction fees, but not as source for value transfer.
+            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // We attempt to reserve enough funds using the voucher that should have been issued
+            // for the transaction sender to pay for the gas. If no such voucher exists, the call
+            // will fail.
+            // If successful, Currency will be reserved on the voucher's account.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            who,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // Using the `voucher_id` as the external origin to create the gas node in order for
+            // the leftover being refunded back to the voucher account and not the user's account.
+            Self::create(voucher_id, message.id(), gas_limit, false);
+
+            let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+            Self::deposit_event(Event::MessageQueued {
+                id: message.id(),
+                source: who,
+                destination: message.destination(),
+                entry: MessageEntry::Handle,
+            });
+
+            QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Ok(().into())
+        }
+
+        /// Sends the reply to a message in `Mailbox` using pre-allocated funds.
+        ///
+        /// Removes message by given `MessageId` from callers `Mailbox`:
+        /// rent funds become free, associated with the message value
+        /// transfers from message sender to extrinsic caller.
+        ///
+        /// Generates reply on removed message with given parameters
+        /// and pushes it in `MessageQueue`.
+        ///
+        /// NOTE: source of the message in mailbox must be a program.
+        #[pallet::call_index(13)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        pub fn send_reply_with_voucher(
+            origin: OriginFor<T>,
+            reply_to_id: MessageId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
+
+            // Reading message, if found, or failing extrinsic.
+            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let destination = mailboxed.source();
+
+            // Checking that program, origin replies to, is not terminated.
+            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+
+            // Reserving funds for sending `value`. The funds are reserved on the
+            // account of the reply sender.
+            //
+            // Note, that message is not guaranteed to be successfully executed,
+            // that's why value is not immediately transferred.
+            CurrencyOf::<T>::reserve(&origin, value)
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
+
+            // Converting applied gas limit into value to reserve.
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // Redeeming voucher to pay for gas.
+            // Currency will be reserved on the voucher's account as a result of this call.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(origin.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            origin,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // Creating reply message.
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
+            );
+
+            Self::create(voucher_id, message.id(), gas_limit, true);
+
+            // Converting reply message into appropriate type for queueing.
+            let dispatch = message.into_stored_dispatch(
+                ProgramId::from_origin(origin.clone().into_origin()),
+                destination,
+                mailboxed.id(),
+            );
+
+            // Pre-generating appropriate event to avoid dispatch cloning.
+            let event = Event::MessageQueued {
+                id: dispatch.id(),
+                source: origin,
+                destination: dispatch.destination(),
+                entry: MessageEntry::Reply(mailboxed.id()),
+            };
+
+            // Queueing dispatch.
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+            // Depositing pre-generated event.
+            Self::deposit_event(event);
+
+            Ok(().into())
+        }
     }
 
     impl<T: Config> QueueRunner for Pallet<T>
     where
         T::AccountId: Origin,
     {
-        type Gas = GasUnitOf<T>;
+        type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance
@@ -1737,39 +2191,6 @@ pub mod pallet {
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())
-        }
-    }
-
-    impl<T: Config> common::PaymentProvider<T::AccountId> for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        type Balance = BalanceOf<T>;
-
-        fn withhold_reserved(
-            source: H256,
-            dest: &T::AccountId,
-            amount: Self::Balance,
-        ) -> Result<(), DispatchError> {
-            let leftover = CurrencyOf::<T>::repatriate_reserved(
-                &<T::AccountId as Origin>::from_origin(source),
-                dest,
-                amount,
-                BalanceStatus::Free,
-            )?;
-
-            if !leftover.is_zero() {
-                log::debug!(
-                    target: "essential",
-                    "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",
-                    source,
-                    dest,
-                    amount,
-                    leftover,
-                );
-            }
-
-            Ok(())
         }
     }
 }

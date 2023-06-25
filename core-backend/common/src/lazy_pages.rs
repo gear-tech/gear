@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,6 +26,8 @@ use gear_core::{
     memory::{GearPage, HostPointer},
 };
 use scale_info::scale::{self, Decode, Encode};
+
+use crate::utils::LimitedStr;
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -74,15 +76,15 @@ pub struct GlobalsAccessError;
 /// Globals access trait.
 pub trait GlobalsAccessor {
     /// Returns global `name` value, if `name` is I64 global export.
-    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
+    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError>;
     /// Set global `name` == `value`, if `name` is I64 global export.
-    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
+    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError>;
     /// Returns global `name` value, if `name` is I32 global export.
-    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+    fn get_i32(&self, _name: LimitedStr) -> Result<i32, GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
     /// Set global `name` == `value`, if `name` is I32 global export.
-    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+    fn set_i32(&mut self, _name: LimitedStr, _value: i32) -> Result<(), GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
     /// Returns as `&mut dyn Any`.

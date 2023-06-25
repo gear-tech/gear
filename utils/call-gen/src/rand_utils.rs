@@ -22,11 +22,11 @@ use rand::{Rng, RngCore, SeedableRng};
 ///
 /// Auto implemented for the implementors of the aggregated traits.
 #[clonable]
-pub trait CallGenRngCore: RngCore + Clone {}
-impl<T: RngCore + Clone> CallGenRngCore for T {}
+pub trait CallGenRngCore: RngCore + Clone + Send {}
+impl<T: RngCore + Clone + Send> CallGenRngCore for T {}
 
 /// Trait that aggregates `Rng`, `SeedableRng` and `Clone`.
 ///
 /// Auto implemented for the implementors of the aggregated traits.
-pub trait CallGenRng: Rng + SeedableRng + 'static + Clone {}
-impl<T: Rng + SeedableRng + 'static + Clone> CallGenRng for T {}
+pub trait CallGenRng: Rng + SeedableRng + 'static + Clone + Send {}
+impl<T: Rng + SeedableRng + 'static + Clone + Send> CallGenRng for T {}

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -107,7 +107,6 @@ impl Api {
         &self,
         origin: H256,
         message_id: MessageId,
-        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -119,13 +118,60 @@ impl Api {
                 rpc_params![
                     origin,
                     H256(message_id.into()),
-                    exit_code,
                     hex::encode(payload),
                     value,
                     allow_other_panics,
                     at
                 ],
             )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_meta_hash
+    pub async fn read_meta_hash(&self, pid: H256, at: Option<H256>) -> Result<H256> {
+        self.rpc()
+            .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_readState
+    pub async fn read_state(&self, pid: H256, at: Option<H256>) -> Result<String> {
+        self.rpc()
+            .request("gear_readState", rpc_params![H256(pid.into()), at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_readStateUsingWasm
+    pub async fn read_state_using_wasm(
+        &self,
+        pid: H256,
+        method: &str,
+        wasm: Vec<u8>,
+        args: Option<Vec<u8>>,
+        at: Option<H256>,
+    ) -> Result<String> {
+        self.rpc()
+            .request(
+                "gear_readStateUsingWasm",
+                rpc_params![
+                    pid,
+                    hex::encode(method),
+                    hex::encode(wasm),
+                    args.map(hex::encode),
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// runtime_wasmBlobVersion
+    pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
+        self.rpc()
+            .request("runtime_wasmBlobVersion", rpc_params![at])
             .await
             .map_err(Into::into)
     }

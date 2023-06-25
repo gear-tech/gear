@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,22 +28,40 @@ pub trait Error {
     fn duplicate_item() -> Self;
 
     /// Program is not found in the storage.
-    fn item_not_found() -> Self;
+    fn program_not_found() -> Self;
 
     /// Program is not an instance of ActiveProgram.
     fn not_active_program() -> Self;
 
     /// There is no data for specified `program_id` and `page`.
     fn cannot_find_page_data() -> Self;
+
+    /// Resume session is not found in the storage.
+    fn resume_session_not_found() -> Self;
+
+    /// Specified user is not an owner of the resume session.
+    fn not_session_owner() -> Self;
+
+    /// Failed to resume the program due to incorrect provided data.
+    fn resume_session_failed() -> Self;
+
+    /// Failed to find the program binary code.
+    fn program_code_not_found() -> Self;
+
+    /// Resume session with the specified id already exists in storage.
+    fn duplicate_resume_session() -> Self;
 }
+
+pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
 
 /// Trait to work with program data in a storage.
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber;
+    type BlockNumber: Copy + Saturating;
+    type AccountId: Eq + PartialEq;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, Self::BlockNumber)>;
+    type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
@@ -57,21 +75,20 @@ pub trait ProgramStorage {
     /// Store a program to be associated with the given key `program_id` from the map.
     fn add_program(
         program_id: ProgramId,
-        program: ActiveProgram,
-        block_number: Self::BlockNumber,
+        program: ActiveProgram<Self::BlockNumber>,
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
                 return Err(Self::InternalError::duplicate_item().into());
             }
 
-            *maybe = Some((Program::Active(program), block_number));
+            *maybe = Some(Program::Active(program));
             Ok(())
         })
     }
 
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<(Program, Self::BlockNumber)> {
+    fn get_program(program_id: ProgramId) -> Option<Program<Self::BlockNumber>> {
         Self::ProgramMap::get(&program_id)
     }
 
@@ -86,10 +103,10 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut ActiveProgram, &mut Self::BlockNumber) -> ReturnType,
+        F: FnOnce(&mut ActiveProgram<Self::BlockNumber>) -> ReturnType,
     {
-        Self::update_program_if_active(program_id, |program, bn_ref| match program {
-            Program::Active(active_program) => update_action(active_program, bn_ref),
+        Self::update_program_if_active(program_id, |program, _bn| match program {
+            Program::Active(active_program) => update_action(active_program),
             _ => unreachable!("invariant kept by update_program_if_active"),
         })
     }
@@ -101,17 +118,17 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut Program, &mut Self::BlockNumber) -> ReturnType,
+        F: FnOnce(&mut Program<Self::BlockNumber>, Self::BlockNumber) -> ReturnType,
     {
-        let (mut program, mut bn) =
-            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
-        match program {
-            Program::Active(_) => (),
+        let mut program =
+            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::program_not_found())?;
+        let bn = match program {
+            Program::Active(ref p) => p.expiration_block,
             _ => return Err(Self::InternalError::not_active_program().into()),
-        }
+        };
 
-        let result = update_action(&mut program, &mut bn);
-        Self::ProgramMap::insert(program_id, (program, bn));
+        let result = update_action(&mut program, bn);
+        Self::ProgramMap::insert(program_id, program);
 
         Ok(result)
     }
@@ -120,7 +137,7 @@ pub trait ProgramStorage {
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
         pages: impl Iterator<Item = &'a GearPage>,
-    ) -> Result<BTreeMap<GearPage, PageBuf>, Self::Error> {
+    ) -> Result<MemoryMap, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
             let data = Self::MemoryPageMap::get(&program_id, page)
@@ -162,5 +179,10 @@ pub trait ProgramStorage {
     /// Append the given message id to the list of messages to uninitialized program in the storage.
     fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
         Self::WaitingInitMap::append(dest_prog_id, message_id);
+    }
+
+    /// Remove all messages to uninitialized program under the given key `program_id`.
+    fn waiting_init_remove(program_id: ProgramId) {
+        let _ = Self::waiting_init_take_messages(program_id);
     }
 }

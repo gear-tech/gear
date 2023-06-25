@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -64,7 +64,8 @@ pub enum SysCallName {
     ReplyTo,
     SignalFrom,
     Size,
-    StatusCode,
+    ReplyCode,
+    SignalCode,
     MessageId,
     ProgramId,
     Source,
@@ -75,7 +76,6 @@ pub enum SysCallName {
     // Execution environmental data
     BlockHeight,
     BlockTimestamp,
-    Origin,
     GasAvailable,
     ValueAvailable,
 
@@ -96,12 +96,13 @@ pub enum SysCallName {
     OutOfAllowance,
 
     // Miscellaneous
+    ReplyDeposit,
     Debug,
-    Error,
     Random,
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
+    PayProgramRent,
 }
 
 impl SysCallName {
@@ -112,18 +113,18 @@ impl SysCallName {
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
+            SysCallName::ReplyDeposit => "gr_reply_deposit",
             SysCallName::Debug => "gr_debug",
             SysCallName::Panic => "gr_panic",
             SysCallName::OomPanic => "gr_oom_panic",
-            SysCallName::Error => "gr_error",
             SysCallName::Exit => "gr_exit",
             SysCallName::Free => "free",
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::Origin => "gr_origin",
             SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
+            SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",
             SysCallName::Read => "gr_read",
@@ -153,7 +154,8 @@ impl SysCallName {
             SysCallName::SendInputWGas => "gr_send_input_wgas",
             SysCallName::Size => "gr_size",
             SysCallName::Source => "gr_source",
-            SysCallName::StatusCode => "gr_status_code",
+            SysCallName::ReplyCode => "gr_reply_code",
+            SysCallName::SignalCode => "gr_signal_code",
             SysCallName::SystemReserveGas => "gr_system_reserve_gas",
             SysCallName::UnreserveGas => "gr_unreserve_gas",
             SysCallName::Value => "gr_value",
@@ -181,20 +183,20 @@ impl SysCallName {
             Self::Debug,
             Self::Panic,
             Self::OomPanic,
-            Self::Error,
             Self::BlockHeight,
             Self::BlockTimestamp,
             Self::Exit,
             Self::GasAvailable,
+            Self::PayProgramRent,
             Self::ProgramId,
-            Self::Origin,
             Self::Leave,
             Self::ValueAvailable,
             Self::Wait,
             Self::WaitUpTo,
             Self::WaitFor,
             Self::Wake,
-            Self::StatusCode,
+            Self::ReplyCode,
+            Self::SignalCode,
             Self::MessageId,
             Self::Read,
             Self::Reply,
@@ -225,6 +227,7 @@ impl SysCallName {
             Self::Value,
             Self::CreateProgram,
             Self::CreateProgramWGas,
+            Self::ReplyDeposit,
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
@@ -242,30 +245,30 @@ impl SysCallName {
             Self::Debug => SysCallSignature::gr([Ptr, Size]),
             Self::Panic => SysCallSignature::gr([Ptr, Size]),
             Self::OomPanic => SysCallSignature::gr([]),
-            Self::Error => SysCallSignature::gr([Ptr, Ptr]),
             Self::BlockHeight => SysCallSignature::gr([Ptr]),
             Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
             Self::Exit => SysCallSignature::gr([Ptr]),
             Self::GasAvailable => SysCallSignature::gr([Ptr]),
+            Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
             Self::ProgramId => SysCallSignature::gr([Ptr]),
-            Self::Origin => SysCallSignature::gr([Ptr]),
             Self::Leave => SysCallSignature::gr([]),
             Self::ValueAvailable => SysCallSignature::gr([Ptr]),
             Self::Wait => SysCallSignature::gr([]),
             Self::WaitUpTo => SysCallSignature::gr([Duration]),
             Self::WaitFor => SysCallSignature::gr([Duration]),
             Self::Wake => SysCallSignature::gr([Ptr, Delay, Ptr]),
-            Self::StatusCode => SysCallSignature::gr([Ptr]),
+            Self::ReplyCode => SysCallSignature::gr([Ptr]),
+            Self::SignalCode => SysCallSignature::gr([Ptr]),
             Self::MessageId => SysCallSignature::gr([Ptr]),
             Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
-            Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
-            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Delay, Ptr]),
-            Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Delay, Ptr]),
-            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr, Delay, Ptr]),
-            Self::ReplyCommit => SysCallSignature::gr([Ptr, Delay, Ptr]),
-            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr, Delay, Ptr]),
-            Self::ReservationReply => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr, Delay, Ptr]),
+            Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Ptr]),
+            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Ptr]),
+            Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Ptr]),
+            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr, Ptr]),
+            Self::ReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
+            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr, Ptr]),
+            Self::ReservationReply => SysCallSignature::gr([Ptr, Ptr, Size, Ptr]),
+            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
             Self::ReplyPush => SysCallSignature::gr([Ptr, Size, Ptr]),
             Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr]),
             Self::ReplyTo => SysCallSignature::gr([Ptr]),
@@ -288,6 +291,7 @@ impl SysCallName {
             Self::CreateProgramWGas => {
                 SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
             }
+            Self::ReplyDeposit => SysCallSignature::gr([Ptr, Gas, Ptr]),
             Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
@@ -295,10 +299,23 @@ impl SysCallName {
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }
+
+    pub fn to_wgas(self) -> Option<Self> {
+        Some(match self {
+            Self::Reply => Self::ReplyWGas,
+            Self::ReplyInput => Self::ReplyInputWGas,
+            Self::ReplyCommit => Self::ReplyCommitWGas,
+            Self::Send => Self::SendWGas,
+            Self::SendInput => Self::SendInputWGas,
+            Self::SendCommit => Self::SendCommitWGas,
+            Self::CreateProgram => Self::CreateProgramWGas,
+            _ => return None,
+        })
+    }
 }
 
 /// Syscall param type.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
     Ptr,             // i32 pointer

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,6 +39,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
@@ -69,7 +71,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -80,7 +82,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 500;
+    pub const ExistentialDeposit: Balance = 500;
 }
 
 impl system::Config for Test {
@@ -91,7 +93,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -112,16 +114,23 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
+}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = 11;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -142,6 +151,11 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = ();
+    type ProgramRentFreePeriod = RentFreePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
+    type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -231,7 +245,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
                 <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get()
                     .max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 DispatchClass::Normal,
             );
         }

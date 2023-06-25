@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,16 +21,19 @@
 #![recursion_limit = "256"]
 
 // Make the WASM binary available.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use common::storage::{Mailbox, Messenger};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
+    codec::{Decode, Encode, MaxEncodedLen},
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        ConstU128, ConstU32, Contains, FindAuthor, InstanceFilter, KeyOwnerProofSystem, Randomness,
+        StorageInfo,
     },
     weights::{
         constants::{
@@ -39,16 +42,20 @@ pub use frame_support::{
         },
         Weight,
     },
-    StorageValue,
+    PalletId, RuntimeDebug, StorageValue,
 };
-use frame_system::limits::{BlockLength, BlockWeights};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 pub use runtime_common::{
+    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
     AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
     VALUE_PER_GAS,
@@ -70,6 +77,7 @@ use sp_std::{
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -87,20 +95,33 @@ pub mod constants;
 
 pub use constants::{currency::*, time::*};
 
+mod migrations;
+
 // Weights used in the runtime.
 mod weights;
+
+// By this we inject compile time version including commit hash
+// (https://github.com/paritytech/substrate/blob/297b3948f4a0f7f6504d4b654e16cb5d9201e523/utils/build-script-utils/src/version.rs#L44)
+// into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
+// The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
+// and the `commit_hash` is the hash of the commit from which the WASM blob was built.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+#[link_section = "wasm_blob_version"]
+static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
+    .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
 
 // The version of the runtime specification.
 //
 // Full node will not attempt to use its native runtime in substitute for the
 // on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
 // `authoring_version` are the same between WASM and native.
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("gear"),
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 130,
+    spec_version: 200,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -113,11 +134,14 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+// We'll verify that WEIGHT_REF_TIME_PER_SECOND does not overflow,
+// allowing us to use the simple divide operator instead of a saturating or checked one.
+const_assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
+
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 1/3 sec for gear runtime with 1 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight =
-    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(3), u64::MAX);
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 3, u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -200,39 +224,21 @@ impl pallet_babe::Config for Runtime {
     type ExpectedBlockTime = ExpectedBlockTime;
     type EpochChangeTrigger = pallet_babe::ExternalTrigger;
     type DisabledValidators = ();
-    // Equivocation related configuration: in PoA setting we don't expect any equivocation
-    type KeyOwnerProofSystem = ();
-    type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::Proof;
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::IdentificationTuple;
-    type HandleEquivocation = ();
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type KeyOwnerProof = sp_core::Void;
+    type EquivocationReportSystem = ();
 }
 
 impl pallet_grandpa::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
 
-    type KeyOwnerProofSystem = ();
     type MaxSetIdSessionEntries = ConstU64<0>;
-
-    type KeyOwnerProof =
-        <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        GrandpaId,
-    )>>::IdentificationTuple;
-
-    type HandleEquivocation = ();
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type KeyOwnerProof = sp_core::Void;
+    type EquivocationReportSystem = ();
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -281,6 +287,16 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+parameter_types! {
+    pub const MinAuthorities: u32 = 1;
+}
+
+impl validator_set::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AddRemoveOrigin = EnsureRoot<AccountId>;
+    type MinAuthorities = MinAuthorities;
+}
+
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -291,10 +307,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = ();
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ();
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -312,7 +328,111 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-impl pallet_gear_program::Config for Runtime {}
+parameter_types! {
+    // One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+    pub const DepositBase: Balance = deposit(1, 88);
+    // Additional storage item size of 32 bytes.
+    pub const DepositFactor: Balance = deposit(0, 32);
+}
+
+impl pallet_multisig::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type DepositBase = DepositBase;
+    type DepositFactor = DepositFactor;
+    type MaxSignatories = ConstU32<100>;
+    type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+    // One storage item; key size 32, value size 8; .
+    pub const ProxyDepositBase: Balance = deposit(1, 8);
+    // Additional storage item size of 33 bytes.
+    pub const ProxyDepositFactor: Balance = deposit(0, 33);
+    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+    NonTransfer,
+    CancelProxy,
+    SudoBalances,
+}
+
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+            ProxyType::NonTransfer => {
+                !matches!(c, RuntimeCall::Balances(..) | RuntimeCall::Sudo(..))
+            }
+            ProxyType::CancelProxy => {
+                matches!(
+                    c,
+                    RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
+                )
+            }
+            ProxyType::SudoBalances => match c {
+                RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: x }) => {
+                    matches!(x.as_ref(), &RuntimeCall::Balances(..))
+                }
+                RuntimeCall::Utility(..) => true,
+                _ => false,
+            },
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        match (self, o) {
+            (x, y) if x == y => true,
+            (ProxyType::Any, _) => true,
+            (_, ProxyType::Any) => false,
+            (ProxyType::NonTransfer, _) => true,
+            _ => false,
+        }
+    }
+}
+
+impl pallet_proxy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = ConstU32<32>;
+    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
+    type MaxPending = ConstU32<32>;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
+impl pallet_gear_program::Config for Runtime {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = Gear;
+}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
@@ -351,6 +471,11 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
+    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
+    type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
+    type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -394,9 +519,42 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+// TODO: in case of the `send_reply_with_voucher` call we have to iterate through the
+// user's mailbox to dig out the stored message source `program_id` to check if it has
+// issued a voucher to pay for the reply extrinsic transaction fee.
+// Isn't there a better way to do that?
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination, ..
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id, ..
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
+    type DelegateFee = DelegateFeeAccountBuilder;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -429,6 +587,9 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        Proxy: pallet_proxy = 9,
+        Multisig: pallet_multisig = 10,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -438,6 +599,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -460,6 +622,9 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        Proxy: pallet_proxy = 9,
+        Multisig: pallet_multisig = 10,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -469,6 +634,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
     }
 );
 
@@ -501,6 +667,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]
@@ -525,6 +692,7 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
     );
 }
 

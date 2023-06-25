@@ -2,6 +2,8 @@ name: Build node fuzzer
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
 
 env:
   CARGO_TERM_COLOR: always
@@ -9,7 +11,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-
   build-node-fuzzer:
     runs-on: ubuntu-latest
     permissions:
@@ -19,6 +20,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Log in to the github container registry
         uses: docker/login-action@master
@@ -30,6 +37,7 @@ jobs:
       - name: Build and push Node Fuzzer
         uses: docker/build-push-action@master
         with:
-          file: docker/runtime-fuzzer/Dockerfile
+          context: .
+          file: ./docker/runtime-fuzzer/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-node-fuzzer:latest

@@ -499,6 +499,6 @@ fn register_type(ty: impl ToTokens) -> proc_macro2::TokenStream {
     let ty = ty.to_token_stream();
 
     quote! {
-        Some(registry.register_type(&::gmeta::MetaType::new::<#ty>()).id())
+        Some(registry.register_type(&::gmeta::MetaType::new::<#ty>()).id)
     }
 }

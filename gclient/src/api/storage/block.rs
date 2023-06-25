@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{
-    config::GearConfig, ext::sp_core::H256, metadata::runtime_types::gear_runtime::RuntimeEvent,
-};
+use gsdk::{config::GearConfig, ext::sp_core::H256, metadata::gear_runtime::RuntimeEvent};
 use subxt::{config::Header, rpc::types::ChainBlock};
 
 type GearBlock = ChainBlock<GearConfig>;
@@ -100,7 +98,7 @@ impl GearApi {
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
         self.0
             .api()
-            .get_events_at(Some(block_hash))
+            .get_events_at(block_hash)
             .await
             .map_err(Into::into)
     }

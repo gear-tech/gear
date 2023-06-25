@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,19 +18,22 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, Origin as _};
+use common::{self, event::MessageEntry, CodeStorage, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
 use gear_core::memory::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageU32Size, WasmPage},
-    message::{DispatchKind, StoredDispatch, StoredMessage},
+    message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pallet_gear::{DebugInfo, Pallet as PalletGear};
+use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
+use parity_scale_codec::Encode;
 use sp_core::H256;
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
+
+const DEFAULT_SALT: &[u8] = b"salt";
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -48,12 +51,72 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_program_id(code: &[u8]) -> ProgramId {
-    ProgramId::generate(CodeId::generate(code), b"salt")
+fn h256_code_hash(code: &[u8]) -> H256 {
+    CodeId::generate(code).into_origin()
 }
 
-fn generate_code_hash(code: &[u8]) -> H256 {
-    CodeId::generate(code).into_origin()
+#[test]
+fn vec() {
+    use demo_vec::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+        ));
+
+        let vec_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let code_id = CodeId::generate(WASM_BINARY);
+
+        let code = <Test as pallet_gear::Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+
+        let static_pages = code.static_pages().raw();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            vec_id,
+            131072i32.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(1).expect("Should be");
+        assert_eq!(reply.payload_bytes(), 131072i32.encode());
+
+        GearDebug::do_snapshot();
+        let snapshot = get_last_snapshot();
+
+        assert!(snapshot.dispatch_queue.is_empty());
+        assert_eq!(snapshot.programs.len(), 1);
+
+        let program_details = &snapshot.programs[0];
+        assert_eq!(program_details.id, vec_id);
+
+        let crate::ProgramState::Active(ref program_info) = program_details.state else { panic!("Inactive program") };
+        assert_eq!(program_info.code_hash, code_id.into_origin());
+
+        let pages = program_info.persistent_pages.keys().fold(BTreeSet::new(), |mut set, page| {
+            let page = page.to_page::<WasmPage>().raw();
+            if page >= static_pages {
+                set.insert(page);
+            }
+            set
+        });
+
+        let pages = pages.into_iter().collect::<Vec<_>>();
+        assert_eq!(pages, vec![17, 18]);
+    });
 }
 
 #[test]
@@ -86,13 +149,13 @@ fn debug_mode_works() {
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
-        let program_id_1 = generate_program_id(&code_1);
-        let program_id_2 = generate_program_id(&code_2);
+        let program_id_1 = ProgramId::generate(CodeId::generate(&code_1), DEFAULT_SALT);
+        let program_id_2 = ProgramId::generate(CodeId::generate(&code_2), DEFAULT_SALT);
 
         PalletGear::<Test>::upload_program(
             RuntimeOrigin::signed(1),
             code_1.clone(),
-            b"salt".to_vec(),
+            DEFAULT_SALT.to_vec(),
             Vec::new(),
             10_000_000_000_u64,
             0_u128,
@@ -116,7 +179,7 @@ fn debug_mode_works() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: Default::default(),
-                        code_hash: generate_code_hash(&code_1),
+                        code_hash: h256_code_hash(&code_1),
                     }),
                 }],
             })
@@ -126,7 +189,7 @@ fn debug_mode_works() {
         PalletGear::<Test>::upload_program(
             RuntimeOrigin::signed(1),
             code_2.clone(),
-            b"salt".to_vec(),
+            DEFAULT_SALT.to_vec(),
             Vec::new(),
             10_000_000_000_u64,
             0_u128,
@@ -142,19 +205,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_2,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_hash: h256_code_hash(&code_1),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -218,19 +281,19 @@ fn debug_mode_works() {
                 ],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_2,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_hash: h256_code_hash(&code_1),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -247,19 +310,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_2,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_hash: h256_code_hash(&code_1),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -270,8 +333,6 @@ fn debug_mode_works() {
 }
 
 fn get_last_message_id() -> MessageId {
-    use pallet_gear::Event;
-
     let event = match System::events().last().map(|r| r.event.clone()) {
         Some(super::mock::RuntimeEvent::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
@@ -281,6 +342,55 @@ fn get_last_message_id() -> MessageId {
         Event::MessageQueued { id, .. } => id,
         Event::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
+    }
+}
+
+#[track_caller]
+fn get_last_program_id() -> ProgramId {
+    let event = match System::events().last().map(|r| r.event.clone()) {
+        Some(super::mock::RuntimeEvent::Gear(e)) => e,
+        _ => unreachable!("Should be one Gear event"),
+    };
+
+    match event {
+        Event::MessageQueued {
+            destination,
+            entry: MessageEntry::Init,
+            ..
+        } => destination,
+        _ => unreachable!("expect RuntimeEvent::InitMessageEnqueued"),
+    }
+}
+
+#[track_caller]
+fn maybe_last_message(account: u64) -> Option<UserMessage> {
+    System::events().into_iter().rev().find_map(|e| {
+        if let super::mock::RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if message.destination() == account.into() {
+                Some(message)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    })
+}
+
+#[track_caller]
+fn get_last_event() -> crate::mock::RuntimeEvent {
+    System::events()
+        .into_iter()
+        .last()
+        .expect("failed to get last event")
+        .event
+}
+
+#[track_caller]
+fn get_last_snapshot() -> DebugData {
+    match get_last_event() {
+        crate::mock::RuntimeEvent::GearDebug(crate::Event::DebugDataSnapshot(data)) => data,
+        _ => panic!("Should be one GearDebug event"),
     }
 }
 
@@ -407,13 +517,13 @@ fn check_not_allocated_pages() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = generate_program_id(&code);
+        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
             code.clone(),
-            b"salt".to_vec(),
+            DEFAULT_SALT.to_vec(),
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
@@ -446,7 +556,7 @@ fn check_not_allocated_pages() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_hash: h256_code_hash(&code),
                     }),
                 }],
             })
@@ -476,7 +586,7 @@ fn check_not_allocated_pages() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_hash: h256_code_hash(&code),
                     }),
                 }],
             })
@@ -626,7 +736,7 @@ fn check_changed_pages_in_storage() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = generate_program_id(&code);
+        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
@@ -640,7 +750,7 @@ fn check_changed_pages_in_storage() {
         assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
             code.clone(),
-            b"salt".to_vec(),
+            DEFAULT_SALT.to_vec(),
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
@@ -679,7 +789,7 @@ fn check_changed_pages_in_storage() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_hash: h256_code_hash(&code),
                     }),
                 }],
             })
@@ -715,7 +825,7 @@ fn check_changed_pages_in_storage() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages,
-                        code_hash: generate_code_hash(&code),
+                        code_hash: h256_code_hash(&code),
                     }),
                 }],
             })
@@ -763,13 +873,13 @@ fn check_gear_stack_end() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat.as_str());
-        let program_id = generate_program_id(&code);
+        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin,
             code.clone(),
-            b"salt".to_vec(),
+            DEFAULT_SALT.to_vec(),
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
@@ -806,7 +916,7 @@ fn check_gear_stack_end() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 4.into(),
                         persistent_pages,
-                        code_hash: generate_code_hash(&code),
+                        code_hash: h256_code_hash(&code),
                     }),
                 }],
             })

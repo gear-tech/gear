@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -30,6 +30,7 @@
 /// as the metadata:
 ///
 /// ```
+/// #![allow(deprecated)]
 /// use gstd::{metadata, msg, prelude::*};
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
@@ -119,6 +120,10 @@ macro_rules! metadata {
 
 #[cfg(not(doc))]
 #[allow(missing_docs)]
+#[deprecated(
+    since = "0.1.0",
+    note = "https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta"
+)]
 #[macro_export]
 macro_rules! metadata {
     (

@@ -1,0 +1,84 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_pr:
+        description: Whether to create a pull request after the benchmarks are completed
+        required: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+
+jobs:
+  benchmarks:
+    runs-on: bench
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+
+      - name: Run all benchmarks
+        run: |
+          ./scripts/benchmarking/run_all_benchmarks.sh -c gear-dev -m
+          cp ./scripts/benchmarking/weights-output/* runtime/gear/src/weights
+          ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev -m # -b to skip build
+          cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+          # apply some patches for `pallets/gear/src/weights.rs`
+          cp runtime/gear/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
+          sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+          # clear the target directory because our benchmarking machine is not ephemeral
+          cargo clean
+
+      - name: "ACTIONS: Upload artifact with benchmarking errors (if exist)"
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmarking-errors
+          path: scripts/benchmarking/benchmarking_errors.txt
+          if-no-files-found: ignore
+
+      - name: "ACTIONS: Upload artifact with updated weights (gear)"
+        uses: actions/upload-artifact@v3
+        with:
+          name: weights-gear
+          path: runtime/gear/src/weights/
+
+      - name: "ACTIONS: Upload artifact with updated weights (vara)"
+        uses: actions/upload-artifact@v3
+        with:
+          name: weights-vara
+          path: runtime/vara/src/weights/
+
+      - name: "TIP: download the artifacts and use `./scripts/unpack-weights.sh`"
+        run: |
+          echo "::notice::You can download the artifacts and use script \`./scripts/unpack-weights.sh\` to apply the changes to your branch"
+
+      - name: Create Pull Request
+        if: ${{ inputs.create_pr }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GH_TOKEN_FOR_PR }}
+          add-paths: |
+            pallets/gear/src/
+            runtime/gear/src/weights/
+            runtime/vara/src/weights/
+          commit-message: update weights
+          branch: weights/patch
+          branch-suffix: short-commit-hash
+          title: >-
+            chore: update weights
+          body: |
+            `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`

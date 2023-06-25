@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
@@ -28,6 +29,8 @@ pub struct InputArgs {
     pub signatories: Vec<ActorId>,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "demo async multisig",
     init:
@@ -65,7 +68,7 @@ async fn main() {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            msg::send_bytes_for_reply(*s, &encoded, 0).map(|fut| fut.map(move |r| (i, r)))
+            msg::send_bytes_for_reply(*s, &encoded, 0, 0).map(|fut| fut.map(move |r| (i, r)))
         })
         .collect::<Result<_, _>>()
         .unwrap();

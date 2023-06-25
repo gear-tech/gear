@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ use crate::{
     ActorId, CodeId, MessageId,
 };
 use gear_core_errors::ExtError;
-use gsys::{HashWithValue, LengthWithTwoHashes};
+use gsys::{ErrorWithTwoHashes, HashWithValue};
 
 /// Create a new program and returns its address.
 ///
@@ -73,6 +73,7 @@ use gsys::{HashWithValue, LengthWithTwoHashes};
 ///     let (message_id, new_program_id) =
 ///         prog::create_program(submitted_code, &get().to_le_bytes(), b"", 0)
 ///             .expect("Unable to create a program");
+///     increase();
 /// }
 /// ```
 ///
@@ -145,7 +146,7 @@ pub fn create_program_delayed(
         value,
     };
 
-    let mut res: LengthWithTwoHashes = Default::default();
+    let mut res: ErrorWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -165,7 +166,7 @@ pub fn create_program_delayed(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }
@@ -185,7 +186,7 @@ pub fn create_program_with_gas_delayed(
         value,
     };
 
-    let mut res: LengthWithTwoHashes = Default::default();
+    let mut res: ErrorWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -206,7 +207,7 @@ pub fn create_program_with_gas_delayed(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }

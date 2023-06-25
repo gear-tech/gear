@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,11 +20,12 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, StatusCode, Value,
+        IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
 use alloc::string::ToString;
 use core::{convert::TryInto, ops::Deref};
+use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -36,18 +37,18 @@ use scale_info::{
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct StoredMessage {
     /// Message id.
-    id: MessageId,
+    pub(super) id: MessageId,
     /// Message source.
-    source: ProgramId,
+    pub(super) source: ProgramId,
     /// Message destination.
-    destination: ProgramId,
+    pub(super) destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    pub(super) payload: Payload,
     /// Message value.
     #[codec(compact)]
-    value: Value,
+    pub(super) value: Value,
     /// Message details like reply message ID, status code, etc.
-    details: Option<MessageDetails>,
+    pub(super) details: Option<MessageDetails>,
 }
 
 impl StoredMessage {
@@ -97,9 +98,9 @@ impl StoredMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message value.
@@ -113,21 +114,17 @@ impl StoredMessage {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<ReplyDetails> {
+    pub fn reply_details(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
-    }
-
-    /// Status code of the message, if reply.
-    pub fn status_code(&self) -> Option<StatusCode> {
-        self.details.map(|d| d.status_code())
     }
 
     #[allow(clippy::result_large_err)]
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
+    // TODO: issue #2849.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.get()) {
+        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
                 Ok(Self { payload, ..self })
             } else {
@@ -141,6 +138,17 @@ impl StoredMessage {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
         self.details.map(|d| d.is_error_reply()).unwrap_or(false)
+    }
+
+    /// Returns bool defining if message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+    }
+
+    /// Returns `ReplyCode` of message if reply.
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.details
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
     }
 }
 

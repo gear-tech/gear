@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,7 +40,7 @@ impl CrateInfo {
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
         anyhow::ensure!(
             manifest_path.exists(),
-            BuilderError::InvalidManifestPath(manifest_path.to_path_buf())
+            BuilderError::ManifestPathInvalid(manifest_path.to_path_buf())
         );
 
         let mut meta_cmd = MetadataCommand::new();
@@ -92,7 +92,7 @@ impl CrateInfo {
             .find(|target| {
                 target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
             })
-            .ok_or(BuilderError::InvalidCrateType)?;
+            .ok_or(BuilderError::CrateTypeInvalid)?;
 
         Ok(pkg)
     }

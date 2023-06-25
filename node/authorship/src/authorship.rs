@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,6 @@ use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, 
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
-    generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
     Digest, Percent, SaturatedConversion,
 };
@@ -195,8 +194,6 @@ where
     ) -> Proposer<B, Block, C, A, PR> {
         let parent_hash = parent_header.hash();
 
-        let id = BlockId::hash(parent_hash);
-
         info!(
             "🙌 Starting consensus session on top of parent {:?}",
             parent_hash
@@ -205,7 +202,7 @@ where
         let proposer = Proposer::<_, _, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
-            parent_id: id,
+            parent_hash,
             parent_number: *parent_header.number(),
             transaction_pool: self.transaction_pool.clone(),
             now,
@@ -252,7 +249,7 @@ where
 pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     client: Arc<C>,
-    parent_id: BlockId<Block>,
+    parent_hash: Block::Hash,
     parent_number: <<Block as BlockT>::Header as HeaderT>::Number,
     transaction_pool: Arc<A>,
     now: Box<dyn Fn() -> time::Instant + Send + Sync>,
@@ -352,9 +349,9 @@ where
         let propose_with_start = time::Instant::now();
         let mut block_builder = BlockBuilderExt::new(
             self.client
-                .new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?,
+                .new_block_at(self.parent_hash, inherent_digests, PR::ENABLED)?,
             self.client.runtime_api(),
-            self.client.expect_block_hash_from_id(&self.parent_id)?,
+            self.parent_hash,
         );
 
         let create_inherents_start = time::Instant::now();

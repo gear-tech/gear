@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -29,12 +29,14 @@
 
 use super::*;
 
-use crate::WaitlistOf;
+use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
-use gear_core_errors::{ExtError, MessageError};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
+use parity_scale_codec::Decode;
+use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn main_test<T>()
@@ -65,16 +67,17 @@ where
             SysCallName::ReplyInputWGas => check_reply_input::<T>(Some(25_000_000_000)),
             SysCallName::CreateProgram => check_create_program::<T>(None),
             SysCallName::CreateProgramWGas => check_create_program::<T>(Some(25_000_000_000)),
+            SysCallName::ReplyDeposit => check_gr_reply_deposit::<T>(),
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
-            SysCallName::StatusCode => {/* checked in reply_to */},
+            SysCallName::ReplyCode => {/* checked in reply_to */},
+            SysCallName::SignalCode => {/* checked in signal_from */},
             SysCallName::MessageId => check_gr_message_id::<T>(),
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
             SysCallName::Value => check_gr_value::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
-            SysCallName::Origin => check_gr_origin::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
@@ -89,7 +92,6 @@ where
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
             SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
-            SysCallName::Error => check_gr_err::<T>(),
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
@@ -98,7 +100,37 @@ where
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
+            SysCallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
         }
+    });
+}
+
+fn check_gr_pay_program_rent<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
+        let default_account = utils::default_account();
+        <T as pallet::Config>::Currency::deposit_creating(
+            &default_account,
+            100_000_000_000_000_u128.unique_saturated_into(),
+        );
+
+        let block_count = 10;
+        let unused_rent: BalanceOf<T> = 1u32.into();
+        let rent = RentCostPerBlockOf::<T>::get() * block_count.into() + unused_rent;
+        let mp = MessageParamsBuilder::new(
+            vec![Kind::PayProgramRent(
+                tester_pid.into_origin().into(),
+                rent.saturated_into(),
+                Some((unused_rent.saturated_into(), block_count)),
+            )]
+            .encode(),
+        )
+        .with_value(10_000_000_000);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
 }
 
@@ -124,7 +156,38 @@ where
             );
         };
 
-        let mp = Kind::SystemReserveGas(reserve_amount).encode().into();
+        let mp = vec![Kind::SystemReserveGas(reserve_amount)].encode().into();
+
+        (TestCall::send_message(mp), Some(post_check))
+    });
+}
+
+fn check_gr_reply_deposit<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let deposit_amount = 10_000_000;
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+
+        let outgoing_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let future_reply_id = MessageId::generate_reply(outgoing_mid);
+
+        let post_check = move || {
+            assert!(
+                GasHandlerOf::<T>::exists_and_deposit(future_reply_id),
+                "gas tree post check failed"
+            );
+            assert_eq!(
+                Ok(deposit_amount),
+                GasHandlerOf::<T>::get_limit(future_reply_id),
+                "reply deposit gas post check failed"
+            );
+        };
+
+        let mp = vec![Kind::ReplyDeposit(deposit_amount)].encode().into();
 
         (TestCall::send_message(mp), Some(post_check))
     });
@@ -140,7 +203,9 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let mp = Kind::ReservationSend(expected_mid.into()).encode().into();
+        let mp = vec![Kind::ReservationSend(expected_mid.into())]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -161,14 +226,17 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                    .any(|(m, _)| m.id() == expected_mid && m.payload_bytes() == payload.to_vec()),
                 "No message with expected id found in queue"
             );
         };
 
-        let mp = Kind::ReservationSendRaw(payload.to_vec(), expected_mid.into())
-            .encode()
-            .into();
+        let mp = vec![Kind::ReservationSendRaw(
+            payload.to_vec(),
+            expected_mid.into(),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), Some(post_test))
     });
@@ -182,9 +250,11 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
-        let mp = Kind::ReservationReply(expected_mid.into()).encode().into();
+        let mp = vec![Kind::ReservationReply(expected_mid.into())]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -199,19 +269,23 @@ where
         let payload = b"HI_RRC!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload_bytes() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
-        let mp = Kind::ReservationReplyCommit(payload.to_vec(), expected_mid.into())
-            .encode()
-            .into();
+        let mp = vec![Kind::ReservationReplyCommit(
+            payload.to_vec(),
+            expected_mid.into(),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), Some(post_test))
     });
@@ -268,35 +342,15 @@ where
     Gear::<T>::reset();
 }
 
-fn check_gr_err<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let message_value = u128::MAX;
-        let expected_err = ExtError::Message(MessageError::NotEnoughValue {
-            message_value,
-            value_left: 0,
-        });
-        let expected_err = ::alloc::format!("API error: {expected_err}");
-
-        let mp = Kind::Error(message_value, expected_err).encode().into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    });
-}
-
 fn check_gr_size<T>()
 where
     T: Config,
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        // One byte for enum variant, four bytes for u32 value
-        let expected_size = 5;
+        let expected_size = vec![Kind::Size(0)].encoded_size() as u32;
 
-        let mp = Kind::Size(expected_size).encode().into();
+        let mp = vec![Kind::Size(expected_size)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -311,7 +365,7 @@ where
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
 
-        let mp = Kind::MessageId(next_user_mid.into()).encode().into();
+        let mp = vec![Kind::MessageId(next_user_mid.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -323,7 +377,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|id, _| {
-        let mp = Kind::ProgramId(id.into()).encode().into();
+        let mp = vec![Kind::ProgramId(id.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -341,7 +395,10 @@ where
             50_000_000_000_000_u128.unique_saturated_into(),
         );
         let mp = MessageParamsBuilder::new(
-            Kind::Source(message_sender.clone().into_origin().to_fixed_bytes()).encode(),
+            vec![Kind::Source(
+                message_sender.clone().into_origin().to_fixed_bytes(),
+            )]
+            .encode(),
         )
         .with_sender(message_sender);
 
@@ -356,7 +413,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let sending_value = u16::MAX as u128;
-        let mp = MessageParamsBuilder::new(Kind::Value(sending_value).encode())
+        let mp = MessageParamsBuilder::new(vec![Kind::Value(sending_value)].encode())
             .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -371,8 +428,9 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let sending_value = 10_000;
         // Program sends 2000
-        let mp = MessageParamsBuilder::new(Kind::ValueAvailable(sending_value - 2000).encode())
-            .with_value(sending_value);
+        let mp =
+            MessageParamsBuilder::new(vec![Kind::ValueAvailable(sending_value - 2000)].encode())
+                .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -391,9 +449,13 @@ where
         let salt = 10u64;
         let expected_pid = ProgramId::generate(simplest_gear_wasm::<T>().hash, &salt.to_le_bytes());
 
-        let mp = Kind::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
-            .encode()
-            .into();
+        let mp = vec![Kind::CreateProgram(
+            salt,
+            gas,
+            (expected_mid.into(), expected_pid.into()),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -410,7 +472,10 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let mp = Kind::Send(gas, expected_mid.into()).encode().into();
+        let payload = vec![Kind::Send(gas, expected_mid.into())].encode();
+        log::debug!("payload = {payload:?}");
+        let mp = payload.into();
+        // log::debug!("mp = {mp:?}");
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -432,12 +497,12 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                    .any(|(m, _)| m.id() == expected_mid && m.payload_bytes() == payload.to_vec()),
                 "No message with expected id found in queue"
             );
         };
 
-        let mp = Kind::SendRaw(payload.to_vec(), gas, expected_mid.into())
+        let mp = vec![Kind::SendRaw(payload.to_vec(), gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -456,13 +521,13 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 0);
 
-        let payload = Kind::SendInput(gas, expected_message_id.into()).encode();
+        let payload = vec![Kind::SendInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload_bytes() == payload),
                 "No message with expected id found in queue"
             );
         };
@@ -484,13 +549,13 @@ where
         // Program increases local nonce by sending messages twice before `send_init`.
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 2);
 
-        let payload = Kind::SendPushInput(expected_message_id.into()).encode();
+        let payload = vec![Kind::SendPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload_bytes() == payload),
                 "No message with expected id found in queue"
             );
         };
@@ -508,9 +573,9 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
-        let mp = Kind::Reply(gas, expected_mid.into()).encode().into();
+        let mp = vec![Kind::Reply(gas, expected_mid.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -526,17 +591,18 @@ where
         let payload = b"HI_RR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload_bytes() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
-        let mp = Kind::ReplyRaw(payload.to_vec(), gas, expected_mid.into())
+        let mp = vec![Kind::ReplyRaw(payload.to_vec(), gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -553,17 +619,18 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
-        let payload = Kind::ReplyInput(gas, expected_message_id.into()).encode();
+        let payload = vec![Kind::ReplyInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload_bytes() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         (TestCall::send_message(message), Some(post_test))
@@ -579,24 +646,25 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
-        let payload = Kind::ReplyPushInput(expected_message_id.into()).encode();
+        let payload = vec![Kind::ReplyPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload_bytes() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         (TestCall::send_message(message), Some(post_test))
     });
 }
 
-// Tests `gr_reply_to` and  `gr_status_code`
+// Tests `gr_reply_to` and `gr_reply_code`
 fn check_reply_details<T>()
 where
     T: Config,
@@ -605,14 +673,16 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+
+        let reply_code = ReplyCode::Success(SuccessReplyReason::Manual).to_bytes();
 
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
             // random params in ReplyDetails, because they aren't checked
-            Kind::ReplyDetails([255u8; 32], 0).encode(),
+            vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -627,14 +697,15 @@ where
 
         assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
 
-        let mp = MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), 0).encode())
-            .with_reply_id(reply_to.id());
+        let mp =
+            MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), reply_code).encode())
+                .with_reply_id(reply_to.id());
 
         (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
 }
 
-// Tests `gr_signal_from` and `gr_status_code`
+// Tests `gr_signal_from` and `gr_signal_code`
 fn check_signal_details<T>()
 where
     T: Config,
@@ -643,13 +714,13 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
         // setup signal details
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
-            Kind::SignalDetails.encode(),
+            vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -681,7 +752,7 @@ where
         let height_delta = 15;
         utils::run_to_block::<T>(current_height + height_delta, None);
 
-        let mp = Kind::BlockHeight(current_height + height_delta + 1)
+        let mp = vec![Kind::BlockHeight(current_height + height_delta + 1)]
             .encode()
             .into();
 
@@ -703,58 +774,7 @@ where
         )
         .expect("failed to put timestamp");
 
-        let mp = Kind::BlockTimestamp(block_timestamp).encode().into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    })
-}
-
-fn check_gr_origin<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|tester_id, _| {
-        use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
-
-        let default_sender = utils::default_account::<T::AccountId>();
-        let message_sender = benchmarking::account::<T::AccountId>("some_user", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(
-            &message_sender,
-            100_000_000_000_000_u128.unique_saturated_into(),
-        );
-
-        let payload = Kind::Origin(message_sender.clone().into_origin().to_fixed_bytes()).encode();
-
-        // Upload proxy
-        Gear::<T>::upload_program(
-            RawOrigin::Signed(default_sender).into(),
-            PROXY_WASM_BINARY.to_vec(),
-            b"".to_vec(),
-            InputArgs {
-                destination: tester_id.into_origin().into(),
-            }
-            .encode(),
-            50_000_000_000,
-            0u128.unique_saturated_into(),
-        )
-        .expect("failed deploying proxy");
-        let proxy_pid = ProgramId::generate(CodeId::generate(PROXY_WASM_BINARY), b"");
-        utils::run_to_next_block::<T>(None);
-
-        // Set origin in the tester program through origin
-        Gear::<T>::send_message(
-            RawOrigin::Signed(message_sender.clone()).into(),
-            proxy_pid,
-            payload.clone(),
-            50_000_000_000,
-            0u128.unique_saturated_into(),
-        )
-        .expect("failed setting origin");
-        utils::run_to_next_block::<T>(None);
-
-        // Check the origin
-        let mp = MessageParamsBuilder::new(payload).with_sender(message_sender);
+        let mp = vec![Kind::BlockTimestamp(block_timestamp)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -770,7 +790,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         // Nonce in program is set to 2 due to 3 times reservation is called.
         let expected_reservation_id = ReservationId::generate(next_user_mid, 2).encode();
-        let mp = Kind::Reserve(expected_reservation_id).encode().into();
+        let mp = vec![Kind::Reserve(expected_reservation_id)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -782,7 +802,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let mp = Kind::Unreserve(10_000).encode().into();
+        let mp = vec![Kind::Unreserve(10_000)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -812,9 +832,12 @@ where
             sp_io::hashing::blake2_256(&salt_vec)
         };
 
-        let mp = Kind::Random(salt, (expected_hash, expected_bn.unique_saturated_into()))
-            .encode()
-            .into();
+        let mp = vec![Kind::Random(
+            salt,
+            (expected_hash, expected_bn.unique_saturated_into()),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -832,7 +855,7 @@ where
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 1_000_000_000;
         let upper = 50_000_000_000 - 200_000_000;
-        let mp = Kind::GasAvailable(lower, upper).encode().into();
+        let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -923,7 +946,7 @@ where
     // let user_mid = get_last_message_id();
     utils::run_to_next_block::<T>(None);
     let ok_mails = MailboxOf::<T>::iter_key(sender)
-        .filter(|(m, _)| m.payload() == b"ok")
+        .filter(|(m, _)| m.payload_bytes() == b"ok")
         .count();
     assert_eq!(ok_mails, 1);
 

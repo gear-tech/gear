@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,83 +19,117 @@
 //! Gear program template
 
 use crate::result::Result;
-use std::{fs, process::Command};
+use anyhow::anyhow;
+use etc::{Etc, FileSystem, Read, Write};
+use reqwest::Client;
+use std::{env, process::Command};
 
-const NAME: &str = "$NAME";
-const USER: &str = "$USER";
+const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
-/// cargo.toml
-pub const CARTO_TOML: &str = r#"
-[package]
-name = "$NAME"
-version = "0.1.0"
-authors = ["$USER"]
-edition = "2021"
-license = "GPL-3.0"
+/// see https://docs.github.com/en/rest/repos/repos
+const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-dapps/repos";
+const GEAR_DAPP_ORG: &str = "https://github.com/gear-dapps/";
 
-[dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"] }
-
-[build-dependencies]
-gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git" }
-
-[dev-dependencies]
-gtest = { git = "https://github.com/gear-tech/gear.git" }
-"#;
-
-/// build.rs
-pub const BUILD_RS: &str = r#"
-fn main() {
-    gear_wasm_builder::build();
+/// Repo object from github api response.
+#[derive(serde::Deserialize)]
+struct Repo {
+    pub name: String,
 }
-"#;
 
-/// lib.rs
-pub const LIB_RS: &str = r#"
-#![no_std]
+/// List all examples.
+pub async fn list() -> Result<Vec<String>> {
+    let mut rb = Client::builder()
+        .user_agent("gcli")
+        .build()
+        .map_err(|e| anyhow!("Failed to build http client: {}", e))?
+        .get(GEAR_DAPPS_GH_API);
 
-use gstd::{debug, msg, prelude::*};
-
-static mut MESSAGE_LOG: Vec<String> = vec![];
-
-#[no_mangle]
-extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message");
-
-    if new_msg == "PING" {
-        msg::reply_bytes("PONG", 0).unwrap();
+    if let Ok(tk) = env::var(GITHUB_TOKEN) {
+        rb = rb.bearer_auth(tk);
     }
 
-    unsafe { MESSAGE_LOG.push(new_msg) };
+    let resp = rb
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
 
-    debug!("{:?} total message(s) stored: ", unsafe { MESSAGE_LOG.len() });
+    let repos = resp
+        .json::<Vec<Repo>>()
+        .await
+        .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
+        .into_iter()
+        .map(|repo| repo.name)
+        .collect();
+
+    Ok(repos)
 }
-"#;
 
-/// create rust project for gear program in `PWD`
-pub fn create(name: &str) -> Result<()> {
-    let user_bytes = Command::new("git")
-        .args(["config", "--global", "--get", "user.name"])
-        .output()?
-        .stdout;
-    let user = String::from_utf8_lossy(&user_bytes);
+/// Download example
+pub async fn download(example: &str, path: &str) -> Result<()> {
+    let url = format!("{}{}.git", GEAR_DAPP_ORG, example);
+    Command::new("git")
+        .args(["clone", &url, path, "--depth=1"])
+        .status()
+        .map_err(|e| anyhow!("Failed to download example: {}", e))?;
 
-    let email_bytes = Command::new("git")
-        .args(["config", "--global", "--get", "user.email"])
-        .output()?
-        .stdout;
-    let email = String::from_utf8_lossy(&email_bytes);
+    let repo = Etc::new(path)?;
+    repo.rm(".git")?;
 
-    fs::create_dir_all(format!("{name}/src"))?;
+    // Init new git repo.
+    Command::new("git")
+        .args(["init", path])
+        .status()
+        .map_err(|e| anyhow!("Failed to init git: {}", e))?;
 
-    fs::write(
-        format!("{name}/Cargo.toml"),
-        CARTO_TOML
-            .replace(NAME, name)
-            .replace(USER, &format!("{} <{}>", user.trim(), email.trim())),
-    )?;
-    fs::write(format!("{name}/build.rs"), BUILD_RS)?;
-    fs::write(format!("{name}/src/lib.rs"), LIB_RS)?;
+    // Find all manifests
+    let mut manifests = Vec::new();
+    repo.find_all("Cargo.toml", &mut manifests)?;
+
+    // Update each manifest
+    for manifest in manifests {
+        let manifest = Etc::new(manifest)?;
+        let mut toml = String::from_utf8_lossy(
+            &manifest
+                .read()
+                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
+        )
+        .to_string();
+
+        process_manifest(&mut toml)?;
+        manifest.write(toml.as_bytes())?;
+    }
 
     Ok(())
+}
+
+/// Update project manifest.
+fn process_manifest(manifest: &mut String) -> Result<()> {
+    let (user, email) = {
+        let user_bytes = Command::new("git")
+            .args(["config", "--global", "--get", "user.name"])
+            .output()?
+            .stdout;
+        let user = String::from_utf8_lossy(&user_bytes);
+
+        let email_bytes = Command::new("git")
+            .args(["config", "--global", "--get", "user.email"])
+            .output()?
+            .stdout;
+        let email = String::from_utf8_lossy(&email_bytes);
+
+        (user.to_string(), email.to_string())
+    };
+
+    *manifest = manifest.replace(
+        r#"authors = ["Gear Technologies"]"#,
+        &format!("authors = [\"{} <{}>\"]", user.trim(), email.trim()),
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn list_examples() {
+    let ls = list().await.expect("Failed to get examples");
+    assert!(ls.contains(&"app".to_string()), "all templates: {ls:?}");
 }

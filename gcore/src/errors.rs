@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ impl From<SyscallError> for Result<()> {
     fn from(value: SyscallError) -> Self {
         match value.0 {
             0 => Ok(()),
-            _ => Err(value.get_err()?),
+            code => Err(ExtError::from_u32(code).unwrap_or(ExtError::Unsupported)),
         }
     }
 }
@@ -44,34 +44,5 @@ impl SyscallError {
     /// Convert `SyscallError` into `Result`.
     pub fn into_result(self) -> Result<()> {
         self.into()
-    }
-
-    // TODO: issue #1859
-    // We get an error using the `gr_error` syscall, which expects the error
-    // occurred earlier in another syscall, or you'll get a trap. We believe error
-    // decoding is successful because we use the SCALE codec crate of identical
-    // versions (at least major ones) to encode and decode errors, so error
-    // representation stays the same. You'll get a trap if the `len` argument is
-    // less than the actual encoded error length.
-    #[cfg(feature = "codec")]
-    fn get_err(self) -> Result<ExtError> {
-        use alloc::vec;
-        use codec::Decode;
-
-        let mut error = vec![0; self.0 as usize];
-        let mut len = 0u32;
-
-        // We hope `gr_error` returns `Ok`; otherwise, we fall into recursion.
-        unsafe { gsys::gr_error(error.as_mut_ptr(), &mut len as *mut u32) };
-
-        Self(len).into_result()?;
-
-        Ok(ExtError::decode(&mut error.as_ref())
-            .unwrap_or_else(|e| unreachable!("Failed to decode error: {}", e)))
-    }
-
-    #[cfg(not(feature = "codec"))]
-    fn get_err(self) -> Result<ExtError> {
-        Ok(ExtError::Some)
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, GasPrice, Origin, QueueRunner};
-use gear_core::message::{StoredDispatch, StoredMessage};
+use gear_core::message::{StoredDispatch, UserMessage};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 #[cfg(feature = "vara-native")]
@@ -34,9 +34,9 @@ use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
 };
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_consensus_slots::Slot;
 use sp_core::{sr25519, Pair, Public};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
     app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
 };
@@ -67,7 +67,7 @@ macro_rules! utils {
                 .collect()
         }
 
-        pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
+        pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<UserMessage>) {
             while !QueueOf::<Runtime>::is_empty() {
                 run_to_block(System::block_number() + 1, None, false);
                 // Parse data from events

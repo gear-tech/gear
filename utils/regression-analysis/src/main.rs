@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -310,7 +310,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     free,
                     gr_gas_available,
                     gr_message_id,
-                    gr_origin,
+                    gr_pay_program_rent,
                     gr_program_id,
                     gr_source,
                     gr_value,
@@ -325,13 +325,9 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_send_push,
                     gr_send_push_per_byte,
                     gr_send_commit,
-                    gr_send_commit_per_byte,
                     gr_reservation_send_commit,
-                    gr_reservation_send_commit_per_byte,
                     gr_reply_commit,
-                    gr_reply_commit_per_byte,
                     gr_reservation_reply_commit,
-                    gr_reservation_reply_commit_per_byte,
                     gr_reply_push,
                     gr_reply_push_per_byte,
                     gr_reply_to,
@@ -342,8 +338,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_send_push_input_per_byte,
                     gr_debug,
                     gr_debug_per_byte,
-                    gr_error,
-                    gr_status_code,
+                    gr_reply_code,
                     gr_exit,
                     gr_leave,
                     gr_wait,
@@ -356,6 +351,28 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_reserve_gas,
                     gr_unreserve_gas,
                     gr_system_reserve_gas,
+                    gr_reply_deposit,
+                    gr_send,
+                    gr_send_per_byte,
+                    gr_send_wgas,
+                    gr_send_wgas_per_byte,
+                    gr_send_commit_wgas,
+                    gr_reservation_send,
+                    gr_reservation_send_per_byte,
+                    gr_reply_commit_wgas,
+                    gr_reservation_reply,
+                    gr_reservation_reply_per_byte,
+                    gr_reply,
+                    gr_reply_per_byte,
+                    gr_reply_wgas,
+                    gr_reply_wgas_per_byte,
+                    gr_reply_input,
+                    gr_reply_input_wgas,
+                    gr_send_input,
+                    gr_send_input_wgas,
+                    gr_create_program,
+                    gr_create_program_payload_per_byte,
+                    gr_create_program_salt_per_byte,
                 }
             }
         }
@@ -394,6 +411,11 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     i32popcnt,
                     i64eqz,
                     i32eqz,
+                    i32extend8s,
+                    i32extend16s,
+                    i64extend8s,
+                    i64extend16s,
+                    i64extend32s,
                     i64extendsi32,
                     i64extendui32,
                     i32wrapi64,

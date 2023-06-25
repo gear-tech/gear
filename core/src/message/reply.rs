@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,11 +20,11 @@ use super::{common::ReplyDetails, PayloadSizeError};
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StatusCode, StoredDispatch,
-        StoredMessage, Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
+        Value,
     },
 };
-use gear_core_errors::{SimpleCodec, SimpleReplyError};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -43,7 +43,7 @@ pub struct ReplyMessage {
     /// Message value.
     value: Value,
     /// Reply status code.
-    status_code: StatusCode,
+    code: ReplyCode,
 }
 
 impl ReplyMessage {
@@ -54,7 +54,7 @@ impl ReplyMessage {
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
-            status_code: packet.status_code,
+            code: packet.code,
         }
     }
 
@@ -62,11 +62,18 @@ impl ReplyMessage {
     pub fn system(
         origin_msg_id: MessageId,
         payload: Payload,
-        simple_err: SimpleReplyError,
+        err: impl Into<ErrorReplyReason>,
     ) -> Self {
-        let status_code = simple_err.into_status_code();
-        let id = MessageId::generate_reply(origin_msg_id, status_code);
-        let packet = ReplyPacket::system(payload, status_code);
+        let id = MessageId::generate_reply(origin_msg_id);
+        let packet = ReplyPacket::system(payload, err);
+
+        Self::from_packet(id, packet)
+    }
+
+    /// Create new auto-generated ReplyMessage.
+    pub fn auto(origin_msg_id: MessageId) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id);
+        let packet = ReplyPacket::auto();
 
         Self::from_packet(id, packet)
     }
@@ -85,7 +92,7 @@ impl ReplyMessage {
             self.payload,
             self.gas_limit,
             self.value,
-            Some(ReplyDetails::new(origin_msg_id, self.status_code).into()),
+            Some(ReplyDetails::new(origin_msg_id, self.code).into()),
         )
     }
 
@@ -129,9 +136,9 @@ impl ReplyMessage {
         self.id
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -144,9 +151,9 @@ impl ReplyMessage {
         self.value
     }
 
-    /// Status code of the reply message.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
+    /// Reply code of the message.
+    pub fn code(&self) -> ReplyCode {
+        self.code
     }
 }
 
@@ -162,37 +169,46 @@ pub struct ReplyPacket {
     /// Message value.
     value: Value,
     /// Reply status code.
-    status_code: StatusCode,
+    code: ReplyCode,
 }
 
 impl ReplyPacket {
-    /// Create new ReplyPacket without gas.
+    /// Create new manual ReplyPacket without gas.
     pub fn new(payload: Payload, value: Value) -> Self {
         Self {
             payload,
             gas_limit: None,
             value,
-            status_code: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual),
         }
     }
 
-    /// Create new ReplyPacket with gas.
+    /// Create new manual ReplyPacket with gas.
     pub fn new_with_gas(payload: Payload, gas_limit: GasLimit, value: Value) -> Self {
         Self {
             payload,
             gas_limit: Some(gas_limit),
             value,
-            status_code: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual),
         }
     }
 
     // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.
-    pub fn system(payload: Payload, status_code: StatusCode) -> Self {
+    pub fn system(payload: Payload, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
             payload,
-            status_code,
+            code: ReplyCode::error(err),
+            ..Default::default()
+        }
+    }
+
+    /// Auto-generated reply after success execution.
+    pub fn auto() -> Self {
+        Self {
+            gas_limit: Some(0),
+            code: ReplyCode::Success(SuccessReplyReason::Auto),
             ..Default::default()
         }
     }
@@ -203,14 +219,14 @@ impl ReplyPacket {
     }
 
     /// Packet status code.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
+    pub fn code(&self) -> ReplyCode {
+        self.code
     }
 }
 
 impl Packet for ReplyPacket {
-    fn payload(&self) -> &[u8] {
-        self.payload.get()
+    fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

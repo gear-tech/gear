@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,27 +24,28 @@ use sp_std::marker::PhantomData;
 
 mod error;
 mod internal;
+mod lockable;
 mod negative_imbalance;
 mod node;
 mod positive_imbalance;
+mod reservable;
 
 #[cfg(test)]
 mod property_tests;
 
 pub use error::Error;
 pub use internal::TreeImpl;
+pub use lockable::{LockId, LockableTree};
 pub use negative_imbalance::NegativeImbalance;
-pub use node::{GasNode, GasNodeId};
+pub use node::{ChildrenRefs, GasNode, GasNodeId, NodeLock};
 pub use positive_imbalance::PositiveImbalance;
+pub use reservable::ReservableTree;
 
 /// Simplified type for result of `GasTree::consume` call.
 pub type ConsumeResultOf<T> = Result<
     Option<(<T as Tree>::NegativeImbalance, <T as Tree>::ExternalOrigin)>,
     <T as Tree>::Error,
 >;
-
-/// Simplified type for [`GasNodeId`] of [`Tree`].
-pub type GasNodeIdOf<T> = GasNodeId<<T as Tree>::Key, <T as Tree>::ReservationKey>;
 
 /// Abstraction for a chain of value items each piece of which has an attributed
 /// owner and can be traced up to some root origin.
@@ -55,14 +56,11 @@ pub trait Tree {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
-    /// Type that identifies a particular value item.
-    type Key: Clone;
-
-    /// Type that identifies a particular value item for gas reservation.
-    type ReservationKey: Clone;
+    /// Type that identifies a node of the tree.
+    type NodeId: Clone;
 
     /// Type representing a quantity of value.
-    type Balance;
+    type Balance: Clone;
 
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
@@ -91,7 +89,7 @@ pub trait Tree {
     /// already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
-        key: Self::Key,
+        key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error>;
 
@@ -101,22 +99,20 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_origin_node(
-        key: impl Into<GasNodeIdOf<Self>>,
-    ) -> Result<(Self::ExternalOrigin, GasNodeIdOf<Self>), Self::Error>;
+        key: impl Into<Self::NodeId>,
+    ) -> Result<(Self::ExternalOrigin, Self::NodeId), Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(
-        key: impl Into<GasNodeIdOf<Self>>,
-    ) -> Result<Self::ExternalOrigin, Self::Error> {
+    fn get_external(key: impl Into<Self::NodeId>) -> Result<Self::ExternalOrigin, Self::Error> {
         Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<GasNodeIdOf<Self>, Self::Error> {
+    fn get_origin_key(key: impl Into<Self::NodeId>) -> Result<Self::NodeId, Self::Error> {
         Self::get_origin_node(key).map(|(_external, key)| key)
     }
 
@@ -127,13 +123,13 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_limit_node(
-        key: impl Into<GasNodeIdOf<Self>>,
-    ) -> Result<(Self::Balance, GasNodeIdOf<Self>), Self::Error>;
+        key: impl Into<Self::NodeId>,
+    ) -> Result<(Self::Balance, Self::NodeId), Self::Error>;
 
     /// Get value associated with given id.
     ///
     /// See [`get_limit_node`](Self::get_limit_node) for details.
-    fn get_limit(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
+    fn get_limit(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
         Self::get_limit_node(key).map(|(balance, _key)| balance)
     }
 
@@ -147,7 +143,7 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn consume(key: impl Into<GasNodeIdOf<Self>>) -> ConsumeResultOf<Self>;
+    fn consume(key: impl Into<Self::NodeId>) -> ConsumeResultOf<Self>;
 
     /// Burn underlying value.
     ///
@@ -156,7 +152,7 @@ pub trait Tree {
     /// entire value supply becomes over-collateralized,
     /// hence negative imbalance.
     fn spend(
-        key: impl Into<GasNodeIdOf<Self>>,
+        key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::NegativeImbalance, Self::Error>;
 
@@ -167,8 +163,8 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn split_with_value(
-        key: impl Into<GasNodeIdOf<Self>>,
-        new_key: Self::Key,
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
@@ -177,7 +173,10 @@ pub trait Tree {
     /// If `key` does not identify any value an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn split(key: impl Into<GasNodeIdOf<Self>>, new_key: Self::Key) -> Result<(), Self::Error>;
+    fn split(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+    ) -> Result<(), Self::Error>;
 
     /// Cut underlying value to a reserved node.
     ///
@@ -186,71 +185,23 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn cut(
-        key: impl Into<GasNodeIdOf<Self>>,
-        new_key: Self::Key,
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
-    /// Locking some value from underlying balance.
-    ///
-    /// If `key` does not identify any value or the `amount` exceeds what's
-    /// locked under that key, an error is returned.
-    ///
-    /// This can't create imbalance as no value is burned or created.
-    fn lock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unlocking some value from node's locked balance.
-    ///
-    /// If `key` does not identify any value or the `amount` exceeds what's
-    /// locked under that key, an error is returned.
-    ///
-    /// This can't create imbalance as no value is burned or created.
-    fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unlocking all value from node's locked balance.
-    ///
-    /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(key: impl Into<GasNodeIdOf<Self>>) -> Result<(), Self::Error> {
-        let key = key.into();
-        let amount = Self::get_lock(key.clone())?;
-        Self::unlock(key, amount)
-    }
-
-    /// Get locked value associated with given id.
-    ///
-    /// Returns errors in cases of absence associated with given key node,
-    /// or if such functionality is forbidden for specific node type:
-    /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error>;
-
-    /// Reserve some value from underlying balance.
-    ///
-    /// Used in gas reservation feature.
-    fn reserve(
-        key: Self::Key,
-        new_key: Self::ReservationKey,
+    /// Creates deposit external node to be used as pre-defined gas node.
+    fn create_deposit(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
-
-    /// Reserve some value from underlying balance.
-    ///
-    /// Used in gas reservation for system signal.
-    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unreserve some value from underlying balance.
-    ///
-    /// Used in gas reservation for system signal.
-    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
-
-    /// Get system reserve value associated with given id.
-    ///
-    /// Returns errors in cases of absence associated with given key node,
-    /// or if such functionality is forbidden for specific node type:
-    /// for example, for `GasNode::ReservedLocal`.
-    fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
 
     /// Return bool, defining does node exist.
-    fn exists(key: Self::Key) -> bool;
+    fn exists(key: impl Into<Self::NodeId>) -> bool;
+
+    /// Returns bool, defining does node exist and is external with deposit.
+    fn exists_and_deposit(key: impl Into<Self::NodeId>) -> bool;
 
     /// Removes all values.
     fn clear();
@@ -261,11 +212,8 @@ pub trait Provider {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
-    /// Type that identifies a particular value item.
-    type Key;
-
-    /// Type that identifies a particular value item for gas reservation.
-    type ReservationKey;
+    /// Type that identifies a tree node.
+    type NodeId;
 
     /// Type representing a quantity of value.
     type Balance;
@@ -280,14 +228,13 @@ pub trait Provider {
     type Error: From<Self::InternalError>;
 
     /// A ledger to account for gas creation and consumption.
-    type GasTree: Tree<
-        ExternalOrigin = Self::ExternalOrigin,
-        Key = Self::Key,
-        ReservationKey = Self::ReservationKey,
-        Balance = Self::Balance,
-        InternalError = Self::InternalError,
-        Error = Self::Error,
-    >;
+    type GasTree: LockableTree<
+            ExternalOrigin = Self::ExternalOrigin,
+            NodeId = Self::NodeId,
+            Balance = Self::Balance,
+            InternalError = Self::InternalError,
+            Error = Self::Error,
+        > + ReservableTree;
 
     /// Resets all related to gas provider storages.
     ///
@@ -306,5 +253,11 @@ pub trait Imbalance {
     fn peek(&self) -> Self::Balance;
 
     /// Applies imbalance to some amount.
-    fn apply_to(&self, amount: &mut Option<Self::Balance>);
+    fn apply_to(&self, amount: &mut Option<Self::Balance>) -> Result<(), ImbalanceError>;
 }
+
+/// Represents errors returned by via the [Imbalance] trait.
+/// Indicates the imbalance value causes amount value overflowing
+/// when applied to the latter.
+#[derive(Debug, PartialEq)]
+pub struct ImbalanceError;

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPage;
@@ -39,6 +40,7 @@ where
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
+        allow_skip_zero_replies: bool,
     ) -> Result<GasInfo, Vec<u8>> {
         let account = <T::AccountId as Origin>::from_origin(source);
 
@@ -77,9 +79,7 @@ where
                 )?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
-                return Err("Gas calculation for `handle_signal` is not supported"
-                    .as_bytes()
-                    .to_vec());
+                return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
             }
         };
 
@@ -95,17 +95,7 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
-        #[cfg(feature = "lazy-pages")]
-        let lazy_pages_enabled = {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-            true
-        };
-
-        #[cfg(not(feature = "lazy-pages"))]
-        let lazy_pages_enabled = false;
+        let lazy_pages_enabled = Self::enable_lazy_pages();
 
         let mut min_limit = 0;
         let mut reserved = 0;
@@ -113,9 +103,26 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        while let Some(queued_dispatch) =
-            QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
-        {
+        // Gas calculation info should not depend on the current block gas allowance.
+        // We set it to 'block gas limit" * 5 for the calculation purposes with a subsequent restore.
+        // This is done in order to avoid abusing running node. If one wants to check
+        // executions exceeding the set threshold, they can build their own node with that
+        // parameter set to a higher value.
+        let gas_allowance = GasAllowanceOf::<T>::get();
+        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * 5);
+        // Restore gas allowance.
+        let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
+
+        loop {
+            if QueueProcessingOf::<T>::denied() {
+                return Err(
+                    b"Calculation gas limit exceeded. Consider using custom built node.".to_vec(),
+                );
+            }
+
+            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
+                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+
             let actor_id = queued_dispatch.destination();
 
             let actor = ext_manager
@@ -123,121 +130,25 @@ where
                 .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
             let dispatch_id = queued_dispatch.id();
+            let success_reply = queued_dispatch
+                .reply_details()
+                .map(|rd| rd.to_reply_code().is_success())
+                .unwrap_or(false);
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
-            // todo #1987 : consider to make more common for use in process_queue too
-            let build_journal = || {
-                let program_id = queued_dispatch.destination();
-                let precharged_dispatch = match core_processor::precharge_for_program(
-                    &block_config,
-                    GasAllowanceOf::<T>::get(),
-                    queued_dispatch.into_incoming(gas_limit),
-                    actor_id,
-                ) {
-                    Ok(d) => d,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
+            let skip_if_allowed = success_reply && gas_limit == 0;
 
-                let balance = actor.balance;
-
-                let context = match core_processor::precharge_for_code_length(
-                    &block_config,
-                    precharged_dispatch,
-                    program_id,
-                    actor.executable_data,
-                ) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let code_id = context.actor_data().code_id;
-                let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
-                    None => {
-                        unreachable!(
-                            "Program '{:?}' exists so do code len '{:?}'",
-                            program_id, code_id
-                        );
-                    }
-                    Some(c) => c,
-                };
-
-                let context = match core_processor::precharge_for_code(
-                    &block_config,
-                    context,
-                    code_len_bytes,
-                ) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let code = match T::CodeStorage::get_code(code_id) {
-                    None => {
-                        unreachable!(
-                            "Program '{:?}' exists so do code '{:?}'",
-                            program_id, code_id
-                        );
-                    }
-                    Some(c) => c,
-                };
-
-                let schedule = T::Schedule::get();
-                let (code, context) = match code.instruction_weights_version()
-                    == schedule.instruction_weights.version
-                {
-                    true => (code, ContextChargedForInstrumentation::from(context)),
-                    false => {
-                        let context = match core_processor::precharge_for_instrumentation(
-                            &block_config,
-                            context,
-                            code.original_code_len(),
-                        ) {
-                            Ok(c) => c,
-                            Err(journal) => {
-                                return journal;
-                            }
-                        };
-
-                        (Self::reinstrument_code(code_id, &schedule), context)
-                    }
-                };
-
-                let context = match core_processor::precharge_for_memory(&block_config, context) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let memory_pages = match Self::get_and_track_memory_pages(
-                    &mut ext_manager,
-                    program_id,
-                    &context.actor_data().pages_with_data,
-                    lazy_pages_enabled,
-                ) {
-                    None => unreachable!(),
-                    Some(m) => m,
-                };
-
-                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                let origin = ProgramId::from_origin(source);
-
-                core_processor::process::<ExecutionEnvironment>(
-                    &block_config,
-                    (context, code, balance, origin).into(),
-                    (random.encode(), bn.unique_saturated_into()),
-                    memory_pages,
-                )
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+            let step = QueueStep {
+                block_config: &block_config,
+                lazy_pages_enabled,
+                ext_manager: &mut ext_manager,
+                gas_limit,
+                dispatch: queued_dispatch,
+                balance: actor.balance,
+                get_actor_data: |dispatch| Ok((dispatch, actor.executable_data)),
             };
-
-            let journal = build_journal();
+            let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
@@ -282,9 +193,12 @@ where
                     }
 
                     JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        message_id,
                         ..
-                    } if program_id == main_program_id || !allow_other_panics => {
+                    } if (message_id == main_message_id || !allow_other_panics)
+                        && !(skip_if_allowed && allow_skip_zero_replies) =>
+                    {
                         return Err(format!("Program terminated with a trap: {trap}").into_bytes());
                     }
 
@@ -305,7 +219,7 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let (program, _bn) = ProgramStorageOf::<T>::get_program(program_id)
+        let program = ProgramStorageOf::<T>::get_program(program_id)
             .ok_or(String::from("Program not found"))?;
 
         let program = ActiveProgram::try_from(program)

@@ -1,7 +1,7 @@
 /*
  * This file is part of Gear.
  *
- * Copyright (C) 2022 Gear Technologies Inc.
+ * Copyright (C) 2022-2023 Gear Technologies Inc.
  * SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
  *
  * This program is free software: you can redistribute it and/or modify
@@ -69,7 +69,8 @@ cfg_if! {
             const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
             const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
 
-            let mcontext = (*ucontext).uc_mcontext;
+            let ucontext = ucontext.as_mut()?;
+            let mcontext = ucontext.uc_mcontext;
             let exception_state = (*mcontext).__es;
             let esr = exception_state.__esr;
 

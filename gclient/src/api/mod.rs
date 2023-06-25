@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,12 +22,9 @@ pub mod listener;
 mod rpc;
 pub mod storage;
 
-use crate::{
-    node::{ws::WSAddress, Node},
-    EventListener,
-};
+use crate::{ws::WSAddress, EventListener};
 use error::*;
-use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
+use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, testing::Node, Api};
 use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
@@ -84,7 +81,7 @@ impl GearApi {
     /// `path` param. Ideally, the binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         let node = Node::try_from_path(path, vec!["--dev"])?;
-        let api = Self::init(node.ws_address().clone()).await?;
+        let api = Self::init(node.address().into()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
@@ -95,7 +92,7 @@ impl GearApi {
     /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         let node = Node::try_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
-        let api = Self::init(node.ws_address().clone()).await?;
+        let api = Self::init(node.address().into()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
@@ -144,8 +141,8 @@ impl GearApi {
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
             .api()
-            .rpc()
-            .system_account_next_index(self.0.account_id())
+            .tx()
+            .account_nonce(self.0.account_id())
             .await
             .map_err(Into::into)
     }

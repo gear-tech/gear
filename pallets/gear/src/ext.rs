@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,21 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
+use core_processor::{Ext, ExtAllocError, ExtError, ProcessorContext, ProcessorExternalities};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    BackendExt, ExtInfo,
+    BackendExternalities, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext as EnvExt,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -40,7 +40,7 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl BackendExt for LazyPagesExt {
+impl BackendExternalities for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -69,7 +69,7 @@ impl BackendExt for LazyPagesExt {
     }
 }
 
-impl ProcessorExt for LazyPagesExt {
+impl ProcessorExternalities for LazyPagesExt {
     const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
@@ -143,10 +143,6 @@ impl CountersOwner for LazyPagesExt {
         self.inner.charge_gas_if_enough(amount)
     }
 
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        self.inner.refund_gas(amount)
-    }
-
     fn gas_left(&self) -> GasLeft {
         self.inner.gas_left()
     }
@@ -156,13 +152,13 @@ impl CountersOwner for LazyPagesExt {
     }
 }
 
-impl EnvExt for LazyPagesExt {
-    type Error = ProcessorError;
-    type AllocError = ProcessorAllocError;
+impl Externalities for LazyPagesExt {
+    type Error = ExtError;
+    type AllocError = ExtAllocError;
 
     fn alloc(
         &mut self,
-        pages_num: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
@@ -172,16 +168,12 @@ impl EnvExt for LazyPagesExt {
         self.inner.free(page)
     }
 
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::Error> {
         self.inner.block_height()
     }
 
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::Error> {
         self.inner.block_timestamp()
-    }
-
-    fn origin(&mut self) -> Result<ProgramId, Self::Error> {
-        self.inner.origin()
     }
 
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -219,24 +211,23 @@ impl EnvExt for LazyPagesExt {
         self.inner.reservation_send_commit(id, handle, msg, delay)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        self.inner.reply_commit(msg, delay)
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+        self.inner.reply_commit(msg)
     }
 
     fn reservation_reply_commit(
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error> {
-        self.inner.reservation_reply_commit(id, msg, delay)
+        self.inner.reservation_reply_commit(id, msg)
     }
 
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::Error> {
         self.inner.reply_to()
     }
 
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::Error> {
         self.inner.signal_from()
     }
 
@@ -244,35 +235,43 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_push_input(offset, len)
     }
 
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::Error> {
         self.inner.source()
     }
 
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
-        self.inner.status_code()
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        self.inner.reply_code()
     }
 
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.inner.signal_code()
+    }
+
+    fn message_id(&self) -> Result<MessageId, Self::Error> {
         self.inner.message_id()
     }
 
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
+    fn pay_program_rent(
+        &mut self,
+        program_id: ProgramId,
+        rent: u128,
+    ) -> Result<(u128, u32), Self::Error> {
+        self.inner.pay_program_rent(program_id, rent)
+    }
+
+    fn program_id(&self) -> Result<ProgramId, Self::Error> {
         self.inner.program_id()
     }
 
-    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        self.inner.read(at, len)
-    }
-
-    fn size(&mut self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::Error> {
         self.inner.size()
     }
 
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         self.inner.random()
     }
 
@@ -288,11 +287,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.system_reserve_gas(amount)
     }
 
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::Error> {
         self.inner.gas_available()
     }
 
-    fn value(&mut self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::Error> {
         self.inner.value()
     }
 
@@ -312,7 +311,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.wake(waker_id, delay)
     }
 
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::Error> {
         self.inner.value_available()
     }
 
@@ -324,7 +323,19 @@ impl EnvExt for LazyPagesExt {
         self.inner.create_program(packet, delay)
     }
 
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+        self.inner.reply_deposit(message_id, amount)
+    }
+
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
+    }
+
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
+        self.inner.lock_payload(at, len)
+    }
+
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        self.inner.unlock_payload(payload_holder)
     }
 }

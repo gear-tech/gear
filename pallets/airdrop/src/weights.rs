@@ -1,7 +1,7 @@
 
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -54,7 +54,7 @@ pub trait WeightInfo {
 pub struct AirdropWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for AirdropWeight<T> {
 	fn transfer() -> Weight {
-		(Weight::from_ref_time(18_000_000))
+		(Weight::from_parts(18_000_000, 0))
 			.saturating_add(T::DbWeight::get().reads(2_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}

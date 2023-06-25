@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,11 +27,13 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_core_errors::MessageError as Error;
+use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+
+use super::{DispatchKind, IncomingDispatch};
 
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -103,12 +105,17 @@ impl ContextSettings {
 
 /// Dispatch or message with additional information.
 pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
+pub type OutgoingMessageInfoNoDelay<T> = (T, Option<ReservationId>);
 
 /// Context outcome dispatches and awakening ids.
-pub type ContextOutcomeDrain = (
-    Vec<(Dispatch, u32, Option<ReservationId>)>,
-    Vec<(MessageId, u32)>,
-);
+pub struct ContextOutcomeDrain {
+    /// Outgoing dispatches to be sent.
+    pub outgoing_dispatches: Vec<OutgoingMessageInfo<Dispatch>>,
+    /// Messages to be waken.
+    pub awakening: Vec<(MessageId, u32)>,
+    /// Reply deposits to be provided.
+    pub reply_deposits: Vec<(MessageId, u64)>,
+}
 
 /// Context outcome.
 ///
@@ -117,9 +124,12 @@ pub type ContextOutcomeDrain = (
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
-    reply: Option<OutgoingMessageInfo<ReplyMessage>>,
+    reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
+    // u64 is gas limit
+    // TODO: add Option<ReservationId> after #1828
+    reply_deposits: Vec<(MessageId, u64)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
@@ -149,15 +159,19 @@ impl ContextOutcome {
             dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
         }
 
-        if let Some((msg, delay, reservation)) = self.reply {
+        if let Some((msg, reservation)) = self.reply {
             dispatches.push((
                 msg.into_dispatch(self.program_id, self.source, self.origin_msg_id),
-                delay,
+                0,
                 reservation,
             ));
         };
 
-        (dispatches, self.awakening)
+        ContextOutcomeDrain {
+            outgoing_dispatches: dispatches,
+            awakening: self.awakening,
+            reply_deposits: self.reply_deposits,
+        }
     }
 }
 
@@ -198,11 +212,17 @@ impl ContextStore {
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
     }
+
+    /// Get info about was reply sent.
+    pub fn reply_sent(&self) -> bool {
+        self.reply_sent
+    }
 }
 
 /// Context of currently processing incoming message.
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct MessageContext {
+    kind: DispatchKind,
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
@@ -212,12 +232,14 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new MessageContext with given ContextSettings.
     pub fn new(
-        message: IncomingMessage,
+        dispatch: IncomingDispatch,
         program_id: ProgramId,
-        store: Option<ContextStore>,
         settings: ContextSettings,
     ) -> Self {
+        let (kind, message, store) = dispatch.into_parts();
+
         Self {
+            kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
@@ -228,6 +250,19 @@ impl MessageContext {
     /// Getter for inner settings.
     pub fn settings(&self) -> &ContextSettings {
         &self.settings
+    }
+
+    fn check_reply_availability(&self) -> Result<(), ExecutionError> {
+        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
+            return Err(ExecutionError::IncorrectEntryForReply);
+        }
+
+        Ok(())
+    }
+
+    /// Return bool defining was reply sent within the execution.
+    pub fn reply_sent(&self) -> bool {
+        self.store.reply_sent
     }
 
     /// Send a new program initialization message.
@@ -339,7 +374,7 @@ impl MessageContext {
             excluded_end,
         } = range;
 
-        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         Ok(())
@@ -350,7 +385,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
-        let input = self.current.payload();
+        let input = self.current.payload_bytes();
         let offset = offset as usize;
         if offset >= input.len() {
             return CheckedRange {
@@ -376,10 +411,11 @@ impl MessageContext {
     pub fn reply_commit(
         &mut self,
         packet: ReplyPacket,
-        delay: u32,
         reservation: Option<ReservationId>,
-    ) -> Result<MessageId, Error> {
-        if !self.store.reply_sent {
+    ) -> Result<MessageId, ExtError> {
+        self.check_reply_availability()?;
+
+        if !self.reply_sent() {
             let data = self.store.reply.take().unwrap_or_default();
 
             let packet = {
@@ -390,28 +426,30 @@ impl MessageContext {
                 packet
             };
 
-            let message_id = MessageId::generate_reply(self.current.id(), packet.status_code());
+            let message_id = MessageId::generate_reply(self.current.id());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            self.outcome.reply = Some((message, delay, reservation));
+            self.outcome.reply = Some((message, reservation));
             self.store.reply_sent = true;
 
             Ok(message_id)
         } else {
-            Err(Error::DuplicateReply)
+            Err(Error::DuplicateReply.into())
         }
     }
 
     /// Pushes payload into stored reply payload.
-    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
-        if !self.store.reply_sent {
+    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), ExtError> {
+        self.check_reply_availability()?;
+
+        if !self.reply_sent() {
             let data = self.store.reply.get_or_insert_with(Default::default);
             data.try_extend_from_slice(buffer)
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -421,20 +459,22 @@ impl MessageContext {
     }
 
     /// Pushes the incoming message buffer into stored reply payload.
-    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
-        if !self.store.reply_sent {
+    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), ExtError> {
+        self.check_reply_availability()?;
+
+        if !self.reply_sent() {
             let CheckedRange {
                 offset,
                 excluded_end,
             } = range;
 
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+            data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -449,9 +489,48 @@ impl MessageContext {
         }
     }
 
+    /// Create deposit to handle future reply on message id was sent.
+    pub fn reply_deposit(
+        &mut self,
+        message_id: MessageId,
+        amount: u64,
+    ) -> Result<(), MessageError> {
+        if self
+            .outcome
+            .reply_deposits
+            .iter()
+            .any(|(mid, _)| mid == &message_id)
+        {
+            return Err(MessageError::DuplicateReplyDeposit);
+        }
+
+        if !self
+            .outcome
+            .handle
+            .iter()
+            .any(|(message, ..)| message.id() == message_id)
+            && !self
+                .outcome
+                .init
+                .iter()
+                .any(|(message, ..)| message.id() == message_id)
+        {
+            return Err(MessageError::IncorrectMessageForReplyDeposit);
+        }
+
+        self.outcome.reply_deposits.push((message_id, amount));
+
+        Ok(())
+    }
+
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
+    }
+
+    /// Mutable reference to currently processed incoming message.
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        self.current.payload_mut()
     }
 
     /// Current program's id.
@@ -480,11 +559,9 @@ impl CheckedRange {
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryInto;
-
     use super::*;
-    use crate::ids;
     use alloc::vec;
+    use core::convert::TryInto;
 
     macro_rules! assert_ok {
         ( $x:expr $(,)? ) => {
@@ -510,7 +587,6 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -533,12 +609,8 @@ mod tests {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
             let settings = ContextSettings::new(0, 0, 0, 0, 0, n);
 
-            let mut message_context = MessageContext::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                settings,
-            );
+            let mut message_context =
+                MessageContext::new(Default::default(), Default::default(), settings);
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
@@ -570,7 +642,6 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -597,16 +668,15 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         // First reply.
-        assert_ok!(message_context.reply_commit(Default::default(), 0, None));
+        assert_ok!(message_context.reply_commit(Default::default(), None));
 
         // Reply twice in one message is forbidden.
         assert_err!(
-            message_context.reply_commit(Default::default(), 0, None),
+            message_context.reply_commit(Default::default(), None),
             Error::DuplicateReply,
         );
     }
@@ -628,11 +698,12 @@ mod tests {
             None,
         );
 
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
         // Creating a message context
         let mut context = MessageContext::new(
-            incoming_message,
-            ids::ProgramId::from(INCOMING_MESSAGE_ID),
-            None,
+            incoming_dispatch,
+            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -648,24 +719,38 @@ mod tests {
         assert_ok!(context.reply_push(&[1, 2, 3]));
 
         // Setting reply message and making sure the operation was successful
-        assert_ok!(context.reply_commit(reply_packet.clone(), 0, None));
+        assert_ok!(context.reply_commit(reply_packet.clone(), None));
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
         // Checking that repeated call `reply_push(...)` returns error and does not do anything
         assert_err!(context.reply_push(&[1]), Error::LateAccess);
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
         assert_err!(
-            context.reply_commit(reply_packet, 0, None),
+            context.reply_commit(reply_packet, None),
             Error::DuplicateReply
         );
 
@@ -735,14 +820,14 @@ mod tests {
         // Checking that reply message not lost and matches our initial
         assert!(context.outcome.reply.is_some());
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload(),
+            context.outcome.reply.as_ref().unwrap().0.payload_bytes(),
             vec![1, 2, 3, 0, 0]
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
         let (expected_result, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
-        assert_eq!(expected_result.handle[0].0.payload(), vec![5, 7, 9]);
+        assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }
 
     #[test]
@@ -756,10 +841,11 @@ mod tests {
             None,
         );
 
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
         let mut context = MessageContext::new(
-            incoming_message,
-            ids::ProgramId::from(INCOMING_MESSAGE_ID),
-            None,
+            incoming_dispatch,
+            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -768,6 +854,73 @@ mod tests {
         assert_eq!(
             context.wake(MessageId::default(), 1),
             Err(Error::DuplicateWaking)
+        );
+    }
+
+    #[test]
+    fn duplicate_reply_deposit() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let handle = message_context.send_init().expect("unreachable");
+        message_context
+            .send_push(handle, b"payload")
+            .expect("unreachable");
+        let message_id = message_context
+            .send_commit(handle, HandlePacket::default(), 0, None)
+            .expect("unreachable");
+
+        assert!(message_context.reply_deposit(message_id, 1234).is_ok());
+        assert_err!(
+            message_context.reply_deposit(message_id, 1234),
+            MessageError::DuplicateReplyDeposit
+        );
+    }
+
+    #[test]
+    fn inexistent_reply_deposit() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let message_id = message_context
+            .reply_commit(ReplyPacket::default(), None)
+            .expect("unreachable");
+
+        assert_err!(
+            message_context.reply_deposit(message_id, 1234),
+            MessageError::IncorrectMessageForReplyDeposit
+        );
+        assert_err!(
+            message_context.reply_deposit(Default::default(), 1234),
+            MessageError::IncorrectMessageForReplyDeposit
         );
     }
 }

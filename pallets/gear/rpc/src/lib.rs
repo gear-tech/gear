@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,7 @@
 
 use gear_common::Origin;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core_errors::*;
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
@@ -33,7 +34,7 @@ use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
 use sp_api::{ApiError, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
@@ -46,7 +47,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     .into()
 }
 
-#[rpc(client, server)]
+#[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_calculateInitCreateGas")]
     fn get_init_create_gas_spent(
@@ -86,7 +87,6 @@ pub trait GearApi<BlockHash, ResponseType> {
         &self,
         source: H256,
         message_id: H256,
-        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -181,13 +181,11 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::InitByHash(CodeId::from_origin(code_id)),
                 payload.to_vec(),
@@ -198,7 +196,7 @@ where
         })?;
         self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::InitByHash(CodeId::from_origin(code_id)),
                 payload.to_vec(),
@@ -218,13 +216,11 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::Init(code.to_vec()),
                 payload.to_vec(),
@@ -235,7 +231,7 @@ where
         })?;
         self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::Init(code.to_vec()),
                 payload.to_vec(),
@@ -255,13 +251,11 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::Handle(ProgramId::from_origin(dest)),
                 payload.to_vec(),
@@ -272,7 +266,7 @@ where
         })?;
         self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
                 HandleKind::Handle(ProgramId::from_origin(dest)),
                 payload.to_vec(),
@@ -287,21 +281,21 @@ where
         &self,
         source: H256,
         message_id: H256,
-        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
+                HandleKind::Reply(
+                    MessageId::from_origin(message_id),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
+                ),
                 payload.to_vec(),
                 value,
                 allow_other_panics,
@@ -310,9 +304,12 @@ where
         })?;
         self.run_with_api_copy(|api| {
             api.calculate_gas_info(
-                &at,
+                at_hash,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
+                HandleKind::Reply(
+                    MessageId::from_origin(message_id),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
+                ),
                 payload.to_vec(),
                 value,
                 allow_other_panics,
@@ -326,11 +323,9 @@ where
         program_id: H256,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Bytes> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_state(&at, program_id))
+        self.run_with_api_copy(|api| api.read_state(at_hash, program_id))
             .map(Bytes)
     }
 
@@ -342,13 +337,11 @@ where
         argument: Option<Bytes>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Bytes> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.run_with_api_copy(|api| {
             api.read_state_using_wasm(
-                &at,
+                at_hash,
                 program_id,
                 fn_name.to_vec(),
                 wasm.to_vec(),
@@ -363,10 +356,8 @@ where
         program_id: H256,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<H256> {
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_metahash(&at, program_id))
+        self.run_with_api_copy(|api| api.read_metahash(at_hash, program_id))
     }
 }

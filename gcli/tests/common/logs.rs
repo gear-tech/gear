@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,11 @@
 //! Logs from binaries
 
 pub mod gear_node {
-    pub const IMPORTING_BLOCKS: &str = "Imported #2";
+    // `#1` is enough here.
+    pub const IMPORTING_BLOCKS: &str = "Imported #1";
 }
 
 pub mod gear_program {
     pub const EX_UPLOAD_PROGRAM: &str = "Successfully submitted call Gear::upload_program";
+    pub const EX_UPLOAD_CODE: &str = "Successfully submitted call Gear::upload_code";
 }

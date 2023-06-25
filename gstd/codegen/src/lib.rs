@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -209,7 +209,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
 /// }
-///
 /// # fn main() {}
 /// ```
 ///
@@ -225,7 +224,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// fn my_handle_reply() {
 ///     // ...
 /// }
-///
 /// # fn main() {}
 /// ```
 #[proc_macro_attribute]
@@ -321,45 +319,69 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// #[wait_for_reply]
 /// pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
-///   gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
+///   gcore::msg::send(program.into(), payload.as_ref(), value).into_result()
 /// }
 /// ```
 ///
 /// outputs:
 ///
 /// ```ignore
-/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
+/// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
+/// ///
+/// /// Argument `reply_deposit: u64` used to provide gas for
+/// /// future reply handling (skipped if zero).
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`send_bytes_for_reply_as`](crate::msg::send_bytes_for_reply_as)
+/// /// - [`send_bytes_for_reply_as`](self::send_bytes_for_reply_as)
 /// pub fn send_bytes_for_reply<T: AsRef<[u8]>>(
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
+///     reply_deposit: u64
 /// ) -> Result<MessageFuture> {
+///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///
+///     // Depositing gas for future reply handling if not zero.
+///     if reply_deposit != 0 {
+///         crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+///     }
+///
+///     // Registering signal.
 ///     signals().register_signal(waiting_reply_to);
 ///
 ///     Ok(MessageFuture { waiting_reply_to })
 /// }
 ///
-/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
+/// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
+/// ///
+/// /// Argument `reply_deposit: u64` used to provide gas for
+/// /// future reply handling (skipped if zero).
 /// ///
 /// /// The output should be decodable via SCALE codec.
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`send_bytes_for_reply`](crate::msg::send_bytes_for_reply)
-/// /// - <https://docs.substrate.io/v3/advanced/scale-codec>
+/// /// - [`send_bytes_for_reply`](self::send_bytes_for_reply)
+/// /// - <https://docs.substrate.io/reference/scale-codec>
 /// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
+///     reply_deposit: u64,
 /// ) -> Result<CodecMessageFuture<D>> {
+///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///
+///     // Depositing gas for future reply handling if not zero.
+///     if reply_deposit != 0 {
+///         crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+///     }
+///
+///     // Registering signal.
 ///     signals().register_signal(waiting_reply_to);
 ///
 ///     Ok(CodecMessageFuture::<D> {
@@ -380,11 +402,20 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string(), style);
 
     // Generate arguments.
-    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
+
+    // Add `reply_deposit` argument.
+    inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
@@ -415,7 +446,15 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #[doc = #for_reply_docs]
         pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<MessageFuture> {
+            // Function call.
             let waiting_reply_to = #ident #args ?;
+
+            // Depositing gas for future reply handling if not zero.
+            if reply_deposit != 0 {
+                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+            }
+
+            // Registering signal.
             signals().register_signal(waiting_reply_to);
 
             Ok(MessageFuture { waiting_reply_to })
@@ -423,7 +462,15 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #[doc = #for_reply_as_docs]
         pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecMessageFuture<D>> {
+            // Function call.
             let waiting_reply_to = #ident #args ?;
+
+            // Depositing gas for future reply handling if not zero.
+            if reply_deposit != 0 {
+                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+            }
+
+            // Registering signal.
             signals().register_signal(waiting_reply_to);
 
             Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
@@ -432,13 +479,13 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Similar to `wait_for_reply`, but works with functions that create programs:
+/// Similar to [`wait_for_reply`], but works with functions that create programs:
 /// It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let ident = &function.sig.ident;
+    let function_ident = &function.sig.ident;
 
     let ident = if !attr.is_empty() {
         assert_eq!(
@@ -447,9 +494,9 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             "Proc macro attribute should be used only to specify Self source of the function"
         );
 
-        quote! { Self::#ident }
+        quote! { Self::#function_ident }
     } else {
-        quote! { #ident }
+        quote! { #function_ident }
     };
 
     // Generate functions' idents.
@@ -459,11 +506,21 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) =
+        utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
-    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
+
+    // Add `reply_deposit` argument.
+    inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
@@ -482,7 +539,15 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
 
         #[doc = #for_reply_docs]
         pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<CreateProgramFuture> {
+            // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
+
+            // Depositing gas for future reply handling if not zero.
+            if reply_deposit != 0 {
+                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+            }
+
+            // Registering signal.
             signals().register_signal(waiting_reply_to);
 
             Ok(CreateProgramFuture { waiting_reply_to, program_id })
@@ -490,7 +555,15 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
 
         #[doc = #for_reply_as_docs]
         pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecCreateProgramFuture<D>> {
+            // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
+
+            // Depositing gas for future reply handling if not zero.
+            if reply_deposit != 0 {
+                crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+            }
+
+            // Registering signal.
             signals().register_signal(waiting_reply_to);
 
             Ok(CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })

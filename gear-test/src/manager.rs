@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,7 +25,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -437,11 +437,10 @@ impl JournalHandler for InMemoryExtManager {
 
     fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 
-    fn send_signal(
-        &mut self,
-        _message_id: MessageId,
-        _destination: ProgramId,
-        _err: SimpleSignalError,
-    ) {
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
+
+    fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
+
+    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
     }
 }

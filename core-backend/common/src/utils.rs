@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -84,6 +84,28 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
         }
 
         s.truncate(last_byte);
+    }
+}
+
+#[derive(Debug, Copy, Clone, derive_more::Display)]
+pub struct LimitedStr<'a>(&'a str);
+impl<'a> LimitedStr<'a> {
+    const INIT_ERROR_MSG: &'static str = concat!(
+        "String must be less than ",
+        stringify!(TRIMMED_MAX_LEN),
+        " bytes."
+    );
+
+    pub fn new(s: &'a str) -> Result<Self, &'static str> {
+        if s.len() > TRIMMED_MAX_LEN {
+            return Err(Self::INIT_ERROR_MSG);
+        }
+
+        Ok(Self(s))
+    }
+
+    pub fn as_str(&self) -> &'a str {
+        self.0
     }
 }
 

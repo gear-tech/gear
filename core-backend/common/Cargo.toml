@@ -1,21 +1,25 @@
 [package]
 name = "gear-backend-common"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-wasm-instrument.workspace = true
+gear-backend-codegen.workspace = true
 
-log.workspace = true
+blake2-rfc.workspace = true
 derive_more.workspace = true
+gsys.workspace = true
+log.workspace = true
+parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-rand.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
 
 [features]
 mock = []

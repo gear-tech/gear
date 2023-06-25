@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,6 @@ use frame_support::{
     scale_info::{self, TypeInfo},
 };
 use gear_core::{ids::MessageId, message::MessageWaitedType};
-use primitive_types::H256;
 
 /// Programs entry for messages.
 ///
@@ -219,28 +218,34 @@ pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessag
 pub enum ProgramChangeKind<BlockNumber> {
     /// Active status achieved.
     ///
-    /// Occurs when new program created, paused program was resumed
-    /// or expiration block number updated.
+    /// Occurs when new program created or paused program was resumed.
     ///
     /// Expiration block number presents block number when this program become
     /// paused due to losing ability to pay rent for holding.
     Active { expiration: BlockNumber },
 
-    // TODO: consider about addition expiration block number (issue #1014).
     /// Program become inactive forever due to `gr_exit` call.
     Inactive,
 
-    // TODO: consider about addition expiration block number (issue #1014).
     /// Paused status.
     ///
     /// Program is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
-    Paused {
-        /// Code hash the program relates to.
-        code_hash: H256,
-        /// Hash of memory pages of the program.
-        memory_hash: H256,
-        /// Waitlist hash addressed to the program.
-        waitlist_hash: H256,
-    },
+    Paused,
+
+    /// Program become inactive forever due to init failure.
+    Terminated,
+
+    /// Occurs when expiration block number of a program changed.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    ExpirationChanged { expiration: BlockNumber },
+
+    /// Occurs when new program set in the storage.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding or terminated in
+    /// case of didn't get initialised.
+    ProgramSet { expiration: BlockNumber },
 }

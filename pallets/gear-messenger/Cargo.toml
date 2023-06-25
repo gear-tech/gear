@@ -3,7 +3,7 @@ name = "pallet-gear-messenger"
 version = "1.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear pallet to work with messages"
@@ -21,20 +21,21 @@ log.workspace = true
 # Internal deps
 common.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-std = { workspace = true, default-features = false }
+sp-std = { workspace = true }
 sp-io.workspace = true
 
 [dev-dependencies]
-pallet-gear-gas.workspace = true
-sp-runtime.workspace = true
-pallet-balances.workspace = true
-pallet-authorship.workspace = true
-pallet-timestamp.workspace = true
+pallet-gear-gas = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
+pallet-balances = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 
 [features]

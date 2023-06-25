@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,13 +19,13 @@
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use gear_runtime::{
     BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
-    SudoConfig, SystemConfig, WASM_BINARY,
+    SudoConfig, SystemConfig, ValidatorSetConfig, WASM_BINARY,
 };
 use hex_literal::hex;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -241,6 +241,12 @@ fn testnet_genesis(
                 .cloned()
                 .map(|k| (k, 1 << 60))
                 .collect(),
+        },
+        validator_set: ValidatorSetConfig {
+            initial_validators: initial_authorities
+                .iter()
+                .map(|x| x.0.clone())
+                .collect::<Vec<_>>(),
         },
         babe: BabeConfig {
             authorities: Default::default(),

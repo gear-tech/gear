@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -104,7 +104,7 @@ mod wasm {
         }
 
         async fn call(&self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
-            let reply_bytes = msg::send_bytes_for_reply(self.handle, &input[..], 0)
+            let reply_bytes = msg::send_bytes_for_reply(self.handle, &input[..], 0, 0)
                 .expect("Error sending message")
                 .await
                 .map_err(|_| "Error in async message processing")?;

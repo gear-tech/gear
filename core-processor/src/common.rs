@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,11 +39,8 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
-};
+use gear_core_errors::{MemoryError, SignalCode, SimpleExecutionError};
+use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -74,8 +71,12 @@ pub struct DispatchResult {
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
+    /// List of reply deposits to be provided.
+    pub reply_deposits: Vec<(MessageId, u64)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    /// Map of program ids to paid blocks.
+    pub program_rents: BTreeMap<ProgramId, u32>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
@@ -125,7 +126,9 @@ impl DispatchResult {
             context_store: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
+            reply_deposits: Default::default(),
             program_candidates: Default::default(),
+            program_rents: Default::default(),
             gas_amount,
             gas_reserver: None,
             system_reservation_context,
@@ -322,7 +325,25 @@ pub enum JournalNote {
         /// Program ID which signal will be sent to.
         destination: ProgramId,
         /// Simple signal error.
-        err: SimpleSignalError,
+        code: SignalCode,
+    },
+    /// Pay rent for the program.
+    PayProgramRent {
+        /// Rent payer.
+        payer: ProgramId,
+        /// Program whose rent will be paid.
+        program_id: ProgramId,
+        /// Amount of blocks to pay for.
+        block_count: u32,
+    },
+    /// Create deposit for future reply.
+    ReplyDeposit {
+        /// Message id of the message that generated this message.
+        message_id: MessageId,
+        /// Future reply id to be sponsored.
+        future_reply_id: MessageId,
+        /// Amount of gas for reply.
+        amount: u64,
     },
 }
 
@@ -403,12 +424,11 @@ pub trait JournalHandler {
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    );
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
+    /// Pay rent for the program.
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
+    /// Create deposit for future reply.
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
 
 /// Execution error
@@ -429,13 +449,13 @@ pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: ActorExecutionErrorReason,
+    pub reason: ActorExecutionErrorReplyReason,
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
-pub enum ActorExecutionErrorReason {
+pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
@@ -450,22 +470,22 @@ pub enum ActorExecutionErrorReason {
     Trap(TrapExplanation),
 }
 
-impl ActorExecutionErrorReason {
-    /// Convert self into [`SimpleExecutionError`]
+impl ActorExecutionErrorReplyReason {
+    /// Convert self into [`gear_core_errors::SimpleExecutionError`].
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
-            ActorExecutionErrorReason::PreChargeGasLimitExceeded(_) => {
-                SimpleExecutionError::GasLimitExceeded
+            ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(_) => {
+                SimpleExecutionError::RanOutOfGas
             }
-            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
-            ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unknown,
-            ActorExecutionErrorReason::Trap(expl) => match expl {
-                TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
-                TrapExplanation::ForbiddenFunction => SimpleExecutionError::Unknown,
-                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryExceeded,
-                TrapExplanation::Ext(_err) => SimpleExecutionError::Ext,
-                TrapExplanation::Panic(_) => SimpleExecutionError::Panic,
-                TrapExplanation::Unknown => SimpleExecutionError::Unknown,
+            ActorExecutionErrorReplyReason::PrepareMemory(_) => SimpleExecutionError::Unsupported,
+            ActorExecutionErrorReplyReason::Environment(_) => SimpleExecutionError::Unsupported,
+            ActorExecutionErrorReplyReason::Trap(expl) => match expl {
+                TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
+                TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
+                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
+                TrapExplanation::Ext(_err) => SimpleExecutionError::BackendError,
+                TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
+                TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
         }
     }
@@ -525,8 +545,6 @@ pub struct ExecutableActorData {
 /// Execution context.
 #[derive(Debug)]
 pub struct WasmExecutionContext {
-    /// Original user.
-    pub origin: ProgramId,
     /// A counter for gas.
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.

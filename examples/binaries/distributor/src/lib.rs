@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     Receive(u64),
-    Join(u64),
+    Join(ActorId),
     Report,
 }
 
@@ -91,7 +91,7 @@ mod wasm {
             let program_handle = self.handle;
             async move {
                 let reply_bytes =
-                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0)
+                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0, 0)
                         .expect("Error in message sending")
                         .await
                         .expect("Error in async message processing");
@@ -169,7 +169,7 @@ mod wasm {
             Reply::Success
         }
 
-        async fn handle_join(program_id: u64) -> Reply {
+        async fn handle_join(program_id: ActorId) -> Reply {
             let mut nodes = Self::nodes().lock().await;
             debug!("Inserting into nodes");
             nodes.as_mut().insert(Program::new(program_id));
@@ -285,14 +285,14 @@ mod tests {
         let program_3 = Program::current_with_id(system, program_3_id);
         let _res = program_3.send_bytes(from, b"init");
 
-        let res = program_1.send(from, Request::Join(program_2_id));
+        let res = program_1.send(from, Request::Join(program_2_id.into()));
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Join(program_3_id));
+        let res = program_1.send(from, Request::Join(program_3_id.into()));
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
@@ -343,7 +343,7 @@ mod tests {
         let program_4 = Program::current_with_id(&system, program_4_id);
         let _res = program_4.send_bytes(from, b"init");
 
-        IntoIterator::into_iter([Request::Receive(11), Request::Join(program_4_id)])
+        IntoIterator::into_iter([Request::Receive(11), Request::Join(program_4_id.into())])
             .map(|request| program_1.send(from, request))
             .zip(IntoIterator::into_iter([Reply::Success, Reply::Success]))
             .for_each(|(result, reply)| {

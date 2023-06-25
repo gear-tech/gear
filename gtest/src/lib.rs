@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,8 +23,8 @@ mod manager;
 mod program;
 mod system;
 
+pub use crate::log::{CoreLog, Log, RunResult};
 pub use error::{Result, TestError};
-pub use log::{CoreLog, Log, RunResult};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;
 
@@ -44,3 +44,4 @@ pub const INITIAL_RANDOM_SEED: u64 = 42;
 pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
 pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
 pub const DISPATCH_HOLD_COST: u64 = 200;
+pub const RENT_COST: u128 = 330;

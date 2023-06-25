@@ -16,6 +16,7 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
+    fuzz           build fuzzer crates
     gear-test      build gear-test binary
     examples       build gear program examples,
                    you can specify yaml list to build coresponding examples
@@ -23,12 +24,17 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
+    wat-examples   build wat-examples
 
 EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@"
+  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+}
+
+fuzzer_build() {
+  $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 gear_test_build() {
@@ -45,7 +51,9 @@ wasm_proc_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  "$1"/release/wasm-proc "$1"/wasm32-unknown-unknown/release/*.wasm
+  WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release
+  WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" | tr '\n' ' ' | sed 's/ $//')
+  "$1"/release/wasm-proc --legacy-meta $WASM_EXAMPLES_LIST
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
@@ -66,9 +74,9 @@ examples_build() {
   if [ -z "$YAMLS" ]
   then
     cd "$ROOT_DIR"
-    cargo +nightly build --release -p "demo-*" "$@"
+    cargo build --release -p "demo-*" "$@"
     cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
     # If there is specified yaml list, then parses yaml files and build
@@ -76,7 +84,7 @@ examples_build() {
     for path in $(get_demo_list $ROOT_DIR $YAMLS)
     do
       cd $path
-      CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
+      CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release "$@"
       cd -
     done
   fi

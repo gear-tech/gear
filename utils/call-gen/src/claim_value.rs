@@ -18,7 +18,7 @@
 
 //! Claim value args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -28,39 +28,24 @@ use gear_utils::{NonEmpty, RingGet};
 #[derive(Debug, Clone)]
 pub struct ClaimValueArgs(pub MessageId);
 
-impl From<ClaimValueArgs> for MessageId {
-    fn from(args: ClaimValueArgs) -> Self {
-        args.0
-    }
-}
+impl_convert_traits!(ClaimValueArgs, MessageId, ClaimValue, "claim_value");
 
-impl From<ClaimValueArgs> for GearCall {
-    fn from(args: ClaimValueArgs) -> Self {
-        GearCall::ClaimValue(args)
-    }
-}
+impl GeneratableCallArgs for ClaimValueArgs {
+    type FuzzerArgs = (NonEmpty<MessageId>, Seed);
+    type ConstArgs = ();
 
-impl TryFrom<GearCall> for ClaimValueArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::ClaimValue(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("claim_value"))
-        }
-    }
-}
-
-impl ClaimValueArgs {
     /// Generates `pallet_gear::Pallet::<T>::claim_value` call arguments.
-    pub fn generate<Rng: CallGenRng>(mailbox: NonEmpty<MessageId>, rng_seed: Seed) -> Self {
+    fn generate<Rng: CallGenRng>(
+        (mailbox, rng_seed): Self::FuzzerArgs,
+        _: Self::ConstArgs,
+    ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
         let message_idx = rng.next_u64() as usize;
         let &claim_from = mailbox.ring_get(message_idx);
 
-        log::debug!("Generated `claim_value` call with message id = {claim_from}");
+        let name = Self::name();
+        log::debug!("Generated `{name}` call with message id = {claim_from}");
 
         Self(claim_from)
     }

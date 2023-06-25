@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -54,21 +54,27 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
-    BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BalanceOf, BenchmarkStorage,
+    Call, Config, Event, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
+    Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf,
+    Schedule,
 };
-use ::alloc::vec;
+use ::alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec,
+};
 use common::{
     self, benchmarking,
+    paused_program_storage::SessionId,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
+    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
+    ProgramStorage, ReservableTree,
 };
 use core::convert::TryInto;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExt,
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -80,13 +86,17 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
+    ids::{CodeId, MessageId, ProgramId},
+    memory::{
+        AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
+        WASM_PAGE_SIZE,
+    },
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
+use gear_core_errors::*;
 use gear_wasm_instrument::{
-    parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType},
+    parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
@@ -174,16 +184,15 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         message_context: MessageContext::new(
             Default::default(),
             Default::default(),
-            None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
-        origin: Default::default(),
         program_id: Default::default(),
         program_candidates_data: Default::default(),
+        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: 0,
@@ -192,6 +201,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
+        rent_cost: 0,
     }
 }
 
@@ -233,6 +243,46 @@ where
         exec.memory_pages,
     )
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+}
+
+fn resume_session_prepare<T: Config>(
+    c: u32,
+    program_id: ProgramId,
+    program: ActiveProgram<T::BlockNumber>,
+    caller: T::AccountId,
+    memory_page: &PageBuf,
+) -> (SessionId, Vec<(GearPage, PageBuf)>)
+where
+    T::AccountId: Origin,
+{
+    ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
+
+    Gear::<T>::resume_session_init(
+        RawOrigin::Signed(caller).into(),
+        program_id,
+        program.allocations,
+        CodeId::from_origin(program.code_hash),
+    )
+    .expect("failed to start resume session");
+
+    let event_record = SystemPallet::<T>::events().pop().unwrap();
+    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+    let event: Result<Event<T>, _> = event.try_into();
+    let session_id = match event {
+        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
+        _ => unreachable!(),
+    };
+
+    let memory_pages = {
+        let mut pages = Vec::with_capacity(c as usize);
+        for i in 0..c {
+            pages.push((GearPage::from(i as u16), memory_page.clone()));
+        }
+
+        pages
+    };
+
+    (session_id, memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -311,6 +361,7 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+        T: pallet_gear_voucher::Config,
     }
 
     #[extra]
@@ -415,7 +466,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
         init_block::<T>(None);
     }: claim_value(RawOrigin::Signed(caller.clone()), original_message_id)
@@ -449,7 +500,134 @@ benchmarks! {
         init_block::<T>(None);
     }: claim_value(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
+        let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
+        assert!(auto_reply.payload_bytes().is_empty());
+        assert_eq!(auto_reply.reply_details().expect("Should be").to_reply_code(), ReplyCode::Success(SuccessReplyReason::Auto));
         assert!(MailboxOf::<T>::is_empty(&caller));
+    }
+
+    pay_program_rent {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        let block_count = 1_000u32.into();
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
+    verify {
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
+    }
+
+    resume_session_init {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        init_block::<T>(None);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
+    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
+    verify {
+        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        assert!(
+            !Gear::<T>::is_active(program_id)
+        );
+        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+    }
+
+    resume_session_push {
+        let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        init_block::<T>(None);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+
+        let memory_page = {
+            let mut page = PageBuf::new_zeroed();
+            page[0] = 1;
+
+            page
+        };
+
+        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
+    }: _(RawOrigin::Signed(caller.clone()), session_id, memory_pages)
+    verify {
+        assert!(
+            matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
+        );
+        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        assert!(
+            !Gear::<T>::is_active(program_id)
+        );
+        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+    }
+
+    resume_session_commit {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        init_block::<T>(None);
+
+        let memory_page = {
+            let mut page = PageBuf::new_zeroed();
+            page[0] = 1;
+
+            page
+        };
+
+        for i in 0 .. c {
+            ProgramStorageOf::<T>::set_program_page_data(program_id, GearPage::from(i as u16), memory_page.clone());
+        }
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+
+            let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
+            program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+
+            program.clone()
+        }).expect("program should exist");
+
+        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
+
+        Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
+    }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
+    verify {
+        assert!(ProgramStorageOf::<T>::program_exists(program_id));
+        assert!(
+            Gear::<T>::is_active(program_id)
+        );
+        assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -539,6 +717,27 @@ benchmarks! {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
 
+    send_message_with_voucher {
+        let p in 0 .. MAX_PAYLOAD_LEN;
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        let payload = vec![0_u8; p as usize];
+
+        // Add voucher for the (caller, program_id) pair
+        let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
+        <T as pallet::Config>::Currency::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
+    verify {
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+    }
+
     send_message_user_interaction {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
@@ -582,7 +781,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -618,6 +817,42 @@ benchmarks! {
     }: send_reply(RawOrigin::Signed(caller.clone()), original_message_id, payload, GAS_LIMIT_EXT, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+    }
+
+    send_reply_with_voucher {
+        let p in 0 .. MAX_PAYLOAD_LEN;
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
+        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        let gas_limit = 50000;
+        let value = (p % 2).into();
+        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        let program_id = ProgramId::from_origin(program_id.into_origin());
+        MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
+            original_message_id,
+            program_id,
+            ProgramId::from_origin(caller.clone().into_origin()),
+            Default::default(),
+            value.unique_saturated_into(),
+            None,
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        let payload = vec![0_u8; p as usize];
+
+        // Add voucher for the (caller, program_id) pair
+        let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
+        <T as pallet::Config>::Currency::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
+    verify {
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        assert!(MailboxOf::<T>::is_empty(&caller))
     }
 
     initial_allocation {
@@ -696,7 +931,7 @@ benchmarks! {
     }
 
     gr_reserve_gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. T::ReservationsLimit::get() as u32;
         let mut res = None;
         let exec = Benches::<T>::gr_reserve_gas(r)?;
     }: {
@@ -707,7 +942,7 @@ benchmarks! {
     }
 
     gr_unreserve_gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. T::ReservationsLimit::get() as u32;
         let mut res = None;
         let exec = Benches::<T>::gr_unreserve_gas(r)?;
     }: {
@@ -732,17 +967,6 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::MessageId, r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_origin {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::Origin, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -871,6 +1095,83 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_reply_deposit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_deposit(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send(r, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send(1, Some(n), false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_wgas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send(r, None, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_wgas_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send(1, Some(n), true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_input {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send_input(r, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_input_wgas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send_input(r, None, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -907,7 +1208,7 @@ benchmarks! {
     gr_send_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_send_commit(r)?;
+        let exec = Benches::<T>::gr_send_commit(r, false)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -915,10 +1216,32 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_commit_per_kb {
+    gr_send_commit_wgas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send_commit(r, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_send_commit_per_kb(n)?;
+        let exec = Benches::<T>::gr_reservation_send(1, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
@@ -937,10 +1260,47 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reservation_send_commit_per_kb {
+    // We cannot call `gr_reply` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reply {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply(r, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_reservation_send_commit_per_kb(n)?;
+        let exec = Benches::<T>::gr_reply(1, Some(n), false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    // We cannot call `gr_reply_wgas` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reply_wgas {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply(r, None, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_wgas_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply(1, Some(n), true)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -953,7 +1313,7 @@ benchmarks! {
     gr_reply_commit {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_commit(r)?;
+        let exec = Benches::<T>::gr_reply_commit(r, false)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -961,10 +1321,12 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_commit_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    // We cannot call `gr_reply_commit_wgas` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reply_commit_wgas {
+        let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_commit_per_kb(n)?;
+        let exec = Benches::<T>::gr_reply_commit(r, true)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -987,6 +1349,56 @@ benchmarks! {
         let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    // We cannot call `gr_reply_input` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reply_input {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_input(r, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    // We cannot call `gr_reply_input_wgas` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reply_input_wgas {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_input(r, None, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    // We cannot call `gr_reservation_reply` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reservation_reply {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply(1, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1043,7 +1455,7 @@ benchmarks! {
     gr_reply_push_input {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_push_input(r)?;
+        let exec = Benches::<T>::gr_reply_push_input(Some(r), None)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1054,7 +1466,7 @@ benchmarks! {
     gr_reply_push_input_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_push_input_per_kb(n)?;
+        let exec = Benches::<T>::gr_reply_push_input(None, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1065,7 +1477,7 @@ benchmarks! {
     gr_send_push_input {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_send_push_input(r)?;
+        let exec = Benches::<T>::gr_send_push_input(r, None)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1076,7 +1488,7 @@ benchmarks! {
     gr_send_push_input_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_send_push_input_per_kb(n)?;
+        let exec = Benches::<T>::gr_send_push_input(1, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1106,21 +1518,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_error {
+    gr_reply_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_error(r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_status_code {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::gr_status_code(r)?;
+        let exec = Benches::<T>::gr_reply_code(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1204,10 +1605,35 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_create_program {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_create_program(r, None, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_create_program_per_kb {
+        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        // salt cannot be zero because we cannot execute batch of sys-calls
+        // as salt will be the same and we will get `ProgramAlreadyExists` error
+        let s in 1 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_create_program_wgas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_create_program_wgas(r)?;
+        let exec = Benches::<T>::gr_create_program(r, None, None, true)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1221,7 +1647,18 @@ benchmarks! {
         // as salt will be the same and we will get `ProgramAlreadyExists` error
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
+        let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_pay_program_rent {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_pay_program_rent(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1772,6 +2209,91 @@ benchmarks! {
             Instruction::I32Eqz,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i32.extend8_s
+    instr_i32extend8s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI32Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I32Extend8S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i32.extend16_s
+    instr_i32extend16s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI32Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I32Extend16S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend8_s
+    instr_i64extend8s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend8S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend16_s
+    instr_i64extend16s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend16S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend32_s
+    instr_i64extend32s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend32S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
     }: {
         sbox.invoke();
     }

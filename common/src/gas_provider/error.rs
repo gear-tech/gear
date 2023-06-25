@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -76,4 +76,12 @@ pub trait Error {
 
     /// `GasTree::consume` called on node, which has some system reservation.
     fn consumed_with_system_reservation() -> Self;
+
+    /// `GasTree::create` called with some value amount leading to
+    /// the total value overflow.
+    fn total_value_is_overflowed() -> Self;
+
+    /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
+    /// negative imbalance which leads to the total value drop below 0.
+    fn total_value_is_underflowed() -> Self;
 }

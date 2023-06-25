@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,11 +25,17 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
+#[cfg(feature = "std")]
+pub mod memory_dump;
+
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
+
+pub mod paused_program_storage;
+pub use paused_program_storage::PausedProgramStorage;
 
 pub mod gas_provider;
 
@@ -39,7 +45,6 @@ pub mod benchmarking;
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
-    dispatch::DispatchError,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -56,7 +61,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -66,7 +71,9 @@ use sp_std::{
 use storage::ValueStorage;
 extern crate alloc;
 
-pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
+pub use gas_provider::{
+    LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
+};
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
@@ -147,7 +154,7 @@ pub trait GasPrice {
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
         ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
-            &Weight::from_ref_time(gas),
+            &Weight::from_parts(gas, 0),
         )
     }
 }
@@ -156,16 +163,6 @@ pub trait QueueRunner {
     type Gas;
 
     fn run_queue(initial_gas: Self::Gas) -> Self::Gas;
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 /// Contains various limits for the block.
@@ -183,13 +180,13 @@ pub trait BlockLimiter {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum Program {
-    Active(ActiveProgram),
+pub enum Program<BlockNumber: Copy + Saturating> {
+    Active(ActiveProgram<BlockNumber>),
     Exited(ProgramId),
     Terminated(ProgramId),
 }
 
-impl Program {
+impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -212,14 +209,16 @@ impl Program {
         )
     }
 
-    pub fn is_uninitialized(&self) -> bool {
-        matches!(
-            self,
-            Program::Active(ActiveProgram {
-                state: ProgramState::Uninitialized { .. },
-                ..
-            })
-        )
+    pub fn is_uninitialized(&self) -> Option<MessageId> {
+        if let Program::Active(ActiveProgram {
+            state: ProgramState::Uninitialized { message_id },
+            ..
+        }) = self
+        {
+            Some(*message_id)
+        } else {
+            None
+        }
     }
 }
 
@@ -227,10 +226,12 @@ impl Program {
 #[display(fmt = "Program is not an active one")]
 pub struct InactiveProgramError;
 
-impl core::convert::TryFrom<Program> for ActiveProgram {
+impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>>
+    for ActiveProgram<BlockNumber>
+{
     type Error = InactiveProgramError;
 
-    fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
+    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
             _ => Err(InactiveProgramError),
@@ -241,7 +242,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub struct ActiveProgram {
+pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
@@ -251,6 +252,7 @@ pub struct ActiveProgram {
     pub code_exports: BTreeSet<DispatchKind>,
     pub static_pages: WasmPage,
     pub state: ProgramState,
+    pub expiration_block: BlockNumber,
 }
 
 /// Enumeration contains variants for program state.
@@ -309,5 +311,29 @@ where
 {
     fn extract_call(&self) -> Call {
         self.function.clone()
+    }
+}
+
+pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
+    type VoucherId;
+    type Error;
+
+    fn redeem_with_id(
+        who: AccountId,
+        program: ProgramId,
+        amount: Balance,
+    ) -> Result<Self::VoucherId, Self::Error>;
+}
+
+impl<AccountId, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
+    type VoucherId = AccountId;
+    type Error = &'static str;
+
+    fn redeem_with_id(
+        _who: AccountId,
+        _program: ProgramId,
+        _amount: Balance,
+    ) -> Result<AccountId, Self::Error> {
+        Err("Payment vouchers are not supported")
     }
 }

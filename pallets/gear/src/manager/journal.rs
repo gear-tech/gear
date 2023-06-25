@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBound,
+    internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, Origin, Program, ProgramState, ProgramStorage,
+    CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -40,7 +40,8 @@ use gear_core::{
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
+use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -111,25 +112,25 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                ProgramStorageOf::<T>::update_active_program(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
-                    p.state = ProgramState::Initialized;
-                })
-                .unwrap_or_else(|e| {
-                    unreachable!(
-                        "Program initialized status may only be set to active program {:?}",
-                        e
-                    );
-                });
+                let expiration =
+                    ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                        match p {
+                            Program::Active(active) => active.state = ProgramState::Initialized,
+                            _ => unreachable!("Only active programs are able to initialize"),
+                        }
 
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
+                        bn
+                    })
+                    .unwrap_or_else(|e| {
+                        unreachable!(
+                            "Program initialized status may only be set to active program {:?}",
+                            e
+                        );
+                    });
+
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
-                    change: ProgramChangeKind::Active {
-                        expiration: T::BlockNumber::zero(),
-                    },
+                    change: ProgramChangeKind::Active { expiration },
                 });
 
                 DispatchStatus::Success
@@ -160,8 +161,12 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                    let _ = TaskPoolOf::<T>::delete(
+                        bn,
+                        ScheduledTask::PauseProgram(program_id),
+                    );
+
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
                     if !maybe_inactive {
@@ -173,6 +178,11 @@ where
                 });
 
                 ProgramStorageOf::<T>::remove_program_pages(program_id);
+
+                let event = Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Terminated,
+                };
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -189,6 +199,8 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
                 }
+
+                Pallet::<T>::deposit_event(event);
 
                 DispatchStatus::Failed
             }
@@ -229,8 +241,9 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn_ref| {
-            *bn_ref = Pallet::<T>::block_number();
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
+            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
+
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {
@@ -294,26 +307,13 @@ where
             }
 
             match (gas_limit, reservation) {
-                (Some(gas_limit), None) => {
-                    // # Safety
-                    //
-                    // 1. There is no logic splitting value from the reserved nodes.
-                    // 2. The `gas_limit` has been checked inside message queue processing.
-                    // 3. The `value` of the value node has been checked before.
-                    // 4. The `dispatch.id()` is new generated by system from a checked
-                    //    ( inside message queue processing ) `message_id`.
-                    GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-                }
-                (None, None) => {
-                    // # Safety
-                    //
-                    // 1. There is no logic splitting value from the reserved nodes.
-                    // 2. The `dispatch.id()` is new generated by system from a checked
-                    //    ( inside message queue processing ) `message_id`.
-                    GasHandlerOf::<T>::split(message_id, dispatch.id())
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-                }
+                (Some(gas_limit), None) => Pallet::<T>::split_with_value(
+                    message_id,
+                    dispatch.id(),
+                    gas_limit,
+                    dispatch.is_reply(),
+                ),
+                (None, None) => Pallet::<T>::split(message_id, dispatch.id(), dispatch.is_reply()),
                 (Some(_gas_limit), Some(_reservation_id)) => {
                     // TODO: #1828
                     unreachable!(
@@ -322,9 +322,7 @@ where
                     );
                 }
                 (None, Some(reservation_id)) => {
-                    GasHandlerOf::<T>::split(reservation_id, dispatch.id())
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
+                    Pallet::<T>::split(reservation_id, dispatch.id(), dispatch.is_reply());
                     Pallet::<T>::remove_gas_reservation_with_task(
                         dispatch.source(),
                         reservation_id,
@@ -409,7 +407,7 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
@@ -428,7 +426,7 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPage>,
     ) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
@@ -455,9 +453,22 @@ where
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
-                if !ProgramStorageOf::<T>::program_exists(candidate_id) {
+                if !Pallet::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    let expiration_block =
+                        block_number.saturating_add(RentFreePeriodOf::<T>::get());
+                    self.set_program(candidate_id, &code_info, init_message, expiration_block);
+
+                    let task = ScheduledTask::PauseProgram(candidate_id);
+                    TaskPoolOf::<T>::add(expiration_block, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                    Pallet::<T>::deposit_event(Event::ProgramChanged {
+                        id: candidate_id,
+                        change: ProgramChangeKind::ProgramSet {
+                            expiration: expiration_block,
+                        },
+                    });
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -503,7 +514,7 @@ where
             duration
         );
 
-        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+        let hold = HoldBoundBuilder::<T>::new(StorageType::Reservation)
             .duration(BlockNumberFor::<T>::from(duration));
 
         // Validating holding duration.
@@ -511,12 +522,15 @@ where
             unreachable!("Threshold for reservation invalidated")
         }
 
-        let total_amount = amount.saturating_add(hold.lock());
+        let total_amount = amount.saturating_add(hold.lock_amount());
 
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
-        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            unreachable!("Reservation storage is guaranteed to have an associated lock id")
+        });
+        GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(
@@ -545,11 +559,11 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {
-                    HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                    HoldBoundBuilder::<T>::new(StorageType::Reservation)
                         .duration(BlockNumberFor::<T>::from(duration))
                         .expected()
                         .unique_saturated_into()
@@ -585,12 +599,29 @@ where
         }
     }
 
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    ) {
-        ExtManager::send_signal(self, message_id, destination, err)
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+        Self::send_signal(self, message_id, destination, code)
+    }
+
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
+        let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
+        let block_count = block_count.unique_saturated_into();
+
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            Pallet::<T>::pay_program_rent_impl(program_id, program, &from, block_count)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        })
+        .unwrap_or_else(|e| {
+            log::debug!(
+                "Could not update active program {program_id}: {e:?}. Program is not active?"
+            );
+        });
+    }
+
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
+
+        GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 }

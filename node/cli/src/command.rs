@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,9 @@ use runtime_primitives::Block;
 use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
+
+#[cfg(feature = "try-runtime")]
+use try_runtime_cli::block_building_info::substrate_info;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -313,22 +316,25 @@ pub fn run() -> sc_cli::Result<()> {
             match chain_spec {
                 #[cfg(feature = "gear-native")]
                 spec if spec.is_gear() => runner.async_run(|_| {
+                    let info_provider =
+                        substrate_info(gear_runtime::constants::time::SLOT_DURATION);
                     Ok((
                         cmd.run::<service::gear_runtime::Block, ExtendedHostFunctions<
 						sp_io::SubstrateHostFunctions,
 						<service::GearExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-					>>(
-                        ),
+					>, _>(Some(info_provider)),
                         task_manager,
                     ))
                 }),
                 #[cfg(feature = "vara-native")]
                 spec if spec.is_vara() => runner.async_run(|_| {
+                    let info_provider =
+                        substrate_info(vara_runtime::constants::time::SLOT_DURATION);
                     Ok((
                         cmd.run::<service::vara_runtime::Block, ExtendedHostFunctions<
 						sp_io::SubstrateHostFunctions,
 						<service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-					>>(),
+					>, _>(Some(info_provider)),
                         task_manager,
                     ))
                 }),

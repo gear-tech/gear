@@ -3,14 +3,8 @@
   "id": "vara_network",
   "chainType": "Live",
   "bootNodes": [
-    "/dns4/ec2-50-18-67-143.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWLyfgFSnm9CVaQTrZDqhBkLrRriPi9tPZSsps46FW2gZs",
-    "/dns4/ec2-54-183-230-232.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWLrzg5UMN9sGyACv5tq5QWjh5gyArga9aL8R3ns7DucBH",
-    "/dns4/ec2-54-215-37-66.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWAJDc4mPixLfTZFfaa4upCRbjw9uawr82Qd9FuEPGUHag",
-    "/dns4/ec2-3-101-21-213.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWJHbU1FKuzpciDhqHqZ922fyXxy7imDSvy46WYgynVVZv",
-    "/dns4/ec2-54-153-114-109.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWKrqWcnC9TSAXxGbo9ekdwPspDhqzWSDr4ciMH7xtZp1H",
-    "/dns4/ec2-52-53-151-206.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWKHPuceJGuKGHS1nhuEyuJ8Gmh479GCRHdZFoWDAC9WYG",
-    "/dns4/ec2-13-56-230-247.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWAajkTBWFnpRbYJNnvjvKMZYCMCGBnh95Qdj4o7FQ8hNE",
-    "/dns4/ec2-54-177-38-215.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWJsGsFdGerMu4LaYy5bv4csGVY6P85zLPZgkWCKEVwzjv"
+    "/dns4/vara-connect-1.vara-network.io/tcp/30333/ws/p2p/12D3KooWLDpZ5sWtSmZtiHXBstoQVwMAZ5yRWpDUBdjQHV7vBLHy",
+    "/dns4/vara-connect-2.vara-network.io/tcp/30333/ws/p2p/12D3KooWCJas1xGRDUC8nnSvfSiC1RcTXWaAef6oom1vGvqUMZV7"
   ],
   "telemetryEndpoints": null,
   "protocolId": "vara",
@@ -20,7 +14,7 @@
     "tokenSymbol": "VARA"
   },
   "forkBlocks": null,
-  "badBlocks": null,
+  "badBlocks": ["0xe518dc993476cc16632f3715266fd241cb1a1a02b55bd12fc0c4bed37af23891"],
   "lightSyncState": null,
   "codeSubstitutes": {},
   "genesis": {

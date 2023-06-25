@@ -1,8 +1,8 @@
 [package]
 name = "gear-node-loader"
-version = "0.1.6"
-authors = ["Gear Technologies"]
-edition = "2021"
+version = "0.2.1"
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "gear-node-loader"
@@ -13,11 +13,14 @@ path = "src/main.rs"
 gear-call-gen.workspace = true
 gclient.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 gear-utils.workspace = true
+gsdk.workspace = true
 
 # external dependencies
 anyhow.workspace = true
 arbitrary.workspace = true
+clap = { workspace = true, features = ["derive"] }
 dyn-clonable.workspace = true
 futures.workspace = true
 futures-timer.workspace = true
@@ -28,7 +31,7 @@ parking_lot.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 rand = { workspace = true, features = ["small_rng"] }
 reqwest.workspace = true
-structopt = "0.3.26" # TODO: use clap instead
+subxt.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 tracing.workspace = true

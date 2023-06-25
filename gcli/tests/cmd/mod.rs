@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,11 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod claim;
-mod create;
 mod info;
 mod key;
-// mod meta; // issue #2367
-// mod program; // issue #2367
+mod program;
 mod reply;
 mod send;
 mod transfer;

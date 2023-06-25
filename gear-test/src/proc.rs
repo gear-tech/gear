@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -57,6 +57,7 @@ pub const INITIAL_RANDOM_SEED: u64 = 42;
 pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
 pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
 pub const DISPATCH_HOLD_COST: u64 = 200;
+pub const RENT_COST: u128 = 330;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -163,7 +164,7 @@ where
 
     let journal = core_processor::process::<E>(
         &block_config,
-        (context, code, 0u128, ProgramId::default()).into(),
+        (context, code, 0u128).into(),
         (random.to_vec(), block_config.block_info.height),
         Default::default(),
     )
@@ -381,7 +382,7 @@ where
 
         core_processor::process::<E>(
             &block_config,
-            (context, code, balance, ProgramId::default()).into(),
+            (context, code, balance).into(),
             (random.to_vec(), block_config.block_info.height),
             memory_pages,
         )
@@ -488,5 +489,6 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         max_reservations: MAX_RESERVATIONS,
         code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
         code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
+        rent_cost: RENT_COST,
     }
 }

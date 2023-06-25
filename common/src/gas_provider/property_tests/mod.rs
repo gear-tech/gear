@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -78,6 +78,7 @@
 use super::*;
 use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
+use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
@@ -233,6 +234,8 @@ enum Error {
     ValueIsNotBlocked,
     ConsumedWithLock,
     ConsumedWithSystemReservation,
+    TotalValueIsOverflowed,
+    TotalValueIsUnderflowed,
 }
 
 impl super::Error for Error {
@@ -291,14 +294,21 @@ impl super::Error for Error {
     fn consumed_with_system_reservation() -> Self {
         Self::ConsumedWithSystemReservation
     }
+
+    fn total_value_is_overflowed() -> Self {
+        Self::TotalValueIsOverflowed
+    }
+
+    fn total_value_is_underflowed() -> Self {
+        Self::TotalValueIsUnderflowed
+    }
 }
 
 struct GasProvider;
 
 impl super::Provider for GasProvider {
     type ExternalOrigin = ExternalOrigin;
-    type Key = MapKey;
-    type ReservationKey = ReservationKey;
+    type NodeId = GasNodeId<MapKey, ReservationKey>;
     type Balance = Balance;
     type InternalError = Error;
     type Error = Error;
@@ -308,6 +318,7 @@ impl super::Provider for GasProvider {
         Self::InternalError,
         Self::Error,
         ExternalOrigin,
+        Self::NodeId,
         GasTreeNodesWrap,
     >;
 }
@@ -414,6 +425,8 @@ proptest! {
         let root_node = MapKey::random();
         let mut forest = TestForest::create(root_node, max_balance);
         node_ids.push(root_node.into());
+
+        let lock_ids = all::<LockId>().collect::<Vec<_>>();
 
         // Only root has a max balance
         Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
@@ -556,9 +569,10 @@ proptest! {
                     }
                 }
                 GasTreeAction::Lock(from, amount) => {
+                    let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::lock(from, amount) {
+                    if let Err(e) = Gas::lock(from, lock_id, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked += amount;
@@ -566,9 +580,10 @@ proptest! {
                     }
                 }
                 GasTreeAction::Unlock(from, amount) => {
+                    let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::unlock(from, amount) {
+                    if let Err(e) = Gas::unlock(from, lock_id, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked -= amount;
@@ -652,7 +667,7 @@ proptest! {
             }
 
             // Check property: for all the nodes with lock currently existing in the tree...
-            if node.lock() != 0 {
+            if !node.lock().is_zero() {
                 // ...is not consumed
                 assert!(!node.is_consumed());
                 // ...can be with lock only after `lock`
@@ -669,7 +684,7 @@ proptest! {
             // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
                 // ...have no locked value
-                assert!(matches!(node.lock(), 0));
+                assert!(node.lock().is_zero());
                 // ..have no system reserved value
                 assert!(matches!(node.system_reserve(), Some(0) | None));
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage

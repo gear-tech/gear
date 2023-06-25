@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,8 +18,16 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_core::ids::*;
+use gear_common::{
+    memory_dump::{MemoryPageDump, ProgramMemoryDump},
+    LockId,
+};
+use gear_core::{
+    ids::*,
+    memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+};
 use gsdk::{
+    config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
@@ -27,25 +35,27 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
+        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
-            gear_runtime::RuntimeCall,
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
+        system::Event as SystemEvent,
         utility::Event as UtilityEvent,
-        Event,
+        Convert, Event,
     },
     types, Error as GsdkError,
 };
 use hex::ToHex;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
 };
+use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -254,7 +264,7 @@ impl GearApi {
             }
         })?;
 
-        let src_program = self
+        let mut src_program = self
             .0
             .api()
             .gprog_at(src_program_id, src_block_hash)
@@ -278,10 +288,15 @@ impl GearApi {
             .gas_nodes_at(&src_program_reserved_gas_node_ids, src_block_hash)
             .await?;
 
+        let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved { id, .. } = &gas_node.1 {
+            if let types::GearGasNode::Reserved {
+                id, value, lock, ..
+            } = &gas_node.1
+            {
                 accounts_with_reserved_funds.insert(id);
+                src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
             } else {
                 unreachable!("Unexpected gas node type");
             }
@@ -355,21 +370,122 @@ impl GearApi {
                 .await?;
         }
 
+        let dest_gas_total_issuance =
+            dest_node_api.0.api().total_issuance().await.or_else(|e| {
+                if let GsdkError::StorageNotFound = e {
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        dest_node_api
+            .0
+            .set_total_issuance(
+                dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
+            )
+            .await?;
+
         dest_node_api
             .0
             .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
+        src_program.expiration_block = dest_node_api.last_block_number().await?;
         dest_node_api
             .0
-            .set_gprog(
-                dest_program_id,
-                src_program,
-                dest_node_api.last_block_number().await?,
-            )
+            .set_gprog(dest_program_id, src_program)
             .await?;
 
         Ok(dest_program_id)
+    }
+
+    /// Save program (identified by `program_id`) memory dump to the file for
+    /// further restoring in gclient/gtest. Program memory dumped at the
+    /// time of `block_hash` if presented or the most recent block.
+    pub async fn save_program_memory_dump_at<P: AsRef<Path>>(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+        file_path: P,
+    ) -> Result {
+        let program = self.0.api().gprog_at(program_id, block_hash).await?;
+
+        static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+        assert!(program.static_pages.0 > 0);
+        let static_page_count =
+            (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;
+
+        let program_pages = self
+            .0
+            .api()
+            .gpages_at(program_id, &program, block_hash)
+            .await?
+            .into_iter()
+            .filter_map(|(page_number, page_data)| {
+                if page_number < static_page_count as u32 {
+                    None
+                } else {
+                    Some(MemoryPageDump::new(
+                        GearPage::new(page_number).unwrap_or_else(|_| {
+                            panic!("Couldn't decode GearPage from u32: {}", page_number)
+                        }),
+                        PageBuf::decode(&mut &*page_data).expect("Couldn't decode PageBuf"),
+                    ))
+                }
+            })
+            .collect();
+
+        let program_account_data =
+            self.account_data_at(program_id, block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            misc_frozen: 0,
+                            fee_frozen: 0,
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
+        ProgramMemoryDump {
+            pages: program_pages,
+            balance: program_account_data.free,
+            reserved_balance: program_account_data.reserved,
+        }
+        .save_to_file(file_path);
+
+        Ok(())
+    }
+
+    /// Replace entire program memory with one saved earlier in gclient/gtest
+    pub async fn replace_program_memory<P: AsRef<Path>>(
+        &self,
+        program_id: ProgramId,
+        file_path: P,
+    ) -> Result {
+        let memory_dump = ProgramMemoryDump::load_from_file(file_path);
+        let pages = memory_dump
+            .pages
+            .into_iter()
+            .map(|page| page.into_gear_page())
+            .map(|(page_number, page_data)| (page_number.raw(), page_data.encode()))
+            .collect::<HashMap<_, _>>();
+
+        self.set_balance(
+            MultiAddress::Id(program_id.into_account_id()),
+            memory_dump.balance,
+            memory_dump.reserved_balance,
+        )
+        .await?;
+
+        self.0.set_gpages(program_id, &pages).await?;
+
+        Ok(())
     }
 
     /// Claim value from the mailbox message identified by `message_id`.
@@ -417,15 +533,18 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let mut values = BTreeMap::new();
-        for message_id in args.clone().into_iter() {
-            values.insert(
-                message_id,
-                self.get_mailbox_message(message_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
+        let message_ids: Vec<_> = args.clone().into_iter().collect();
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<_, _> = messages
+            .into_iter()
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .collect();
 
         let calls: Vec<_> = args
             .into_iter()
@@ -445,7 +564,6 @@ impl GearApi {
             match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
-                    .flatten()
                     .expect("Data appearance guaranteed above"))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
@@ -637,15 +755,18 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let mut values = BTreeMap::new();
-        for (message_id, _, _, _) in args.clone().into_iter() {
-            values.insert(
-                message_id,
-                self.get_mailbox_message(message_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
+        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<_, _> = messages
+            .into_iter()
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .collect();
 
         let calls: Vec<_> = args
             .into_iter()
@@ -676,7 +797,6 @@ impl GearApi {
                     destination.into(),
                     values
                         .remove(&reply_to_id.into())
-                        .flatten()
                         .expect("Data appearance guaranteed above"),
                 ))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -978,6 +1098,17 @@ impl GearApi {
             .await
     }
 
+    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<H256> {
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::System(SystemEvent::CodeUpdated) = event {
+                return Ok(events.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Upgrade the runtime with the `code` containing the Wasm code of the new
     /// runtime.
     ///
@@ -985,7 +1116,7 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
@@ -993,14 +1124,11 @@ impl GearApi {
                 }),
                 Weight {
                     ref_time: 0,
-                    // # TODO
-                    //
-                    // Check this field
-                    proof_size: Default::default(),
+                    proof_size: 0,
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+        self.process_set_code(&events)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1013,6 +1141,38 @@ impl GearApi {
         self.set_code(code).await
     }
 
+    /// Upgrade the runtime with the `code` containing the Wasm code of the new
+    /// runtime but **without** checks.
+    ///
+    /// Sends the
+    /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
+    /// extrinsic.
+    pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
+        let events = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::System(SystemCall::set_code_without_checks {
+                    code: code.as_ref().to_vec(),
+                }),
+                Weight {
+                    ref_time: 0,
+                    proof_size: 0,
+                },
+            )
+            .await?;
+        self.process_set_code(&events)
+    }
+
+    /// Upgrade the runtime by reading the code from the file located at the
+    /// `path`.
+    ///
+    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but
+    /// reads the runtime code from a file instead of using a byte vector.
+    pub async fn set_code_without_checks_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
+        let code = utils::code_from_os(path)?;
+        self.set_code_without_checks(code).await
+    }
+
     /// Set the free and reserved balance of the `to` account to `new_free` and
     /// `new_reserved` respectively.
     ///
@@ -1023,11 +1183,11 @@ impl GearApi {
         new_free: u128,
         new_reserved: u128,
     ) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
-                    who: to.into(),
+                    who: to.into().convert(),
                     new_free,
                     new_reserved,
                 }),
@@ -1040,6 +1200,6 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+        Ok(events.block_hash())
     }
 }

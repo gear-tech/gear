@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,21 +21,21 @@
 
 use crate::{prelude::Vec, MessageId};
 use core::task::{Context, Waker};
+use gear_core_errors::ReplyCode;
 use hashbrown::HashMap;
 
 pub type Payload = Vec<u8>;
-pub type StatusCode = i32;
 
 #[derive(Debug)]
 pub(crate) enum ReplyPoll {
     None,
     Pending,
-    Some((Payload, StatusCode)),
+    Some((Payload, ReplyCode)),
 }
 
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<(Payload, StatusCode)>,
+    payload: Option<(Payload, ReplyCode)>,
     waker: Option<Waker>,
 }
 
@@ -68,7 +68,7 @@ impl WakeSignals {
         {
             signal.payload = Some((
                 crate::msg::load_bytes().expect("Failed to load bytes"),
-                crate::msg::status_code().expect("Shouldn't be called with incorrect context"),
+                crate::msg::reply_code().expect("Shouldn't be called with incorrect context"),
             ));
 
             if let Some(waker) = &signal.waker {

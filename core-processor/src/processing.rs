@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,25 +18,27 @@
 
 use crate::{
     common::{
-        ActorExecutionErrorReason, DispatchOutcome, DispatchResult, DispatchResultKind,
+        ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
         ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
-    ext::ProcessorExt,
+    ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
-use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
+use gear_backend_common::{
+    BackendExternalities, BackendExternalitiesError, Environment, SystemReservationContext,
+};
 use gear_core::{
-    env::Ext,
-    ids::ProgramId,
+    env::Externalities,
+    ids::{MessageId, ProgramId},
     memory::{GearPage, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
-use gear_core_errors::{SimpleReplyError, SimpleSignalError};
+use gear_core_errors::{ErrorReplyReason, SignalCode};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E>(
@@ -47,8 +49,8 @@ pub fn process<E>(
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <E::Ext as Externalities>::Error: BackendExternalitiesError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
@@ -66,6 +68,7 @@ where
         reserve_for,
         reservation,
         write_cost,
+        rent_cost,
         ..
     } = block_config.clone();
 
@@ -82,13 +85,13 @@ where
         reserve_for,
         reservation,
         random_data,
+        rent_cost,
     };
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
     let program_id = execution_context.program.id();
     let execution_context = WasmExecutionContext {
-        origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
         gas_reserver: execution_context.gas_reserver,
@@ -136,7 +139,7 @@ where
                 program_id,
                 res.gas_amount.burned(),
                 res.system_reservation_context,
-                ActorExecutionErrorReason::Trap(reason),
+                ActorExecutionErrorReplyReason::Trap(reason),
                 true,
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -168,7 +171,7 @@ pub fn process_error(
     program_id: ProgramId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
-    err: ActorExecutionErrorReason,
+    err: ActorExecutionErrorReplyReason,
     executed: bool,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -209,21 +212,21 @@ pub fn process_error(
             journal.push(JournalNote::SendSignal {
                 message_id,
                 destination: program_id,
-                err: SimpleSignalError::Execution(err.as_simple()),
+                code: SignalCode::Execution(err.as_simple()),
             });
         }
 
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
-    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err
             .to_string()
             .into_bytes()
             .try_into()
             .unwrap_or_else(|_| unreachable!("Error message is too large"));
-        let err = SimpleReplyError::Execution(err.as_simple());
+        let err = err.as_simple();
 
         // # Safety
         //
@@ -280,6 +283,7 @@ pub fn process_success(
         generated_dispatches,
         awakening,
         program_candidates,
+        program_rents,
         gas_amount,
         gas_reserver,
         system_reservation_context,
@@ -287,6 +291,7 @@ pub fn process_success(
         program_id,
         context_store,
         allocations,
+        reply_deposits,
         ..
     } = dispatch_result;
 
@@ -353,6 +358,44 @@ pub fn process_success(
         journal.push(JournalNote::StoreNewPrograms {
             code_id,
             candidates,
+        });
+    }
+
+    // Sending auto-generated reply about success execution.
+    if matches!(kind, SuccessfulDispatchResultKind::Success)
+        && !context_store.reply_sent()
+        && !dispatch.is_reply()
+        && dispatch.kind() != DispatchKind::Signal
+    {
+        let auto_reply = ReplyMessage::auto(dispatch.id()).into_dispatch(
+            program_id,
+            dispatch.source(),
+            dispatch.id(),
+        );
+
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch: auto_reply,
+            delay: 0,
+            reservation: None,
+        });
+    }
+
+    // Must be handled after processing programs creation.
+    let payer = program_id;
+    for (program_id, block_count) in program_rents {
+        journal.push(JournalNote::PayProgramRent {
+            payer,
+            program_id,
+            block_count,
+        });
+    }
+
+    for (message_id_sent, amount) in reply_deposits {
+        journal.push(JournalNote::ReplyDeposit {
+            message_id,
+            future_reply_id: MessageId::generate_reply(message_id_sent),
+            amount,
         });
     }
 
@@ -468,20 +511,14 @@ pub fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_error_reply() {
-        // This expect panic is unreachable, unless error message is too large or max payload size is too small.
-        let err = SimpleReplyError::NonExecutable;
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
+        let err = ErrorReplyReason::InactiveProgram;
         let err_payload = err
             .to_string()
             .into_bytes()
             .try_into()
             .unwrap_or_else(|_| unreachable!("Error message is too large"));
-        // # Safety
-        //
-        // 1. The dispatch.id() has already been checked
-        // 2. This reply message is generated by our system
-        //
-        // So, the message id of this reply message will not be duplicated.
+
         let dispatch = ReplyMessage::system(dispatch.id(), err_payload, err).into_dispatch(
             program_id,
             dispatch.source(),

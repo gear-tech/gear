@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -129,16 +129,27 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::convert::TryInto;
+use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
 pub mod migration;
 
+#[cfg(test)]
+mod mock;
+
+pub(crate) type TaskPoolOf<T> =
+    <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{storage::*, CodeMetadata, Program};
+    use common::{
+        paused_program_storage::{ResumeSession, SessionId},
+        scheduler::*,
+        storage::*,
+        CodeMetadata, Program,
+    };
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -150,26 +161,39 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::{GearPage, PageBuf},
     };
+    use primitive_types::H256;
     use sp_runtime::DispatchError;
-    use sp_std::prelude::*;
 
     /// The current storage version.
-    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// Scheduler.
+        type Scheduler: Scheduler<
+            BlockNumber = Self::BlockNumber,
+            Task = ScheduledTask<Self::AccountId>,
+        >;
+
+        /// Custom block number tracker.
+        type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
+    }
 
     #[pallet::pallet]
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
-    #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
     #[pallet::error]
     pub enum Error<T> {
         DuplicateItem,
-        ItemNotFound,
+        ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
+        ResumeSessionNotFound,
+        NotSessionOwner,
+        ResumeSessionFailed,
+        ProgramCodeNotFound,
+        DuplicateResumeSession,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -177,8 +201,8 @@ pub mod pallet {
             Self::DuplicateItem
         }
 
-        fn item_not_found() -> Self {
-            Self::ItemNotFound
+        fn program_not_found() -> Self {
+            Self::ProgramNotFound
         }
 
         fn not_active_program() -> Self {
@@ -187,6 +211,26 @@ pub mod pallet {
 
         fn cannot_find_page_data() -> Self {
             Self::CannotFindDataForPage
+        }
+
+        fn resume_session_not_found() -> Self {
+            Self::ResumeSessionNotFound
+        }
+
+        fn not_session_owner() -> Self {
+            Self::NotSessionOwner
+        }
+
+        fn resume_session_failed() -> Self {
+            Self::ResumeSessionFailed
+        }
+
+        fn program_code_not_found() -> Self {
+            Self::ProgramCodeNotFound
+        }
+
+        fn duplicate_resume_session() -> Self {
+            Self::DuplicateResumeSession
         }
     }
 
@@ -236,13 +280,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (Program, T::BlockNumber)>;
+        StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: (Program, T::BlockNumber)
+        value: Program<BlockNumberFor<T>>
     );
 
     #[pallet::storage]
@@ -270,8 +314,53 @@ pub mod pallet {
         value: Vec<MessageId>
     );
 
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    #[pallet::storage]
+    pub(crate) type PausedProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
+
+    common::wrap_storage_map!(
+        storage: PausedProgramStorage,
+        name: PausedProgramStorageWrap,
+        key: ProgramId,
+        value: (BlockNumberFor<T>, H256)
+    );
+
+    #[pallet::storage]
+    pub(crate) type ResumeSessionsNonce<T> = StorageValue<_, SessionId>;
+
+    common::wrap_storage_value!(
+        storage: ResumeSessionsNonce,
+        name: ResumeSessionsNonceWrap,
+        value: SessionId
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type ResumeSessions<T: Config> = StorageMap<
+        _,
+        Identity,
+        SessionId,
+        ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>,
+    >;
+
+    common::wrap_storage_map!(
+        storage: ResumeSessions,
+        name: ResumeSessionsWrap,
+        key: SessionId,
+        value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type SessionMemoryPages<T: Config> =
+        StorageMap<_, Identity, SessionId, Vec<(GearPage, PageBuf)>>;
+
+    common::wrap_storage_map!(
+        storage: SessionMemoryPages,
+        name: SessionMemoryPagesWrap,
+        key: SessionId,
+        value: Vec<(GearPage, PageBuf)>
+    );
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
@@ -284,6 +373,7 @@ pub mod pallet {
         type InternalError = Error<T>;
         type Error = DispatchError;
         type BlockNumber = T::BlockNumber;
+        type AccountId = T::AccountId;
 
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
@@ -294,10 +384,18 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
+        type PausedProgramMap = PausedProgramStorageWrap<T>;
+        type CodeStorage = Self;
+        type NonceStorage = ResumeSessionsNonceWrap<T>;
+        type ResumeSessions = ResumeSessionsWrap<T>;
+        type SessionMemoryPages = SessionMemoryPagesWrap<T>;
+    }
+
     #[cfg(feature = "debug-mode")]
-    impl<T: Config> IterableMap<(ProgramId, (Program, T::BlockNumber))> for pallet::Pallet<T> {
-        type DrainIter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
-        type Iter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
+    impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
+        type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()
@@ -317,6 +415,18 @@ pub mod pallet {
             EncodeLikeItem: EncodeLike<MessageId>,
         {
             WaitingInitStorage::<T>::append(key, item);
+        }
+    }
+
+    impl<T: Config> AppendMapStorage<(GearPage, PageBuf), SessionId, Vec<(GearPage, PageBuf)>>
+        for SessionMemoryPagesWrap<T>
+    {
+        fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
+        where
+            EncodeLikeKey: EncodeLike<Self::Key>,
+            EncodeLikeItem: EncodeLike<(GearPage, PageBuf)>,
+        {
+            SessionMemoryPages::<T>::append(key, item);
         }
     }
 }

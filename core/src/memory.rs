@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Module for memory and allocations context.
 
-use crate::buffer::LimitedVec;
+use crate::{buffer::LimitedVec, gas::ChargeError};
 use alloc::{collections::BTreeSet, format};
 use core::{
     fmt,
@@ -99,7 +99,7 @@ impl Encode for PageBuf {
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        dest.write(self.0.get())
+        dest.write(self.0.inner())
     }
 }
 
@@ -107,7 +107,7 @@ impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
         let mut buffer = PageBufInner::new_default();
-        input.read(buffer.get_mut())?;
+        input.read(buffer.inner_mut())?;
         Ok(Self(buffer))
     }
 }
@@ -119,8 +119,8 @@ impl Debug for PageBuf {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0.get()[0..10],
-            &self.0.get()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.inner()[0..10],
+            &self.0.inner()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
         )
     }
 }
@@ -128,13 +128,13 @@ impl Debug for PageBuf {
 impl Deref for PageBuf {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        self.0.get()
+        self.0.inner()
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.get_mut()
+        self.0.inner_mut()
     }
 }
 
@@ -545,15 +545,10 @@ pub enum AllocError {
     /// outside additionally allocated for this program.
     #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
-}
-
-/// Alloc method result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocInfo {
-    /// Zero page of allocated interval.
-    pub page: WasmPage,
-    /// Number of pages, which has been allocated inside already existing memory.
-    pub not_grown: WasmPage,
+    /// Gas charge error
+    #[from]
+    #[display(fmt = "{_0}")]
+    GasCharge(ChargeError),
 }
 
 impl AllocationsContext {
@@ -581,12 +576,14 @@ impl AllocationsContext {
         self.init_allocations.contains(&page)
     }
 
-    /// Alloc specific number of pages for the currently running program.
+    /// Allocates specified number of continuously going pages
+    /// and returns zero-based number of the first one.
     pub fn alloc<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<AllocInfo, AllocError> {
+        charge_gas_for_grow: impl FnOnce(WasmPage) -> Result<(), ChargeError>,
+    ) -> Result<WasmPage, AllocError> {
         let mem_size = mem.size();
         let mut start = self.static_pages;
         let mut start_page = None;
@@ -601,8 +598,8 @@ impl AllocationsContext {
             start = end.inc().map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         }
 
-        let (start, not_grown) = if let Some(start) = start_page {
-            (start, pages)
+        let start = if let Some(start) = start_page {
+            start
         } else {
             // If we cannot find interval between already allocated pages, then try to alloc new pages.
 
@@ -634,20 +631,14 @@ impl AllocationsContext {
                 unreachable!("`extra grow cannot be zero");
             }
 
+            charge_gas_for_grow(extra_grow)?;
+
             let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)
                 .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
             grow_handler.after_grow_action(mem);
 
-            // Panic is impossible, because of way `extra_grow` was calculated.
-            let not_grown = pages.sub(extra_grow).unwrap_or_else(|err| {
-                unreachable!(
-                    "`extra_grow` cannot be bigger than `pages`, but get {}",
-                    err
-                )
-            });
-
-            (start, not_grown)
+            start
         };
 
         // Panic is impossible, because we calculated `start` suitable for `pages`.
@@ -657,10 +648,7 @@ impl AllocationsContext {
 
         self.allocations.extend(new_allocations);
 
-        Ok(AllocInfo {
-            page: start,
-            not_grown,
-        })
+        Ok(start)
     }
 
     /// Free specific page.
@@ -727,7 +715,7 @@ mod tests {
         .expect("cannot init logger");
 
         let mut data = PageBufInner::filled_with(199u8);
-        data.get_mut()[1] = 2;
+        data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }

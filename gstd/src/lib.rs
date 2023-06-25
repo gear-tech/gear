@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,18 +26,18 @@
 //!
 //! `gstd` crate provides many advanced tools for a developer, such as
 //! asynchronous programming primitives, arbitrary types encoding/decoding,
-//! providing metadata about input/output types, convenient instruments for
-//! creating programs from programs, etc.
+//! providing convenient instruments for creating programs from programs, etc.
 //!
 //! # Examples
 //!
-//! Decode input payload using a custom type and provide metadata for the front
-//! application:
+//! Decode input payload using a custom type:
 //!
 //! ```
+//! # const _: &'static str = stringify! {
 //! #![no_std]
+//! # };
 //!
-//! use gstd::{metadata, msg, prelude::*};
+//! use gstd::{msg, prelude::*};
 //!
 //! #[derive(Decode, Encode, TypeInfo)]
 //! #[codec(crate = gstd::codec)]
@@ -47,13 +47,6 @@
 //!     answer: u8,
 //! }
 //!
-//! metadata! {
-//!     title: "App",
-//!     handle:
-//!         input: Payload,
-//!         output: u8,
-//! }
-//!
 //! #[no_mangle]
 //! extern "C" fn handle() {
 //!     let payload: Payload = msg::load().expect("Unable to decode payload");
@@ -61,8 +54,6 @@
 //!         msg::reply(payload.answer, 0).expect("Unable to reply");
 //!     }
 //! }
-//!
-//! # fn main() {}
 //! ```
 //!
 //! Asynchronous program example.
@@ -74,6 +65,9 @@
 //! `PONG`.
 //!
 //! ```
+//! # const _: &'static str = stringify! {
+//! #![no_std]
+//! # };
 //! use futures::future;
 //! use gstd::{msg, prelude::*, ActorId};
 //!
@@ -86,12 +80,6 @@
 //!     pub approvers: [ActorId; 3],
 //! }
 //!
-//! gstd::metadata! {
-//!     title: "Async demo",
-//!     init:
-//!         input: Input,
-//! }
-//!
 //! #[gstd::async_init]
 //! async fn init() {
 //!     let payload: Input = msg::load().expect("Failed to decode input");
@@ -99,7 +87,7 @@
 //!
 //!     let mut requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
@@ -123,14 +111,13 @@
 //!
 //!     let requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
 //!     _ = future::select_all(requests).await;
 //!     msg::reply(b"PONG", 0).expect("Unable to reply");
 //! }
-//!
 //! # fn main() {}
 //! ```
 
@@ -140,10 +127,12 @@
     all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
 )]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
+#![cfg_attr(target_arch = "wasm32", feature(panic_oom_payload))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
+extern crate alloc;
 #[cfg(target_arch = "wasm32")]
 extern crate galloc;
 
@@ -156,16 +145,16 @@ mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
+mod reservations;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
-pub use gstd_codegen::{async_init, async_main};
-
-pub use prelude::*;
-
 pub use gcore::ext;
+pub use gstd_codegen::{async_init, async_main};
+pub use prelude::*;
+pub use reservations::*;
 
 use core::mem::size_of;
 use static_assertions::const_assert;

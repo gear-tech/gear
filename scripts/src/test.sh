@@ -16,6 +16,7 @@ test_usage() {
     help           show help message and exit
 
     gear           run workspace tests
+    gsdk           run gsdk package tests
     gcli           run gcli package tests
     js             run metadata js tests
     gtest          run gear-test testing tool,
@@ -25,6 +26,8 @@ test_usage() {
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
+    docs           run doc tests
+    validators     run validator checks
 
 EOF
 }
@@ -35,15 +38,20 @@ test_run_node() {
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace "$@" --no-fail-fast
+    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --no-fail-fast
   else
-    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
   fi
 }
 
+gsdk_test() {
+  $CARGO test -p gsdk
+  $CARGO test -p gsdk --features vara-testing
+}
+
 gcli_test() {
-  cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
-  cargo +nightly nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
+  cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
+  cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -67,7 +75,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
   $ROOT_DIR/target/release/gear-test $YAMLS "$@"
@@ -130,5 +138,5 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
 }

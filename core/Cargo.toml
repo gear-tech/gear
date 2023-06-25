@@ -1,12 +1,12 @@
 [package]
 name = "gear-core"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-gear-core-errors.workspace = true
+gear-core-errors = { workspace = true, features = ["codec"] }
 blake2-rfc.workspace = true
 parity-scale-codec = { workspace = true, features = [ "derive", "max-encoded-len" ] }
 scale-info = { workspace = true, features = ["derive"] }
@@ -17,6 +17,7 @@ wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
 static_assertions.workspace = true
+paste = { workspace = true }
 
 [dev-dependencies]
 wabt.workspace = true

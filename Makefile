@@ -230,13 +230,17 @@ test-release: test-gear-release test-js gtest rtest
 test-gear: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+
+.PHONY: test-gsdk
+test-gsdk: node-release
+	@ ./scripts/gear.sh test gsdk
 
 .PHONY: test-gcli
 test-gcli: node
@@ -285,12 +289,12 @@ test-syscalls-integrity-release:
 # Misc section
 .PHONY: doc
 doc:
-	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options" cargo +nightly doc --no-deps \
+	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gstd -p gtest -p gear-wasm-builder -p gear-common \
+		-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
-		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
+		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz

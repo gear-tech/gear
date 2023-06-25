@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,6 +20,8 @@
 // https://github.com/paritytech/substrate/tree/master/client/basic-authorship.
 // The block proposer explicitly pushes the `pallet_gear::run`
 // extrinsic at the end of each block.
+
+#![allow(clippy::items_after_test_module)]
 
 mod authorship;
 mod block_builder;

@@ -15,8 +15,9 @@ services:
     command: >
       gear --base-path /gear/ --chain gear/vara.json --telemetry-url 'wss://telemetry.rs/submit 0' --prometheus-external
       {% if name is defined %} --name={{ name }} {% endif %}
-      {% if rpc is not defined %} --validator --pruning 86400 {% endif %}
-      {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --pruning 86400 --ws-max-connections='1000' --unsafe-rpc-external --rpc-cors all {% endif %}
+      {% if validator == "yes" %} --validator --reserved-only --reserved-nodes '/dns4/vara-validator-1.vara-network.io/tcp/30333/p2p/12D3KooWLyfgFSnm9CVaQTrZDqhBkLrRriPi9tPZSsps46FW2gZs' '/dns4/vara-validator-2.vara-network.io/tcp/30333/p2p/12D3KooWLrzg5UMN9sGyACv5tq5QWjh5gyArga9aL8R3ns7DucBH' '/dns4/vara-validator-3.vara-network.io/tcp/30333/p2p/12D3KooWAJDc4mPixLfTZFfaa4upCRbjw9uawr82Qd9FuEPGUHag' '/dns4/vara-validator-4.vara-network.io/tcp/30333/p2p/12D3KooWJHbU1FKuzpciDhqHqZ922fyXxy7imDSvy46WYgynVVZv' '/dns4/vara-validator-5.vara-network.io/tcp/30333/p2p/12D3KooWKrqWcnC9TSAXxGbo9ekdwPspDhqzWSDr4ciMH7xtZp1H' '/dns4/vara-validator-6.vara-network.io/tcp/30333/p2p/12D3KooWKHPuceJGuKGHS1nhuEyuJ8Gmh479GCRHdZFoWDAC9WYG' '/dns4/vara-validator-7.vara-network.io/tcp/30333/p2p/12D3KooWAajkTBWFnpRbYJNnvjvKMZYCMCGBnh95Qdj4o7FQ8hNE' '/dns4/vara-validator-8.vara-network.io/tcp/30333/p2p/12D3KooWJsGsFdGerMu4LaYy5bv4csGVY6P85zLPZgkWCKEVwzjv' '/dns4/vara-connect-1.vara-network.io/tcp/30333/ws/p2p/12D3KooWLDpZ5sWtSmZtiHXBstoQVwMAZ5yRWpDUBdjQHV7vBLHy' '/dns4/vara-connect-2.vara-network.io/tcp/30333/ws/p2p/12D3KooWCJas1xGRDUC8nnSvfSiC1RcTXWaAef6oom1vGvqUMZV7' {% endif %}
+      {% if connect == "yes" %} --in-peers 100 --out-peers 100 {% endif %}
+      {% if rpc == "yes" %} --unsafe-ws-external --ws-max-connections='1000' --unsafe-rpc-external --rpc-cors all {% endif %}
       {% if archive_node == "yes" %} --ws-max-connections='1000' --unsafe-ws-external --unsafe-rpc-external --pruning archive --rpc-cors all {% endif %}
 
 {% if loki is defined and loki == "yes" and loki_url is defined %}
@@ -33,6 +34,10 @@ services:
           - labels:
               block_time:
               block_hash:
+          - regex:
+              expression: '(.*Local node identity is: (?P<node_id>(.*)))'
+          - labels:
+              node_id:
 {% endif %}
 volumes:
   gear-data:

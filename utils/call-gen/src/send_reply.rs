@@ -18,7 +18,7 @@
 
 //! Send reply args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -31,36 +31,16 @@ type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct SendReplyArgs(pub SendReplyArgsInner);
 
-impl From<SendReplyArgs> for SendReplyArgsInner {
-    fn from(args: SendReplyArgs) -> Self {
-        args.0
-    }
-}
+impl_convert_traits!(SendReplyArgs, SendReplyArgsInner, SendReply, "send_reply");
 
-impl From<SendReplyArgs> for GearCall {
-    fn from(args: SendReplyArgs) -> Self {
-        GearCall::SendReply(args)
-    }
-}
+impl GeneratableCallArgs for SendReplyArgs {
+    type FuzzerArgs = (NonEmpty<MessageId>, Seed);
+    type ConstArgs = (u64,);
 
-impl TryFrom<GearCall> for SendReplyArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::SendReply(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("send_reply"))
-        }
-    }
-}
-
-impl SendReplyArgs {
     /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        mailbox: NonEmpty<MessageId>,
-        rng_seed: Seed,
-        gas_limit: u64,
+    fn generate<Rng: CallGenRng>(
+        (mailbox, rng_seed): Self::FuzzerArgs,
+        (gas_limit,): Self::ConstArgs,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -70,8 +50,9 @@ impl SendReplyArgs {
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
+        let name = Self::name();
         log::debug!(
-            "Generated `send_reply` call with message id = {message_id}, payload = {}",
+            "Generated `{name}` call with message id = {message_id}, payload = {}",
             hex::encode(&payload)
         );
 

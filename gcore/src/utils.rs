@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -68,18 +68,12 @@ pub mod ext {
     ///
     /// ```rust,ignore
     /// #![no_std]
-    /// #![feature(alloc_error_handler)]
     /// #![feature(allocator_api)]
     ///
     /// extern crate alloc;
     ///
-    /// use alloc::alloc::{Global, Layout, Allocator};
+    /// use alloc::alloc::{Global, Allocator};
     /// use gcore::ext;
-    ///
-    /// #[alloc_error_handler]
-    /// fn oom(_layout: Layout) -> ! {
-    ///     ext::oom_panic()
-    /// }
     ///
     /// #[no_mangle]
     /// extern "C" fn handle() {

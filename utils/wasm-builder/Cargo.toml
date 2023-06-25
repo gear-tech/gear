@@ -1,7 +1,7 @@
 [package]
 name = "gear-wasm-builder"
 version = "0.1.2"
-edition = "2021"
+edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 description = "Utility for building Gear programs"
 include = ["src/**/*", "Cargo.toml", "README.md"]
@@ -11,6 +11,8 @@ readme = "README.md"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
+chrono = "0.4"
+once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 thiserror.workspace = true
@@ -19,8 +21,15 @@ pathdiff.workspace = true
 which.workspace = true
 colored.workspace = true
 gmeta.workspace = true
+gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
+wasmparser.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+wabt.workspace = true
+wasmi = {workspace = true, features = ["std"]}
 
 [features]
 metawasm = ["gmeta/codegen"]

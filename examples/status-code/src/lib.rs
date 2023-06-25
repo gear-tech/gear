@@ -11,10 +11,5 @@ extern "C" fn handle() {}
 
 #[no_mangle]
 extern "C" fn handle_reply() {
-    msg::send_bytes(
-        ActorId::zero(),
-        msg::status_code().unwrap().to_le_bytes(),
-        0,
-    )
-    .unwrap();
+    msg::send_bytes(ActorId::zero(), msg::reply_code().unwrap().to_bytes(), 0).unwrap();
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,16 +24,39 @@ use syn::{
     TypeParam, TypeParamBound,
 };
 
+/// Describes how to output documentation for `_for_reply_(as)`
+pub enum DocumentationStyle {
+    /// `self::{func_name}`
+    Function,
+    /// `Self::{func_name}`
+    Method,
+}
+
+impl DocumentationStyle {
+    pub fn output(&self, func_name: &str) -> String {
+        match self {
+            DocumentationStyle::Function => format!("self::{func_name}"),
+            DocumentationStyle::Method => format!("Self::{func_name}"),
+        }
+    }
+}
+
 const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
+const SPAN_ELSE_HREF: &str = "${ELSE_HREF}";
 const SPAN_IDENT: &str = "${IDENT}";
+const SPAN_IDENT_HREF: &str = "${IDENT_HREF}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
- Same as [`${IDENT}`](self::${IDENT}), but the program
- will interrupt until the reply is received. ${CODEC}
+ Same as [`${IDENT}`](${IDENT_HREF}), but the program
+ will interrupt until the reply is received.
+
+ Argument `reply_deposit: u64` used to provide gas for
+ future reply handling (skipped if zero).
+ ${CODEC}
 
  # See also
 
- - [`${ELSE}`](self::${ELSE})
+ - [`${ELSE}`](${ELSE_HREF})
 "#;
 
 /// New `Ident`
@@ -64,18 +87,30 @@ pub fn get_args(inputs: &Punctuated<syn::FnArg, syn::token::Comma>) -> Expr {
 }
 
 /// Parse `dyn AsRef<str>` to `Expr`
-pub fn wait_for_reply_docs(name: String) -> (String, String) {
+pub fn wait_for_reply_docs(name: String, style: DocumentationStyle) -> (String, String) {
+    let href = style.output(&name);
     let docs = WAIT_FOR_REPLY_DOCS_TEMPLATE
         .trim_start_matches('\n')
-        .replace(SPAN_IDENT, name.as_ref());
+        .replace(SPAN_IDENT, &name)
+        .replace(SPAN_IDENT_HREF, &href);
+
+    let for_reply = format!("{name}_for_reply");
+    let for_reply_href = style.output(&for_reply);
+
+    let for_reply_as = format!("{name}_for_reply_as");
+    let for_reply_as_href = style.output(&for_reply_as);
 
     (
-        docs.replace(SPAN_ELSE, &(name.clone() + "_for_reply_as"))
+        docs.replace(SPAN_ELSE, &for_reply_as)
+            .replace(SPAN_ELSE_HREF, &for_reply_as_href)
             .replace(SPAN_CODEC, ""),
-        docs.replace(SPAN_ELSE, &(name + "_for_reply")).replace(
-            SPAN_CODEC,
-            "\n\n The output should be decodable via SCALE codec.",
-        ) + " - <https://docs.substrate.io/v3/advanced/scale-codec>",
+        docs.replace(SPAN_ELSE, &for_reply)
+            .replace(SPAN_ELSE_HREF, &for_reply_href)
+            .replace(
+                SPAN_CODEC,
+                "\n\n The output should be decodable via SCALE codec.",
+            )
+            + " - <https://docs.substrate.io/reference/scale-codec>",
     )
 }
 

@@ -1,16 +1,23 @@
-use crate::SmallRng;
 use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{Event, EventProcessor, GearApi, GearEvent, WSAddress};
+use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
+use gear_core_errors::ReplyCode;
+use gsdk::metadata::runtime_types::{
+    gear_common::event::DispatchStatus as GenDispatchStatus,
+    gear_core::{
+        ids::MessageId as GenMId,
+        message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
+    },
+};
+use rand::rngs::SmallRng;
 use reqwest::Client;
 use std::{
     collections::{BTreeSet, HashMap},
     fs::File,
     io::Write,
-    iter,
     result::Result as StdResult,
     time::Duration,
 };
@@ -51,22 +58,6 @@ pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
     let port = addr_parts.next().and_then(|v| v.parse().ok());
 
     WSAddress::new(domain, port)
-}
-
-pub fn iterator_with_args<T, F: FnMut() -> T>(
-    max_size: usize,
-    mut args: F,
-) -> impl Iterator<Item = T> {
-    let mut size = 0;
-    iter::from_fn(move || {
-        if size >= max_size {
-            return None;
-        }
-
-        size += 1;
-
-        Some(args())
-    })
 }
 
 pub fn convert_iter<V, T: Into<V> + Clone>(args: Vec<T>) -> impl IntoIterator<Item = V> + Clone {
@@ -119,27 +110,25 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn capture_mailbox_messages<T: EventProcessor>(
+pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &mut T,
+    event_source: &mut [gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
     let bn_threshold = api.last_block_number().await? + 20;
-    let mailbox_messages = event_source
-        .proc_many(
-            |event| match event {
-                Event::Gear(GearEvent::UserMessageSent {
-                    message,
-                    expiration: Some(exp_bn),
-                }) if exp_bn >= bn_threshold && message.destination == to.into() => {
-                    Some(message.id.into())
-                }
-                _ => None,
-            },
-            |mailbox_data| (mailbox_data, true),
-        )
-        .await?;
+    let mailbox_messages: Vec<_> = event_source
+        .iter()
+        .filter_map(|event| match event {
+            Event::Gear(GearEvent::UserMessageSent {
+                message,
+                expiration: Some(exp_bn),
+            }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
+                Some(message.id.into())
+            }
+            _ => None,
+        })
+        .collect();
 
     let mut ret = BTreeSet::new();
 
@@ -156,4 +145,57 @@ pub async fn capture_mailbox_messages<T: EventProcessor>(
     }
 
     Ok(ret)
+}
+/// Check whether processing batch of messages identified by corresponding
+/// `message_ids` resulted in errors or has been successful.
+///
+/// This function returns a vector of statuses with an associated message
+/// identifier ([`MessageId`]). Each status can be an error message in case
+/// of an error.
+pub fn err_or_succeed_batch(
+    event_source: &mut [gsdk::metadata::Event],
+    message_ids: impl IntoIterator<Item = MessageId>,
+) -> Vec<(MessageId, Option<String>)> {
+    let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
+
+    event_source
+        .iter_mut()
+        .filter_map(|e| match e {
+            Event::Gear(GearEvent::UserMessageSent {
+                message:
+                    GenUserMessage {
+                        payload,
+                        details: Some(ReplyDetails { to, code }),
+                        ..
+                    },
+                ..
+            }) => {
+                if message_ids.contains(to) && ReplyCode::from(code.clone()).is_success() {
+                    Some(vec![(
+                        (*to).into(),
+                        Some(String::from_utf8(payload.0.to_vec()).expect("Infallible")),
+                    )])
+                } else {
+                    None
+                }
+            }
+            Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
+                let requested: Vec<_> = statuses
+                    .iter_mut()
+                    .filter_map(|(mid, status)| {
+                        if message_ids.contains(mid) && !matches!(status, GenDispatchStatus::Failed)
+                        {
+                            Some((MessageId::from(*mid), None))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                (!requested.is_empty()).then_some(requested)
+            }
+            _ => None,
+        })
+        .flatten()
+        .collect()
 }

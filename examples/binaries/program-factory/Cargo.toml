@@ -1,14 +1,14 @@
 [package]
 name = "demo-program-factory"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
+authors.workspace = true
+edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+gstd.workspace = true
 hex-literal = "*"
 
 [build-dependencies]
@@ -20,5 +20,6 @@ gtest.workspace = true
 [lib]
 
 [features]
+debug = ["gstd/debug"]
 std = ["codec/std"]
 default = ["std"]

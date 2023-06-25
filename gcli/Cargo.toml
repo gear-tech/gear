@@ -1,11 +1,11 @@
 [package]
 name = "gcli"
-version = "0.1.5"
-authors = ["Gear Technologies"]
-edition = "2021"
+version = "0.2.0"
+authors.workspace = true
+edition.workspace = true
 description = "gear program cli"
 repository = "https://github.com/gear-tech/gear/tree/master/program"
-license = "GPL-3.0"
+license.workspace = true
 documentation = "https://docs.rs/gear-program"
 homepage = "https://github.com/gear-tech/gear/tree/master/program"
 keywords = ["gear", "cli", "wasm"]
@@ -22,7 +22,9 @@ base64.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
+gmeta.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true
@@ -30,22 +32,28 @@ lazy_static.workspace = true
 libp2p = { workspace = true, features = [ "identify" ], optional = true }
 log.workspace = true
 nacl.workspace = true
-parity-scale-codec = { workspace = true, features = ["std"] }
-scale-info = { workspace = true, features = ["std"] }
+scale-info.workspace = true
 schnorrkel.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
-wasmtime.workspace = true
 whoami.workspace = true
+core-processor.workspace = true
+gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
+etc.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
-messager = { path = "./res/messager" }
-demo-meta.workspace = true
+demo-messager.workspace = true
+demo-new-meta.workspace = true
 demo-waiter.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
+
+[build-dependencies]
+which.workspace = true
 
 [features]
 node-key = [ "libp2p" ]

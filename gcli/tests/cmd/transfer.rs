@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Integration tests for command `deploy`
 #![cfg(not(feature = "vara-testing"))]
-use crate::common::{self, logs, Args, Result};
+use crate::common::{self, logs, Args, NodeExec, Result};
 use gsdk::Api;
 
 // Testing account
@@ -36,9 +36,9 @@ const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
 #[tokio::test]
 async fn test_command_transfer_works() -> Result<()> {
     common::login_as_alice()?;
-    let mut node = common::Node::dev()?;
+    let mut node = common::dev()?;
 
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
     let signer = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
@@ -53,7 +53,12 @@ async fn test_command_transfer_works() -> Result<()> {
     )?;
 
     let after = signer.api().get_balance(ADDRESS).await?;
-    assert_eq!(after.saturating_sub(before), value);
+    assert_eq!(
+        after.saturating_sub(before),
+        value,
+        "Alice should have received {value}. Balance must be {correct_balance}, but now it is {after}",
+        correct_balance = before.saturating_add(value)
+    );
 
     Ok(())
 }

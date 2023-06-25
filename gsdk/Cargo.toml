@@ -1,28 +1,46 @@
 [package]
 name = "gsdk"
 version = "0.1.0"
-edition = "2021"
-authors = ["Gear Technologies"]
+edition.workspace = true
+authors.workspace = true
 description = "Gear network rust sdk."
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
 [dependencies]
 anyhow.workspace = true
-async-recursion.workspace = true
 base64.workspace = true
 futures-util.workspace = true
 futures.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
-parity-scale-codec.workspace = true
-primitive-types = { workspace = true, default-features = false, features = ["codec", "scale-info", "serde"] }
 serde.workspace = true
 serde_json.workspace = true
 subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
+gsdk-codegen = { path = "codegen" }
+
+# Importing these two libraries for trimming
+# the the size of the generated file.
+scale-decode.workspace = true
+parity-scale-codec.workspace = true
+
+# deps for feature `testing`
+rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+gsdk = { path = ".", features = ["testing"] }
+tokio = { workspace = true, features = [ "full" ] }
+demo-messager.workspace = true
+demo-new-meta.workspace = true
+demo-waiter.workspace = true
+
+[features]
+testing = [ "rand" ]
+vara-testing = []

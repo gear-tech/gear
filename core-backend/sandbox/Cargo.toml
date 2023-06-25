@@ -1,9 +1,9 @@
 [package]
 name = "gear-backend-sandbox"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2018"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
@@ -17,9 +17,7 @@ sp-sandbox = { workspace = true, features = ["host-sandbox"] }
 log.workspace = true
 derive_more.workspace = true
 codec.workspace = true
-blake2-rfc.workspace = true
 
 [features]
 default = ["std"]
 std = ["sp-sandbox/std", "gear-wasm-instrument/std", "log/std"]
-sys-trace = []

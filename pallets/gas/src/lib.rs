@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -128,7 +128,7 @@ use common::{
     storage::{MapStorage, ValueStorage},
     BlockLimiter, GasProvider,
 };
-use frame_support::{dispatch::DispatchError, pallet_prelude::*};
+use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;
 pub use primitive_types::H256;
 use sp_std::convert::TryInto;
@@ -139,8 +139,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
+
 type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+
+/// The current storage version.
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -157,7 +162,8 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
-    #[pallet::generate_store(pub(super) trait Store)]
+    #[pallet::storage_version(STORAGE_VERSION)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     // Gas pallet error.
@@ -197,6 +203,14 @@ pub mod pallet {
 
         /// `GasTree::consume` called on node, which has some system reservation.
         ConsumedWithSystemReservation,
+
+        /// `GasTree::create` called with some value amount leading to
+        /// the total value overflow.
+        TotalValueIsOverflowed,
+
+        /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
+        /// negative imbalance which leads to the total value drop below 0.
+        TotalValueIsUnderflowed,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -254,6 +268,14 @@ pub mod pallet {
 
         fn consumed_with_system_reservation() -> Self {
             Self::ConsumedWithSystemReservation
+        }
+
+        fn total_value_is_overflowed() -> Self {
+            Self::TotalValueIsOverflowed
+        }
+
+        fn total_value_is_underflowed() -> Self {
+            Self::TotalValueIsUnderflowed
         }
     }
 
@@ -315,8 +337,7 @@ pub mod pallet {
 
     impl<T: Config> GasProvider for Pallet<T> {
         type ExternalOrigin = AccountIdOf<T>;
-        type Key = MessageId;
-        type ReservationKey = ReservationId;
+        type NodeId = GasNodeId<MessageId, ReservationId>;
         type Balance = Balance;
         type InternalError = Error<T>;
         type Error = DispatchError;
@@ -326,6 +347,7 @@ pub mod pallet {
             Self::InternalError,
             Self::Error,
             Self::ExternalOrigin,
+            Self::NodeId,
             GasNodesWrap<T>,
         >;
     }

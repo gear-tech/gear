@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -477,7 +477,7 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     10 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve
+                pallet_gear::Error::<Runtime>::InsufficientBalance
             );
 
             // Locked funds can't be transferred to a program as a message `value`
@@ -503,7 +503,7 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     11 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve
+                pallet_gear::Error::<Runtime>::InsufficientBalance
             );
         });
 }

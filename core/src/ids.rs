@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,21 +18,22 @@
 
 //! Base identifiers for messaging primitives.
 
-use crate::message::StatusCode;
-use alloc::vec::Vec;
 use blake2_rfc::blake2b;
+use core::convert::TryInto;
 
 const HASH_LENGTH: usize = 32;
 type Hash = [u8; HASH_LENGTH];
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
+///
+/// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
 fn hash(argument: &[u8]) -> Hash {
-    let mut arr: Hash = Default::default();
-
     let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
-    arr[..].copy_from_slice(blake2b_hash.as_bytes());
 
-    arr
+    blake2b_hash
+        .as_bytes()
+        .try_into()
+        .expect("we set hash len; qed")
 }
 
 /// Declares data type for storing any kind of id for gear-core,
@@ -156,54 +157,34 @@ impl MessageId {
         user_id: ProgramId,
         local_nonce: u128,
     ) -> MessageId {
-        let unique_flag = b"from_user";
+        const SALT: &[u8] = b"external";
 
-        let block_number = block_number.to_le_bytes();
-        let user_id = user_id.as_ref();
-        let local_nonce = local_nonce.to_le_bytes();
-
-        let len = unique_flag.len() + block_number.len() + user_id.len() + local_nonce.len();
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(unique_flag);
-        argument.extend(block_number);
-        argument.extend_from_slice(user_id);
-        argument.extend(local_nonce);
-
+        let argument = [
+            SALT,
+            &block_number.to_le_bytes(),
+            user_id.as_ref(),
+            &local_nonce.to_le_bytes(),
+        ]
+        .concat();
         hash(&argument).into()
     }
 
     /// Generate MessageId for program outgoing message
     pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
-        let unique_flag = b"outgoing";
+        const SALT: &[u8] = b"outgoing";
 
-        let origin_msg_id = origin_msg_id.as_ref();
-        let local_nonce = local_nonce.to_le_bytes();
-
-        let len = unique_flag.len() + origin_msg_id.len() + local_nonce.len();
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(unique_flag);
-        argument.extend(origin_msg_id);
-        argument.extend(local_nonce);
-
+        let argument = [SALT, origin_msg_id.as_ref(), &local_nonce.to_le_bytes()].concat();
         hash(&argument).into()
     }
 
     /// Generate MessageId for reply message depend on status code
-    pub fn generate_reply(origin_msg_id: MessageId, status_code: StatusCode) -> MessageId {
-        let unique_flag = b"reply";
+    ///
+    /// # SAFETY: DO NOT ADJUST REPLY MESSAGE ID GENERATION,
+    /// BECAUSE AUTO-REPLY LOGIC DEPENDS ON PRE-DEFINED REPLY ID.
+    pub fn generate_reply(origin_msg_id: MessageId) -> MessageId {
+        const SALT: &[u8] = b"reply";
 
-        let origin_msg_id = origin_msg_id.as_ref();
-        let status_code = status_code.to_le_bytes();
-
-        let len = unique_flag.len() + origin_msg_id.len() + status_code.len();
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(unique_flag);
-        argument.extend(status_code);
-        argument.extend(origin_msg_id);
-
+        let argument = [SALT, origin_msg_id.as_ref()].concat();
         hash(&argument).into()
     }
 
@@ -224,7 +205,9 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
-        let argument = [code_id.as_ref(), salt].concat();
+        const SALT: &[u8] = b"program";
+
+        let argument = [SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
@@ -234,12 +217,9 @@ declare_id!(ReservationId: "Reservation identifier");
 impl ReservationId {
     /// Create a new reservation ID
     pub fn generate(msg_id: MessageId, nonce: u64) -> Self {
-        let argument = [
-            b"reservation_id_salt",
-            msg_id.as_ref(),
-            &nonce.to_le_bytes(),
-        ]
-        .concat();
+        const SALT: &[u8] = b"reservation";
+
+        let argument = [SALT, msg_id.as_ref(), &nonce.to_le_bytes()].concat();
         hash(&argument).into()
     }
 }
@@ -254,31 +234,31 @@ fn formatting_test() {
     // `Debug`/`Display`.
     assert_eq!(
         format!("{id:?}"),
-        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+        "0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67"
     );
     // `Debug`/`Display` with precision 0.
     assert_eq!(format!("{id:.0?}"), "0x..");
     // `Debug`/`Display` with precision 1.
-    assert_eq!(format!("{id:.1?}"), "0xc1..ef");
+    assert_eq!(format!("{id:.1?}"), "0x22..67");
     // `Debug`/`Display` with precision 2.
-    assert_eq!(format!("{id:.2?}"), "0xc15d..fdef");
+    assert_eq!(format!("{id:.2?}"), "0x227e..fa67");
     // `Debug`/`Display` with precision 4.
-    assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
+    assert_eq!(format!("{id:.4?}"), "0x227e5319..8925fa67");
     // `Debug`/`Display` with precision 15.
     assert_eq!(
         format!("{id:.15?}"),
-        "0xc15d1549fa3950c0aa61e14a3ba476..95b4bcc894b9fab09e7fe9b936fdef"
+        "0x227e53192dc14699539c44608810a8..6a2bee92078e6913b1bdf38925fa67"
     );
     // `Debug`/`Display` with precision 30 (the same for any case >= 16).
     assert_eq!(
         format!("{id:.30?}"),
-        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+        "0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67"
     );
     // Alternate formatter.
     assert_eq!(
         format!("{id:#}"),
-        "ProgramId(0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef)"
+        "ProgramId(0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67)"
     );
     // Alternate formatter with precision 2.
-    assert_eq!(format!("{id:#.2}"), "ProgramId(0xc15d..fdef)");
+    assert_eq!(format!("{id:#.2}"), "ProgramId(0x227e..fa67)");
 }
