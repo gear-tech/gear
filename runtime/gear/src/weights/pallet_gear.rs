@@ -2259,7 +2259,7 @@ impl WeightInfo for () {
     fn send_message_user_interaction(p: u32, ) -> Weight {
         Weight::from_parts(38_704_338, 0)
             // Standard Error: 0
-            .saturating_add(Weight::from_from_partsref_time(1_116, 0).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_116, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(4_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
     }
