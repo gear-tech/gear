@@ -495,7 +495,7 @@ benchmarks! {
             Default::default(),
             0.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
         init_block::<T>(None);
     }: claim_value(RawOrigin::Signed(caller.clone()), original_message_id)
@@ -810,7 +810,7 @@ benchmarks! {
             Default::default(),
             0.unique_saturated_into(),
             None,
-        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);

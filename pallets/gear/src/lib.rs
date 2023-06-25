@@ -1537,12 +1537,12 @@ pub mod pallet {
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
-                return Ok(PostDispatchInfo {
+                Ok(PostDispatchInfo {
                     actual_weight: Some(
                         <T as Config>::WeightInfo::send_message_program_interaction(payload_len),
                     ),
                     pays_fee: Pays::No,
-                });
+                })
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
                 let message: UserMessage = message
@@ -1563,31 +1563,13 @@ pub mod pallet {
                     message,
                     expiration: None,
                 });
+                Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::send_message_user_interaction(
+                        payload_len,
+                    )),
+                    pays_fee: Pays::No,
+                })
             }
-
-            // User interaction.
-            let message = message.into_stored(ProgramId::from_origin(origin));
-
-            CurrencyOf::<T>::transfer(
-                &who,
-                &<T as frame_system::Config>::AccountId::from_origin(
-                    message.destination().into_origin(),
-                ),
-                value.unique_saturated_into(),
-                ExistenceRequirement::AllowDeath,
-            )
-            .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
-
-            Pallet::<T>::deposit_event(Event::UserMessageSent {
-                message,
-                expiration: None,
-            });
-            Ok(PostDispatchInfo {
-                actual_weight: Some(<T as Config>::WeightInfo::send_message_user_interaction(
-                    payload_len,
-                )),
-                pays_fee: Pays::No,
-            })
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1618,6 +1600,7 @@ pub mod pallet {
             // Validating origin.
             let origin = ensure_signed(origin)?;
 
+            let payload_len = payload.len() as u32;
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
@@ -2072,7 +2055,8 @@ pub mod pallet {
         ///
         /// NOTE: source of the message in mailbox must be a program.
         #[pallet::call_index(13)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply_non_zero_value(payload.len() as u32)
+            .max(<T as Config>::WeightInfo::send_reply_zero_value(payload.len() as u32)))]
         pub fn send_reply_with_voucher(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
