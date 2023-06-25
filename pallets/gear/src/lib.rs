@@ -1310,6 +1310,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
+        // Always charge the same gas value.
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
@@ -1369,6 +1370,7 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::call_index(1)]
+        // May charge different gas value depending on is code exists in storage and code lenght.
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
@@ -1432,6 +1434,7 @@ pub mod pallet {
         ///
         /// For the details of this extrinsic, see `upload_code`.
         #[pallet::call_index(2)]
+        // Always charge the same gas value.
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
@@ -1475,7 +1478,11 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[pallet::call_index(3)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
+        // May charge different gas value in 2 different cases:
+        //  - Message sent to program.
+        //  - Message sent to user.
+        #[pallet::weight(<T as Config>::WeightInfo::send_message_program_interaction(payload.len() as u32)
+                .max(<T as Config>::WeightInfo::send_message_user_interaction(payload.len() as u32)))]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: ProgramId,
@@ -1483,6 +1490,8 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload_len = payload.len() as u32;
+
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
@@ -1528,6 +1537,12 @@ pub mod pallet {
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                Ok(PostDispatchInfo {
+                    actual_weight: Some(
+                        <T as Config>::WeightInfo::send_message_program_interaction(payload_len),
+                    ),
+                    pays_fee: Pays::No,
+                })
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
                 let message: UserMessage = message
@@ -1548,9 +1563,13 @@ pub mod pallet {
                     message,
                     expiration: None,
                 });
+                Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::send_message_user_interaction(
+                        payload_len,
+                    )),
+                    pays_fee: Pays::No,
+                })
             }
-
-            Ok(().into())
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1567,7 +1586,10 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(4)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        // May charge different gas value depend on is value zero or not.
+        // Non-zero value may cause of extra database access.
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply_non_zero_value(payload.len() as u32)
+            .max(<T as Config>::WeightInfo::send_reply_zero_value(payload.len() as u32)))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
@@ -1578,6 +1600,7 @@ pub mod pallet {
             // Validating origin.
             let origin = ensure_signed(origin)?;
 
+            let payload_len = payload.len() as u32;
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
@@ -1646,7 +1669,20 @@ pub mod pallet {
             // Depositing pre-generated event.
             Self::deposit_event(event);
 
-            Ok(().into())
+            if mailboxed.value().is_zero() {
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::send_reply_zero_value(
+                        payload_len,
+                    )),
+                    pays_fee: Pays::No,
+                });
+            }
+            Ok(PostDispatchInfo {
+                actual_weight: Some(<T as Config>::WeightInfo::send_reply_non_zero_value(
+                    payload_len,
+                )),
+                pays_fee: Pays::No,
+            })
         }
 
         /// Claim value from message in `Mailbox`.
@@ -1658,7 +1694,10 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(5)]
-        #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
+        // May charge different gas value depend on is value zero or not.
+        // Non-zero value may cause of extra database access.
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_non_zero_value()
+            .max(<T as Config>::WeightInfo::claim_value_zero_value()))]
         pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
@@ -1691,11 +1730,21 @@ pub mod pallet {
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
             };
 
-            Ok(().into())
+            if mailboxed.value().is_zero() {
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::claim_value_zero_value()),
+                    pays_fee: Pays::No,
+                });
+            }
+            Ok(PostDispatchInfo {
+                actual_weight: Some(<T as Config>::WeightInfo::claim_value_non_zero_value()),
+                pays_fee: Pays::No,
+            })
         }
 
         /// Process message queue
         #[pallet::call_index(6)]
+        // Always charge the same gas value.
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
@@ -1746,6 +1795,7 @@ pub mod pallet {
         ///
         /// Requires root origin (eventually, will only be set via referendum)
         #[pallet::call_index(7)]
+        // Always charge the same gas value.
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
@@ -2005,7 +2055,8 @@ pub mod pallet {
         ///
         /// NOTE: source of the message in mailbox must be a program.
         #[pallet::call_index(13)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply_non_zero_value(payload.len() as u32)
+            .max(<T as Config>::WeightInfo::send_reply_zero_value(payload.len() as u32)))]
         pub fn send_reply_with_voucher(
             origin: OriginFor<T>,
             reply_to_id: MessageId,

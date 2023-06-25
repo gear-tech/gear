@@ -40,7 +40,8 @@ pub trait WeightInfo {
     fn db_write_per_kb(c: u32, ) -> Weight;
     fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
-    fn claim_value() -> Weight;
+    fn claim_value_non_zero_value() -> Weight;
+    fn claim_value_zero_value() -> Weight;
     fn pay_program_rent() -> Weight;
     fn resume_session_init() -> Weight;
     fn resume_session_push(c: u32, ) -> Weight;
@@ -48,10 +49,12 @@ pub trait WeightInfo {
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
-    fn send_message(p: u32, ) -> Weight;
+    fn send_message_program_interaction(p: u32, ) -> Weight;
+    fn send_message_user_interaction(p: u32, ) -> Weight;
     fn send_message_with_voucher(p: u32, ) -> Weight;
-    fn send_reply(p: u32, ) -> Weight;
+    fn send_reply_non_zero_value(p: u32, ) -> Weight;
     fn send_reply_with_voucher(p: u32, ) -> Weight;
+    fn send_reply_zero_value(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
@@ -273,7 +276,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 6_436
             .saturating_add(Weight::from_parts(2_192_523, 0).saturating_mul(c.into()))
     }
-    fn claim_value() -> Weight {
+    fn claim_value_non_zero_value() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `791`
         //  Estimated: `22733`
@@ -281,6 +284,11 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(59_917_000, 22733)
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    fn claim_value_zero_value() -> Weight {
+        Weight::from_parts(56_576_000, 0)
+            .saturating_add(T::DbWeight::get().reads(6 as u64))
+            .saturating_add(T::DbWeight::get().writes(4 as u64))
     }
     fn pay_program_rent() -> Weight {
         // Proof Size summary in bytes:
@@ -366,7 +374,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(14_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_message(p: u32, ) -> Weight {
+    fn send_message_program_interaction(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `311`
         //  Estimated: `23291`
@@ -376,6 +384,14 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(1_196, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(9_u64))
             .saturating_add(T::DbWeight::get().writes(8_u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_message_user_interaction(p: u32, ) -> Weight {
+        Weight::from_parts(38_704_338, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(1_116, 0).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads(4 as u64))
+            .saturating_add(T::DbWeight::get().writes(3 as u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
     fn send_message_with_voucher(p: u32, ) -> Weight {
@@ -390,7 +406,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(9_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_reply(p: u32, ) -> Weight {
+    fn send_reply_non_zero_value(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `954`
         //  Estimated: `41065`
@@ -401,11 +417,13 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(13_u64))
             .saturating_add(T::DbWeight::get().writes(10_u64))
     }
-    /// The range of component `p` is `[0, 2097152]`.
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_reply_zero_value(p: u32, ) -> Weight {
+        Weight::from_parts(81_883_551, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(1_124, 0).saturating_mul(p as u64))
+    }
     fn send_reply_with_voucher(p: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `1153`
-        //  Estimated: `46405`
         // Minimum execution time: 136_904_000 picoseconds.
         Weight::from_parts(122_442_770, 46405)
             // Standard Error: 1
@@ -2122,7 +2140,7 @@ impl WeightInfo for () {
             // Standard Error: 6_436
             .saturating_add(Weight::from_parts(2_192_523, 0).saturating_mul(c.into()))
     }
-    fn claim_value() -> Weight {
+    fn claim_value_non_zero_value() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `791`
         //  Estimated: `22733`
@@ -2130,6 +2148,11 @@ impl WeightInfo for () {
         Weight::from_parts(59_917_000, 22733)
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
+    }
+    fn claim_value_zero_value() -> Weight {
+        Weight::from_parts(56_576_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(6 as u64))
+            .saturating_add(RocksDbWeight::get().writes(4 as u64))
     }
     fn pay_program_rent() -> Weight {
         // Proof Size summary in bytes:
@@ -2215,7 +2238,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(14_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_message(p: u32, ) -> Weight {
+    fn send_message_program_interaction(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `311`
         //  Estimated: `23291`
@@ -2225,6 +2248,14 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(1_196, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(9_u64))
             .saturating_add(RocksDbWeight::get().writes(8_u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_message_user_interaction(p: u32, ) -> Weight {
+        Weight::from_parts(38_704_338, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(1_116, 0).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
+            .saturating_add(RocksDbWeight::get().writes(3 as u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
     fn send_message_with_voucher(p: u32, ) -> Weight {
@@ -2239,7 +2270,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(9_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_reply(p: u32, ) -> Weight {
+    fn send_reply_non_zero_value(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `954`
         //  Estimated: `41065`
@@ -2249,6 +2280,14 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(1_227, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(13_u64))
             .saturating_add(RocksDbWeight::get().writes(10_u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_reply_zero_value(p: u32, ) -> Weight {
+        Weight::from_parts(81_883_551, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(1_124, 0).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(13 as u64))
+            .saturating_add(RocksDbWeight::get().writes(10 as u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
     fn send_reply_with_voucher(p: u32, ) -> Weight {
