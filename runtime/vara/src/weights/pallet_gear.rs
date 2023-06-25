@@ -290,7 +290,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(6 as u64))
             .saturating_add(T::DbWeight::get().writes(4 as u64))
     }
-======
     fn pay_program_rent() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `679`
@@ -423,6 +422,8 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_ref_time(81_883_551 as u64)
             // Standard Error: 0
             .saturating_add(Weight::from_ref_time(1_124 as u64).saturating_mul(p as u64))
+    }
+    fn send_reply_with_voucher(p: u32, ) -> Weight {
         // Minimum execution time: 136_904_000 picoseconds.
         Weight::from_parts(122_442_770, 46405)
             // Standard Error: 1

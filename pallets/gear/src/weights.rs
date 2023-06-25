@@ -53,6 +53,7 @@ pub trait WeightInfo {
     fn send_message_user_interaction(p: u32, ) -> Weight;
     fn send_message_with_voucher(p: u32, ) -> Weight;
     fn send_reply_non_zero_value(p: u32, ) -> Weight;
+    fn send_reply_with_voucher(p: u32, ) -> Weight;
     fn send_reply_zero_value(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
@@ -284,7 +285,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
     fn claim_value_zero_value() -> Weight {
-        Weight::from_ref_time(56_576_000 as u64)
+        Weight::from_parts(56_576_000, 0)
             .saturating_add(T::DbWeight::get().reads(6 as u64))
             .saturating_add(T::DbWeight::get().writes(4 as u64))
     }
@@ -429,7 +430,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `p` is `[0, 1048576]`.
     fn send_reply_zero_value(p: u32, ) -> Weight {
-        Weight::from_ref_time(81_883_551 as u64)
+        Weight::from_parts(81_883_551, 0)
             // Standard Error: 0
             .saturating_add(Weight::from_ref_time(1_124 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads(13 as u64))
