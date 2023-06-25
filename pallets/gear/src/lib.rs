@@ -1542,7 +1542,7 @@ pub mod pallet {
                         <T as Config>::WeightInfo::send_message_program_interaction(payload_len),
                     ),
                     pays_fee: Pays::No,
-                    });
+                });
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
                 let message: UserMessage = message
