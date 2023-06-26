@@ -28,13 +28,13 @@ use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
 use gear_core::{
-    buffer::RuntimeBuffer,
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{MessageError, ReplyCode, SignalCode};
+use gear_core_errors::{MemoryError, MessageError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
@@ -453,7 +453,12 @@ where
     #[host(cost = RuntimeCosts::Debug(data_len))]
     pub fn debug(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
-        let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
+        let data: RuntimeBuffer =
+            ctx.read(read_data)?
+                .try_into()
+                .map_err(|RuntimeBufferSizeError| {
+                    TrapExplanation::FallibleExt(MemoryError::RuntimeAllocOutOfBounds.into())
+                })?;
 
         let s = String::from_utf8(data.into_vec())?;
         ctx.ext_mut().debug(&s)?;

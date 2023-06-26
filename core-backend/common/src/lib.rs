@@ -70,15 +70,6 @@ pub enum TerminationReason {
     System(SystemTerminationReason),
 }
 
-impl From<RuntimeBufferSizeError> for TerminationReason {
-    fn from(RuntimeBufferSizeError: RuntimeBufferSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(FallibleExtError::Memory(
-            MemoryError::RuntimeAllocOutOfBounds,
-        )))
-        .into()
-    }
-}
-
 impl From<FromUtf8Error> for TerminationReason {
     fn from(_err: FromUtf8Error) -> Self {
         ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
