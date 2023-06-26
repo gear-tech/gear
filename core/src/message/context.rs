@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_core_errors::{ExecutionError, MessageError as Error};
+use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -252,9 +252,9 @@ impl MessageContext {
         &self.settings
     }
 
-    fn check_reply_availability(&self) -> Result<(), Error> {
+    fn check_reply_availability(&self) -> Result<(), ExecutionError> {
         if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
-            return Err(Error::IncorrectEntryForReply);
+            return Err(ExecutionError::IncorrectEntryForReply);
         }
 
         Ok(())
@@ -412,7 +412,7 @@ impl MessageContext {
         &mut self,
         packet: ReplyPacket,
         reservation: Option<ReservationId>,
-    ) -> Result<MessageId, Error> {
+    ) -> Result<MessageId, ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -434,12 +434,12 @@ impl MessageContext {
 
             Ok(message_id)
         } else {
-            Err(Error::DuplicateReply)
+            Err(Error::DuplicateReply.into())
         }
     }
 
     /// Pushes payload into stored reply payload.
-    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -449,7 +449,7 @@ impl MessageContext {
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -459,7 +459,7 @@ impl MessageContext {
     }
 
     /// Pushes the incoming message buffer into stored reply payload.
-    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
+    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), ExtError> {
         self.check_reply_availability()?;
 
         if !self.reply_sent() {
@@ -474,7 +474,7 @@ impl MessageContext {
 
             Ok(())
         } else {
-            Err(Error::LateAccess)
+            Err(Error::LateAccess.into())
         }
     }
 
@@ -494,14 +494,14 @@ impl MessageContext {
         &mut self,
         message_id: MessageId,
         amount: u64,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), MessageError> {
         if self
             .outcome
             .reply_deposits
             .iter()
             .any(|(mid, _)| mid == &message_id)
         {
-            return Err(ExecutionError::DuplicateReplyDeposit);
+            return Err(MessageError::DuplicateReplyDeposit);
         }
 
         if !self
@@ -515,7 +515,7 @@ impl MessageContext {
                 .iter()
                 .any(|(message, ..)| message.id() == message_id)
         {
-            return Err(ExecutionError::IncorrectMessageForReplyDeposit);
+            return Err(MessageError::IncorrectMessageForReplyDeposit);
         }
 
         self.outcome.reply_deposits.push((message_id, amount));
@@ -887,7 +887,7 @@ mod tests {
         assert!(message_context.reply_deposit(message_id, 1234).is_ok());
         assert_err!(
             message_context.reply_deposit(message_id, 1234),
-            ExecutionError::DuplicateReplyDeposit
+            MessageError::DuplicateReplyDeposit
         );
     }
 
@@ -916,11 +916,11 @@ mod tests {
 
         assert_err!(
             message_context.reply_deposit(message_id, 1234),
-            ExecutionError::IncorrectMessageForReplyDeposit
+            MessageError::IncorrectMessageForReplyDeposit
         );
         assert_err!(
             message_context.reply_deposit(Default::default(), 1234),
-            ExecutionError::IncorrectMessageForReplyDeposit
+            MessageError::IncorrectMessageForReplyDeposit
         );
     }
 }

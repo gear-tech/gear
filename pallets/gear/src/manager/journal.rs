@@ -40,7 +40,7 @@ use gear_core::{
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
 use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -604,13 +604,8 @@ where
         }
     }
 
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    ) {
-        ExtManager::send_signal(self, message_id, destination, err)
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+        Self::send_signal(self, message_id, destination, code)
     }
 
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {

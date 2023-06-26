@@ -43,6 +43,13 @@ pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
 }
+pub mod gp {
+    //! generated code preludes.
+    pub use subxt::ext::{
+        codec::{Decode, Encode},
+        scale_decode::DecodeAsType,
+    };
+}
 
 pub type BlockNumber = u32;
 

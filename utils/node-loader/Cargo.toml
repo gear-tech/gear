@@ -13,6 +13,7 @@ path = "src/main.rs"
 gear-call-gen.workspace = true
 gclient.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 gear-utils.workspace = true
 gsdk.workspace = true
 

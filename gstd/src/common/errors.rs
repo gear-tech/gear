@@ -38,8 +38,8 @@ pub enum Error {
     Convert(&'static str),
     /// Decoding error.
     Decode(scale_info::scale::Error),
-    /// Status code returned by another program.
-    StatusCode(i32),
+    /// Reply code returned by another program.
+    ReplyCode(ReplyCode),
     /// API error (see [`ExtError`] for details).
     Ext(ExtError),
     /// This error occurs when providing zero duration to waiting functions
@@ -67,7 +67,7 @@ impl fmt::Display for Error {
             }
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
             Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            Error::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
+            Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
             Error::Ext(e) => write!(f, "API error: {e}"),
             Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             Error::ZeroSystemReservationAmount => {

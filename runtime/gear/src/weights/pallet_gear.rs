@@ -116,8 +116,7 @@ pub trait WeightInfo {
     fn gr_send_push_input_per_kb(n: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
     fn gr_debug_per_kb(n: u32, ) -> Weight;
-    fn gr_error(r: u32, ) -> Weight;
-    fn gr_status_code(r: u32, ) -> Weight;
+    fn gr_reply_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
     fn gr_wait(r: u32, ) -> Weight;
@@ -1055,17 +1054,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(25_856_497, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_error(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 102_508_000 picoseconds.
-        Weight::from_parts(103_664_089, 0)
-            // Standard Error: 401_054
-            .saturating_add(Weight::from_parts(298_907_966, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_status_code(r: u32, ) -> Weight {
+    fn gr_reply_code(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2974,17 +2963,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(25_856_497, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_error(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 102_508_000 picoseconds.
-        Weight::from_parts(103_664_089, 0)
-            // Standard Error: 401_054
-            .saturating_add(Weight::from_parts(298_907_966, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_status_code(r: u32, ) -> Weight {
+    fn gr_reply_code(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`

@@ -135,7 +135,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 // Database migration module.
-pub mod migration;
+pub mod migrations;
 
 // Runtime mock for running tests.
 #[cfg(test)]
@@ -160,12 +160,12 @@ pub mod pallet {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{StoredDispatch, StoredMessage},
+        message::{StoredDispatch, UserStoredMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
-    const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    pub(crate) const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     // Gear Messenger Pallet's `Config`.
     #[pallet::config]
@@ -309,7 +309,7 @@ pub mod pallet {
 
     // Private storage for queue's elements.
     #[pallet::storage]
-    type Dispatches<T> =
+    pub(crate) type Dispatches<T> =
         CountedStorageMap<_, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
 
     // Public wrap of the queue's elements.
@@ -334,13 +334,13 @@ pub mod pallet {
 
     // Private storage for mailbox elements.
     #[pallet::storage]
-    type Mailbox<T: Config> = StorageDoubleMap<
+    pub(crate) type Mailbox<T: Config> = StorageDoubleMap<
         _,
         Identity,
         T::AccountId,
         Identity,
         MessageId,
-        (StoredMessage, Interval<T::BlockNumber>),
+        (UserStoredMessage, Interval<T::BlockNumber>),
     >;
 
     // Public wrap of the mailbox elements.
@@ -349,7 +349,7 @@ pub mod pallet {
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: (StoredMessage, Interval<T::BlockNumber>),
+        value: (UserStoredMessage, Interval<T::BlockNumber>),
         length: usize
     );
 
@@ -388,7 +388,7 @@ pub mod pallet {
 
     // Private storage for waitlist elements.
     #[pallet::storage]
-    type Waitlist<T: Config> = StorageDoubleMap<
+    pub(crate) type Waitlist<T: Config> = StorageDoubleMap<
         _,
         Identity,
         ProgramId,
@@ -411,7 +411,7 @@ pub mod pallet {
 
     // Private storage for dispatch stash elements.
     #[pallet::storage]
-    type DispatchStash<T: Config> =
+    pub(crate) type DispatchStash<T: Config> =
         StorageMap<_, Identity, MessageId, (StoredDispatch, Interval<T::BlockNumber>)>;
 
     // Public wrap of the dispatch stash elements.
@@ -588,7 +588,7 @@ pub mod pallet {
 
         type MailboxFirstKey = T::AccountId;
         type MailboxSecondKey = MessageId;
-        type MailboxedMessage = StoredMessage;
+        type MailboxedMessage = UserStoredMessage;
         type QueuedDispatch = StoredDispatch;
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
