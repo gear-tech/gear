@@ -32,9 +32,9 @@ use gear_core::{
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{ReplyCode, SignalCode};
+use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
@@ -78,7 +78,12 @@ where
             hash: destination,
             value,
         } = ctx.read_as(read_hash_val)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = ctx
+            .read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
 
         ctx.ext_mut()
             .send(HandlePacket::new(destination.into(), payload, value), delay)
@@ -137,7 +142,12 @@ where
             hash2: destination,
             value,
         } = ctx.read_as(read_rid_pid_value)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = ctx
+            .read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
 
         ctx.ext_mut()
             .reservation_send(
@@ -298,7 +308,12 @@ where
     pub fn reply(ctx: &mut R, payload_ptr: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = ctx
+            .read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
 
         ctx.ext_mut()
             .reply(ReplyPacket::new(payload, value))
@@ -327,7 +342,12 @@ where
             hash: reservation_id,
             value,
         } = ctx.read_as(read_rid_value)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = ctx
+            .read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
 
         ctx.ext_mut()
             .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
@@ -607,8 +627,18 @@ where
             hash: code_id,
             value,
         } = ctx.read_as(read_cid_value)?;
-        let salt = ctx.read(read_salt)?.try_into()?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let salt = ctx
+            .read(read_salt)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
+        let payload = ctx
+            .read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into())
+            })?;
 
         ctx.ext_mut()
             .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)

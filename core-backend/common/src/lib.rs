@@ -50,12 +50,11 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
-        PayloadSizeError, WasmEntryPoint,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntryPoint,
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError as FallibleExtError, MemoryError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError as FallibleExtError, MemoryError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -69,15 +68,6 @@ pub const PTR_SPECIAL: u32 = u32::MAX;
 pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
-}
-
-impl From<PayloadSizeError> for TerminationReason {
-    fn from(PayloadSizeError: PayloadSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
-            MessageError::MaxMessageSizeExceed.into(),
-        ))
-        .into()
-    }
 }
 
 impl From<RuntimeBufferSizeError> for TerminationReason {
@@ -102,7 +92,7 @@ impl From<MemoryAccessError> for TerminationReason {
     fn from(err: MemoryAccessError) -> Self {
         match err {
             MemoryAccessError::Memory(err) => TrapExplanation::FallibleExt(err.into()).into(),
-            MemoryAccessError::RuntimeBuffer(_) => {
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
                 TrapExplanation::FallibleExt(MemoryError::RuntimeAllocOutOfBounds.into()).into()
             }
             MemoryAccessError::Decode => unreachable!("{:?}", err),
