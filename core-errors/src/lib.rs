@@ -277,14 +277,13 @@ impl ExtError {
             ExtError::Wait(err) => err as u32,
             ExtError::Reservation(err) => err as u32,
             ExtError::ProgramRent(err) => err as u32,
-            ExtError::Unsupported => 1,
+            ExtError::Unsupported => u32::MAX,
         }
     }
 
     /// Convert code into error.
     pub fn from_u32(code: u32) -> Option<Self> {
         match code {
-            1 => Some(ExtError::Unsupported),
             100 => Some(ExecutionError::NotEnoughGas.into()),
             101 => Some(ExecutionError::NotEnoughValue.into()),
             102 => Some(ExecutionError::InvalidDebugString.into()),
@@ -323,6 +322,7 @@ impl ExtError {
             600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
             0xffff => Some(ExtError::SyscallUsage),
+            u32::MAX => Some(ExtError::Unsupported),
             _ => None,
         }
     }
@@ -377,8 +377,7 @@ mod tests {
     fn error_code_no_specific_value() {
         for err in enum_iterator::all::<ExtError>() {
             let code = err.to_u32();
-            assert_ne!(code, 0); // zeroed structures, variables, etc
-            assert_ne!(code, u32::MAX); // success code
+            assert_ne!(code, 0); // success code
         }
     }
 }
