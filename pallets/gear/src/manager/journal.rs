@@ -321,10 +321,6 @@ where
                         gas_limit,
                         dispatch.is_reply(),
                     );
-                    Pallet::<T>::remove_gas_reservation_with_task(
-                        dispatch.source(),
-                        reservation_id,
-                    );
                 }
                 (None, Some(reservation_id)) => {
                     Pallet::<T>::split(reservation_id, dispatch.id(), dispatch.is_reply());
