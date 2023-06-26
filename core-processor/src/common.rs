@@ -62,7 +62,7 @@ pub struct DispatchResult {
     /// Kind of the dispatch.
     pub kind: DispatchResultKind,
     /// Original dispatch.
-    pub dispatch: IncomingDispatch,
+    pub dispatch: IncomingDispatch, // todo [sab] can be removed, as it's not used
     /// Program id of actor which was executed.
     pub program_id: ProgramId,
     /// Context store after execution.

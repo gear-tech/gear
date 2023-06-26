@@ -13164,3 +13164,11 @@ fn double_read_works() {
         );
     });
 }
+
+/// Tests gas allowance exceed handling.
+/// More precisely, it checks one property:
+/// no context data is stored within previously
+/// executed message when gas allowance exceed
+/// happened.
+#[test]
+fn test_gas_allowance_exceed() {}

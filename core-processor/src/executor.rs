@@ -439,7 +439,7 @@ where
     let program_candidates = info.program_candidates_data;
 
     // Output
-    Ok(DispatchResult {
+    return Ok(DispatchResult {
         kind,
         dispatch,
         program_id,
@@ -454,7 +454,7 @@ where
         system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
-    })
+    });
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
