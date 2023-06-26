@@ -34,10 +34,10 @@ use common::{
 use core::{cmp, convert::TryInto};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{DispatchKind, ReplyMessage},
     code::MAX_WASM_PAGE_COUNT,
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    message::{DispatchKind, ReplyMessage},
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 use sp_runtime::traits::Zero;
@@ -47,10 +47,11 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
 
     match task {
         PauseProgram(_) => {
-            let count = u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
+            let count =
+                u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
             cmp::max(
                 <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
-                <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time()
+                <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
             )
         }
         RemoveCode(_) => todo!("#646"),

@@ -332,13 +332,24 @@ where
     T::AccountId: Origin,
 {
     let caller = benchmarking::account("caller", 0, 0);
-    <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+    <T as pallet::Config>::Currency::deposit_creating(
+        &caller,
+        400_000_000_000_000u128.unique_saturated_into(),
+    );
 
     init_block::<T>(None);
 
     let salt = vec![];
     let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-    Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+    Gear::<T>::upload_program(
+        RawOrigin::Signed(caller).into(),
+        code,
+        salt,
+        b"init_payload".to_vec(),
+        10_000_000_000,
+        0u32.into(),
+    )
+    .expect("submit program failed");
 
     Gear::<T>::process_queue(Default::default());
 
@@ -349,16 +360,22 @@ where
         page
     };
 
-    for i in 0 .. c {
-        ProgramStorageOf::<T>::set_program_page_data(program_id, GearPage::from(i as u16), memory_page.clone());
+    for i in 0..c {
+        ProgramStorageOf::<T>::set_program_page_data(
+            program_id,
+            GearPage::from(i as u16),
+            memory_page.clone(),
+        );
     }
 
     ProgramStorageOf::<T>::update_active_program(program_id, |program| {
         program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
 
         let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-        program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
-    }).expect("program should exist");
+        program.allocations =
+            BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+    })
+    .expect("program should exist");
 
     program_id
 }

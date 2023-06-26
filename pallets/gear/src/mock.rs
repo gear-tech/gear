@@ -49,7 +49,7 @@ pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-const MAX_BLOCK: u64 = 100_000_000_000;
+const MAX_BLOCK: u64 = 300_000_000_000;
 
 macro_rules! dry_run {
     (
@@ -237,7 +237,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
             (USER_1, 5_000_000_000_000_000_u128),
-            (USER_2, 200_000_000_000_000_u128),
+            (USER_2, 350_000_000_000_000_u128),
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
