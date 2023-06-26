@@ -205,7 +205,7 @@ impl Signer {
     /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         self.sudo_run_tx(
-            SudoCall::Sudo,
+            SudoCall::SudoUncheckedWeight,
             // As `call` implements conversion to `Value`.
             vec![
                 call.into(),
