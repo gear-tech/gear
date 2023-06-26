@@ -72,7 +72,7 @@ pub enum TerminationReason {
 }
 
 impl From<PayloadSizeError> for TerminationReason {
-    fn from(_err: PayloadSizeError) -> Self {
+    fn from(PayloadSizeError: PayloadSizeError) -> Self {
         ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
             MessageError::MaxMessageSizeExceed.into(),
         ))
@@ -81,7 +81,7 @@ impl From<PayloadSizeError> for TerminationReason {
 }
 
 impl From<RuntimeBufferSizeError> for TerminationReason {
-    fn from(_err: RuntimeBufferSizeError) -> Self {
+    fn from(RuntimeBufferSizeError: RuntimeBufferSizeError) -> Self {
         ActorTerminationReason::Trap(TrapExplanation::FallibleExt(FallibleExtError::Memory(
             MemoryError::RuntimeAllocOutOfBounds,
         )))
