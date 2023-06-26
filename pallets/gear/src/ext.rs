@@ -25,13 +25,13 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::Externalities,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -239,8 +239,12 @@ impl Externalities for LazyPagesExt {
         self.inner.source()
     }
 
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
-        self.inner.status_code()
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        self.inner.reply_code()
+    }
+
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.inner.signal_code()
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {
@@ -261,10 +265,6 @@ impl Externalities for LazyPagesExt {
 
     fn debug(&self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
-    }
-
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        self.inner.read(at, len)
     }
 
     fn size(&self) -> Result<usize, Self::Error> {
@@ -329,5 +329,13 @@ impl Externalities for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
+    }
+
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
+        self.inner.lock_payload(at, len)
+    }
+
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        self.inner.unlock_payload(payload_holder)
     }
 }

@@ -77,7 +77,6 @@ curl http://localhost:9933 -H "Content-Type:application/json;charset=utf-8" -d "
     \"params\": [
         \"$ALICE\",
         \"$MSG_ID\",
-        0,
         \"$PAYLOAD\",
         $VALUE_REPLY,
         true

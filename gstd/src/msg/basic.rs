@@ -23,6 +23,7 @@ use crate::{
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
+use gear_core_errors::{ReplyCode, SignalCode};
 use gstd_codegen::wait_for_reply;
 use scale_info::scale::{Decode, Output};
 
@@ -250,7 +251,7 @@ impl From<gcore::MessageHandle> for MessageHandle {
     }
 }
 
-/// Get the status code of the message being processed.
+/// Get the reply code of the message being processed.
 ///
 /// This function is used in the reply handler to check whether the message was
 /// processed successfully or not.
@@ -262,11 +263,30 @@ impl From<gcore::MessageHandle> for MessageHandle {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_reply() {
-///     let status_code = msg::status_code().expect("Unable to get status code");
+///     let reply_code = msg::reply_code().expect("Unable to get reply code");
 /// }
 /// ```
-pub fn status_code() -> Result<i32> {
-    gcore::msg::status_code().map_err(Into::into)
+pub fn reply_code() -> Result<ReplyCode> {
+    gcore::msg::reply_code().map_err(Into::into)
+}
+
+/// Get the signal code of the message being processed.
+///
+/// This function is used in the reply handler to check whether the message was
+/// processed successfully or not.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     let signal_code = msg::signal_code().expect("Unable to get signal code");
+/// }
+/// ```
+pub fn signal_code() -> Result<Option<SignalCode>> {
+    gcore::msg::signal_code().map_err(Into::into)
 }
 
 /// Get an identifier of the message that is currently being processed.
@@ -579,7 +599,7 @@ pub fn signal_from() -> Result<MessageId> {
 /// # See also
 ///
 /// - [`MessageHandle::push_input`] function allows using the input buffer as a
-///   payload source for an outcoming message.
+///   payload source for an outgoing message.
 pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 

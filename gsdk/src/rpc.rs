@@ -107,7 +107,6 @@ impl Api {
         &self,
         origin: H256,
         message_id: MessageId,
-        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -119,7 +118,6 @@ impl Api {
                 rpc_params![
                     origin,
                     H256(message_id.into()),
-                    exit_code,
                     hex::encode(payload),
                     value,
                     allow_other_panics,
@@ -166,6 +164,14 @@ impl Api {
                     at
                 ],
             )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// runtime_wasmBlobVersion
+    pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
+        self.rpc()
+            .request("runtime_wasmBlobVersion", rpc_params![at])
             .await
             .map_err(Into::into)
     }

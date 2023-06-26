@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        ActorExecutionError, ActorExecutionErrorReason, DispatchResult, DispatchResultKind,
+        ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
         ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
@@ -391,7 +391,7 @@ where
         Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::PrepareMemory(e),
+                reason: ActorExecutionErrorReplyReason::PrepareMemory(e),
             }))
         }
         Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
@@ -400,7 +400,7 @@ where
         Err(EnvironmentError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::Environment(err.into()),
+                reason: ActorExecutionErrorReplyReason::Environment(err.into()),
             }))
         }
     };
@@ -608,7 +608,7 @@ where
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec());
+            return Ok(dispatch.payload_bytes().to_vec());
         }
     }
 

@@ -66,7 +66,7 @@ pub type BlockCount = u32;
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{Error, ExtError, ReservationError},
+        errors::{Error, ExecutionError, ExtError, ReservationError},
         exec, msg,
         prelude::*,
         MessageId, ReservationId,
@@ -147,15 +147,15 @@ mod wasm {
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold, u32::MAX),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::InsufficientGasForReservation
+                    Err(Error::Ext(ExtError::Execution(
+                        ExecutionError::NotEnoughGas
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(u64::MAX, 1),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::InsufficientGasForReservation
+                    Err(Error::Ext(ExtError::Execution(
+                        ExecutionError::NotEnoughGas
                     )))
                 );
             }
