@@ -280,8 +280,8 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
 pub fn reply_with_gas_from_reservation(
     id: ReservationId,
     payload: &[u8],
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
@@ -455,8 +455,8 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 /// Same as [`reply_commit_from_reservation`], but with an explicit gas limit.
 pub fn reply_commit_with_gas_from_reservation(
     id: ReservationId,
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
@@ -752,16 +752,16 @@ pub fn send_with_gas_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,
     payload: &[u8],
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
     send_with_gas_delayed_from_reservation(
         reservation_id,
         destination,
         payload,
+        gas_limit,
         value,
         0,
-        gas_limit,
     )
 }
 
@@ -806,9 +806,9 @@ pub fn send_with_gas_delayed_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,
     payload: &[u8],
+    gas_limit: u64,
     value: u128,
     delay: u32,
-    gas_limit: u64,
 ) -> Result<MessageId> {
     let rid_pid_value = TwoHashesWithValue {
         hash1: reservation_id.0,
@@ -953,16 +953,16 @@ pub fn send_commit_with_gas_from_reservation(
     reservation_id: ReservationId,
     handle: MessageHandle,
     destination: ActorId,
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
     send_commit_with_gas_delayed_from_reservation(
         reservation_id,
         handle,
         destination,
+        gas_limit,
         value,
         0,
-        gas_limit,
     )
 }
 
@@ -997,9 +997,9 @@ pub fn send_commit_with_gas_delayed_from_reservation(
     reservation_id: ReservationId,
     handle: MessageHandle,
     destination: ActorId,
+    gas_limit: u64,
     value: u128,
     delay: u32,
-    gas_limit: u64,
 ) -> Result<MessageId> {
     let rid_pid_value = TwoHashesWithValue {
         hash1: reservation_id.0,

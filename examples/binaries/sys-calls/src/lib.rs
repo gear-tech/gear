@@ -415,9 +415,9 @@ mod wasm {
                         reservation_id,
                         msg::source(),
                         b"",
-                        0,
-                        0,
                         gas,
+                        0,
+                        0,
                     )
                 } else {
                     msg::send_bytes_delayed_from_reservation(
@@ -450,9 +450,9 @@ mod wasm {
                     handle.commit_with_gas_delayed_from_reservation(
                         reservation_id,
                         msg::source(),
-                        0,
-                        0,
                         gas,
+                        0,
+                        0,
                     )
                 } else {
                     handle.commit_delayed_from_reservation(reservation_id, msg::source(), 0, 0)
@@ -468,7 +468,7 @@ mod wasm {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
                 let actual_mid = if let Some(gas) = gas_opt {
-                    msg::reply_bytes_with_gas_from_reservation(reservation_id, b"", 0, gas)
+                    msg::reply_bytes_with_gas_from_reservation(reservation_id, b"", gas, 0)
                 } else {
                     msg::reply_bytes_from_reservation(reservation_id, b"", 0)
                 };
@@ -485,7 +485,7 @@ mod wasm {
                 msg::reply_push(payload).expect("internal error: failed reply push");
 
                 let actual_mid = if let Some(gas) = gas_opt {
-                    msg::reply_commit_with_gas_from_reservation(reservation_id, 0, gas)
+                    msg::reply_commit_with_gas_from_reservation(reservation_id, gas, 0)
                 } else {
                     msg::reply_commit_from_reservation(reservation_id, 0)
                 };

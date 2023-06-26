@@ -213,15 +213,15 @@ impl MessageHandle {
         self,
         id: ReservationId,
         program: ActorId,
-        value: u128,
         gas_limit: u64,
+        value: u128,
     ) -> Result<MessageId> {
         gcore::msg::send_commit_with_gas_from_reservation(
             id.into(),
             self.into(),
             program.into(),
-            value,
             gas_limit,
+            value,
         )
         .into_result()
     }
@@ -251,17 +251,17 @@ impl MessageHandle {
         self,
         id: ReservationId,
         program: ActorId,
+        gas_limit: u64,
         value: u128,
         delay: u32,
-        gas_limit: u64,
     ) -> Result<MessageId> {
         gcore::msg::send_commit_with_gas_delayed_from_reservation(
             id.into(),
             self.into(),
             program.into(),
+            gas_limit,
             value,
             delay,
-            gas_limit,
         )
         .into_result()
     }
@@ -430,10 +430,10 @@ pub fn reply_bytes_from_reservation(
 pub fn reply_bytes_with_gas_from_reservation(
     id: ReservationId,
     payload: impl AsRef<[u8]>,
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::reply_with_gas_from_reservation(id.into(), payload.as_ref(), value, gas_limit)
+    gcore::msg::reply_with_gas_from_reservation(id.into(), payload.as_ref(), gas_limit, value)
         .into_result()
 }
 
@@ -525,10 +525,10 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 /// Same as [`reply_commit_from_reservation`], but with an explicit gas limit.
 pub fn reply_commit_with_gas_from_reservation(
     id: ReservationId,
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::reply_commit_with_gas_from_reservation(id.into(), value, gas_limit).into_result()
+    gcore::msg::reply_commit_with_gas_from_reservation(id.into(), gas_limit, value).into_result()
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -797,15 +797,15 @@ pub fn send_bytes_with_gas_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
     program: ActorId,
     payload: T,
-    value: u128,
     gas_limit: u64,
+    value: u128,
 ) -> Result<MessageId> {
     gcore::msg::send_with_gas_from_reservation(
         id.into(),
         program.into(),
         payload.as_ref(),
-        value,
         gas_limit,
+        value,
     )
     .into_result()
 }
@@ -835,17 +835,17 @@ pub fn send_bytes_with_gas_delayed_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
     program: ActorId,
     payload: T,
+    gas_limit: u64,
     value: u128,
     delay: u32,
-    gas_limit: u64,
 ) -> Result<MessageId> {
     gcore::msg::send_with_gas_delayed_from_reservation(
         id.into(),
         program.into(),
         payload.as_ref(),
+        gas_limit,
         value,
         delay,
-        gas_limit,
     )
     .into_result()
 }

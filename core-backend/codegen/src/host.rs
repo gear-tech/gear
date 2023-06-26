@@ -84,7 +84,11 @@ impl HostFn {
             if let FnArg::Typed(PatType { pat, .. }) = a.clone() {
                 if let Pat::Ident(ident) = pat.as_ref() {
                     // TODO #2722
-                    if !injected && (ident.ident == "value_ptr" || ident.ident == "delay") {
+                    if !injected
+                        && (ident.ident == "value"
+                            || ident.ident == "value_ptr"
+                            || ident.ident == "delay")
+                    {
                         new_inputs.push(gas_limit.clone());
                         injected = true;
                     }
