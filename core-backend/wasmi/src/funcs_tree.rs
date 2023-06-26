@@ -96,8 +96,9 @@ pub(crate) fn build<Ext>(
 ) -> BTreeMap<SysCallName, Func>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::InfallibleError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::InfallibleError>,
 {
     let f = FunctionBuilder(forbidden_funcs);
 

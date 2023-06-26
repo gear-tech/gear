@@ -48,8 +48,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::InfallibleError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::InfallibleError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,

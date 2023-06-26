@@ -55,7 +55,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError as FallibleExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -73,7 +73,7 @@ pub enum TerminationReason {
 
 impl From<PayloadSizeError> for TerminationReason {
     fn from(_err: PayloadSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(
+        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
             MessageError::MaxMessageSizeExceed.into(),
         ))
         .into()
@@ -82,7 +82,7 @@ impl From<PayloadSizeError> for TerminationReason {
 
 impl From<RuntimeBufferSizeError> for TerminationReason {
     fn from(_err: RuntimeBufferSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::Memory(
+        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(FallibleExtError::Memory(
             MemoryError::RuntimeAllocOutOfBounds,
         )))
         .into()
@@ -91,7 +91,7 @@ impl From<RuntimeBufferSizeError> for TerminationReason {
 
 impl From<FromUtf8Error> for TerminationReason {
     fn from(_err: FromUtf8Error) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(
+        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
             ExecutionError::InvalidDebugString.into(),
         ))
         .into()
@@ -101,9 +101,9 @@ impl From<FromUtf8Error> for TerminationReason {
 impl From<MemoryAccessError> for TerminationReason {
     fn from(err: MemoryAccessError) -> Self {
         match err {
-            MemoryAccessError::Memory(err) => TrapExplanation::Ext(err.into()).into(),
+            MemoryAccessError::Memory(err) => TrapExplanation::FallibleExt(err.into()).into(),
             MemoryAccessError::RuntimeBuffer(_) => {
-                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()).into()
+                TrapExplanation::FallibleExt(MemoryError::RuntimeAllocOutOfBounds.into()).into()
             }
             MemoryAccessError::Decode => unreachable!("{:?}", err),
             MemoryAccessError::GasLimitExceeded => TrapExplanation::GasLimitExceeded.into(),
@@ -158,6 +158,72 @@ pub enum ActorTerminationReason {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub struct SystemTerminationReason;
 
+/// Execution error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum InfallibleExecutionError {
+    /// An error occurs in attempt to charge more gas than available for operation.
+    #[display(fmt = "Not enough gas for operation")]
+    NotEnoughGas,
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed to read payload")]
+    TooBigReadLen,
+    /// Cannot take data in payload range
+    #[display(fmt = "Cannot take data in payload range from message with size")]
+    ReadWrongRange,
+}
+
+/// Wait error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum InfallibleWaitError {
+    /// An error occurs in attempt to wait for or wait up to zero blocks.
+    #[display(fmt = "Waiting duration cannot be zero")]
+    ZeroDuration,
+    /// An error occurs in attempt to wait after reply sent.
+    #[display(fmt = "`wait()` is not allowed after reply sent")]
+    WaitAfterReply,
+}
+
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum InfallibleExtError {
+    #[display(fmt = "Execution error: {_0}")]
+    Execution(InfallibleExecutionError),
+    #[display(fmt = "Waiting error: {_0}")]
+    Wait(InfallibleWaitError),
+}
+
 #[derive(
     Decode,
     Encode,
@@ -182,8 +248,9 @@ pub enum TrapExplanation {
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
-    #[display(fmt = "{_0}")]
-    Ext(ExtError),
+    InfallibleExt(InfallibleExtError),
+    #[display(fmt = "Sys-call fallible error: {_0}")]
+    FallibleExt(FallibleExtError),
     #[display(fmt = "{_0}")]
     Panic(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
@@ -350,7 +417,7 @@ pub trait BackendState {
         match res {
             Err(err) => {
                 if let TerminationReason::Actor(ActorTerminationReason::Trap(
-                    TrapExplanation::Ext(ext_err),
+                    TrapExplanation::FallibleExt(ext_err),
                 )) = err
                 {
                     let code = ext_err.to_u32();

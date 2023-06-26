@@ -483,7 +483,9 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
-                TrapExplanation::Ext(_err) => SimpleExecutionError::BackendError,
+                TrapExplanation::InfallibleExt(_) | TrapExplanation::FallibleExt(_) => {
+                    SimpleExecutionError::BackendError
+                }
                 TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
