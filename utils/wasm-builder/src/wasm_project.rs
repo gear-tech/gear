@@ -120,6 +120,11 @@ impl WasmProject {
         self.out_dir.join("Cargo.toml")
     }
 
+    /// Return the path to the original project directory.
+    pub fn original_dir(&self) -> PathBuf {
+        self.original_dir.clone()
+    }
+
     /// Return the path to the target directory.
     pub fn target_dir(&self) -> PathBuf {
         self.target_dir.clone()

@@ -4238,6 +4238,7 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "colored",
+ "dirs",
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
