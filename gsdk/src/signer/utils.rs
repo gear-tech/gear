@@ -57,6 +57,7 @@ impl Signer {
     ///   Api,
     ///   Signer,
     ///   metadata::calls::BalancesCall,
+    ///   Value,
     /// };
     ///
     /// let api = Api::new(None).await?;
