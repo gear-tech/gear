@@ -609,7 +609,7 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     pub fn gr_reservation_reply_commit_wgas(
         rid_value: *const HashWithValue,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
         gas_limit: Gas,
     );
 
@@ -639,7 +639,7 @@ extern "C" {
         rid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
         gas_limit: Gas,
     );
 
@@ -672,7 +672,7 @@ extern "C" {
         rid_pid_value: *const TwoHashesWithValue,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reservation_send` send syscall.
@@ -708,7 +708,7 @@ extern "C" {
         len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reserve_gas` control syscall.
