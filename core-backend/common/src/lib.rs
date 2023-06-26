@@ -36,7 +36,7 @@ pub mod runtime;
 use crate::memory::MemoryAccessError;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{FromUtf8Error, String},
+    string::String,
     vec::Vec,
 };
 use core::{
@@ -54,7 +54,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError as FallibleExtError, MemoryError};
+use gear_core_errors::{ExtError as FallibleExtError, MemoryError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -68,15 +68,6 @@ pub const PTR_SPECIAL: u32 = u32::MAX;
 pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
-}
-
-impl From<FromUtf8Error> for TerminationReason {
-    fn from(_err: FromUtf8Error) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::FallibleExt(
-            ExecutionError::InvalidDebugString.into(),
-        ))
-        .into()
-    }
 }
 
 impl From<MemoryAccessError> for TerminationReason {
@@ -153,15 +144,33 @@ pub struct SystemTerminationReason;
     derive_more::From,
 )]
 pub enum InfallibleExecutionError {
-    /// An error occurs in attempt to charge more gas than available for operation.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas,
-    /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed to read payload")]
     TooBigReadLen,
-    /// Cannot take data in payload range
     #[display(fmt = "Cannot take data in payload range from message with size")]
     ReadWrongRange,
+}
+
+/// Memory error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum InfallibleMemoryError {
+    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
+    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    RuntimeAllocOutOfBounds,
 }
 
 /// Wait error in infallible sys-call.
@@ -201,6 +210,8 @@ pub enum InfallibleWaitError {
 pub enum InfallibleExtError {
     #[display(fmt = "Execution error: {_0}")]
     Execution(InfallibleExecutionError),
+    #[display(fmt = "Memory error: {_0}")]
+    Memory(InfallibleMemoryError),
     #[display(fmt = "Waiting error: {_0}")]
     Wait(InfallibleWaitError),
 }

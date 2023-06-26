@@ -50,10 +50,6 @@ pub enum ExecutionError {
     #[display(fmt = "Not enough value for operation")]
     NotEnoughValue = 101,
 
-    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
-    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString = 102,
-
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext = 105,
@@ -258,7 +254,6 @@ impl ExtError {
         match code {
             100 => Some(ExecutionError::NotEnoughGas.into()),
             101 => Some(ExecutionError::NotEnoughValue.into()),
-            102 => Some(ExecutionError::InvalidDebugString.into()),
             105 => Some(ExecutionError::NoReplyContext.into()),
             106 => Some(ExecutionError::NoSignalContext.into()),
             107 => Some(ExecutionError::NoStatusCodeContext.into()),

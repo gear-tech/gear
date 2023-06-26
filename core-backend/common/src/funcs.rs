@@ -21,7 +21,8 @@
 use crate::{
     memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
     BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
-    MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
+    InfallibleExecutionError, InfallibleMemoryError, MessageWaitedType, TerminationReason,
+    TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -34,7 +35,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{MemoryError, MessageError, ReplyCode, SignalCode};
+use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
@@ -453,14 +454,15 @@ where
     #[host(cost = RuntimeCosts::Debug(data_len))]
     pub fn debug(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
-        let data: RuntimeBuffer =
-            ctx.read(read_data)?
-                .try_into()
-                .map_err(|RuntimeBufferSizeError| {
-                    TrapExplanation::FallibleExt(MemoryError::RuntimeAllocOutOfBounds.into())
-                })?;
+        let data: RuntimeBuffer = ctx
+            .read(read_data)?
+            .try_into()
+            .map_err(|RuntimeBufferSizeError| InfallibleMemoryError::RuntimeAllocOutOfBounds.into())
+            .map_err(TrapExplanation::InfallibleExt)?;
 
-        let s = String::from_utf8(data.into_vec())?;
+        let s = String::from_utf8(data.into_vec())
+            .map_err(|_err| InfallibleExecutionError::InvalidDebugString.into())
+            .map_err(TrapExplanation::InfallibleExt)?;
         ctx.ext_mut().debug(&s)?;
 
         Ok(())
