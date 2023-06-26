@@ -41,7 +41,7 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
     // `pages` is a BTreeSet, which is ordered, so all panics are unreachable.
 
     for &page in pages_iter {
-        let after_end = page
+        let after_end = end
             .raw()
             .checked_add(1)
             .unwrap_or_else(|| unreachable!("`end` must be smaller than page, so inc must be ok"));
@@ -84,6 +84,7 @@ mod tests {
         };
 
         let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
+        println!("{:?}", res);
         assert_eq!(res.pop().unwrap(), vec![19]);
         assert_eq!(res.pop().unwrap(), vec![11]);
         assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
