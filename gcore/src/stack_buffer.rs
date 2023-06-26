@@ -20,7 +20,6 @@
 
 use alloc::vec;
 
-#[inline(never)]
 fn with_byte_array<T, const N: usize>(size: usize, f: impl FnOnce(&mut [u8]) -> T) -> T {
     let mut buffer = [0u8; N];
     let sub_buffer = &mut buffer[0..size];

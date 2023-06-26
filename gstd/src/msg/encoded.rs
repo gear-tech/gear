@@ -68,14 +68,8 @@ pub fn load<D: Decode>() -> Result<D> {
 /// this decoding may lead to heap allocations.
 pub fn load_on_stack<D: Decode>() -> Result<D> {
     let wrapper = |read_result: Result<&mut [u8]>| -> Result<D> {
-        match read_result.map(|buffer| {
-            let mut buffer: &[u8] = buffer;
-            D::decode(&mut buffer).map_err(Error::Decode)
-        }) {
-            Err(err) => Err(err),
-            Ok(Err(err)) => Err(err),
-            Ok(Ok(res)) => Ok(res),
-        }
+        let mut buffer = read_result? as &[u8];
+        D::decode(&mut buffer).map_err(Error::Decode)
     };
     super::basic::with_read_on_stack(wrapper)
 }
@@ -141,10 +135,10 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
 
     impl<'a> Output for ExternalBufferOutput<'a> {
         fn write(&mut self, bytes: &[u8]) {
-            let err_log = "Unexpected encoding behavior: too large input bytes size";
-            let end_offset = self.offset.checked_add(bytes.len()).expect(err_log);
+            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
+            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
             if end_offset > self.buffer.len() {
-                panic!("{}", err_log);
+                panic!("{}", ERROR_LOG);
             }
             self.buffer[self.offset..end_offset].copy_from_slice(bytes);
             self.offset = end_offset;
