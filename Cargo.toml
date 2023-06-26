@@ -1,4 +1,5 @@
 [workspace.package]
+version = "0.2.1"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"

@@ -1,6 +1,6 @@
 [package]
 name = "gcli"
-version = "0.2.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 description = "gear program cli"

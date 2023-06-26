@@ -298,14 +298,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcore"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gear-core-errors",
  "gsys",
@@ -334,7 +334,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bs58",
  "futures",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "hashbrown"
