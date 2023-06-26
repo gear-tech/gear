@@ -314,7 +314,7 @@ pub fn reply_with_gas_from_reservation(
 ) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
-    let mut res: LengthWithHash = Default::default();
+    let mut res: ErrorWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -489,7 +489,7 @@ pub fn reply_commit_with_gas_from_reservation(
 ) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
-    let mut res: LengthWithHash = Default::default();
+    let mut res: ErrorWithHash = Default::default();
 
     unsafe {
         gsys::gr_reservation_reply_commit_wgas(rid_value.as_ptr(), res.as_mut_ptr(), gas_limit)
@@ -845,7 +845,7 @@ pub fn send_with_gas_delayed_from_reservation(
         value,
     };
 
-    let mut res: LengthWithHash = Default::default();
+    let mut res: ErrorWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -1036,7 +1036,7 @@ pub fn send_commit_with_gas_delayed_from_reservation(
         value,
     };
 
-    let mut res: LengthWithHash = Default::default();
+    let mut res: ErrorWithHash = Default::default();
 
     unsafe {
         gsys::gr_reservation_send_commit_wgas(
