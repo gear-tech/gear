@@ -330,7 +330,7 @@ pub fn reply_with_gas_from_reservation(
             gas_limit,
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(MessageId(res.hash))
 }
@@ -494,7 +494,7 @@ pub fn reply_commit_with_gas_from_reservation(
     unsafe {
         gsys::gr_reservation_reply_commit_wgas(rid_value.as_ptr(), res.as_mut_ptr(), gas_limit)
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(MessageId(res.hash))
 }
@@ -862,7 +862,7 @@ pub fn send_with_gas_delayed_from_reservation(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(MessageId(res.hash))
 }
@@ -1047,7 +1047,7 @@ pub fn send_commit_with_gas_delayed_from_reservation(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(MessageId(res.hash))
 }
