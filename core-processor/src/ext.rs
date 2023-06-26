@@ -162,16 +162,13 @@ impl BackendExternalitiesError for InfallibleExtError {
 }
 
 /// Fallible API error.
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum FallibleExtError {
     /// Basic error
-    #[display(fmt = "{_0}")]
     Core(FallibleExtErrorCore),
     /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
     /// Charge error
-    #[display(fmt = "Charge error: {_0}")]
     Charge(ChargeError),
 }
 
