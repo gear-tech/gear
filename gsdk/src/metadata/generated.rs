@@ -2157,13 +2157,23 @@ pub mod runtime_types {
                     pub gr_send_commit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_send_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_send: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_wgas_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_send_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_commit_wgas:
+                        runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_reply: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_wgas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_wgas_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reservation_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_commit_wgas:
+                        runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_push: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
