@@ -22,7 +22,7 @@ use crate::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
         ReplyMessage, ReplyPacket,
     },
-    reservation::{FrozenNonce, GasReserver},
+    reservation::{GasReserver, ReservationNonce},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -184,7 +184,7 @@ pub struct ContextStore {
     initialized: BTreeSet<ProgramId>,
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
-    reservation_nonce: FrozenNonce,
+    reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
 }
 
@@ -193,7 +193,7 @@ impl ContextStore {
     ///
     /// Will be non zero, if any reservations were created during
     /// previous execution of the message.
-    pub(crate) fn reservation_nonce(&self) -> FrozenNonce {
+    pub(crate) fn reservation_nonce(&self) -> ReservationNonce {
         self.reservation_nonce
     }
 

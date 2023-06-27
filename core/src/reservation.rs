@@ -30,33 +30,31 @@ use scale_info::{
     TypeInfo,
 };
 
-/// An unchangeable wrapper over u64 value used as a nonce.
-///
-/// It's required to be used as a reservation nonce in a message execution
-/// context.
+/// An unchangeable wrapper over u64 value, which is required
+/// to be used as a "view-only" reservations nonce in a message
+/// execution context.
 ///
 /// ### Note:
 /// By contract, It must be instantiated only once, when message execution
-/// context is created. Also yhe latter is required to be instantiated only
+/// context is created. Also the latter is required to be instantiated only
 /// once, when incoming dispatch is created.
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
-pub struct FrozenNonce(u64);
+pub struct ReservationNonce(u64);
 
-impl From<&Nonce> for FrozenNonce {
-    fn from(nonce: &Nonce) -> Self {
-        FrozenNonce(nonce.0)
+impl From<&InnerNonce> for ReservationNonce {
+    fn from(nonce: &InnerNonce) -> Self {
+        ReservationNonce(nonce.0)
     }
 }
 
-/// A changeable wrapper over u64 value used as a nonce.
-///
-/// It's an internal type used for [`GasReserver`]'s reservation nonce.
+/// A changeable wrapper over u64 value, which is required
+/// to be used as an "active" reservations nonce in a gas reserver.
 #[derive(Debug, Clone)]
-struct Nonce(u64);
+struct InnerNonce(u64);
 
-impl Nonce {
+impl InnerNonce {
     /// Fetches current state of the nonce and
     /// updates its state by incrementing it.
     fn fetch_inc_nonce(&mut self) -> u64 {
@@ -67,9 +65,9 @@ impl Nonce {
     }
 }
 
-impl From<FrozenNonce> for Nonce {
-    fn from(frozen_nonce: FrozenNonce) -> Self {
-        Nonce(frozen_nonce.0)
+impl From<ReservationNonce> for InnerNonce {
+    fn from(frozen_nonce: ReservationNonce) -> Self {
+        InnerNonce(frozen_nonce.0)
     }
 }
 
@@ -87,7 +85,7 @@ pub struct GasReserver {
     /// several times with the same `message_id`, value of this
     /// field is re-used. This property is guaranteed by instantiating
     /// gas reserver from the [`IncomingDispatch`].
-    nonce: Nonce,
+    nonce: InnerNonce,
     /// Gas reservations states.
     states: GasReservationStates,
     /// Maximum allowed reservations to be stored in `states`.
@@ -244,7 +242,7 @@ impl GasReserver {
     }
 
     /// Returns gas reservations current nonce.
-    pub fn nonce(&self) -> FrozenNonce {
+    pub fn nonce(&self) -> ReservationNonce {
         (&self.nonce).into()
     }
 
