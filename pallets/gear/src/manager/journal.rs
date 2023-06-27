@@ -492,7 +492,6 @@ where
             gas_burned,
         );
 
-        SentOf::<T>::increase(); // todo [sab] Remove\check in PR/
         GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));

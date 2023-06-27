@@ -13171,4 +13171,53 @@ fn double_read_works() {
 /// executed message when gas allowance exceed
 /// happened.
 #[test]
-fn test_gas_allowance_exceed() {}
+fn test_gas_allowance_exceed() {
+    use crate::QueueProcessingOf;
+    use common::storage::{Counted, Queue, Toggler};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let wat = r#"
+            (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (call $reply (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+                (loop (br 0))
+            )
+        )"#;
+
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("failed uploading program");
+        run_to_next_block(None);
+
+        assert_ok!(send_default_message(USER_1, pid));
+        let mid = get_last_message_id();
+        // Setting to 100 million the gas allowance ends faster than gas limit
+        run_to_next_block(Some(100_000_000));
+
+        // Execution is denied after reque
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no execution context is saved after gas allowance exceeded error
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), mid);
+        assert!(msg.context().is_none());
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        // There should be now enough gas allowance, so the message is executed
+        // and execution ends with `GasLimitExceeded`.
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
+        );
+        assert_last_dequeued(1);
+    })
+}
