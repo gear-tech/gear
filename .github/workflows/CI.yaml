@@ -7,7 +7,6 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-    types: [labeled]
 
   workflow_dispatch:
 
