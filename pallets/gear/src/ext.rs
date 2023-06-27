@@ -17,21 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
+use core_processor::{Ext, ExtAllocError, ExtError, ProcessorContext, ProcessorExternalities};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    BackendExt, ExtInfo,
+    BackendExternalities, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext as EnvExt,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -40,7 +40,7 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl BackendExt for LazyPagesExt {
+impl BackendExternalities for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -69,7 +69,7 @@ impl BackendExt for LazyPagesExt {
     }
 }
 
-impl ProcessorExt for LazyPagesExt {
+impl ProcessorExternalities for LazyPagesExt {
     const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
@@ -143,10 +143,6 @@ impl CountersOwner for LazyPagesExt {
         self.inner.charge_gas_if_enough(amount)
     }
 
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        self.inner.refund_gas(amount)
-    }
-
     fn gas_left(&self) -> GasLeft {
         self.inner.gas_left()
     }
@@ -156,9 +152,9 @@ impl CountersOwner for LazyPagesExt {
     }
 }
 
-impl EnvExt for LazyPagesExt {
-    type Error = ProcessorError;
-    type AllocError = ProcessorAllocError;
+impl Externalities for LazyPagesExt {
+    type Error = ExtError;
+    type AllocError = ExtAllocError;
 
     fn alloc(
         &mut self,
@@ -178,10 +174,6 @@ impl EnvExt for LazyPagesExt {
 
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
         self.inner.block_timestamp()
-    }
-
-    fn origin(&self) -> Result<ProgramId, Self::Error> {
-        self.inner.origin()
     }
 
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -247,8 +239,12 @@ impl EnvExt for LazyPagesExt {
         self.inner.source()
     }
 
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
-        self.inner.status_code()
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        self.inner.reply_code()
+    }
+
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.inner.signal_code()
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {
@@ -269,10 +265,6 @@ impl EnvExt for LazyPagesExt {
 
     fn debug(&self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
-    }
-
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        self.inner.read(at, len)
     }
 
     fn size(&self) -> Result<usize, Self::Error> {
@@ -337,5 +329,13 @@ impl EnvExt for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
+    }
+
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
+        self.inner.lock_payload(at, len)
+    }
+
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        self.inner.unlock_payload(payload_holder)
     }
 }

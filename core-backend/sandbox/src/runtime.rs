@@ -27,7 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::Runtime as CommonRuntime,
-    BackendExt, BackendState, BackendTermination, TerminationReason,
+    BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
@@ -41,20 +41,20 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E> {
-    pub ext: E,
+pub(crate) struct Runtime<Ext> {
+    pub ext: Ext,
     pub memory: MemoryWrap,
     pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
     pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
-    pub memory_manager: MemoryAccessManager<E>,
+    pub memory_manager: MemoryAccessManager<Ext>,
 }
 
-impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
+impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
     type Error = HostError;
 
-    fn ext_mut(&mut self) -> &mut E {
+    fn ext_mut(&mut self) -> &mut Ext {
         &mut self.ext
     }
 
@@ -99,7 +99,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
         .map(|_| ())
     }
 
-    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <E>::AllocError> {
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         self.ext.alloc(pages, &mut self.memory)
     }
 
@@ -114,7 +114,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> Runtime<E> {
+impl<Ext: BackendExternalities> Runtime<Ext> {
     // Cleans `memory_manager`, updates ext counters based on globals.
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
@@ -168,7 +168,7 @@ impl<E: BackendExt> Runtime<E> {
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
     where
         F: FnOnce(
-            &mut MemoryAccessManager<E>,
+            &mut MemoryAccessManager<Ext>,
             &mut MemoryWrap,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
@@ -180,7 +180,7 @@ impl<E: BackendExt> Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
+impl<Ext: BackendExternalities> MemoryAccessRecorder for Runtime<Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -205,7 +205,7 @@ impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryOwner for Runtime<E> {
+impl<Ext: BackendExternalities> MemoryOwner for Runtime<Ext> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
@@ -240,7 +240,7 @@ impl<E: BackendExt> MemoryOwner for Runtime<E> {
     }
 }
 
-impl<E> BackendState for Runtime<E> {
+impl<Ext> BackendState for Runtime<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
     }
@@ -250,8 +250,8 @@ impl<E> BackendState for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
-    fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
+impl<Ext: BackendExternalities> BackendTermination<Ext, MemoryWrap> for Runtime<Ext> {
+    fn into_parts(self) -> (Ext, MemoryWrap, TerminationReason) {
         let Self {
             ext,
             memory,

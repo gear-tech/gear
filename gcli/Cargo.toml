@@ -1,6 +1,6 @@
 [package]
 name = "gcli"
-version = "0.2.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 description = "gear program cli"
@@ -24,6 +24,7 @@ dirs.workspace = true
 env_logger.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true
@@ -41,6 +42,7 @@ tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
 core-processor.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
 
 [dev-dependencies]
@@ -49,6 +51,9 @@ demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+
+[build-dependencies]
+which.workspace = true
 
 [features]
 node-key = [ "libp2p" ]

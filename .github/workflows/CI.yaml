@@ -7,6 +7,8 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    types: [labeled]
+
   workflow_dispatch:
 
 env:
@@ -39,6 +41,7 @@ jobs:
 
   check:
     # needs: spec_version
+    needs: check-commit-message
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -66,7 +69,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -89,6 +92,16 @@ jobs:
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
 
+      - name: "Test: Changes in gsdk generated code"
+        run: |
+          GENERATED_CODE="gsdk/src/metadata/generated.rs"
+          ./scripts/update-gsdk-metadata.sh
+          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
+            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            git --no-pager diff $GENERATED_CODE
+            exit 1
+          fi
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -98,6 +111,8 @@ jobs:
 
   build:
     # needs: spec_version
+    needs: check-commit-message
+    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -148,7 +163,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -185,9 +200,14 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
+
+      - name: "Test: gsdk tests"
+        run: ./scripts/gear.sh test gsdk
 
       - name: "Test: `gcli`"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: JS metadata"
@@ -198,9 +218,6 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
-
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
 
       - name: "Test: Process node runtime spec tests"
         run: |
@@ -404,11 +421,11 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk
+
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client
 
       - name: "Test: Process node runtime spec tests"
         run: |
@@ -427,6 +444,8 @@ jobs:
           --release
 
   build-win-cross:
+    needs: check-commit-message
+    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -509,7 +528,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -687,3 +706,17 @@ jobs:
 
       - name: "Check fuzzer with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+  check-commit-message:
+    name: check commit message
+    runs-on: ubuntu-latest
+    outputs:
+      commit-message: ${{ steps.commit_message.outputs.commitMsg }}
+    steps:
+      - name: Get repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Print head git commit message
+        id: commit_message
+        run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT

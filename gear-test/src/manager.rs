@@ -25,7 +25,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -437,13 +437,7 @@ impl JournalHandler for InMemoryExtManager {
 
     fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 
-    fn send_signal(
-        &mut self,
-        _message_id: MessageId,
-        _destination: ProgramId,
-        _err: SimpleSignalError,
-    ) {
-    }
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 
