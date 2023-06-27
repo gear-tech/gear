@@ -8480,7 +8480,7 @@ fn execution_over_blocks() {
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 448);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 512);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
