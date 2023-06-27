@@ -180,7 +180,6 @@ where
 
         let runtime = State {
             ext,
-            fallible_syscall_error: None,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

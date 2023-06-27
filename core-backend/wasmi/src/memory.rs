@@ -132,7 +132,6 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                fallible_syscall_error: None,
                 termination_reason: ActorTerminationReason::Success.into(),
             }),
         );

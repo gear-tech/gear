@@ -30,7 +30,6 @@ use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
-use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, Value};
 
@@ -44,7 +43,6 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
-    pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
@@ -60,10 +58,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
     fn unreachable_error() -> Self::Error {
         HostError
-    }
-
-    fn fallible_syscall_error(&self) -> Option<&ExtError> {
-        self.fallible_syscall_error.as_ref()
     }
 
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
@@ -243,10 +237,6 @@ impl<Ext: BackendExternalities> MemoryOwner for Runtime<Ext> {
 impl<Ext> BackendState for Runtime<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
-    }
-
-    fn set_fallible_syscall_error(&mut self, err: ExtError) {
-        self.fallible_syscall_error = Some(err);
     }
 }
 
