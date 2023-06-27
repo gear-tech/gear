@@ -8430,17 +8430,18 @@ fn execution_over_blocks() {
 
         let src = [0; 32];
 
+        let expected = 64;
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(128, src).encode(),
+            Package::new(expected, src).encode(),
             block_gas_limit,
             0,
         ));
 
         run_to_next_block(Some(MAX_BLOCK));
 
-        assert_last_message([0; 32], 128);
+        assert_last_message([0; 32], expected);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),

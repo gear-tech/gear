@@ -1,5 +1,5 @@
 use crate::{Arg, Call, Calls, Scheme};
-use gstd::errors::{ReplyCode, SuccessReplyReason};
+use gcore::errors::{ReplyCode, SuccessReplyReason};
 use parity_scale_codec::Encode;
 
 pub const PROXIED_MESSAGE: &[u8] = b"proxied message";
