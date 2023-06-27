@@ -40,7 +40,7 @@ jobs:
 
   check:
     # needs: spec_version
-    needs: [check-labels, check-commit-message]
+    needs: [check-commit-message]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -672,7 +672,6 @@ jobs:
           files: artifact/*
 
   check-fuzzer:
-    needs: check-labels
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
