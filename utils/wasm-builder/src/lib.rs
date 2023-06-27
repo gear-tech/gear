@@ -107,7 +107,9 @@ impl WasmBuilder {
         let profile = if profile == "debug" { "dev" } else { profile };
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
-        self.cargo.set_paths_to_remap(&self.paths_to_remap()?);
+        if profile == "release" {
+            self.cargo.set_paths_to_remap(&self.paths_to_remap()?);
+        }
 
         self.cargo.run()?;
         self.wasm_project.postprocess()
@@ -178,7 +180,7 @@ impl WasmBuilder {
 
         Ok(vec![
             (home_dir, "/home"),
-            (project_dir, "/proj"),
+            (project_dir, "/code"),
             (cargo_dir, "/cargo"),
             (cargo_checkouts_dir, "/deps"),
         ])
