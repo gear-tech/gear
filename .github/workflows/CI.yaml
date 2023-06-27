@@ -40,7 +40,7 @@ jobs:
 
   check:
     # needs: spec_version
-    needs: check-commit-message
+    needs: [check-labels, check-commit-message]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -110,8 +110,7 @@ jobs:
 
   build:
     # needs: spec_version
-    needs: check-commit-message
-    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    needs: [check-labels, check-commit-message]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -443,8 +442,7 @@ jobs:
           --release
 
   build-win-cross:
-    needs: check-commit-message
-    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    needs: [check-labels, check-commit-message]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -674,6 +672,7 @@ jobs:
           files: artifact/*
 
   check-fuzzer:
+    needs: check-labels
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -719,3 +718,8 @@ jobs:
       - name: Print head git commit message
         id: commit_message
         run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
+
+  check-labels:
+    name: check labels
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
