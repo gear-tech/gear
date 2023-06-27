@@ -705,7 +705,6 @@ jobs:
         run: ./scripts/check-fuzzer.sh
 
   check-commit-message:
-    name: Check Commit Message
     runs-on: ubuntu-latest
     outputs:
       commit-message: ${{ steps.commit_message.outputs.commitMsg }}
@@ -719,7 +718,6 @@ jobs:
         run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
 
   check-labels:
-    name: Check Labels
     runs-on: ubuntu-latest
     if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
     steps:
