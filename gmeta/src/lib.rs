@@ -11,9 +11,17 @@ pub use scale_info::{
     MetaType, PortableRegistry, Registry, TypeInfo,
 };
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use blake2_rfc::blake2b;
-use core::any::TypeId;
+use core::{any::TypeId, mem};
+
+const METADATA_VERSION: u16 = 1;
+
+#[repr(u8)]
+pub enum LanguageId {
+    Rust = 0,
+    AssemblyScript,
+}
 
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
 #[codec(crate = scale)]
@@ -27,7 +35,7 @@ pub struct TypesRepr {
 pub struct MetadataRepr {
     pub init: TypesRepr,
     pub handle: TypesRepr,
-    pub reply: TypesRepr,
+    pub reply: Option<u32>,
     pub others: TypesRepr,
     pub signal: Option<u32>,
     pub state: Option<u32>,
@@ -85,13 +93,40 @@ impl Types for () {
 
 impl MetadataRepr {
     pub fn bytes(&self) -> Vec<u8> {
-        self.encode()
+        // Append language ID and version as a preamble
+        let version_bytes = METADATA_VERSION.to_le_bytes();
+        let mut bytes = vec![LanguageId::Rust as u8, version_bytes[0], version_bytes[1]];
+
+        bytes.extend(self.encode());
+        bytes
+    }
+
+    pub fn from_bytes(data: impl AsRef<[u8]>) -> Result<Self, MetadataParseError> {
+        let preamble_len = mem::size_of::<LanguageId>() | mem::size_of_val(&METADATA_VERSION);
+        let data = data.as_ref();
+        if data.len() < preamble_len {
+            return Err(MetadataParseError::InvalidMetadata);
+        }
+
+        // Check language ID and version
+        let lang_id = data[0];
+        if lang_id != LanguageId::Rust as u8 {
+            return Err(MetadataParseError::UnsupportedLanguageId(lang_id));
+        }
+        let version = u16::from_le_bytes([data[1], data[2]]);
+        if version != METADATA_VERSION {
+            return Err(MetadataParseError::UnsupportedVersion(version));
+        }
+
+        // Remove preamble before decoding
+        let mut data = &data[preamble_len..];
+
+        let this = Self::decode(&mut data)?;
+        Ok(this)
     }
 
     pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
-        let data = hex::decode(data)?;
-        let this = Self::decode(&mut data.as_ref())?;
-        Ok(this)
+        Self::from_bytes(hex::decode(data)?)
     }
 
     pub fn hex(&self) -> String {
@@ -116,12 +151,15 @@ impl MetadataRepr {
 pub enum MetadataParseError {
     Codec(scale_info::scale::Error),
     FromHex(hex::FromHexError),
+    InvalidMetadata,
+    UnsupportedLanguageId(u8),
+    UnsupportedVersion(u16),
 }
 
 pub trait Metadata {
     type Init: Types;
     type Handle: Types;
-    type Reply: Types;
+    type Reply: Type;
     type Others: Types;
     type Signal: Type;
     type State: Type;
