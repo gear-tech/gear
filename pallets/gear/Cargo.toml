@@ -34,6 +34,7 @@ gear-backend-sandbox.workspace = true
 gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
+pallet-gear-voucher.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -111,6 +112,7 @@ pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
+pallet-gear-voucher = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
@@ -141,6 +143,7 @@ std = [
 	"pallet-gear-messenger/std",
 	"pallet-gear-scheduler/std",
 	"pallet-gear-program/std",
+	"pallet-gear-voucher/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",

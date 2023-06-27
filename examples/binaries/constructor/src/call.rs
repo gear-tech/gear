@@ -19,7 +19,7 @@ pub enum Call {
     Store(String),
     StoreVec(String),
     Source,
-    StatusCode,
+    ReplyCode,
     Value,
     Send(
         Arg<[u8; 32]>,
@@ -118,8 +118,7 @@ mod wasm {
             let value = extra_encode.then(|| value.encode()).unwrap_or(value);
 
             debug!(
-                "\t[CONSTRUCTOR] >> Storing {:?}: {:?}",
-                key,
+                "\t[CONSTRUCTOR] >> Storing {key:?}: {:?}",
                 &value[extra_encode as usize..]
             );
 
@@ -146,12 +145,12 @@ mod wasm {
             Some(msg::source().encode())
         }
 
-        fn status_code(self) -> Option<Vec<u8>> {
-            (!matches!(self, Self::StatusCode)).then(|| unreachable!());
+        fn reply_code(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::ReplyCode)).then(|| unreachable!());
 
             Some(
-                msg::status_code()
-                    .expect("Failed to get status code")
+                msg::reply_code()
+                    .expect("Failed to get reply code")
                     .encode(),
             )
         }
@@ -278,7 +277,7 @@ mod wasm {
         }
 
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
-            debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
+            debug!("\t[CONSTRUCTOR] >> Processing {self:?}");
             let call = self.clone();
 
             let value = match self {
@@ -289,7 +288,7 @@ mod wasm {
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),
                 Call::Source => self.source(),
-                Call::StatusCode => self.status_code(),
+                Call::ReplyCode => self.reply_code(),
                 Call::Panic(..) => self.panic(),
                 Call::Send(..) => self.send(),
                 Call::Reply(..) => self.reply(),

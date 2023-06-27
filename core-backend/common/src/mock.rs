@@ -24,14 +24,14 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
-    env::Externalities,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
     reservation::GasReserver,
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -144,7 +144,10 @@ impl Externalities for MockExt {
     fn source(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        Ok(Default::default())
+    }
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
         Ok(Default::default())
     }
     fn message_id(&self) -> Result<MessageId, Self::Error> {
@@ -162,9 +165,6 @@ impl Externalities for MockExt {
     }
     fn debug(&self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
-    }
-    fn read(&mut self, _at: u32, _len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        Ok((&[], Default::default()))
     }
     fn size(&self) -> Result<usize, Self::Error> {
         Ok(0)
@@ -237,6 +237,14 @@ impl Externalities for MockExt {
 
     fn signal_from(&self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
+    }
+
+    fn lock_payload(&mut self, _at: u32, _len: u32) -> Result<PayloadSliceLock, Self::Error> {
+        unimplemented!()
+    }
+
+    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        unimplemented!()
     }
 }
 

@@ -243,7 +243,7 @@ extern "C" fn init() {
 extern "C" fn meta_state() -> *mut [i32; 2] {
     let query: State = msg::load().expect("failed to decode input argument");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
-    debug!("{:?}", query);
+    debug!("{query:?}");
     let encoded = match query {
         State::Name => StateReply::Name(ft.name.clone()),
         State::Symbol => StateReply::Name(ft.symbol.clone()),

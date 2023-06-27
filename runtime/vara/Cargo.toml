@@ -12,6 +12,7 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
@@ -88,6 +89,7 @@ pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
 pallet-gear-staking-rewards.workspace = true
+pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 pallet-airdrop.workspace = true
@@ -104,6 +106,7 @@ gear-core-processor.workspace = true
 gear-backend-common.workspace = true
 
 [build-dependencies]
+substrate-build-script-utils.workspace = true
 substrate-wasm-builder = { workspace = true, optional = true }
 
 [features]
@@ -187,6 +190,7 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
   	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
+	"pallet-gear-voucher/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-airdrop/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
@@ -210,6 +214,7 @@ try-runtime = [
 	"pallet-gear-staking-rewards/try-runtime",
 	"pallet-gear-gas/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
+	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",

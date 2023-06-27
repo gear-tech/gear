@@ -141,7 +141,6 @@ pub enum MessageContentMismatch {
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
     Value(ContentMismatch<u128>),
-    StatusCode(ContentMismatch<i32>),
 }
 
 #[derive(Debug, Display)]
@@ -189,13 +188,6 @@ impl MessagesError {
             mismatch: MessageContentMismatch::Value(ContentMismatch { expected, actual }),
         }
     }
-
-    fn status_code(at: usize, expected: i32, actual: i32) -> Self {
-        Self::AtPosition {
-            at,
-            mismatch: MessageContentMismatch::StatusCode(ContentMismatch { expected, actual }),
-        }
-    }
 }
 
 fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl FnOnce(T, T)) {
@@ -231,15 +223,10 @@ pub fn check_messages(
                 let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
-                match_or_else(
-                    exp.status_code,
-                    msg.status_code().unwrap_or(0),
-                    |expected, actual| {
-                        errors.push(MessagesError::status_code(position, expected, actual))
-                    },
-                );
-
-                if msg.status_code().unwrap_or(0) == 0
+                if msg
+                    .reply_details()
+                    .map(|d| d.to_reply_code().is_success())
+                    .unwrap_or(false)
                     && exp
                         .payload
                         .as_mut()
@@ -278,7 +265,7 @@ pub fn check_messages(
                                     );
 
                                     let new_payload =
-                                        MetaData::CodecBytes((*msg.payload()).to_vec())
+                                        MetaData::CodecBytes((*msg.payload_bytes()).to_vec())
                                             .convert(&path, &meta_type)
                                             .expect("Unable to get bytes")
                                             .into_bytes();
@@ -293,9 +280,9 @@ pub fn check_messages(
                                     );
                                 };
 
-                                !payload.equals(msg.payload())
+                                !payload.equals(msg.payload_bytes())
                             }
-                            _ => !payload.equals(msg.payload()),
+                            _ => !payload.equals(msg.payload_bytes()),
                         })
                         .unwrap_or(false)
                 {
@@ -306,7 +293,7 @@ pub fn check_messages(
                             .expect("Checked above.")
                             .clone()
                             .into_raw(),
-                        (*msg.payload()).to_vec(),
+                        (*msg.payload_bytes()).to_vec(),
                     ))
                 }
 
@@ -561,7 +548,7 @@ where
         }
         if let Some(log) = &exp.log {
             for message in &final_state.log {
-                if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                if let Ok(utf8) = std::str::from_utf8(message.payload_bytes()) {
                     log::debug!("log(text: {})", utf8);
                 } else {
                     log::debug!("log(<binary>)");

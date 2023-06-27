@@ -44,7 +44,7 @@ async fn charge_10(
 
         api.claim_value(msg.0.id()).await.unwrap();
 
-        return Ok(String::from_utf8(message.payload().to_vec()).unwrap());
+        return Ok(String::from_utf8(message.payload_bytes().to_vec()).unwrap());
     }
 
     Ok(String::new())

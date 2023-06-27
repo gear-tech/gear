@@ -58,10 +58,7 @@ use gear_core::{
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
-};
+use scale_info::scale::{self, Decode, Encode};
 
 pub use crate::utils::{LimitedStr, TrimmedString};
 pub use log;
@@ -164,7 +161,6 @@ pub struct SystemTerminationReason;
 #[derive(
     Decode,
     Encode,
-    TypeInfo,
     Debug,
     Clone,
     PartialEq,
@@ -346,9 +342,6 @@ pub trait BackendState {
     /// Set termination reason
     fn set_termination_reason(&mut self, reason: TerminationReason);
 
-    /// Set fallible syscall error
-    fn set_fallible_syscall_error(&mut self, err: ExtError);
-
     /// Process fallible syscall function result
     fn process_fallible_func_result<T: Sized>(
         &mut self,
@@ -360,10 +353,9 @@ pub trait BackendState {
                     TrapExplanation::Ext(ext_err),
                 )) = err
                 {
-                    let len = ext_err.encoded_size() as u32;
+                    let code = ext_err.to_u32();
                     log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
-                    self.set_fallible_syscall_error(ext_err);
-                    Ok(Err(len))
+                    Ok(Err(code))
                 } else {
                     Err(err)
                 }
