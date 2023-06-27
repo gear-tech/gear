@@ -40,7 +40,7 @@ jobs:
 
   check:
     # needs: spec_version
-    needs: [check-commit-message]
+    needs: check-commit-message
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -705,7 +705,7 @@ jobs:
         run: ./scripts/check-fuzzer.sh
 
   check-commit-message:
-    name: check commit message
+    name: Check Commit Message
     runs-on: ubuntu-latest
     outputs:
       commit-message: ${{ steps.commit_message.outputs.commitMsg }}
@@ -719,6 +719,9 @@ jobs:
         run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
 
   check-labels:
-    name: check labels
+    name: Check Labels
     runs-on: ubuntu-latest
     if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    steps:
+      - name: Build Condition Passed!
+        run: echo "bebop"
