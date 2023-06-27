@@ -111,7 +111,7 @@ jobs:
 
   build:
     # needs: spec_version
-    needs: [check-labels, check-commit-message]
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -443,7 +443,7 @@ jobs:
           --release
 
   build-win-cross:
-    needs: [check-labels, check-commit-message]
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
