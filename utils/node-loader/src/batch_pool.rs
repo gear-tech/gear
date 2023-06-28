@@ -262,7 +262,7 @@ async fn process_events(
     mut rx: EventsReciever,
 ) -> Result<Report> {
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
-    let wait_for_events_blocks = 3;
+    let wait_for_events_blocks = 10;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
