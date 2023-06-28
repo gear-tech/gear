@@ -79,7 +79,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -154,7 +154,7 @@ jobs:
 
   build:
     # needs: spec_version
-    if: ${{ github.event_name != 'pull_request' || inputs.build == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || inputs.build }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -205,7 +205,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -486,7 +486,7 @@ jobs:
           --release
 
   build-win-cross:
-    if: ${{ github.event_name != 'pull_request' || inputs.build == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || inputs.build }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -569,7 +569,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
