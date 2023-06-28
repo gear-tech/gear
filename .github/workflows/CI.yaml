@@ -114,7 +114,7 @@ jobs:
 
   build:
     # needs: spec_version
-    if: ${{ github.event_name != 'workflow_call' || inputs.build }}
+    if: ${{ github.event_name != 'workflow_call' || inputs.build == 'true' }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -446,7 +446,7 @@ jobs:
           --release
 
   build-win-cross:
-    if: ${{ github.event_name != 'workflow_call' || inputs.build }}
+    if: ${{ github.event_name != 'workflow_call' || inputs.build == 'true' }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
