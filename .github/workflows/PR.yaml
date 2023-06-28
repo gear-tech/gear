@@ -16,12 +16,10 @@ jobs:
       - name: Check labels
         id: check-labels
         run: |
-          CREATED=${{ contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }} \
-            && ${{ github.event.label.updateAt == github.event.label.createdAt }}
+          CREATED=${{ contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }}
 
-          SYNCHRONIZE=${{ github.event_name == 'synchronize' }} \
-            && (${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
-              || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }})
+          SYNCHRONIZE=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
+              || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
 
           BUILD=false
           if [[ $CREATED || $SYNCHRONIZE ]]; then
@@ -52,7 +50,7 @@ jobs:
   ci:
     name: CI
     needs: status
-    if: ${{ github.event_name == 'synchronize' || needs.status.outputs.matched-labels }}
+    # if: ${{ needs.status.outputs.matched-labels }}
     uses: ./.github/workflows/CI.yaml
     with:
       build: ${{ needs.status.outputs.build == 'true' }}
