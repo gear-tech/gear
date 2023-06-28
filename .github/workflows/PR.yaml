@@ -27,6 +27,7 @@ jobs:
               BUILD=true
           fi
 
+          echo "build: ${BUILD}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
@@ -42,6 +43,7 @@ jobs:
             CACHE=false
           fi
 
+          echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
   ci:
