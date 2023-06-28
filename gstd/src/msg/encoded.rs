@@ -67,11 +67,10 @@ pub fn load<D: Decode>() -> Result<D> {
 /// any fields, with heap allocations inside (for example vec), then
 /// this decoding may lead to heap allocations.
 pub fn load_on_stack<D: Decode>() -> Result<D> {
-    let wrapper = |read_result: Result<&mut [u8]>| -> Result<D> {
+    super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
         let mut buffer = read_result? as &[u8];
         D::decode(&mut buffer).map_err(Error::Decode)
-    };
-    super::basic::with_read_on_stack(wrapper)
+    })
 }
 
 /// Send a new message as a reply to the message being

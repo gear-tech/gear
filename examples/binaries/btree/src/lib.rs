@@ -52,7 +52,7 @@ mod wasm {
     use super::*;
 
     use alloc::collections::BTreeMap;
-    use gstd::{debug, errors::Result, msg};
+    use gstd::{debug, msg};
 
     static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
