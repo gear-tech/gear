@@ -15,20 +15,21 @@ jobs:
       - name: Check labels
         id: check-labels
         run: |
-          BUILD=false
           CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
             || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
-          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }} \
-            && (${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
-               || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }})
 
+          LABELS=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
+            || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
+
+          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }} && $LABELS
+
+          BUILD=false
           if [[ $CREATED || $SYNCHRONIZE ]]; then
               BUILD=true
           fi
 
           echo "build: ${BUILD}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
-          exit 0
 
       - uses: actions/checkout@v3
         with:
@@ -45,7 +46,6 @@ jobs:
 
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
-          exit 0
 
   ci:
     name: CI
