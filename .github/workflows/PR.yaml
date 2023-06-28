@@ -11,10 +11,6 @@ jobs:
     outputs:
       build: ${{ steps.check-labels.outputs.build }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
-    if: >-
-      contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
-      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
-      || github.event_name == 'push'
     steps:
       - name: Check labels
         id: check-labels
@@ -22,12 +18,11 @@ jobs:
           BUILD=false
           CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
             || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
+          SYNCHRONIZE=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
+            || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
 
-          SYNCHRONIZE=contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') \
-            || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
 
-
-          if ( ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ) {
+          if [[ ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ) ]]; then
               BUILD=true
           }
 
