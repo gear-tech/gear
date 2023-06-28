@@ -33,7 +33,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 extern crate alloc;
 use alloc::vec::Vec;
-use codec::{Decode, Encode, MaxEncodedLen};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 
 #[derive(Encode, Decode)]
 pub struct InitConfig {
@@ -105,8 +105,8 @@ mod wasm {
 #[cfg(test)]
 mod tests {
     use super::{Action, HandleData, InitConfig, ReplyData, HANDLE_DATA_SIZE};
-    use codec::Decode;
     use gtest::{Program, System};
+    use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
     use static_assertions::const_assert;
 
