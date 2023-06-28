@@ -9,10 +9,8 @@ on:
   workflow_call:
     inputs:
       build:
-        required: true
         type: boolean
       cache:
-        required: true
         type: boolean
 
   workflow_dispatch:

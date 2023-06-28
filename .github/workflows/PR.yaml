@@ -36,9 +36,9 @@ jobs:
         id: check-commit-message
         run: |
           MESSAGE=$(git show -s --format=%s)
-          CACHE=false
+          CACHE=true
           if [[ $MESSAGE == *"[skip-cache]"* ]]; then
-            CACHE=true
+            CACHE=false
           fi
 
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
@@ -48,5 +48,5 @@ jobs:
     needs: status
     uses: ./.github/workflows/CI.yaml
     with:
-      build: "${{ needs.status.outputs.build }}"
-      cache: "${{ needs.status.outputs.cache }}"
+      build: ${{ needs.status.outputs.build == 'true' }}
+      cache: ${{ needs.status.outputs.cache == 'true' }}
