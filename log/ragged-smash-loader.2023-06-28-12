@@ -1,0 +1,1784 @@
+  2023-06-28T12:16:15.239616Z  INFO gear_node_loader: Running gear-node-loader of version 0.2.1. Run name: ragged-smash.
+    at utils/node-loader/src/main.rs:60
+
+  2023-06-28T12:16:15.258234Z  INFO gear_node_loader::batch_pool::api: Batch sender starts with nonce 191
+    at utils/node-loader/src/batch_pool/api/mod.rs:34
+
+  2023-06-28T12:16:15.261427Z  INFO gear_node_loader::batch_pool: Renewing balances every 100 seconds, user target balance is 1150889087593600976, authority target balance is 1154705469535604976
+    at utils/node-loader/src/batch_pool.rs:388
+
+  2023-06-28T12:16:15.261662Z  INFO gear_node_loader::batch_pool: Running task pool with params, seed: 1687954575261, pool_size: 8, batch_size: 4
+    at utils/node-loader/src/batch_pool.rs:99
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.261911Z  INFO gear_node_loader::batch_pool::generators::batch: Code generator starts with seed: Dynamic(4952308581921564130)
+    at utils/node-loader/src/batch_pool/generators/batch.rs:117
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.265576Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1869300929329369702, salt = 6fccb6375ada4f6484d1d8b4e8d330261de4c63d2bf9205055e5e26fb779a2061d2b97abc24be83efbd168c64b3c810e0afeadca1438d07864d3062271, payload = 580a3723e8933f6316a581622e0ca47546c419aaae989c42023f201d0eaa86c17efb3425dd880f2d6d101a472b1ded6b6f06ca3227
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.270789Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5241530260200437225, salt = 4847fc4d8c3e60b789d64e5070dad1d25b6630fc05c27c602183338e47a94fac6e33, payload = ee3fb40667a3c9c46a9bf4138e21d97f8136c2098338f3a97c1c096ef4b659e774c34a0c26963eb4ce30fcb25807849c5c77196307ea58
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.273911Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5754554661819747037, salt = 8f226f47416011ec4e94ec56c7dba6956c0f7f48c34c3a01e5419573d5ec32d3acc0, payload = 9091a9a1
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.278810Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 9721434656698203006, salt = 19f6d224064f5c2dba57838024d27dd03d8f2845d14c6d63927428a7e1199fe777e23fd9370335502cce4195c6fd1b5e201d78637242f3aa18039d8c52c06fd60ed6227c9930b46e14259c99e901b0cb28b239bbce5d9fd32f5c4df3e519d09572, payload = 0c1cc1b116ba267ce3d54ea447ff
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.279365Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 16022737094507860429, salt = 79557eccf88ff4200e6dcc6ffed762114de3b2a287a0614638f0a358e16f7d558ace58ce7793d16abf949e764cf2892543dc790c7ff58bdcddccc6481c6307a046a42fa1e9278a8dd96c6d5c810ae51e002a76e74738c0d340d363e28f25448c, payload = 0a979a1095585f10fcf95e207d60fb4cf3c590ccecf09e1d72e21e82bdca1fefacbfe7f1a2f08a26dfbbdd2eee3b50
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.280465Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4802767681605401965, salt = 1d2bd333ea4ba78bcc3ad632421ee14d31aa835814126cc01d40c158f53018e81ec8822fd3d85d8144ebfc1fb521a27b14bf7e72d616ddd492e452cddfe05d58c2e8, payload = ec75e5407b349202dd888749cffa89165c2ae4c868ee7ffe358a5ec0678e766c289959d3ca4ac35d8cdb756271d6bf89552d5b986bc5a51ba2944d9f8be70ac6aa886063ed656ef492dd0ee8ed2d465dd4656b301df333d6c522e8ba0759210b
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.280898Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3738966621789804300, salt = a74d07, payload = ae5f71595283a03bef3e65c63270feebeead0f36381d95e5a4f31bc99f9bdc11014abc1e5133dd212ebda76757f1251065d2f81e323c42f3017e6ac0fe2f75f01ad2b7b9df464b7e5e4e1758f0fffe208c
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.281526Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5643889964314930654, salt = 1b91087df8ba4ec1f07a1ff357144496704681ee2cf21f2644b29f8276, payload = c8ef72884222fc99eaa9c86c21d28da6843aa76b322005b37ae3d9c624fc28403f9f82cd3f150345dd3f5f5e71b53b0b419e
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.283314Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1132083685366031560, salt = bf3dd38236855361f246e85711cb98358d78e349b0da7477999cf40ee06e9fbdd3333219b197e481738143991c1bbd8829f8d8bb3c3b40c81d061a14c70b3274bfdf3b596db2e033a2, payload = 82aa7a172c5b2f3fdf3f52e18a4c685d23239c3be14cf2e02c827c241021d920e8df04a4772d7dcd4cfcff6d48574c6751
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.292731Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5213648375350230110, salt = f4064fe9e674ee9ba0216f7d6cbc2581ca453aa35e0efcf64e69f151959fe6ea7e69e09c678df7ba7000d241c2036c3ff454908fcce60b5e9625404c6e, payload = cbe88a74505f012f96ea0d4d5d5966856f81
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.294527Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4489346387626039647, salt = 9db0754e3121d5fb1e9d305b84624e2fde54623d3aa078d17c01b115a6403e61b99c04d91957a2128c100ed30a461c677519cca570434a3052, payload = 962df309036738bdcff1e03c63576569dac7f52d0b2a7ac09c80050f2427316210f63793f5b8900ec468303c7f3039ff388220a9346075bcccef5abc517869a88a9f26e5e6d2a303667ff092a3786a42069ab38022355c10fd95f7b53811
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.299298Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 8620223647670787574, salt = dd3e86a110739ea5b8656a06107bf6605293e661f19972d74887ce5f88a101838e53b521147a735f4354f5f412ce29149eff689656ea0e8fa7d4ecd1d9d1, payload = 716eff50c14cd9d8bbfd0cebb5fc6523eb727c8c
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.305756Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 5813816434475012060
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.310694Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 18361027334738112251
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.312219Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 4641345494360096838
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.314029Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 8507211010459156620
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.316462Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 8418567584740546633, salt = fddd846b4bcd5541bbde3b64104a25e307bd42878ae506037a3925b492a087287d96401a5bb362221f1e6f4e6a89223746a5e2b8f2229577ca8b804209cea63e9537ca1a2ab853938fa253f5be259ad055783e4a32173ad7fc6f, payload = d24ad911da2709
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.317133Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 9323917284415638982, salt = 769531f441f9acf08ba21f0c8ce2b50ec4df3a7184dd2b65a44894ff32e84c1f73deaba1c680b55772ce78aaaa82093c5ca8a28eaf3d955e6668502eddae162a968a9942d4ea40306abb1bf871b6ac4163c7, payload = 6253a115f622173b062f3ca3d3191dbedf30cdc7c0bea9ee3e5622b2beec315159a0638ca3e5ff17e30aca4870b4389bea6b72234b5bbea52e5764bb5bb0deb3077e2be8
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.319972Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3887512321383330493, salt = f38534, payload = ff2a1ff0afc6229d5f7803
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.322087Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4681306336403213875, salt = e29b984121af428a64dd9c4bfd, payload = 3b6268b8be8e
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.325558Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 2147262095567335604, salt = 7ea0c66657c4b8c672a6c1bd7b67ff9ddc1d3c21460c47683c2e81c531faebf18f52abf43bd8eea82e9f8bab2a393a685fddd6998af4f2e1337c834f683cee72f340958dfe134d12dfdb628e8ce8845563ad340d987166ac1165ad, payload = ccbe5e1cb42fa08aabf2bdfea4dcf7b78677152e343e91375705f0
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.327667Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 10438031394627519492, salt = b8226d8b5a4c9148c02c8427e4477c0e72f87915e1470d97f4e67ebb05589967273246, payload = 2cc9a16c8541b4f8b9e02732a6b565bbc417504b5ec5673b96152e33e52f00e271de5405cef8f075478945d8d7225c0486dfe8e527a5d39dd4e9a41727f096102c12f235f374e56d0ab27ad4db3bcced3c21234c164aad
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.329055Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 17484742453184675008, salt = 88087bc3515d3f1bd18ca2fc9e1aab8e7f48547d0bbf0d23cdadaf5f3cc5d6afadd3adcd9e92d9cf5a87c67e19d7750d4d753596b7363e84b91dfeaf5159255f0750, payload = c6b52e498d3ea985d5611b3554bfc2260664b80cf8ef3ec50856098b79779384b1a85b3ec4aa35095c91d6ee
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.331244Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3878398969474104178, salt = 175867f04fe3559aa7748a23e2f4f32c47ebc99806017019dc5a07da4ae71d8d4ad4e0c3376c4bf029f2a001b75aef2469db7fedc90ed50c489aa25a20bc777f186e1c81afb224368b563c2da3afce13697d5aeb23, payload = 5aebddbf00c9eb02e19f4afbd660b3e46a70bf415a2510b8c899bfc83d7c2f31ec7a050914378e30
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.333811Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 16962863881710067284
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.340235Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 2676408972265491957
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.343871Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 8903352653195639040
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.348798Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 13897995090761842678
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.350359Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 15044313662338300288, salt = 2de3b6e4a7fbec5601ca642649bcc135af32432b01b695b212339f83e7658f9ecb614619080ab7c13f90fe3d57f74f1da32c8635c6ff4065a1067f5fece4e8118c45212a130b17, payload = 618bf5230e3dd27db2329d1bdabd46bdbf6da95ce61532f0edb780986723863c7f4c0a74d40460f4918f3f59
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.354115Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 448632867222359409, salt = 277862f5d106657bd1d3d3f6e5cd25, payload = 905d0887dfff4db513586fed46afbfb1a49df78257433ca94db30f75804763a422aefa1124995c2b5de922b98e969f6b8e7e4e7014e3abf6464b5902e80577f37b9ccd
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.360284Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 14656289922188273823, salt = a79afd72d862986a605ff8018200e95d736b7348f4d9633298544415b75617cf1ccc697fa2ca26aa4906ebdc380702b0a463e522160be447, payload = 0555644aa8a10ec68b588a74fbde51262649956313cb4ac96b7be29323fc06fb7b4dae260f78908b7ae489c50235f82bb34cf47126a399b960c83843122e2a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.362930Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 17811561431725543744, salt = 8cdbe7c9590090517b006a5814f83446c1cb8cf7d86bc22ca2cca6a1, payload = 68383ffb6d876b751e978488
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.362971Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 191
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.364770Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 192
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.364861Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 193
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.365642Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 194
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.366262Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 195
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.366702Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 196
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.367158Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 197
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.368752Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 198
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.383446Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.383457Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.389654Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.389663Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.392170Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.392179Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.396577Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.396584Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.397771Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.397789Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399340Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399344Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399604Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399622Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399713Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399719Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399724Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399728Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399755Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399761Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399765Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:15.399790Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.084249Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x444b…ead8 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.085995Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x22ea…5e24 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086055Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x6771…c19c )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086067Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0xcf05…9cbd )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086076Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x6f0e…e136 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086084Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x3602…9785 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086090Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x92e0…5984 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:16.086387Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x5b41…90e8, extrinsic hash: 0x0553…fecb )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770188Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x0553…fecb )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770244Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x0553…fecb at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770468Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x6771…c19c )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770488Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x6771…c19c at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770553Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x6f0e…e136 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.770571Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x6f0e…e136 at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.771881Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x444b…ead8 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.771913Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x444b…ead8 at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772003Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x22ea…5e24 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772021Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x22ea…5e24 at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772707Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0xcf05…9cbd )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772737Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0xcf05…9cbd at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772820Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x3602…9785 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.772839Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x3602…9785 at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.774926Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x5b41…90e8, extrinsic hash: 0x92e0…5984 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.774955Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x92e0…5984 at 0x5b41…90e8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.776571Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.777753Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.778005Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.779619Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.780109Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.780584Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.781698Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.782516Z  INFO gsdk::signer::utils: 	Balance spent: 82248944687000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865768Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865776Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865779Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865782Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 1010694942209030828, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865958Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865964Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.865967Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866024Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6137371282792912840, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866196Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866201Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866205Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866208Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13652095298565650974, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866317Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866323Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866326Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866330Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4979630853720292342, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866469Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866475Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866477Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.866480Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18419308826131020465, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867041Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867047Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867050Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867053Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4967796668862260821, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867286Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867291Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867294Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.867297Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 18152691862034020355, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.871253Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4104365776806769610, salt = 7cce1bd934a0980e9f22afd2b0031d91bf082e2b2c1f, payload = 841bff
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.878018Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3191820726414121374, salt = 7c705d6b9cc59ef9990a8738a6c1f837e5846b114e565b96807a7580f8e71096c00d770cd4b31b3b977ef68b04837e9a184390770d91932e7218e06efdd8b7aa81d46f2af0c6, payload = 1d42c4f7b3916f6b26334176b03121715306edfbde1aa54308e1ee0941f493c72f2571c048b2f79771dbf3c206812357e39902974d53c91069f92d92c193fc6f19a23301a3c38612a7d5dadefcc314e840a02d6e8f120e61cd38a53dff02
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.878572Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1946690761909752014, salt = 3413d69436805b5f3e1363b4045bbc2f4eb3c1b188ab9dc79e2913bd, payload = 60617fb9f88729e4042b9a659995cae026068565338875179769aa1b6ba714160d0bd3718d609f262f296c3237c14ad6281618d7863e7750f8d33d5f48804960f557a1c09be3c04c5621b6b7d3def7332884d70a477cb6517a35d4d2951f
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.884045Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4659404717264506951, salt = a60e8e85a5ec2e113d52b1aded1a18dd7efbf093dce54a6331def31291c9ca5cb73225175b1025707864b4451a3285f97bd8e12b49a675789645f70088c2368c229269caf8ae9068a86ec1e15799d7f91ec801445273212fbaef047977afc43d4aa6e4, payload = 14fa78f2933ee5655e3bdc3acde6ef0ff89c4a8f6436799cfa61aa2fd00cf1528079ca107bcb64479dcb3650d5d82dc99a775b0e937acf5646a2026a7d75ae33fa9323496d860492d2fa401daeb36583b1dbcbc6
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.884186Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.884192Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.884196Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.884198Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 10416279510793820730, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.887321Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 16819138046900279519, salt = e44123b2cce1b963eddb078f76cabbdd423a17900e4b4cf0e7bb7f8fe4182695c125c90e9e68315c47ca8d9c9293f7a28c0104d35e, payload = e2e563746e54a49a747486ce1f030b4b5c74850764d036428e330b7716a0b69a7df09645db49ea7ed5ada4338218a6f6a67b867292737105df
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.895402Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 2787563837829395957, salt = 4a2f26837b039eb2913f38ec5efa2cc1940de265d0ea45eb810ba4d8e1b93a1c73227c4f63227b45502e056df5b9, payload = fff81c7e1c8a7dd13591d126ed8f4dff54dff5c11b0964d4f0f1abe2800b754737a3fec4dedffa3c905a69fc6d7ca1b40ff1e7a22524872bbdfce8f3ee2ab98e7bba76b99ce879bf1d20a596d22d0e0f41a587be0be01b4898eaafdc67
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.897332Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 14923279372950718660, salt = c89b3d7e7461c8c7633f0879bb5bac486ab7fbe09e0dac604e8aad1136da8980d9dc23f96ee16e4a52120fe599743e2f03b26f59ed72e09a214eb6344d47e2, payload = 3ec7725683fad6377c0d9f783c806be1c502f42ed6db86c5f4b38752a4d6771bc759896367358f6329
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.900976Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 12531166244244271913, salt = 1d321ea619dddd192688733c1ec1975e80a6b22ca944f1369454b9f7d3f233eadfc0df6d3f3c9acfe74f229118ae51a23e73ce8292bd090be5cd9ba16464eeb6ae3a795e9d5727dc0e2bbbf9376bfb2673, payload = de776695359a247c568b8c503d200bc54d252878d621fa9f36bc08febc52520f573ef5123f7c884ff562b73882
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.900995Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 199
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.901753Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 200
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.917283Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.917314Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.917869Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.917876Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:23.917881Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:24.042026Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x11d9…27a8, extrinsic hash: 0xf63e…20b1 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:24.042046Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x11d9…27a8, extrinsic hash: 0xa23e…9aac )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.793668Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x11d9…27a8, extrinsic hash: 0xa23e…9aac )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.793715Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0xa23e…9aac at 0x11d9…27a8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.793863Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x11d9…27a8, extrinsic hash: 0xf63e…20b1 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.793877Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0xf63e…20b1 at 0x11d9…27a8!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.798576Z  INFO gsdk::signer::utils: 	Balance spent: 26358308611000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.799915Z  INFO gsdk::signer::utils: 	Balance spent: 26358308611000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816252Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816269Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816274Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816279Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 8560765110013447670, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816387Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816394Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816400Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.816404Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 7969008608623377286, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.825176Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3097210788562799624, salt = d4713c51687c8345c09796f41423307021f43dddf2c854c058e453fa3b1d67a9fe5b01adb69312e2e356ca6b95ac7f1e9bd732e90d97e6dd48, payload = 2342437b
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.834000Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5495644787192569355, salt = 59a89e85a75751936641f13ab4e7aa496bb1fb8463e09404988ef89d7d80acecf4c0c6cf30484f5efd461e062026cf605a2192af79ddb07f5d5aa48804e1e84c2dff9af18626cb2c25c5a3b8f095880faefbd8cc9a32, payload = b47c18c240ba9ecf96fe4be5b7bd96a7376e9c474f25ea1799badc23cb9fe3f2fe9589a8fa79539f990f33d9a74daa2487443f0a70c9f053c86d4fee889f215406dceb952251087a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.836360Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 9061329706201013624, salt = b4a46b7b1e5caa27f8a6cb29a33caa40d9dbbb5b, payload = cb749788c176c05b7efa55e2244adf4a070aafca4a3565c6ac87c23cb3ce76f7cf18df0642f6a81627f059eea58db618f54b091385c59c665926c1a902759b084d1ef81c2b54104fbb7a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.842842Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 8661158077197944859, salt = 17b20cc51e4e14057df70c8b3267203ec54f8abdfcded8ab4880f87292d82c370f39570867ef6eb9a456d0270965f9873ca32350a0ba4486e7c53b589485b9bab6ea78677d668df139aac3bf5d1f009e666e0871ce3e6bdc94effd7ebd8b7b5ec7606a, payload = 13ce469b47a494ed5009e3b769b4bbaf5c6929965fb15b6ccd72df166a0f6956f20cf4
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.851438Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 12351041560844268096, salt = 703832d2, payload = a53b7599
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.859087Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4130148869251244133, salt = c2f07175f77fc3543852ffc9ef38b645, payload = a884274ca6afa8a1ec57063cd02f1c6fa84f0033b4
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.867367Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 17867163424738069549, salt = a7a31668ce19b618c29029918c6a52583a9691fda97e8ae2bcc6a820e2e4c5cd9b72e4116b22be13882e2191917d8c6e2f3d32dac803ca33c20b555c50d16356263753aa9d228374e2d0bc1d19be9caaa65abf2ba297aeaa1335150fcc8d50bf0be4, payload = 2b86e49f27d11a96da8ca13f75cee31e1e4c52810a8d23e1a9be14f2d474b44b69fa2a81b201a9fadddab62900ba971e4216c2893abf698e377291eb59645486e1be50bfb7bd67de6f9e1efee2db0559a41678a04c0c1c479950152b13
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.874438Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11057951761403141245, salt = 98b0b98fb3ae40da6c81f4c10318f46fc45d, payload = d77233786ae7747415bf81fb752c131128
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.880028Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3265859785518815440, salt = c1, payload = 50831684275649054b76587d62a3cdafc15070113be8e9bbdb750bb71bd63d84
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.881139Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11413279052013558199, salt = acf4784a9605a93fa7c786b56fef2336801cc671695af954c8c457098d0efe7e629daa2581a1276122e6bae73034c8f33e210eed906d2c0814866c6153d322142635b0ad9896dd28de66b0ef9abd, payload = f510cdf0903e87eedad29051cff3c8006372ea2574
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.882681Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 14988038570537339857, salt = e83abd7d6605e310795ce9569cbb5127c07b2a3fd6c3096dc919dcc254, payload = 2d4dd1eb51a2f432dcdaa5cdbf6e2fa73e254e8cf670925c3635fe8f33e0979596719121b4ff0b6044a35cb716309499cd91c3afc7dd014e13b24055ddab7e4dc88d61c6e8aeaf699bb8b59fd102d48f7354fe74029a37e4b829a68e706a62
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.887215Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 6796802358373034726, salt = 064516df47648d9e1728f83dabcf72ab1fd6975d5f93c69bfe4ef0df51eb914159bb0a3d8cce1b762ab05dd8a7040db0ac3108bba7f6998305a1fc47c7a6e28a00a14e9669950247367e9b62b7a548feac5d04bcc413bde89b8f70cad86920ac10d20295, payload = c81236adef9be8e157d6a6481b14fe36dd19d9c54d22545b51b179b397e4b881082b452975969ba280befe33
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.887948Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11710642832555705981, salt = 370d6850326f517d513ecb68f4ce34622bfa6567d0692df773487918adde613f1c731000dc46c81c299cca94eb21018412e26f17e995714d0c31f1384364f76b2b6732babb28d2392f41d7ec06f950bdce45dafa7edae132e25128cdce19e8fe4671ec87, payload = b54c20b8
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.893978Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 324216548154444594, salt = 9eef54eba8adc2a3ac53a19acef1d1fa042b00c8185ee147b1a18b39723235c7de945b423735d48d157e5bfbaaf3677c23eb4fc7762b8b65, payload = ab7ee65f8e7ffed3103a31b4079fac209d9378b0c7f8cd8a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.900964Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 14093075715067861558, salt = 6e4dd9c17858, payload = 35d99dc17a1a488e2bd3
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.903039Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4334557877296620941, salt = 469f891c4efa01c6622ff5, payload = 20b594d00ae9a43469734def7315f435d1f94433c56da813ae9cf46c4981
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.908472Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 3651703233796955980, salt = 4621636f74dc7a22c8212cffba, payload = 0b2cea0fc7459cc9cbf0c757b70297e738288b109d99f73e3922d421b8508baebe1722f554e1e89f747bbcaa6e704865c69b97660a5025a5e016163d3c7e0c59e8be85ddf528df9b8b7ecf8f10c81918aa15f7fe
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.909462Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 14911680645565021343, salt = c2347ad37c2bd9f4e05633871312789b9cb645349a1abd108d679d4582b401, payload = 9cd4881c49f8f12250d7e77a6a8ea651961beb01d082b5d1837bd6d73c59d27fea4e00b6dff0963de7454ff1a09b52
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.911664Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 2246518761097039271, salt = 011e9dd2b87b93ecd44796535bbcfa44491773c096c40a5bd31a385a343d079bc15c4c7802c775c8838f2b, payload = 8a51db0b01ee0ee9e4cccb68e90d038d
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.918788Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 9026870359334926930, salt = fda10d2a58d15194256086c1e455bb0fd736fe0bc1c674e8ca8998258abb7dd6625a9f265ccdf33053526ab4fc48fd66a5d0772626030c50211605a501580d8dd53ad774ab034d7a310844ea34, payload = 10d850093cb43e3e4ca8bfbaaff0d82ed34759cb6375f631ae81b0c0ba5e53fed4af244451
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.918806Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 201
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.919480Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 202
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.920675Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 203
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.921202Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 204
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.922062Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 205
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.926913Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 7289367267321926649, salt = bd28, payload = 9cdac3959577e323744106dfd578fcc0aaef5665d9b0cf9c11a0d34a1a2d5f7564cb3f06d77a5431dce6f7403b336b474641a0821e30e7439a4fcbd7665b19d24d257d47ccacc820896faad760b2319682935590c7ef265dc0ef610e478c3893749345ce
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.933511Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 997143630285237617, salt = 43f4c2230d906a2fb8c4a3358324c830f731017c01cfdd82fe, payload = bcf06a244bdf0f06109205563b937ff5058368bcdefce2778bfd7846957eb2e37d6124398226bbf641d07c318849638491a85c9252628f3353faa978
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.936202Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 8436579652969197130, salt = 3185449504aa9f91f22ed2bbf7baa1742abbd215cf6b7ea0250278e7046aea47901c8519cec439a899a72aa3a6879d5c9bcbc3383871735f68546385c410c5e3c87cd2ddce1d053d13770d93aff5a498603fd069e25e, payload = 890ddfd61248ec3ea6e233dab6b4a8e17c1b9390f15cbb8c4103c976af07d93ee370066d4ad7ab06c07db342ba187b43fdb7d0f09b07fca64297170940afd71bf95029e09c8f257fcca3a4d4299f675279363005a15c68909654fdb93339
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.941282Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1149953503537042985, salt = 6e30772eb2936da386c16ad075ac160f57a1e9a08b2529fc72c5a834e9f50eeafb7fc97e6604d327a89c6fa4c05b4fb119bfc5876411968655366260, payload = 613c84968849e687cb412dc22f934975bd53e64718a32245bec24819eec397e8
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.941366Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 206
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.964333Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.964360Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975004Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975013Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975020Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975024Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975091Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975098Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975455Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975461Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975465Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975469Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.975473Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.977910Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:31.977916Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076576Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0x08d7…a5ed )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076590Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0x6389…a131 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076597Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0x3c03…2b87 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076603Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0xc9ae…a75c )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076644Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0x964a…6401 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:32.076656Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0xa4d1…4d84, extrinsic hash: 0x2f55…c539 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.815542Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0xc9ae…a75c )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.815583Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0xc9ae…a75c at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.815668Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0x964a…6401 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.815678Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x964a…6401 at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.823799Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0x2f55…c539 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.823849Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x2f55…c539 at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.823937Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0x08d7…a5ed )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.823950Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x08d7…a5ed at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.824045Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0x6389…a131 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.824078Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x6389…a131 at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.824150Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0xa4d1…4d84, extrinsic hash: 0x3c03…2b87 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.824163Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x3c03…2b87 at 0xa4d1…4d84!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.846418Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 14471103044265975067
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.849236Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 3753773093511654769
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.858702Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 11308148084406573690
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.864094Z DEBUG gear_call_gen::upload_code: Generated `upload_code` with code from seed = 1356086110257642213
+    at utils/call-gen/src/upload_code.rs:46
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_code", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.870918Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 15478346927843698346, salt = 02076d075f246f87f1dc0d53db71514cbaf8763449aae0bdc4e5474ad255f1bee614e82ff0c542c1d7313b7ce43d1b1faf, payload = bb6f0a687bbdb0cf3431a9678dcc7f9f38a13b14d36dfe66bb1a58637159f46b0e00c3c30cb3f099a69b0c862985a5f62c50d28e8ec35b88b32f64f189b7b155889754a66fbd7663de31d2d8194b36fb1167ed187d791da9fbc556197b65f4c326c8
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.875120Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11926991483336738757, salt = 1a0e9302adc1e7e384da90467590e15ef1502b8c6cc03c558c9bf99e8540538b515ca5476b3124cb67710c6f7567e8f5d11f497dc8c8d0a59f9c086ebfe3e306bc, payload = d7
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.880512Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 7183347009100945448, salt = c8, payload = 170d5942256d18050c023b1247bf30d1f61aed2a21b21e86d073a4ba30a04f457ce36be61c76ff7c6b
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.884907Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 4238764357810821151, salt = 05c5ba3550c11813e39bfbdfbe99772d137879a01b366ac8c148c39320c9dd704e62b563f524bb61856f002f97acd4a930b5218e6bdf46764dd1f765c6d480d653c5b4edfc69d7d71c1228b8f6a8f385a3d174495ba4dfbdbf2a6d, payload = 8917b777d4163b12baf51e20d0df095d086ab3473bac
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.884922Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 207
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.885775Z  INFO gear_node_loader::batch_pool::api: Call with a new nonce: 208
+    at utils/node-loader/src/batch_pool/api/mod.rs:151
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.886517Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.886921Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.887227Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.888181Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.888627Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.889065Z  INFO gsdk::signer::utils: 	Balance spent: 85741910334000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.934393Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.934401Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.934403Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.934406Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 4910571794500938554, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941157Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941164Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941167Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941169Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3377059238365546396, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941689Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941694Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941698Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Successfully executed.
+    at utils/node-loader/src/batch_pool.rs:248
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941701Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941765Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941774Z  INFO gsdk::signer::calls: 	Status: Future
+    at gsdk/src/signer/calls.rs:354
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941880Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941885Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941887Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.941890Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 14107643153477052032, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.943012Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.943017Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.943020Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.943022Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13457394034106837039, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.944175Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.944179Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.944182Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.944184Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 13550371345198303580, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.945670Z  INFO gsdk::signer::calls: Submitted extrinsic Utility::force_batch
+    at gsdk/src/signer/calls.rs:402
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.945677Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:39.945681Z  INFO gsdk::signer::calls: 	Status: Ready
+    at gsdk/src/signer/calls.rs:355
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:40.035667Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x09f6…89f4, extrinsic hash: 0x9694…5279 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:40.035683Z  INFO gsdk::signer::calls: 	Status: InBlock( block hash: 0x09f6…89f4, extrinsic hash: 0xf59f…eff0 )
+    at gsdk/src/signer/calls.rs:357
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.830692Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x09f6…89f4, extrinsic hash: 0xf59f…eff0 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.830735Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0xf59f…eff0 at 0x09f6…89f4!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.830839Z  INFO gsdk::signer::calls: 	Status: Finalized( block hash: 0x09f6…89f4, extrinsic hash: 0x9694…5279 )
+    at gsdk/src/signer/calls.rs:364
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.830853Z  INFO gsdk::signer::calls: Successfully submitted call Utility::force_batch 0x9694…5279 at 0x09f6…89f4!
+    at gsdk/src/signer/calls.rs:410
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.835780Z  INFO gsdk::signer::utils: 	Balance spent: 19998278865000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.836749Z  INFO gsdk::signer::utils: 	Balance spent: 19998278865000
+    at gsdk/src/signer/utils.rs:32
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 6412825687883279208, batch_type: "upload_code"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.847176Z DEBUG gear_node_loader::batch_pool: [Call with id: 1]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.847191Z DEBUG gear_node_loader::batch_pool: [Call with id: 2]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.847196Z DEBUG gear_node_loader::batch_pool: [Call with id: 3]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.847201Z DEBUG gear_node_loader::batch_pool: [Call with id: 4]: Failed: 'Module(Gear(ProgramConstructionFailed))'
+    at utils/node-loader/src/batch_pool.rs:250
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 3078387410793977720, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.860348Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 15840693181608311289, salt = 4a1ef12e868f1f1285f03423b59502014bc2d9ee0a8e9d09a40716f2d4b8, payload = d6d9b753416eaa09e21c56d2b2be6f9045d48308aeaae38d7cadd4e71189b407ea0fbb114eaae8bbaec5c7
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 438202382816915158, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.865966Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11831782707071120804, salt = 8fec1726729c0cf8ca25938f6ec5a17f62a0b0d42df7773b8ef5db7a01f56d1ef9d1a80a9f771fe5e0cd2d8fe81f69db2ad44e7b4ddeb6755c7cca7727a36f13e458fb6ee8c21bc4af48d5271ca5e26e532d739d, payload = 00d4164548
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 438202382816915158, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.868468Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 5048658665423825565, salt = 17837da6d09f076186b06d2a1cf09f4be693a7709c7ae627dfe2711d8efd1c65f5df5a18b0ec0d684820b513de360cc950331170, payload = 4a8bcd920c50a19e52945af4b0624fe525a9016b781e8210854061504d70f2c1f6c79d82db1bcbdd26ddb9f4642e540a24b7a6f092c13fee28
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 438202382816915158, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.872576Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 16285555018531342081, salt = e0e39dcc8d9173b90f055151ac0228290d197c239df547f2726b167067de44023ee133, payload = 8fe724cecb3ae0463a938f0e66de88f495bb0ba161a51dbc38d9a38993d7d23642c1c1c68dd6250ff9afd5fecfce83649c995930215b8ba13da020405d5903209a954bd655f22558ee677e0aa156a39488eb3c8f
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 438202382816915158, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.874169Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1915865517097332208, salt = 6f626210015e5bce0990a549e85c10773556f56c5e963eda026bda8581a11e792a9fe93ce33f607d1f81ec84636b51c9818a2ca399051083305ead73845c00f1d0e9c244f14ba37317f618463326a9f1e5, payload = 4317669fde925cf9dd9498ff
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1497147282101416979, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.880477Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 1889542519718253685, salt = a2d2a5a9936c2cd831a09cce931c178fe00a5f646053ce1ec53171f5fb580d35696f4b5f1d5e34213f262b18eb9f2b3ed7e904c1dd, payload = 088695e389fa6c55feffc522ce7f
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1497147282101416979, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.886672Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 2472114815649418852, salt = f33a4854f7fb8ff56aa1e25aa8d01a6f4789a6e2c76d2ce6932609120b9b9a654e90acf6161080308982cc954a7c7b1fff9dd2cc73c8, payload = 34b2c03a31ae40721f0cc679a2caa7cf0855516119c1687a28a7aab726afc49281ed369034b54e0b328509316026d128a7f1e2447483fefe180d108076be04dfc48f4c869923fcf284b5
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1497147282101416979, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.887646Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 16741912279118062179, salt = d09086f42bb34a054e41a2916d25a4345a62fa67e8181f4ba6acd3b620f2f2a8706058dad45e640564b159fd11ccef329f4f07a296, payload = f0bf648347fb0cb7d566f8cbf1b10750944a53c082ccd39f47a62dc1ec5d2dd6eb63817945eacb095bf1514ebadf242f4e
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 1497147282101416979, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.889643Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 2563365838734753604, salt = b0423de9acc18ff819dcec815a83d304e1985090cf78e3e731f32c1d5327f94ffe0040b8b552e675704c5b, payload = f0d70643e918d1ce0e3735a2
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 16253615861855231673, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.899053Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 16658639530086756849, salt = 5785f79660cf0c88d5d46d5019e78dc649fba0a5c7b64361, payload = 99066c29c515d64a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 16253615861855231673, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.901005Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 8334333316802850038, salt = b1d4b82010a2d74b736a157e8467a648b94ee2179392a9c1b1fcec609329e18f97bcdde2edf306c2fee494050f27e4730cc39e27878fd6ed739cfca1a7339025e05f6a568f, payload = 6f3a08796ae6cb6a6b2f789e28bfb763ad09b07a3cbc2b43100aa587c73601b561390eb0adddd130a2
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 16253615861855231673, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.901627Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 15092518207235982681, salt = f02d3e38ffbe347bbf274335e4a2235b584f44b98d7aa77150d260b957dcaa55b7d07ca0533d9ddf4224b5ea, payload = b7e7f51df972d46948750901d30ce8c21a7b74bbeab0a749863cc7916058a8a10bee09b6b52adb605d269861d8ad8739acab289bf3ccc6d54a6115d66f43110a5d710c9a9e25c924b3b2
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 16253615861855231673, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.902013Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 15555533222847863173, salt = 50cf3fdc8d4858c159f047985b312a6907b262f8adae6772e9950b40de1106ff022835c586d5d4266c110566419b262e61b0f8949691e7412c671e4c17a6109da3bde3d3d629b0286dfc4de6c8adb3c05cfe4a8d7f93057fb3426a38d41915e08829, payload = 86f990acac44da5077da41d379dc8974f8ff512168864b66d32748d3384a4d84f63659a97c898c97cd83e0e901bb28dfd965f60ab3df30633df000c2a8e7b03f81585a8f171cc13e363a2fb72e4e5071c5284953555bbb97982242
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 1
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 17197278065854900697, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.904143Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 6771890380779792231, salt = 6bee6b9b9ecc045a89d45295aa62498b89a3328a86b3f5f38eb8b419b75cfee06b9e, payload = 7ffbc78f8a
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 2
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 17197278065854900697, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.910266Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 11871256348257649365, salt = 17dcbe4dbcfb1b758b982cb73ba6c520c8055a81af4bce225ae852074e86c989352f58e7b52e8a9081021d216e1226006371918ed1550f6e6c0d1c, payload = 3b1ee4acf4d66cd1b226b96cf2c8345c68106ea6aed17330928a27629b479ee6dd2c698b5bc683c2c20f63c2ba
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 3
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 17197278065854900697, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.911925Z DEBUG gear_call_gen::upload_program: Generated `upload_program` call with code seed = 710109026756259956, salt = 593c50f86aa2a493d2058010b0e9e63b1d2e0af169fa96b5b473904fbdfbb5c827cf46ad209840cb63ab8ee293a47d9f5e51c67b2b271efdcb, payload = c139f63c0c0cb2e9e31340ef57ec
+    at utils/call-gen/src/upload_program.rs:62
+    in gear_node_loader::batch_pool::generators::batch::gen_batch iteration with generator_for: "upload_program", call_id: 4
+    in gear_node_loader::batch_pool::generators::batch::gen_batch with seed: 17197278065854900697, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
+  2023-06-28T12:16:47.911971Z DEBUG gear_node_loader::batch_pool: 
+[]
+{0x8b5eac5bd21c8b2e731d29fa08b185734f0e2de46552e77e471b49ddb5a46a87: (0x36140fbdcea89c9b3d5f410afe5d84b2c8443bbf96bace64e047746b3be77dea, 3)}
+
+    at utils/node-loader/src/batch_pool.rs:344
+    in gear_node_loader::batch_pool::run_batch_impl
+    in gear_node_loader::batch_pool::run_batch with seed: 15463654946848288623, batch_type: "upload_program"
+    in gear_node_loader::batch_pool::run_pool_loop
+
