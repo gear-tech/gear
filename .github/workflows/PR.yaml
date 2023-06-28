@@ -50,7 +50,7 @@ jobs:
 
   ci:
     name: CI
-    needs: check-labels
+    needs: status
     uses: ./.github/workflows/CI.yaml
     with:
       build: ${{ needs.check-labels.outputs.build }}
