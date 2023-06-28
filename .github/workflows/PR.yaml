@@ -28,6 +28,7 @@ jobs:
               BUILD=true
           fi
 
+          echo "action: ${{ github.event.pull_request.action }}"
           echo "build: ${BUILD}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
 
