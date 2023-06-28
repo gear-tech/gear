@@ -143,7 +143,7 @@ pub struct SystemTerminationReason;
     derive_more::Display,
     derive_more::From,
 )]
-pub enum InfallibleExecutionError {
+pub enum UnrecoverableExecutionError {
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
@@ -167,7 +167,7 @@ pub enum InfallibleExecutionError {
     derive_more::Display,
     derive_more::From,
 )]
-pub enum InfallibleMemoryError {
+pub enum UnrecoverableMemoryError {
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
     #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
     RuntimeAllocOutOfBounds,
@@ -186,7 +186,7 @@ pub enum InfallibleMemoryError {
     derive_more::Display,
     derive_more::From,
 )]
-pub enum InfallibleWaitError {
+pub enum UnrecoverableWaitError {
     /// An error occurs in attempt to wait for or wait up to zero blocks.
     #[display(fmt = "Waiting duration cannot be zero")]
     ZeroDuration,
@@ -207,13 +207,13 @@ pub enum InfallibleWaitError {
     derive_more::Display,
     derive_more::From,
 )]
-pub enum InfallibleExtError {
+pub enum UnrecoverableExtError {
     #[display(fmt = "Execution error: {_0}")]
-    Execution(InfallibleExecutionError),
+    Execution(UnrecoverableExecutionError),
     #[display(fmt = "Memory error: {_0}")]
-    Memory(InfallibleMemoryError),
+    Memory(UnrecoverableMemoryError),
     #[display(fmt = "Waiting error: {_0}")]
-    Wait(InfallibleWaitError),
+    Wait(UnrecoverableWaitError),
 }
 
 #[derive(
@@ -240,8 +240,8 @@ pub enum TrapExplanation {
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
-    #[display(fmt = "Sys-call infallible error: {_0}")]
-    InfallibleExt(InfallibleExtError),
+    #[display(fmt = "Sys-call unrecoverable error: {_0}")]
+    UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "Sys-call fallible error: {_0}")]
     FallibleExt(FallibleExtError),
     #[display(fmt = "{_0}")]

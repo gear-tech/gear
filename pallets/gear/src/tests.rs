@@ -63,7 +63,7 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{InfallibleExtError, InfallibleWaitError, TrapExplanation};
+use gear_backend_common::{TrapExplanation, UnrecoverableExtError, UnrecoverableWaitError};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
@@ -4758,8 +4758,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::InfallibleExt(
-                InfallibleExtError::Wait(InfallibleWaitError::ZeroDuration),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
             )),
         );
 
@@ -4795,8 +4795,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::InfallibleExt(
-                InfallibleExtError::Wait(InfallibleWaitError::ZeroDuration),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
             )),
         );
     });
@@ -4837,8 +4837,8 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::InfallibleExt(
-                    InfallibleExtError::Wait(InfallibleWaitError::WaitAfterReply),
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                    UnrecoverableExtError::Wait(UnrecoverableWaitError::WaitAfterReply),
                 )),
             );
         });

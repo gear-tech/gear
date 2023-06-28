@@ -39,8 +39,8 @@ pub use context::{
 };
 pub use executor::{execute_wasm, ActorPrepareMemoryError};
 pub use ext::{
-    AllocExtError, Ext, FallibleExtError, InfallibleExtError, ProcessorContext,
-    ProcessorExternalities,
+    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    UnrecoverableExtError,
 };
 pub use handler::handle_journal;
 pub use precharge::{

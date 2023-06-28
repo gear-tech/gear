@@ -18,8 +18,8 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{
-    AllocExtError, Ext, FallibleExtError, InfallibleExtError, ProcessorContext,
-    ProcessorExternalities,
+    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    UnrecoverableExtError,
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
@@ -156,7 +156,7 @@ impl CountersOwner for LazyPagesExt {
 }
 
 impl Externalities for LazyPagesExt {
-    type InfallibleError = InfallibleExtError;
+    type UnrecoverableError = UnrecoverableExtError;
     type FallibleError = FallibleExtError;
     type AllocError = AllocExtError;
 
@@ -172,11 +172,11 @@ impl Externalities for LazyPagesExt {
         self.inner.free(page)
     }
 
-    fn block_height(&self) -> Result<u32, Self::InfallibleError> {
+    fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         self.inner.block_height()
     }
 
-    fn block_timestamp(&self) -> Result<u64, Self::InfallibleError> {
+    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         self.inner.block_timestamp()
     }
 
@@ -244,7 +244,7 @@ impl Externalities for LazyPagesExt {
         self.inner.reply_push_input(offset, len)
     }
 
-    fn source(&self) -> Result<ProgramId, Self::InfallibleError> {
+    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         self.inner.source()
     }
 
@@ -256,7 +256,7 @@ impl Externalities for LazyPagesExt {
         self.inner.signal_code()
     }
 
-    fn message_id(&self) -> Result<MessageId, Self::InfallibleError> {
+    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         self.inner.message_id()
     }
 
@@ -268,19 +268,19 @@ impl Externalities for LazyPagesExt {
         self.inner.pay_program_rent(program_id, rent)
     }
 
-    fn program_id(&self) -> Result<ProgramId, Self::InfallibleError> {
+    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         self.inner.program_id()
     }
 
-    fn debug(&self, data: &str) -> Result<(), Self::InfallibleError> {
+    fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
         self.inner.debug(data)
     }
 
-    fn size(&self) -> Result<usize, Self::InfallibleError> {
+    fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         self.inner.size()
     }
 
-    fn random(&self) -> Result<(&[u8], u32), Self::InfallibleError> {
+    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
         self.inner.random()
     }
 
@@ -300,23 +300,23 @@ impl Externalities for LazyPagesExt {
         self.inner.system_reserve_gas(amount)
     }
 
-    fn gas_available(&self) -> Result<u64, Self::InfallibleError> {
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
         self.inner.gas_available()
     }
 
-    fn value(&self) -> Result<u128, Self::InfallibleError> {
+    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
         self.inner.value()
     }
 
-    fn wait(&mut self) -> Result<(), Self::InfallibleError> {
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
         self.inner.wait()
     }
 
-    fn wait_for(&mut self, duration: u32) -> Result<(), Self::InfallibleError> {
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
         self.inner.wait_for(duration)
     }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::InfallibleError> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
         self.inner.wait_up_to(duration)
     }
 
@@ -324,7 +324,7 @@ impl Externalities for LazyPagesExt {
         self.inner.wake(waker_id, delay)
     }
 
-    fn value_available(&self) -> Result<u128, Self::InfallibleError> {
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
         self.inner.value_available()
     }
 
@@ -352,7 +352,7 @@ impl Externalities for LazyPagesExt {
         &mut self,
         at: u32,
         len: u32,
-    ) -> Result<PayloadSliceLock, Self::InfallibleError> {
+    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
         self.inner.lock_payload(at, len)
     }
 

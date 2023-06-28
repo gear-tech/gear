@@ -164,9 +164,9 @@ struct EnvBuilder<Ext: BackendExternalities> {
 impl<Ext> EnvBuilder<Ext>
 where
     Ext: BackendExternalities + 'static,
-    Ext::InfallibleError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendExternalitiesError,
     Ext::FallibleError: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::InfallibleError>,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -198,9 +198,9 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
 impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
-    Ext::InfallibleError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendExternalitiesError,
     Ext::FallibleError: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::InfallibleError>,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
@@ -268,9 +268,9 @@ where
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::InfallibleError: BackendExternalitiesError,
+    EnvExt::UnrecoverableError: BackendExternalitiesError,
     EnvExt::FallibleError: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::InfallibleError>,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;

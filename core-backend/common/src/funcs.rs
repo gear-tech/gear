@@ -21,8 +21,8 @@
 use crate::{
     memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
     BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
-    InfallibleExecutionError, InfallibleMemoryError, MessageWaitedType, TerminationReason,
-    TrapExplanation, PTR_SPECIAL,
+    MessageWaitedType, TerminationReason, TrapExplanation, UnrecoverableExecutionError,
+    UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -49,9 +49,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::InfallibleError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendExternalitiesError,
     Ext::FallibleError: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::InfallibleError>,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
@@ -457,12 +457,14 @@ where
         let data: RuntimeBuffer = ctx
             .read(read_data)?
             .try_into()
-            .map_err(|RuntimeBufferSizeError| InfallibleMemoryError::RuntimeAllocOutOfBounds.into())
-            .map_err(TrapExplanation::InfallibleExt)?;
+            .map_err(|RuntimeBufferSizeError| {
+                UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+            })
+            .map_err(TrapExplanation::UnrecoverableExt)?;
 
         let s = String::from_utf8(data.into_vec())
-            .map_err(|_err| InfallibleExecutionError::InvalidDebugString.into())
-            .map_err(TrapExplanation::InfallibleExt)?;
+            .map_err(|_err| UnrecoverableExecutionError::InvalidDebugString.into())
+            .map_err(TrapExplanation::UnrecoverableExt)?;
         ctx.ext_mut().debug(&s)?;
 
         Ok(())

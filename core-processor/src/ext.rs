@@ -25,9 +25,9 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, InfallibleExecutionError,
-    InfallibleExtError as InfallibleExtErrorCore, InfallibleWaitError, SystemReservationContext,
-    TerminationReason, TrapExplanation,
+    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    TrapExplanation, UnrecoverableExecutionError,
+    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -131,32 +131,32 @@ pub trait ProcessorExternalities {
 
 /// Infallible API error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
-pub enum InfallibleExtError {
+pub enum UnrecoverableExtError {
     /// Basic error
-    Core(InfallibleExtErrorCore),
+    Core(UnrecoverableExtErrorCore),
     /// Charge error
     Charge(ChargeError),
 }
 
-impl From<InfallibleExecutionError> for InfallibleExtError {
-    fn from(err: InfallibleExecutionError) -> InfallibleExtError {
-        Self::Core(InfallibleExtErrorCore::from(err))
+impl From<UnrecoverableExecutionError> for UnrecoverableExtError {
+    fn from(err: UnrecoverableExecutionError) -> UnrecoverableExtError {
+        Self::Core(UnrecoverableExtErrorCore::from(err))
     }
 }
 
-impl From<InfallibleWaitError> for InfallibleExtError {
-    fn from(err: InfallibleWaitError) -> InfallibleExtError {
-        Self::Core(InfallibleExtErrorCore::from(err))
+impl From<UnrecoverableWaitError> for UnrecoverableExtError {
+    fn from(err: UnrecoverableWaitError) -> UnrecoverableExtError {
+        Self::Core(UnrecoverableExtErrorCore::from(err))
     }
 }
 
-impl BackendExternalitiesError for InfallibleExtError {
+impl BackendExternalitiesError for UnrecoverableExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
-            InfallibleExtError::Core(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::InfallibleExt(err)).into()
+            UnrecoverableExtError::Core(err) => {
+                ActorTerminationReason::Trap(TrapExplanation::UnrecoverableExt(err)).into()
             }
-            InfallibleExtError::Charge(err) => err.into(),
+            UnrecoverableExtError::Charge(err) => err.into(),
         }
     }
 }
@@ -222,7 +222,7 @@ pub enum AllocExtError {
 }
 
 impl BackendAllocExternalitiesError for AllocExtError {
-    type ExtError = InfallibleExtError;
+    type ExtError = UnrecoverableExtError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
         match self {
@@ -502,7 +502,7 @@ impl CountersOwner for Ext {
 }
 
 impl Externalities for Ext {
-    type InfallibleError = InfallibleExtError;
+    type UnrecoverableError = UnrecoverableExtError;
     type FallibleError = FallibleExtError;
     type AllocError = AllocExtError;
 
@@ -521,11 +521,11 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
-    fn block_height(&self) -> Result<u32, Self::InfallibleError> {
+    fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(self.context.block_info.height)
     }
 
-    fn block_timestamp(&self) -> Result<u64, Self::InfallibleError> {
+    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(self.context.block_info.timestamp)
     }
 
@@ -661,7 +661,7 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn source(&self) -> Result<ProgramId, Self::InfallibleError> {
+    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().source())
     }
 
@@ -683,7 +683,7 @@ impl Externalities for Ext {
             .ok_or_else(|| FallibleExecutionError::NoSignalContext.into())
     }
 
-    fn message_id(&self) -> Result<MessageId, Self::InfallibleError> {
+    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().id())
     }
 
@@ -724,11 +724,11 @@ impl Externalities for Ext {
         Ok((rent.saturating_sub(cost), blocks_to_pay))
     }
 
-    fn program_id(&self) -> Result<ProgramId, Self::InfallibleError> {
+    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(self.context.program_id)
     }
 
-    fn debug(&self, data: &str) -> Result<(), Self::InfallibleError> {
+    fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
         log::debug!(target: "gwasm", "DEBUG: {}", data);
         Ok(())
     }
@@ -737,20 +737,20 @@ impl Externalities for Ext {
         &mut self,
         at: u32,
         len: u32,
-    ) -> Result<PayloadSliceLock, Self::InfallibleError> {
+    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
         let end = at
             .checked_add(len)
-            .ok_or(InfallibleExecutionError::TooBigReadLen)?;
+            .ok_or(UnrecoverableExecutionError::TooBigReadLen)?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
-            .ok_or_else(|| InfallibleExecutionError::ReadWrongRange.into())
+            .ok_or_else(|| UnrecoverableExecutionError::ReadWrongRange.into())
     }
 
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
         UnlockPayloadBound::from((&mut self.context.message_context, payload_holder))
     }
 
-    fn size(&self) -> Result<usize, Self::InfallibleError> {
+    fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().payload_bytes().len())
     }
 
@@ -813,72 +813,72 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn gas_available(&self) -> Result<u64, Self::InfallibleError> {
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(self.context.gas_counter.left())
     }
 
-    fn value(&self) -> Result<u128, Self::InfallibleError> {
+    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().value())
     }
 
-    fn value_available(&self) -> Result<u128, Self::InfallibleError> {
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
         Ok(self.context.value_counter.left())
     }
 
-    fn wait(&mut self) -> Result<(), Self::InfallibleError> {
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
         if self.context.message_context.reply_sent() {
-            return Err(InfallibleWaitError::WaitAfterReply.into());
+            return Err(UnrecoverableWaitError::WaitAfterReply.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(InfallibleExecutionError::NotEnoughGas.into());
+            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
     }
 
-    fn wait_for(&mut self, duration: u32) -> Result<(), Self::InfallibleError> {
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
         if self.context.message_context.reply_sent() {
-            return Err(InfallibleWaitError::WaitAfterReply.into());
+            return Err(UnrecoverableWaitError::WaitAfterReply.into());
         }
 
         if duration == 0 {
-            return Err(InfallibleWaitError::ZeroDuration.into());
+            return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(InfallibleExecutionError::NotEnoughGas.into());
+            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
     }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::InfallibleError> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
         if self.context.message_context.reply_sent() {
-            return Err(InfallibleWaitError::WaitAfterReply.into());
+            return Err(UnrecoverableWaitError::WaitAfterReply.into());
         }
 
         if duration == 0 {
-            return Err(InfallibleWaitError::ZeroDuration.into());
+            return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(InfallibleExecutionError::NotEnoughGas.into());
+            return Err(UnrecoverableExecutionError::NotEnoughGas.into());
         }
 
         let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
@@ -942,7 +942,7 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn random(&self) -> Result<(&[u8], u32), Self::InfallibleError> {
+    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 

@@ -259,7 +259,7 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::InfallibleError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -472,7 +472,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::InfallibleError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
