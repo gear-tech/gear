@@ -125,7 +125,8 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 }
 
 // TODO: use encoded_size and in reply also. But should also check,
-// that does not lead to additional heap allocations and additional calculation #2880.
+// that does not lead to additional heap allocations and additional calculation
+// #2880.
 /// Same as [reply], but encodes payload to stack allocated buffer.
 /// Buffer size for encoding is at least `E::max_encoded_len()`.
 pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
