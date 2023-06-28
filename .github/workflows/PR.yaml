@@ -28,6 +28,7 @@ jobs:
 
           echo "build: ${BUILD}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
+          exit 0
 
       - uses: actions/checkout@v3
         with:
@@ -44,10 +45,12 @@ jobs:
 
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
+          exit 0
 
   ci:
     name: CI
     needs: status
+    if: ${{ github.event.pull_request.action == 'synchronize' }}
     uses: ./.github/workflows/CI.yaml
     with:
       build: ${{ needs.status.outputs.build == 'true' }}
