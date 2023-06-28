@@ -18,11 +18,12 @@ jobs:
           BUILD=false
           CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
             || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
-          SYNCHRONIZE=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
+          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }} \
+            || ${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
             || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
 
 
-          if [[ ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ]]; then
+          if [[ $CREATED || $SYNCHRONIZE ]]; then
               BUILD=true
           fi
 
