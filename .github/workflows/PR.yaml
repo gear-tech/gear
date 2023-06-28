@@ -1,0 +1,57 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    types: [opened, synchronize, labeled]
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check-labels.outputs.build }}
+      cache: ${{ steps.check-commit-message.outputs.cache }}
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+      || github.event_name == 'push'
+    steps:
+      - name: Check labels
+        id: check-labels
+        run: |
+          BUILD=false
+          CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
+            || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
+
+          SYNCHRONIZE=contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') \
+            || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+
+
+          if ( ${{ github.event.pull_request.action = 'synchronize' }} || $SYNCHRONIZE ) {
+              BUILD=true
+          }
+
+          echo "build=${BUILD}" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check Commit Message
+        id: check-commit-message
+        run: |
+          MESSAGE=$(git show -s --format=%s)
+          CACHE=false
+          if [[ $MESSAGE == *"[skip-cache]"* ]]; then
+            CACHE=true
+          fi
+
+          echo "cache=${CACHE}" >> $GITHUB_OUTPUT
+
+  ci:
+    name: CI
+    needs: check-labels
+    uses: ./.github/workflows/CI.yml
+    with:
+      build: ${{ needs.check-labels.outputs.build }}
+      cache: ${{ needs.check-labels.outputs.cache }}
