@@ -3,7 +3,7 @@ name: PR
 on:
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-    typegs: [opened, synchronize, labeled]
+    types: [opened, synchronize, labeled]
 
 jobs:
   status:
@@ -50,7 +50,7 @@ jobs:
 
   ci:
     name: CI
-    needs: status
+    needs:
     uses: ./.github/workflows/CI.yaml
     with:
       build: ${{ needs.check-labels.outputs.build }}
