@@ -24,7 +24,7 @@ jobs:
 
           if [[ ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ]]; then
               BUILD=true
-          }
+          fi
 
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
 
