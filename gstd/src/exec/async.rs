@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for asynchronous execution of messages.
+//! Module for asynchronous execution control functions which can be used
+//! during message handling.
 
 use crate::{async_runtime, msg, MessageId};
 use core::{
