@@ -16,7 +16,7 @@ jobs:
       - name: Check labels
         id: check-labels
         run: |
-          CREATED=${{ contains(fromJson('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }} \
+          CREATED=${{ contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }} \
             && ${{ github.event.label.updateAt == github.event.label.createdAt }}
 
           SYNCHRONIZE=${{ github.event_name == 'synchronize' }} \
