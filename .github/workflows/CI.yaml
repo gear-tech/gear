@@ -455,6 +455,7 @@ jobs:
       CARGO_INCREMENTAL: 0
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
+      - run: echo ${{ github.event_name }}
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.11.0
