@@ -326,7 +326,6 @@ where
             memory: MemoryWrap::new(memory),
             globals: Default::default(),
             memory_manager: Default::default(),
-            fallible_syscall_error: None,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

@@ -67,6 +67,8 @@ pub enum Error {
     WasmExecution(String),
     #[error(transparent)]
     Etc(#[from] etc::Error),
+    #[error("Metadata parsing error {0:?}")]
+    MetaParseError(gmeta::MetadataParseError),
 }
 
 impl From<nacl::Error> for Error {

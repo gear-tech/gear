@@ -12,7 +12,7 @@ static mut MSG_ID_2: MessageId = MessageId([0; 32]);
 #[no_mangle]
 extern "C" fn handle() {
     let state = unsafe { &mut STATE };
-    gstd::debug!(state);
+    gstd::debug!("{state}");
     match *state {
         0 => {
             *state = 1;

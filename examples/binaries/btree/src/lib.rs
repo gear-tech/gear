@@ -61,7 +61,7 @@ mod wasm {
         let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
-                debug!("Error processing request: {:?}", e);
+                debug!("Error processing request: {e:?}");
                 Reply::Error
             }
         };
