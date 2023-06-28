@@ -21,10 +21,10 @@ jobs:
           LABELS=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
             || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
 
-          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }} && $LABELS
+          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }}
 
           BUILD=false
-          if [[ $CREATED || $SYNCHRONIZE ]]; then
+          if [[ $CREATED || ($SYNCHRONIZE && $LABELS) ]]; then
               BUILD=true
           fi
 
