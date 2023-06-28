@@ -32,6 +32,7 @@ members = [
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
     "examples/binaries/fungible-token",
+    "examples/binaries/stack-allocations",
     "examples/binaries/futures-unordered",
     "examples/binaries/gas-burned",
     "examples/binaries/incomplete-async-payloads",
