@@ -84,7 +84,6 @@ mod tests {
         };
 
         let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
-        println!("{:?}", res);
         assert_eq!(res.pop().unwrap(), vec![19]);
         assert_eq!(res.pop().unwrap(), vec![11]);
         assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
