@@ -16,8 +16,7 @@ jobs:
       - name: Check labels
         id: check-labels
         run: |
-          CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
-            || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
+          CREATED=${{ contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }}
 
           SYNCHRONIZE=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
               || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
@@ -27,6 +26,7 @@ jobs:
               BUILD=true
           fi
 
+          echo "synchronize: ${SYNCHRONIZE}"
           echo "build: ${BUILD}"
           echo "matched-labels: ${CREATED}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
