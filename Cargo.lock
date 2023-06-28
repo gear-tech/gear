@@ -2255,6 +2255,7 @@ dependencies = [
 name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
