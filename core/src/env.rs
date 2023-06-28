@@ -326,11 +326,7 @@ pub trait Externalities {
     /// message a [`Externalities::unlock_payload`] is introduced. For more info,
     /// read docs to [`PayloadSliceLock`], [`DropPayloadLockBound`],
     /// [`UnlockPayloadBound`], [`PayloadSliceAccess`] types and their methods.
-    fn lock_payload(
-        &mut self,
-        at: u32,
-        len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError>;
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError>;
 
     /// Reclaims ownership from the payload lock over previously taken payload from the
     /// currently executing message..

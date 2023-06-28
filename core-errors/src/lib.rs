@@ -50,6 +50,14 @@ pub enum ExecutionError {
     #[display(fmt = "Not enough value for operation")]
     NotEnoughValue = 101,
 
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed to read payload")]
+    TooBigReadLen = 103,
+
+    /// Cannot take data in payload range
+    #[display(fmt = "Cannot take data in payload range from message with size")]
+    ReadWrongRange = 104,
+
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext = 105,
@@ -254,6 +262,8 @@ impl ExtError {
         match code {
             100 => Some(ExecutionError::NotEnoughGas.into()),
             101 => Some(ExecutionError::NotEnoughValue.into()),
+            103 => Some(ExecutionError::TooBigReadLen.into()),
+            104 => Some(ExecutionError::ReadWrongRange.into()),
             105 => Some(ExecutionError::NoReplyContext.into()),
             106 => Some(ExecutionError::NoSignalContext.into()),
             107 => Some(ExecutionError::NoStatusCodeContext.into()),

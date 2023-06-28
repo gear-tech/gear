@@ -733,17 +733,13 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn lock_payload(
-        &mut self,
-        at: u32,
-        len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
         let end = at
             .checked_add(len)
-            .ok_or(UnrecoverableExecutionError::TooBigReadLen)?;
+            .ok_or(FallibleExecutionError::TooBigReadLen)?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
-            .ok_or_else(|| UnrecoverableExecutionError::ReadWrongRange.into())
+            .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
     }
 
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {

@@ -348,11 +348,7 @@ impl Externalities for LazyPagesExt {
         &self.inner.context.forbidden_funcs
     }
 
-    fn lock_payload(
-        &mut self,
-        at: u32,
-        len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
         self.inner.lock_payload(at, len)
     }
 
