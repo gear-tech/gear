@@ -49,6 +49,13 @@ jobs:
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
+      - name: debugging
+        run: |
+          echo "${{ github.event_name != 'pull_request' }}"
+          echo "${{ inputs.build == 'true'  }}"
+          echo "${{ github.event_name }}"
+          echo "${{ inputs.build }}"
+
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.11.0
@@ -153,12 +160,6 @@ jobs:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
     steps:
-      - name: debugging
-        run: |
-          echo "${{ github.event_name != 'pull_request' }}"
-          echo "${{ inputs.build == 'true'  }}"
-          echo "${{ github.event_name }}"
-          echo "${{ inputs.build }}"
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.11.0
