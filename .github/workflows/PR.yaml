@@ -48,5 +48,5 @@ jobs:
     needs: status
     uses: ./.github/workflows/CI.yaml
     with:
-      build: ${{ needs.check-labels.outputs.build }}
-      cache: ${{ needs.check-labels.outputs.cache }}
+      build: ${{ needs.status.outputs.build }}
+      cache: ${{ needs.status.outputs.cache }}
