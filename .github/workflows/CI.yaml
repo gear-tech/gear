@@ -6,7 +6,7 @@ on:
   push:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
 
-  workflow_call:
+  pull_request:
     inputs:
       build:
         type: boolean
@@ -72,7 +72,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name != 'workflow_call' || inputs.cache }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -114,7 +114,7 @@ jobs:
 
   build:
     # needs: spec_version
-    if: ${{ github.event_name != 'workflow_call' || inputs.build == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || inputs.build == 'true' }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -165,7 +165,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'workflow_call' && inputs.cache }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -446,7 +446,7 @@ jobs:
           --release
 
   build-win-cross:
-    if: ${{ github.event_name != 'workflow_call' || inputs.build == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || inputs.build == 'true' }}
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -455,7 +455,6 @@ jobs:
       CARGO_INCREMENTAL: 0
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
-      - run: echo ${{ github.event_name }}
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.11.0
@@ -530,7 +529,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'workflow_call' && inputs.cache }}
+        if: ${{ github.event_name == 'pull_request' && inputs.cache == 'true' }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
