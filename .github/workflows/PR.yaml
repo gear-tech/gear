@@ -22,7 +22,7 @@ jobs:
             || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
 
 
-          if [[ ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ) ]]; then
+          if [[ ${{ github.event.pull_request.action == 'synchronize' }} || $SYNCHRONIZE ]]; then
               BUILD=true
           }
 
