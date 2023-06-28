@@ -23,7 +23,6 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
-use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -31,6 +30,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_errors::SignalCode;
+use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
