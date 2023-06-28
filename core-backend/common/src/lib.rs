@@ -240,6 +240,7 @@ pub enum TrapExplanation {
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
+    #[display(fmt = "Sys-call infallible error: {_0}")]
     InfallibleExt(InfallibleExtError),
     #[display(fmt = "Sys-call fallible error: {_0}")]
     FallibleExt(FallibleExtError),
