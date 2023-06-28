@@ -11,26 +11,27 @@ jobs:
     outputs:
       build: ${{ steps.check-labels.outputs.build }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
+      matched-labels: ${{ steps.check-labels.outputs.matched-labels }}
     steps:
       - name: Check labels
         id: check-labels
         run: |
-          CREATED=${{ github.event.label.name ==  'A0-pleasereview' }} \
-            || ${{ github.event.label.name ==  'A2-mergeoncegreen' }}
+          CREATED=${{ contains(fromJson('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name ) }} \
+            && ${{ github.event.label.updateAt == github.event.label.createdAt }}
 
-          LABELS=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
-            || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
-
-          SYNCHRONIZE=${{ github.event.pull_request.action == 'synchronize' }}
+          SYNCHRONIZE=${{ github.event_name == 'synchronize' }} \
+            && (${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
+              || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }})
 
           BUILD=false
-          if [[ $CREATED || ($SYNCHRONIZE && $LABELS) ]]; then
+          if [[ $CREATED || $SYNCHRONIZE ]]; then
               BUILD=true
           fi
 
-          echo "action: ${{ github.event.pull_request.action }}"
           echo "build: ${BUILD}"
+          echo "matched-labels: ${CREATED}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
+          echo "matched-labels=${CREATED}" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
         with:
@@ -51,7 +52,7 @@ jobs:
   ci:
     name: CI
     needs: status
-    if: ${{ github.event.pull_request.action == 'synchronize' }}
+    if: ${{ github.event_name == 'synchronize' || $CREATED }}
     uses: ./.github/workflows/CI.yaml
     with:
       build: ${{ needs.status.outputs.build == 'true' }}
