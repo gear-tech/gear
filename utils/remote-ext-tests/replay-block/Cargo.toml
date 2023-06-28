@@ -44,7 +44,6 @@ std = [
     "codec/std",
     "log/std",
     "runtime-primitives/std",
-    "vara-runtime/std",
     "sp-core/std",
     "sp-io/std",
     "sp-runtime/std",
@@ -54,6 +53,8 @@ std = [
     "sp-externalities/std",
     "sc-executor/std",
     "frame-system/std",
+    "gear-runtime?/std",
+    "vara-runtime?/std",
 ]
 always-wasm = [
     "gear-runtime-interface/std",
