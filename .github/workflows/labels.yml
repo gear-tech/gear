@@ -45,9 +45,5 @@ jobs:
 
             if (builds.length < 2) return;
             for (const job of builds.slice(0, 2)) {
-              await github.rest.actions.reRunJobForWorkflowRun({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                job_id: job.id,
-              });
+              await fetch(job.check_run_url + "/rerequest", { method: "POST" });
             }
