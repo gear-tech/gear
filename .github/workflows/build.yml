@@ -364,7 +364,7 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ inputs.cache }}
         continue-on-error: true
         run: |
           tar -cf /tmp/build_win_cross_cargo_registry_${{ inputs.cache }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
