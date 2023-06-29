@@ -2197,6 +2197,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-stack-allocations"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "rand_pcg",
+ "static_assertions",
+]
+
+[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [

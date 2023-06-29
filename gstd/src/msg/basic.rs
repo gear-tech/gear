@@ -18,7 +18,7 @@
 
 use crate::{
     async_runtime::signals,
-    errors::{IntoResult, Result},
+    errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
@@ -333,6 +333,27 @@ pub fn load_bytes() -> Result<Vec<u8>> {
     let mut result = vec![0u8; size()];
     gcore::msg::read(result.as_mut())?;
     Ok(result)
+}
+
+/// Calls function `f` with read message payload on stack buffer.
+///
+/// Returns the function `f` result `T`.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::with_read_on_stack(|read_res| {
+///         let payload: &mut [u8] = read_res.expect("Unable to read");
+///         // Do something with `payload`
+///     });
+/// }
+/// ```
+pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+    gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Ext)))
 }
 
 /// Send a new message as a reply to the message that is currently being
