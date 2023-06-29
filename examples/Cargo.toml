@@ -11,9 +11,7 @@ members = [
     "async-sign",
     "bot",
     "capacitor",
-    "status-code",
     "loop",
-    "panicker",
 ]
 
 exclude = ["binaries/*"]
