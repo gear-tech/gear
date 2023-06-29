@@ -7,16 +7,17 @@ on:
 
 jobs:
   build:
-    - steps:
-        - name: Cancel Previous Runs
-          uses: styfle/cancel-workflow-action@0.11.0
-          with:
-            access_token: ${{ github.token }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
 
-        - uses: ./.github/workflows/build.yml
-          # TODO: dispatch this workflow with github action API.
-          # with more conditions. for example, if the there is
-          # already a build check exist. (issue-2888)
-          if: github.event.label.name == 'A0-pleasereview'
-          with:
-            cache: ${{ github.base_ref }}
+    uses: ./.github/workflows/build.yml
+    # TODO: dispatch this workflow with github action API.
+    # with more conditions. for example, if the there is
+    # already a build check exist. (issue-2888)
+    if: github.event.label.name == 'A0-pleasereview'
+    with:
+      cache: ${{ github.base_ref }}
