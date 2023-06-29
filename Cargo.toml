@@ -62,6 +62,7 @@ members = [
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
     "examples/binaries/vec",
+    "examples/binaries/wait",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
@@ -394,6 +395,7 @@ demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-state-rollback = { path = "examples/binaries/state-rollback" }
 demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
 demo-vec = { path = "examples/binaries/vec" }
+demo-wait = { path = "examples/binaries/wait" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }

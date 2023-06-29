@@ -91,6 +91,7 @@ demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
+demo-wait.workspace = true
 demo-waiter.workspace = true
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true

@@ -8929,6 +8929,51 @@ fn program_generator_works() {
 }
 
 #[test]
+fn wait_state_machine() {
+    use demo_wait::WASM_BINARY;
+
+    init_logger();
+
+    let init = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let wait_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(wait_id));
+
+        System::reset_events();
+
+        wait_id
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = init();
+
+        let to_send = vec![b"FIRST".to_vec(), b"SECOND".to_vec(), b"THIRD".to_vec()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[0].as_ref().to_vec()),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[1].as_ref().to_vec()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
 fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"
