@@ -55,12 +55,13 @@ jobs:
     steps:
       - uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'CI.yaml',
-              ref: ${{ github.ref_name }},
+              ref: 'cl/issue-2875',
               inputs: {
                 build: ${{ needs.status.outputs.build }},
                 cache: ${{ needs.status.outputs.cache }}
