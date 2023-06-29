@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    needs: status
     uses: ./.github/workflows/build.yml
     if: github.event.label.name == "A0-pleasereview"
     with:
