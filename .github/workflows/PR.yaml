@@ -15,23 +15,8 @@ jobs:
   status:
     runs-on: ubuntu-latest
     outputs:
-      build: ${{ steps.check-labels.outputs.build }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
     steps:
-      - name: Check labels
-        id: check-labels
-        run: |
-          SYNCHRONIZE=${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') }} \
-              || ${{ contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') }}
-
-          BUILD=false
-          if $SYNCHRONIZE; then
-              BUILD=true
-          fi
-
-          echo "build: ${BUILD}"
-          echo "build=${BUILD}" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -149,6 +134,8 @@ jobs:
   build:
     needs: status
     uses: ./.github/workflows/build.yml
-    if: ${{ needs.status.outputs.build }}
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
     with:
-      cache: ${{ needs.status.outputs.build && github.base_ref }}
+      cache: ${{ needs.status.outputs.cache && github.base_ref }}
