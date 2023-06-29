@@ -48,6 +48,7 @@ members = [
     "examples/binaries/piggy-bank",
     "examples/binaries/ping",
     "examples/binaries/program-factory",
+    "examples/binaries/program-generator",
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-reservation-with-gas",
@@ -381,6 +382,7 @@ demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
 demo-piggy-bank = { path = "examples/binaries/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/binaries/ping" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
+demo-program-generator = { path = "examples/binaries/program-generator" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }

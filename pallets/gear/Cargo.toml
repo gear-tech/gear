@@ -78,6 +78,7 @@ demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
 demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
+demo-program-generator.workspace = true
 demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true

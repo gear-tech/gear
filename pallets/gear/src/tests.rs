@@ -8884,6 +8884,51 @@ fn test_async_messages() {
 }
 
 #[test]
+fn program_generator_works() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        let code_id = CodeId::generate(&code);
+
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(generator_id));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            generator_id,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_id);
+        let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
+        let expected_child_id = ProgramId::generate(code_id, &expected_salt);
+        assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
+    });
+}
+
+#[test]
 fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"

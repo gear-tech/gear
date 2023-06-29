@@ -2118,6 +2118,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-program-generator"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal 0.3.4",
+]
+
+[[package]]
 name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
@@ -7157,6 +7166,7 @@ dependencies = [
  "demo-out-of-memory",
  "demo-ping",
  "demo-program-factory",
+ "demo-program-generator",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
