@@ -20,6 +20,7 @@
 
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
+use parity_scale_codec::Encode;
 
 #[tokio::test]
 async fn inf_loop() -> anyhow::Result<()> {
@@ -42,7 +43,7 @@ async fn inf_loop() -> anyhow::Result<()> {
         .upload_program_bytes(
             WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
-            Scheme::direct(Calls::builder().whiletrue()),
+            Scheme::direct(Calls::builder().whiletrue()).encode(),
             gas_limit,
             0,
         )

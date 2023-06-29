@@ -68,6 +68,7 @@ members = [
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
+    "examples/binaries/wat",
     "galloc",
     "gcli",
     "gclient",
@@ -403,6 +404,7 @@ demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 demo-stack-allocations = { path = "examples/binaries/stack-allocations" }
+demo-wat = { path = "examples/binaries/wat" }
 
 # Dependencies that only used in one package
 #

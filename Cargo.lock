@@ -2309,6 +2309,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-wat"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "wabt",
+]
+
+[[package]]
 name = "der"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3615,6 +3623,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-reserve-gas",
+ "demo-wat",
  "env_logger",
  "futures",
  "futures-timer",

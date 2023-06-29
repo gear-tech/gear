@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use demo_capacitor::WASM_BINARY;
-use gclient::{code_from_os, now_micros, EventListener, EventProcessor, GearApi, Result};
+use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
 
 async fn charge_10(
@@ -71,13 +71,13 @@ async fn memory_dump() -> Result<()> {
     assert!(listener.blocks_running().await?);
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(None, WASM_BINARY, vec![], 0, true)
+        .calculate_upload_gas(None, WASM_BINARY.to_vec(), vec![], 0, true)
         .await?;
     // Upload and init the program
     let (message_id, program_id, _hash) = api
         .upload_program_bytes(
             WASM_BINARY,
-            now_micros().to_le_bytes(),
+            gclient::now_micros().to_le_bytes(),
             b"15".to_vec(),
             gas_info.min_limit,
             0,

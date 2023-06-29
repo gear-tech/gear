@@ -49,3 +49,4 @@ demo-proxy-relay.workspace = true
 demo-reserve-gas.workspace = true
 gmeta = { workspace = true }
 gstd = { workspace = true, features = ["debug"] }
+demo-wat.workspace = true
