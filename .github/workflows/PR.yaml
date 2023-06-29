@@ -51,6 +51,7 @@ jobs:
   ci:
     name: CI
     needs: status
+    runs-on: ubuntu-latest
     if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
     steps:
       - uses: ./.github/workflows/CI.yaml
