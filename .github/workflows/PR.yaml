@@ -45,8 +45,9 @@ jobs:
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
-      - name: Dispatch CI
-        uses: ./.github/workflows/CI.yaml
-        with:
-          build: ${{ jobs.status.outputs.build == 'true' }}
-          cache: ${{ jobs.status.outputs.cache == 'true' }}
+  dispatch-ci:
+    needs: status
+    uses: ./.github/workflows/CI.yaml
+    with:
+      build: ${{ needs.status.outputs.build == 'true' }}
+      cache: ${{ needs.status.outputs.cache == 'true' }}
