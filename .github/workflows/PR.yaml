@@ -49,13 +49,22 @@ jobs:
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
   ci:
-    name: CI
+    name: Dispatch CI
     needs: status
-    runs-on: ubuntu-latest
     if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
-    steps:
-      - uses: actions/checkout@v2
-      - uses: ./.github/workflows/CI.yaml
-        with:
-          build: ${{ needs.status.outputs.build == 'true' }}
-          cache: ${{ needs.status.outputs.cache == 'true' }}
+    uses: actions/github-script@v4
+    with:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      script: |
+        const inputs = {
+          build: ${{ needs.status.outputs.build }}
+          cache: ${{ needs.status.outputs.cache }}
+        };
+
+        await github.actions.createWorkflowDispatch({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          workflow_file: 'CI.yml',
+          inputs,
+          ref: context.ref
+        });
