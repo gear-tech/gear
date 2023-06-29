@@ -8,10 +8,10 @@ on:
 jobs:
   status:
     runs-on: ubuntu-latest
+    if: ${{ contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen", ""]'), github.event.label.name ) }}
     outputs:
       build: ${{ steps.check-labels.outputs.build }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
-      matched-labels: ${{ steps.check-labels.outputs.matched-labels }}
     steps:
       - name: Check labels
         id: check-labels
@@ -26,11 +26,8 @@ jobs:
               BUILD=true
           fi
 
-          echo "synchronize: ${SYNCHRONIZE}"
           echo "build: ${BUILD}"
-          echo "matched-labels: ${CREATED}"
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
-          echo "matched-labels=${CREATED}" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
         with:
@@ -48,22 +45,8 @@ jobs:
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
-  dispatch-ci:
-    needs: status
-    runs-on: ubuntu-latest
-    if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
-    steps:
-      - uses: actions/github-script@v6
+      - name: Dispatch CI
+        uses: ./.github/workflows/CI.yaml
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'CI.yaml',
-              ref: 'cl/issue-2875',
-              inputs: {
-                build: ${{ needs.status.outputs.build }},
-                cache: ${{ needs.status.outputs.cache }}
-              }
-            })
+          build: ${{ jobs.status.outputs.build == 'true' }}
+          cache: ${{ jobs.status.outputs.cache == 'true' }}

@@ -6,12 +6,14 @@ on:
   push:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
 
-  workflow_dispatch:
+  workflow_call:
     inputs:
       build:
         type: boolean
       cache:
         type: boolean
+
+  workflow_dispatch:
 
 env:
   CARGO_INCREMENTAL: 0
