@@ -147,7 +147,11 @@ jobs:
 
   build:
     # needs: spec_version
-    if: ${{ github.event_name != 'pull_request' || inputs.build }}
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+      || inputs.build
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -479,7 +483,11 @@ jobs:
           --release
 
   build-win-cross:
-    if: ${{ github.event_name != 'pull_request' || inputs.build }}
+    if: >-
+      github.event_name != 'pull_request'
+        || contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+        || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+        || inputs.build
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64

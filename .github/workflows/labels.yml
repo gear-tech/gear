@@ -38,17 +38,16 @@ jobs:
 
             // Get job ids and trigger build jobs
             const builds = jobs
-              .filter((j) => ["dispatch-ci / build", "dispatch-ci / build-win-cross"]
-              .includes(j.name))
+              .filter((j) => ["dispatch-ci / build", "dispatch-ci / build-win-cross"].includes(j.name) && j.conclusion == "skipped")
               .sort((a, b) => b.run_attempt - a.run_attempt);
+
+            console.log(builds);
 
             if (builds.length < 2) return;
             for (const job of builds.slice(0, 2)) {
-              if (job.status == "skipped") {
-                await github.rest.actions.reRunJobForWorkflowRun({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  job_id: job.id,
-                });
-              }
+              await github.rest.actions.reRunJobForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                job_id: job.id,
+              });
             }
