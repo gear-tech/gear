@@ -9,35 +9,35 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name)
     steps:
-      uses: actions/github-script@6
-      with:
-        script: |
-          const {
-            total_count: count,
-            workflow_runs: runs,
-          } = await github.rest.actions.listWorkflowRuns({
-            owner: github.owner,
-            repo: github.repo,
-            workflow_id: "CI.yaml"
-          });
+      - uses: actions/github-script@6
+        with:
+          script: |
+            const {
+              total_count: count,
+              workflow_runs: runs,
+            } = await github.rest.actions.listWorkflowRuns({
+              owner: github.owner,
+              repo: github.repo,
+              workflow_id: "CI.yaml"
+            });
 
-          // Get the latest workflow run.
-          const run = runs.filter((r) => r.run_attempt == count)[0];
-          const { jobs } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-            owner: github.owner,
-            repo: github.repo,
-            run_id: run.id,
-            attempt_number: run.run_attempt,
-          });
+            // Get the latest workflow run.
+            const run = runs.filter((r) => r.run_attempt == count)[0];
+            const { jobs } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+              owner: github.owner,
+              repo: github.repo,
+              run_id: run.id,
+              attempt_number: run.run_attempt,
+            });
 
-          // Get job ids and trigger build jobs
-          const builds = jobs.filter((j) => ["build", "build-win-cross"].includes(j.name));
-          for (const job of builds) {
-            if (job.status == "skipped") {
-              await github.rest.actions.reRunJobForWorkflowRun({
-                owner: github.owner,
-                repo: github.repo,
-                job_id: job.id,
-              });
+            // Get job ids and trigger build jobs
+            const builds = jobs.filter((j) => ["build", "build-win-cross"].includes(j.name));
+            for (const job of builds) {
+              if (job.status == "skipped") {
+                await github.rest.actions.reRunJobForWorkflowRun({
+                  owner: github.owner,
+                  repo: github.repo,
+                  job_id: job.id,
+                });
+              }
             }
-          }
