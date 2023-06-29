@@ -57,15 +57,13 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const inputs = {
-              build: ${{ needs.status.outputs.build }}
-              cache: ${{ needs.status.outputs.cache }}
-            };
-
             github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'CI.yml',
               ref: context.ref,
-              inputs,
+              inputs: {
+                build: ${{ needs.status.outputs.build }},
+                cache: ${{ needs.status.outputs.cache }}
+              }
             })
