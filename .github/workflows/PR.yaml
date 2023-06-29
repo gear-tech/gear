@@ -63,7 +63,7 @@ jobs:
               cache: ${{ needs.status.outputs.cache }}
             };
 
-            await github.actions.createWorkflowDispatch({
+            await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_file: 'CI.yml',
