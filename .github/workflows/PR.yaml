@@ -149,6 +149,6 @@ jobs:
   build:
     needs: status
     uses: ./.github/workflows/build.yml
-    if: needs.status.outputs.build
+    if: ${{ needs.status.outputs.build }}
     with:
       cache: ${{ needs.status.outputs.build && github.base_ref }}
