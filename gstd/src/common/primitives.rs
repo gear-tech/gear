@@ -40,6 +40,7 @@ use crate::{
     prelude::{convert::TryFrom, String},
 };
 use primitive_types::H256;
+use scale::MaxEncodedLen;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -56,7 +57,19 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 /// function. Also, each send function has a target `ActorId` as one of the
 /// arguments.
 #[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    TypeInfo,
+    Decode,
+    Encode,
+    MaxEncodedLen,
 )]
 #[codec(crate = scale)]
 pub struct ActorId([u8; 32]);
@@ -116,7 +129,6 @@ impl AsMut<[u8]> for ActorId {
     }
 }
 
-#[cfg(feature = "debug")]
 impl From<u64> for ActorId {
     fn from(v: u64) -> Self {
         let mut arr = [0u8; 32];

@@ -1,6 +1,7 @@
-use crate::{Command, WaitSubcommand};
+use crate::{Command, SleepForWaitType, WaitSubcommand};
+use futures::future;
 
-use gstd::{errors::Error, exec, msg, MessageId};
+use gstd::{errors::Error, exec, format, msg, MessageId};
 
 fn process_wait_subcommand(subcommand: WaitSubcommand) {
     match subcommand {
@@ -50,6 +51,33 @@ async fn main() {
             msg::reply("", 0).expect("Failed to send reply");
 
             process_wait_subcommand(subcommand);
+        }
+        Command::SleepFor(durations, wait_type) => {
+            msg::send(
+                msg::source(),
+                format!("Before the sleep at block: {}", exec::block_height()),
+                0,
+            )
+            .expect("Failed to send before the sleep");
+            let sleep_futures = durations.iter().map(|duration| exec::sleep_for(*duration));
+            match wait_type {
+                SleepForWaitType::All => {
+                    future::join_all(sleep_futures).await;
+                }
+                SleepForWaitType::Any => {
+                    future::select_all(sleep_futures).await;
+                }
+                _ => unreachable!(),
+            }
+            msg::send(
+                msg::source(),
+                format!("After the sleep at block: {}", exec::block_height()),
+                0,
+            )
+            .expect("Failed to send after the sleep");
+        }
+        Command::WakeUp(msg_id) => {
+            exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
     }
 }

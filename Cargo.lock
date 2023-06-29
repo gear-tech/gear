@@ -2197,6 +2197,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-stack-allocations"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "rand_pcg",
+ "static_assertions",
+]
+
+[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
@@ -2255,6 +2268,7 @@ dependencies = [
 name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
@@ -4211,7 +4225,13 @@ name = "gear-utils"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "gear-core",
+ "hex",
  "nonempty",
+ "parity-scale-codec",
+ "path-clean",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4238,6 +4258,7 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "colored",
+ "dirs",
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
@@ -4579,10 +4600,10 @@ dependencies = [
  "env_logger",
  "gear-backend-common",
  "gear-backend-wasmi",
- "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
  "hex",
