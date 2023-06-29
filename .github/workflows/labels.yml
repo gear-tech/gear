@@ -1,49 +1,14 @@
 name: Labels
+
 on:
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
     types: [labeled]
 
 jobs:
-  dispatch-build:
-    runs-on: ubuntu-latest
+  build:
+    needs: status
+    uses: ./.github/workflows/build.yml
     if: contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name)
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            const {
-              data: {
-                total_count: count,
-                workflow_runs: runs,
-              }
-            } = (await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "PR.yaml",
-              branch: "cl/issue-2875",
-            }));
-
-            // Get the latest workflow run.
-            const cis = runs
-              .filter((r) => r.name == "PR")
-              .sort((a, b) => b.number - a.number);
-
-            if (cis.length == 0) return;
-            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: cis[0].id,
-            });
-
-            // Get job ids and trigger build jobs
-            const builds = jobs
-              .filter((j) => ["dispatch-ci / build", "dispatch-ci / build-win-cross"].includes(j.name) && j.conclusion == "skipped")
-              .sort((a, b) => b.run_attempt - a.run_attempt);
-
-            console.log(builds);
-
-            if (builds.length < 2) return;
-            for (const job of builds.slice(0, 2)) {
-              await fetch(job.check_run_url + "/rerequest", { method: "POST" });
-            }
+    with:
+      cache: ${{ github.base_ref }}
