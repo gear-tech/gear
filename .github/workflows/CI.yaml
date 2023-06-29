@@ -35,6 +35,10 @@ jobs:
   #     - name: "Check spec version"
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      cache: ${{ github.ref_name }}
 
   build-win-native:
     if: ${{ github.ref == 'refs/heads/master' }}
