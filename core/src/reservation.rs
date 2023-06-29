@@ -57,7 +57,7 @@ struct InnerNonce(u64);
 impl InnerNonce {
     /// Fetches current state of the nonce and
     /// updates its state by incrementing it.
-    fn fetch_inc_nonce(&mut self) -> u64 {
+    fn fetch_inc(&mut self) -> u64 {
         let current = self.0;
         self.0 = self.0.saturating_add(1);
 
@@ -163,7 +163,7 @@ impl GasReserver {
     ) -> Result<ReservationId, ReservationError> {
         self.check_execution_limit()?;
 
-        let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc_nonce());
+        let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc());
 
         // TODO #2773
         let maybe_reservation = self.states.insert(
