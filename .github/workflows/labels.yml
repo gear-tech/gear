@@ -20,30 +20,30 @@ jobs:
             } = (await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: "CI.yaml",
-              branch: "cl/issue-2875"
+              workflow_id: "PR.yaml",
+              branch: "cl/issue-2875",
             }));
 
             // Get the latest workflow run.
             const cis = runs
-              .filter((r) => r.run_attempt == 1 && r.name == "CI")
-              .sort((a, b) => b-a);
+              .filter((r) => r.name == "PR")
+              .sort((a, b) => b.number - a.number);
 
-            if (cis.length == 0) {
-              return;
-            }
-
-            const run = cis[0];
-            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+            if (cis.length == 0) return;
+            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              run_id: run.id,
-              attempt_number: run.run_attempt,
+              run_id: cis[0].id,
             });
 
             // Get job ids and trigger build jobs
-            const builds = jobs.filter((j) => ["build", "build-win-cross"].includes(j.name));
-            for (const job of builds) {
+            const builds = jobs
+              .filter((j) => ["dispatch-ci / build", "dispatch-ci / build-win-cross"]
+              .includes(j.name))
+              .sort((a, b) => b.run_attempt - a.run_attempt);
+
+            if (builds.length < 2) return;
+            for (const job of builds.slice(0, 2)) {
               if (job.status == "skipped") {
                 await github.rest.actions.reRunJobForWorkflowRun({
                   owner: context.repo.owner,
