@@ -27,6 +27,7 @@ members = [
     "examples/binaries/backend-error",
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
+    "examples/binaries/capacitor",
     "examples/binaries/compose",
     "examples/binaries/constructor",
     "examples/binaries/delayed-sender",
@@ -363,6 +364,7 @@ demo-btree = { path = "examples/binaries/btree" }
 demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
+demo-capacitor = { path = "examples/binaries/capacitor" }
 demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }

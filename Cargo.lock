@@ -1888,6 +1888,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-capacitor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -3597,6 +3605,7 @@ dependencies = [
  "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
+ "demo-capacitor",
  "demo-constructor",
  "demo-distributor",
  "demo-meta-io",
@@ -4613,6 +4622,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-capacitor",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "derive_more",
