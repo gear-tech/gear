@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
     Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
