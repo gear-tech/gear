@@ -16,16 +16,16 @@ jobs:
               total_count: count,
               workflow_runs: runs,
             } = await github.rest.actions.listWorkflowRuns({
-              owner: github.owner,
-              repo: github.repo,
+              owner: ${{ github.owner }},
+              repo: ${{ github.repo }},
               workflow_id: "CI.yaml"
             });
 
             // Get the latest workflow run.
             const run = runs.filter((r) => r.run_attempt == count)[0];
             const { jobs } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-              owner: github.owner,
-              repo: github.repo,
+              owner: ${{ github.owner }},
+              repo: ${{ github.repo }},
               run_id: run.id,
               attempt_number: run.run_attempt,
             });
@@ -35,8 +35,8 @@ jobs:
             for (const job of builds) {
               if (job.status == "skipped") {
                 await github.rest.actions.reRunJobForWorkflowRun({
-                  owner: github.owner,
-                  repo: github.repo,
+                  owner: ${{ github.owner }},
+                  repo: ${{ github.repo }},
                   job_id: job.id,
                 });
               }
