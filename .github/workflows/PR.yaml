@@ -73,7 +73,7 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
-        run: $_INSTALL_BUILD_DEPS
+        run: eval $_INSTALL_BUILD_DEPS
 
       - name: "Cache: Unpack" # TODO: Pack cache
         continue-on-error: true
@@ -128,7 +128,7 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
-        run: $_INSTALL_BUILD_DEPS
+        run: eval $_INSTALL_BUILD_DEPS
 
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
@@ -138,6 +138,8 @@ jobs:
 
 
   build:
+    needs: status
     uses: ./.github/workflows/build.yml
+    if: jobs.status.outputs.build
     with:
       cache: ${{ github.base_ref }}
