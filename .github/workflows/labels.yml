@@ -13,19 +13,30 @@ jobs:
         with:
           script: |
             const {
-              total_count: count,
-              workflow_runs: runs,
-            } = await github.rest.actions.listWorkflowRuns({
-              owner: ${{ github.owner }},
-              repo: ${{ github.repo }},
-              workflow_id: "CI.yaml"
-            });
+              data: {
+                total_count: count,
+                workflow_runs: runs,
+              }
+            } = (await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "CI.yaml",
+              branch: "cl/issue-2875"
+            }));
 
             // Get the latest workflow run.
-            const run = runs.filter((r) => r.run_attempt == count)[0];
-            const { jobs } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-              owner: ${{ github.owner }},
-              repo: ${{ github.repo }},
+            const cis = runs
+              .filter((r) => r.run_attempt == 1 && r.name == "CI")
+              .sort((a, b) => b-a);
+
+            if (cis.length == 0) {
+              return;
+            }
+
+            const run = cis[0];
+            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               run_id: run.id,
               attempt_number: run.run_attempt,
             });
@@ -35,8 +46,8 @@ jobs:
             for (const job of builds) {
               if (job.status == "skipped") {
                 await github.rest.actions.reRunJobForWorkflowRun({
-                  owner: ${{ github.owner }},
-                  repo: ${{ github.repo }},
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
                   job_id: job.id,
                 });
               }
