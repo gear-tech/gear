@@ -6,3 +6,9 @@ edition.workspace = true
 [dependencies]
 nonempty.workspace = true
 env_logger.workspace = true
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+path-clean.workspace = true
+gear-core.workspace = true
+parity-scale-codec.workspace = true

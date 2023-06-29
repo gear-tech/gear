@@ -36,7 +36,7 @@ pub mod runtime;
 use crate::memory::MemoryAccessError;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{FromUtf8Error, String},
+    string::String,
     vec::Vec,
 };
 use core::{
@@ -50,12 +50,11 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
-        PayloadSizeError, WasmEntryPoint,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntryPoint,
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{ExtError as FallibleExtError, MemoryError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -71,39 +70,12 @@ pub enum TerminationReason {
     System(SystemTerminationReason),
 }
 
-impl From<PayloadSizeError> for TerminationReason {
-    fn from(_err: PayloadSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(
-            MessageError::MaxMessageSizeExceed.into(),
-        ))
-        .into()
-    }
-}
-
-impl From<RuntimeBufferSizeError> for TerminationReason {
-    fn from(_err: RuntimeBufferSizeError) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::Memory(
-            MemoryError::RuntimeAllocOutOfBounds,
-        )))
-        .into()
-    }
-}
-
-impl From<FromUtf8Error> for TerminationReason {
-    fn from(_err: FromUtf8Error) -> Self {
-        ActorTerminationReason::Trap(TrapExplanation::Ext(
-            ExecutionError::InvalidDebugString.into(),
-        ))
-        .into()
-    }
-}
-
 impl From<MemoryAccessError> for TerminationReason {
     fn from(err: MemoryAccessError) -> Self {
         match err {
-            MemoryAccessError::Memory(err) => TrapExplanation::Ext(err.into()).into(),
-            MemoryAccessError::RuntimeBuffer(_) => {
-                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()).into()
+            MemoryAccessError::Memory(err) => TrapExplanation::FallibleExt(err.into()).into(),
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+                TrapExplanation::FallibleExt(MemoryError::RuntimeAllocOutOfBounds.into()).into()
             }
             MemoryAccessError::Decode => unreachable!("{:?}", err),
             MemoryAccessError::GasLimitExceeded => TrapExplanation::GasLimitExceeded.into(),
@@ -158,6 +130,92 @@ pub enum ActorTerminationReason {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub struct SystemTerminationReason;
 
+/// Execution error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum UnrecoverableExecutionError {
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
+    #[display(fmt = "Not enough gas for operation")]
+    NotEnoughGas,
+    #[display(fmt = "Length is overflowed to read payload")]
+    TooBigReadLen,
+    #[display(fmt = "Cannot take data in payload range from message with size")]
+    ReadWrongRange,
+}
+
+/// Memory error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum UnrecoverableMemoryError {
+    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
+    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    RuntimeAllocOutOfBounds,
+}
+
+/// Wait error in infallible sys-call.
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum UnrecoverableWaitError {
+    /// An error occurs in attempt to wait for or wait up to zero blocks.
+    #[display(fmt = "Waiting duration cannot be zero")]
+    ZeroDuration,
+    /// An error occurs in attempt to wait after reply sent.
+    #[display(fmt = "`wait()` is not allowed after reply sent")]
+    WaitAfterReply,
+}
+
+#[derive(
+    Decode,
+    Encode,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
+)]
+pub enum UnrecoverableExtError {
+    #[display(fmt = "Execution error: {_0}")]
+    Execution(UnrecoverableExecutionError),
+    #[display(fmt = "Memory error: {_0}")]
+    Memory(UnrecoverableMemoryError),
+    #[display(fmt = "Waiting error: {_0}")]
+    Wait(UnrecoverableWaitError),
+}
+
 #[derive(
     Decode,
     Encode,
@@ -182,8 +240,10 @@ pub enum TrapExplanation {
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
-    #[display(fmt = "{_0}")]
-    Ext(ExtError),
+    #[display(fmt = "Sys-call unrecoverable error: {_0}")]
+    UnrecoverableExt(UnrecoverableExtError),
+    #[display(fmt = "Sys-call fallible error: {_0}")]
+    FallibleExt(FallibleExtError),
     #[display(fmt = "{_0}")]
     Panic(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
@@ -342,9 +402,6 @@ pub trait BackendState {
     /// Set termination reason
     fn set_termination_reason(&mut self, reason: TerminationReason);
 
-    /// Set fallible syscall error
-    fn set_fallible_syscall_error(&mut self, err: ExtError);
-
     /// Process fallible syscall function result
     fn process_fallible_func_result<T: Sized>(
         &mut self,
@@ -353,12 +410,11 @@ pub trait BackendState {
         match res {
             Err(err) => {
                 if let TerminationReason::Actor(ActorTerminationReason::Trap(
-                    TrapExplanation::Ext(ext_err),
+                    TrapExplanation::FallibleExt(ext_err),
                 )) = err
                 {
                     let code = ext_err.to_u32();
                     log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
-                    self.set_fallible_syscall_error(ext_err);
                     Ok(Err(code))
                 } else {
                     Err(err)

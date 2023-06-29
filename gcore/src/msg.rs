@@ -42,7 +42,7 @@
 
 use crate::{
     errors::{Result, SyscallError},
-    ActorId, MessageHandle, MessageId, ReservationId,
+    stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
 };
 use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
@@ -165,6 +165,36 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Executes function `f` with provided message payload allocated on stack.
+///
+/// Returns function `f` call result `T`.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::with_read_on_stack(|read_res| {
+///         let payload: &mut [u8] = read_res.expect("Unable to read");
+///         // do something with `payload`
+///     });
+/// }
+/// ```
+pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+    let size = size();
+    stack_buffer::with_byte_buffer(size, |buffer| {
+        let mut len = 0u32;
+
+        if size > 0 {
+            unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut len as *mut u32) }
+        }
+
+        f(SyscallError(len).into_result().map(|_| buffer))
+    })
 }
 
 // TODO: issue #1859

@@ -18,8 +18,16 @@
 
 //! Useful utilities needed for testing and other stuff.
 
+use gear_core::memory::{GearPage, PageBuf, PageU32Size};
 pub use nonempty::NonEmpty;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use parity_scale_codec::{Decode, Encode};
+use path_clean::PathClean;
+use serde::{Deserialize, Serialize};
+use std::{
+    env, fs,
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 /// Trait describes a collection which can get a value by it's index.
 /// The index can be in any range, even [length(implementor), ..).
@@ -70,4 +78,81 @@ pub fn init_default_logger() {
         .format_module_path(false)
         .format_level(true)
         .try_init();
+}
+
+/// Stores one memory page dump as the hex string.
+#[derive(Serialize, Deserialize)]
+pub struct MemoryPageDump {
+    page: u32,
+    data: Option<String>,
+}
+
+impl MemoryPageDump {
+    pub fn new(page_number: GearPage, page_data: PageBuf) -> MemoryPageDump {
+        let mut data_vec = vec![];
+        page_data.encode_to(&mut data_vec);
+        let data = data_vec
+            .iter()
+            .any(|&byte| byte != 0)
+            .then(|| hex::encode(data_vec));
+
+        MemoryPageDump {
+            page: page_number.raw(),
+            data,
+        }
+    }
+
+    pub fn into_gear_page(self) -> (GearPage, PageBuf) {
+        let page_buf = if let Some(page_hex) = self.data {
+            let data = hex::decode(page_hex).expect("Unexpected memory page data encoding");
+            PageBuf::decode(&mut &*data).expect("Invalid PageBuf data found")
+        } else {
+            PageBuf::new_zeroed()
+        };
+        (
+            GearPage::new(self.page)
+                .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {}", self.page)),
+            page_buf,
+        )
+    }
+}
+
+/// Stores all program's page dumps and it's balance.
+#[derive(Serialize, Deserialize, Default)]
+pub struct ProgramMemoryDump {
+    pub balance: u128,
+    pub reserved_balance: u128,
+    pub pages: Vec<MemoryPageDump>,
+}
+
+impl ProgramMemoryDump {
+    pub fn save_to_file(&self, path: impl AsRef<Path>) {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(path)
+            .clean();
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .unwrap_or_else(|_| panic!("Couldn't create folder {}", parent.display()));
+        }
+
+        let data =
+            serde_json::to_string(&self).expect("Failed to serialize ProgramMemoryDump to JSON");
+
+        fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write file {:?}", path));
+    }
+
+    pub fn load_from_file(path: impl AsRef<Path>) -> ProgramMemoryDump {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(path)
+            .clean();
+
+        let json =
+            fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+
+        serde_json::from_str(&json)
+            .unwrap_or_else(|_| panic!("Failed to deserialize {:?} as ProgramMemoryDump", path))
+    }
 }

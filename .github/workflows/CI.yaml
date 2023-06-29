@@ -7,7 +7,7 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-    types: [labeled]
+    types: [labeled, synchronize]
 
   workflow_dispatch:
 
@@ -111,8 +111,7 @@ jobs:
 
   build:
     # needs: spec_version
-    needs: check-commit-message
-    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -444,8 +443,7 @@ jobs:
           --release
 
   build-win-cross:
-    needs: check-commit-message
-    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -708,7 +706,6 @@ jobs:
         run: ./scripts/check-fuzzer.sh
 
   check-commit-message:
-    name: check commit message
     runs-on: ubuntu-latest
     outputs:
       commit-message: ${{ steps.commit_message.outputs.commitMsg }}
@@ -720,3 +717,10 @@ jobs:
       - name: Print head git commit message
         id: commit_message
         run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
+
+  check-labels:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    steps:
+      - name: Build Condition Passed!
+        run: echo "bebop"

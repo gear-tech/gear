@@ -22,6 +22,7 @@ use crate::{
     mock::{
         self,
         new_test_ext,
+        run_for_blocks,
         run_to_block,
         run_to_block_maybe_with_queue,
         run_to_next_block,
@@ -63,7 +64,9 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::TrapExplanation;
+use gear_backend_common::{
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
+};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
@@ -4649,9 +4652,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case no gas.
@@ -4685,9 +4688,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitUpTo case no gas.
@@ -4721,9 +4724,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case invalid argument.
@@ -4758,9 +4761,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
 
         // Command::WaitUpTo case invalid argument.
@@ -4795,9 +4798,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
     });
 }
@@ -4837,9 +4840,9 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                    WaitError::WaitAfterReply,
-                ))),
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                    UnrecoverableExtError::Wait(UnrecoverableWaitError::WaitAfterReply),
+                )),
             );
         });
     };
@@ -6567,8 +6570,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
@@ -6612,10 +6615,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::ProgramRent(
-                    ProgramRentError::MaximumBlockCountPaid
-                ))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
             )
         } else {
             String::from("no info")
@@ -7722,8 +7723,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Message(MessageError::InsufficientValue)
             )
         } else {
             String::from("no info")
@@ -7775,8 +7776,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
@@ -8551,6 +8552,270 @@ fn call_forbidden_function() {
                 TrapExplanation::ForbiddenFunction,
             ))
         );
+    });
+}
+
+#[test]
+fn async_sleep_for() {
+    use demo_waiter::{
+        Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
+    };
+
+    const SLEEP_FOR_BLOCKS: u32 = 2;
+    const LONGER_SLEEP_FOR_BLOCKS: u32 = 3;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        // Block 2
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (send_command_to_waiter, assert_waiter_single_reply) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let assert_waiter_single_reply = |expected_reply| {
+                assert_eq!(
+                    MailboxOf::<Test>::len(&USER_1),
+                    1,
+                    "Asserting Waiter reply {}",
+                    expected_reply
+                );
+                let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload_bytes())
+                    .expect("Failed to decode Waiter reply");
+                assert_eq!(
+                    waiter_reply, expected_reply,
+                    "Asserting Waiter reply {}",
+                    expected_reply
+                );
+            };
+
+            (send_command_to_waiter, assert_waiter_single_reply)
+        };
+
+        // Block 3
+        let (sleep_for_msg_id, sleep_for_block_number) = send_command_to_waiter(
+            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS], WaitType::All),
+        );
+
+        // Assert the program replied with a message before the sleep.
+        // The message payload is a number of the block the program received
+        // the SleepFor message in.
+        assert_waiter_single_reply(format!(
+            "Before the sleep at block: {}",
+            sleep_for_block_number
+        ));
+
+        // Assert the SleepFor message is in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // Block 4
+        send_command_to_waiter(WaiterCommand::WakeUp(sleep_for_msg_id.into()));
+
+        // Assert there are no any replies yet.
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+        // Assert the SleepFor message is still in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // Block 5
+        run_to_next_block(None);
+
+        // Assert the program replied with a message after the sleep.
+        // The message payload is a number of the block the program
+        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        assert_waiter_single_reply(format!(
+            "After the sleep at block: {}",
+            sleep_for_block_number + SLEEP_FOR_BLOCKS
+        ));
+
+        // Assert the SleepFor message is no longer in the waitlist.
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // let long_sleep = sleep_for(longer);
+        // let short_sleep = sleep_for(shorter);
+        // join!(long_sleep, short_sleep);
+        {
+            // Block 6
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    WaitType::All,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 8
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert there are no any replies yet even though SLEEP_FOR_BLOCKS blocks
+            // has just passed.
+            assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+            // Assert the SleepFor message is still in the waitlist.
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+
+            // Block 9
+            run_to_next_block(None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let short_sleep = sleep_for(shorter);
+        // let long_sleep = sleep_for(longer);
+        // join!(short_sleep, long_sleep);
+        {
+            // Block 10
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    WaitType::All,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 12
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert there are no any replies yet even though SLEEP_FOR_BLOCKS blocks
+            // has just passed.
+            assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+            // Assert the SleepFor message is still in the waitlist.
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+
+            // Block 13
+            run_to_next_block(None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let long_sleep = sleep_for(longer);
+        // let short_sleep = sleep_for(shorter);
+        // select!(short_sleep, long_sleep);
+        {
+            // Block 14
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    WaitType::Any,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 16
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let short_sleep = sleep_for(shorter);
+        // let long_sleep = sleep_for(longer);
+        // select!(short_sleep, long_sleep);
+        {
+            // Block 17
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    WaitType::Any,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 18
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
     });
 }
 

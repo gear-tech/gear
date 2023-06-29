@@ -50,10 +50,6 @@ pub enum ExecutionError {
     #[display(fmt = "Not enough value for operation")]
     NotEnoughValue = 101,
 
-    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
-    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString = 102,
-
     /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed to read payload")]
     TooBigReadLen = 103,
@@ -165,21 +161,6 @@ pub enum MessageError {
     InsufficientGasForDelayedSending = 399,
 }
 
-/// Error using waiting syscalls.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
-)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum WaitError {
-    /// An error occurs in attempt to wait for or wait up to zero blocks.
-    #[display(fmt = "Waiting duration cannot be zero")]
-    ZeroDuration = 400,
-    /// An error occurs in attempt to wait after reply sent.
-    #[display(fmt = "`wait()` is not allowed after reply sent")]
-    WaitAfterReply = 401,
-}
-
 /// Reservation error.
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
@@ -250,10 +231,6 @@ pub enum ExtError {
     #[display(fmt = "Message error: {_0}")]
     Message(MessageError),
 
-    /// Waiting error.
-    #[display(fmt = "Waiting error: {_0}")]
-    Wait(WaitError),
-
     /// Reservation error.
     #[display(fmt = "Reservation error: {_0}")]
     Reservation(ReservationError),
@@ -274,7 +251,6 @@ impl ExtError {
             ExtError::Execution(err) => err as u32,
             ExtError::Memory(err) => err as u32,
             ExtError::Message(err) => err as u32,
-            ExtError::Wait(err) => err as u32,
             ExtError::Reservation(err) => err as u32,
             ExtError::ProgramRent(err) => err as u32,
             ExtError::Unsupported => u32::MAX,
@@ -286,7 +262,6 @@ impl ExtError {
         match code {
             100 => Some(ExecutionError::NotEnoughGas.into()),
             101 => Some(ExecutionError::NotEnoughValue.into()),
-            102 => Some(ExecutionError::InvalidDebugString.into()),
             103 => Some(ExecutionError::TooBigReadLen.into()),
             104 => Some(ExecutionError::ReadWrongRange.into()),
             105 => Some(ExecutionError::NoReplyContext.into()),
@@ -309,9 +284,6 @@ impl ExtError {
             309 => Some(MessageError::DuplicateReplyDeposit.into()),
             310 => Some(MessageError::IncorrectMessageForReplyDeposit.into()),
             399 => Some(MessageError::InsufficientGasForDelayedSending.into()),
-            //
-            400 => Some(WaitError::ZeroDuration.into()),
-            401 => Some(WaitError::WaitAfterReply.into()),
             //
             500 => Some(ReservationError::InvalidReservationId.into()),
             501 => Some(ReservationError::ReservationsLimitReached.into()),
