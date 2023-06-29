@@ -60,7 +60,7 @@ jobs:
             github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'CI.yml',
+              workflow_id: 'CI.yaml',
               ref: context.ref,
               inputs: {
                 build: ${{ needs.status.outputs.build }},
