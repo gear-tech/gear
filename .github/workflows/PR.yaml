@@ -52,7 +52,7 @@ jobs:
     name: Dispatch CI
     needs: status
     if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
-    uses: actions/github-script@v4
+    uses: actions/github-script@v6
     with:
       github-token: ${{ secrets.GITHUB_TOKEN }}
       script: |
