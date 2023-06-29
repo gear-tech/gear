@@ -65,7 +65,7 @@ jobs:
             github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_file: 'CI.yml',
+              workflow_id: 'CI.yml',
+              ref: context.ref,
               inputs,
-              ref: context.ref
-            });
+            })
