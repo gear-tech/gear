@@ -60,7 +60,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'CI.yaml',
-              ref: context.ref,
+              ref: ${{ github.ref }},
               inputs: {
                 build: ${{ needs.status.outputs.build }},
                 cache: ${{ needs.status.outputs.cache }}
