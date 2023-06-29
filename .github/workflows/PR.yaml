@@ -51,20 +51,22 @@ jobs:
   ci:
     name: Dispatch CI
     needs: status
+    runs-on: ubuntu-latest
     if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
-    uses: actions/github-script@v6
-    with:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-      script: |
-        const inputs = {
-          build: ${{ needs.status.outputs.build }}
-          cache: ${{ needs.status.outputs.cache }}
-        };
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const inputs = {
+              build: ${{ needs.status.outputs.build }}
+              cache: ${{ needs.status.outputs.cache }}
+            };
 
-        await github.actions.createWorkflowDispatch({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          workflow_file: 'CI.yml',
-          inputs,
-          ref: context.ref
-        });
+            await github.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_file: 'CI.yml',
+              inputs,
+              ref: context.ref
+            });
