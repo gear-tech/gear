@@ -19,22 +19,24 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
-    memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
-    BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
-    MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
+    memory::{MemoryAccessError, WasmMemoryRead},
+    runtime::Runtime,
+    syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, MessageWaitedType, TerminationReason, TrapExplanation,
+    UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
 use gear_core::{
-    buffer::RuntimeBuffer,
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{ReplyCode, SignalCode};
+use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
@@ -48,8 +50,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
@@ -61,6 +64,17 @@ where
         }
 
         Ok(0)
+    }
+
+    fn read_message_payload(
+        ctx: &mut R,
+        read_payload: WasmMemoryRead,
+    ) -> Result<Payload, TerminationReason> {
+        ctx.read(read_payload)?
+            .try_into()
+            .map_err(|PayloadSizeError| {
+                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into()).into()
+            })
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
@@ -77,7 +91,7 @@ where
             hash: destination,
             value,
         } = ctx.read_as(read_hash_val)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
             .send(HandlePacket::new(destination.into(), payload, value), delay)
@@ -136,7 +150,7 @@ where
             hash2: destination,
             value,
         } = ctx.read_as(read_rid_pid_value)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
             .reservation_send(
@@ -297,7 +311,7 @@ where
     pub fn reply(ctx: &mut R, payload_ptr: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
             .reply(ReplyPacket::new(payload, value))
@@ -326,7 +340,7 @@ where
             hash: reservation_id,
             value,
         } = ctx.read_as(read_rid_value)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
             .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
@@ -432,9 +446,17 @@ where
     #[host(cost = RuntimeCosts::Debug(data_len))]
     pub fn debug(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
-        let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
+        let data: RuntimeBuffer = ctx
+            .read(read_data)?
+            .try_into()
+            .map_err(|RuntimeBufferSizeError| {
+                UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+            })
+            .map_err(TrapExplanation::UnrecoverableExt)?;
 
-        let s = String::from_utf8(data.into_vec())?;
+        let s = String::from_utf8(data.into_vec())
+            .map_err(|_err| UnrecoverableExecutionError::InvalidDebugString.into())
+            .map_err(TrapExplanation::UnrecoverableExt)?;
         ctx.ext_mut().debug(&s)?;
 
         Ok(())
@@ -606,8 +628,8 @@ where
             hash: code_id,
             value,
         } = ctx.read_as(read_cid_value)?;
-        let salt = ctx.read(read_salt)?.try_into()?;
-        let payload = ctx.read(read_payload)?.try_into()?;
+        let salt = Self::read_message_payload(ctx, read_salt)?;
+        let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
             .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)

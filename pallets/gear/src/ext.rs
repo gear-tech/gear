@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ExtAllocError, ExtError, ProcessorContext, ProcessorExternalities};
+use core_processor::{
+    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    UnrecoverableExtError,
+};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
@@ -153,8 +156,9 @@ impl CountersOwner for LazyPagesExt {
 }
 
 impl Externalities for LazyPagesExt {
-    type Error = ExtError;
-    type AllocError = ExtAllocError;
+    type UnrecoverableError = UnrecoverableExtError;
+    type FallibleError = FallibleExtError;
+    type AllocError = AllocExtError;
 
     fn alloc(
         &mut self,
@@ -168,27 +172,32 @@ impl Externalities for LazyPagesExt {
         self.inner.free(page)
     }
 
-    fn block_height(&self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         self.inner.block_height()
     }
 
-    fn block_timestamp(&self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         self.inner.block_timestamp()
     }
 
-    fn send_init(&mut self) -> Result<u32, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::FallibleError> {
         self.inner.send_init()
     }
 
-    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::FallibleError> {
         self.inner.send_push(handle, buffer)
     }
 
-    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
+    fn send_push_input(
+        &mut self,
+        handle: u32,
+        offset: u32,
+        len: u32,
+    ) -> Result<(), Self::FallibleError> {
         self.inner.send_push_input(handle, offset, len)
     }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError> {
         self.inner.reply_push(buffer)
     }
 
@@ -197,7 +206,7 @@ impl Externalities for LazyPagesExt {
         handle: u32,
         msg: HandlePacket,
         delay: u32,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::FallibleError> {
         self.inner.send_commit(handle, msg, delay)
     }
 
@@ -207,11 +216,11 @@ impl Externalities for LazyPagesExt {
         handle: u32,
         msg: HandlePacket,
         delay: u32,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::FallibleError> {
         self.inner.reservation_send_commit(id, handle, msg, delay)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
         self.inner.reply_commit(msg)
     }
 
@@ -219,35 +228,35 @@ impl Externalities for LazyPagesExt {
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::FallibleError> {
         self.inner.reservation_reply_commit(id, msg)
     }
 
-    fn reply_to(&self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::FallibleError> {
         self.inner.reply_to()
     }
 
-    fn signal_from(&self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::FallibleError> {
         self.inner.signal_from()
     }
 
-    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
         self.inner.reply_push_input(offset, len)
     }
 
-    fn source(&self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         self.inner.source()
     }
 
-    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError> {
         self.inner.reply_code()
     }
 
-    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+    fn signal_code(&self) -> Result<SignalCode, Self::FallibleError> {
         self.inner.signal_code()
     }
 
-    fn message_id(&self) -> Result<MessageId, Self::Error> {
+    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         self.inner.message_id()
     }
 
@@ -255,63 +264,67 @@ impl Externalities for LazyPagesExt {
         &mut self,
         program_id: ProgramId,
         rent: u128,
-    ) -> Result<(u128, u32), Self::Error> {
+    ) -> Result<(u128, u32), Self::FallibleError> {
         self.inner.pay_program_rent(program_id, rent)
     }
 
-    fn program_id(&self) -> Result<ProgramId, Self::Error> {
+    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         self.inner.program_id()
     }
 
-    fn debug(&self, data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
         self.inner.debug(data)
     }
 
-    fn size(&self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         self.inner.size()
     }
 
-    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
         self.inner.random()
     }
 
-    fn reserve_gas(&mut self, amount: u64, blocks: u32) -> Result<ReservationId, Self::Error> {
+    fn reserve_gas(
+        &mut self,
+        amount: u64,
+        blocks: u32,
+    ) -> Result<ReservationId, Self::FallibleError> {
         self.inner.reserve_gas(amount, blocks)
     }
 
-    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
         self.inner.unreserve_gas(id)
     }
 
-    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::FallibleError> {
         self.inner.system_reserve_gas(amount)
     }
 
-    fn gas_available(&self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
         self.inner.gas_available()
     }
 
-    fn value(&self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
         self.inner.value()
     }
 
-    fn wait(&mut self) -> Result<(), Self::Error> {
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
         self.inner.wait()
     }
 
-    fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
         self.inner.wait_for(duration)
     }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
         self.inner.wait_up_to(duration)
     }
 
-    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
         self.inner.wake(waker_id, delay)
     }
 
-    fn value_available(&self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
         self.inner.value_available()
     }
 
@@ -319,11 +332,15 @@ impl Externalities for LazyPagesExt {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::Error> {
+    ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         self.inner.create_program(packet, delay)
     }
 
-    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+    fn reply_deposit(
+        &mut self,
+        message_id: MessageId,
+        amount: u64,
+    ) -> Result<(), Self::FallibleError> {
         self.inner.reply_deposit(message_id, amount)
     }
 
@@ -331,7 +348,7 @@ impl Externalities for LazyPagesExt {
         &self.inner.context.forbidden_funcs
     }
 
-    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
         self.inner.lock_payload(at, len)
     }
 

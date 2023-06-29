@@ -64,7 +64,9 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::TrapExplanation;
+use gear_backend_common::{
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
+};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
@@ -4650,9 +4652,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case no gas.
@@ -4686,9 +4688,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitUpTo case no gas.
@@ -4722,9 +4724,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case invalid argument.
@@ -4759,9 +4761,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
 
         // Command::WaitUpTo case invalid argument.
@@ -4796,9 +4798,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
     });
 }
@@ -4838,9 +4840,9 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                    WaitError::WaitAfterReply,
-                ))),
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                    UnrecoverableExtError::Wait(UnrecoverableWaitError::WaitAfterReply),
+                )),
             );
         });
     };
@@ -6568,8 +6570,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
@@ -6613,10 +6615,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::ProgramRent(
-                    ProgramRentError::MaximumBlockCountPaid
-                ))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
             )
         } else {
             String::from("no info")
@@ -7723,8 +7723,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Message(MessageError::InsufficientValue)
             )
         } else {
             String::from("no info")
@@ -7776,8 +7776,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
