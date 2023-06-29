@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(fromJSON('["A0-pleasereview", "A2-mergeoncegreen"]'), github.event.label.name)
     steps:
-      - uses: actions/github-script@6
+      - uses: actions/github-script@v6
         with:
           script: |
             const {
