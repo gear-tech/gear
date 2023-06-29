@@ -6,7 +6,7 @@ on:
     types: [labeled]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
@@ -14,6 +14,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+  build:
     uses: ./.github/workflows/build.yml
     # TODO: dispatch this workflow with github action API.
     # with more conditions. for example, if the there is
