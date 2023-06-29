@@ -307,4 +307,8 @@ impl Calls {
     pub fn load_bytes(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::LoadBytes).store(key)
     }
+
+    pub fn whiletrue(self) -> Self {
+        self.add_call(Call::Loop)
+    }
 }

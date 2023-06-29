@@ -3597,6 +3597,7 @@ dependencies = [
  "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
+ "demo-constructor",
  "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",

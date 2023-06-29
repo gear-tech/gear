@@ -18,9 +18,8 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
+use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
-
-const PATH: &str = "../target/wasm32-unknown-unknown/release/demo_loop.opt.wasm";
 
 #[tokio::test]
 async fn inf_loop() -> anyhow::Result<()> {
@@ -40,7 +39,13 @@ async fn inf_loop() -> anyhow::Result<()> {
 
     // Program initialization.
     let (mid, pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
+        .upload_program_bytes(
+            WASM_BINARY,
+            gclient::now_micros().to_le_bytes(),
+            Scheme::direct(Calls::builder().whiletrue()),
+            gas_limit,
+            0,
+        )
         .await?;
 
     // Asserting successful initialization.
