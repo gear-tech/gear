@@ -48,8 +48,7 @@ jobs:
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
-  ci:
-    name: Dispatch CI
+  dispatch-ci:
     needs: status
     runs-on: ubuntu-latest
     if: ${{ needs.status.outputs.matched-labels == 'true' || github.event.label.name == '' }}
@@ -63,7 +62,7 @@ jobs:
               cache: ${{ needs.status.outputs.cache }}
             };
 
-            await github.rest.actions.createWorkflowDispatch({
+            github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_file: 'CI.yml',
