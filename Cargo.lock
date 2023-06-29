@@ -3524,14 +3524,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3613,7 +3613,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3744,7 +3744,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap 4.3.4",
  "frame-benchmarking",
@@ -3898,7 +3898,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4464,7 +4464,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4557,7 +4557,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bs58",
  "futures",
@@ -4586,7 +4586,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.2.1"
+version = "0.2.2"
 
 [[package]]
 name = "gtest"
