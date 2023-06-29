@@ -707,7 +707,7 @@ mod tests {
 
         let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            42,
+            420,
             demo_capacitor::WASM_BINARY.to_vec(),
             None,
         );
