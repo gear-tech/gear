@@ -33,8 +33,8 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
-    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gsys::{

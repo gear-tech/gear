@@ -20,12 +20,16 @@
 
 use crate::{
     common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
-    pages::{GearPageNumber, PageDynSize},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
-use gear_core::{gas::GasLeft, memory::MemoryInterval};
+use gear_core::{
+    self,
+    gas::GasLeft,
+    memory::MemoryInterval,
+    pages::{GearPage, PageDynSize},
+};
 use std::collections::BTreeSet;
 
 pub(crate) struct HostFuncAccessHandler<'a> {
@@ -35,7 +39,7 @@ pub(crate) struct HostFuncAccessHandler<'a> {
 }
 
 impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
-    type Pages = BTreeSet<GearPageNumber>;
+    type Pages = BTreeSet<GearPage>;
     type Output = Status;
 
     fn is_write(&self) -> bool {
@@ -63,7 +67,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 
     fn charge_for_page_access(
         &mut self,
-        page: GearPageNumber,
+        page: GearPage,
         is_accessed: bool,
     ) -> Result<Status, Error> {
         self.gas_left_charger.charge_for_page_access(
@@ -80,13 +84,13 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
             .charge_for_page_data_load(self.gas_left))
     }
 
-    fn last_page(pages: &Self::Pages) -> Option<GearPageNumber> {
+    fn last_page(pages: &Self::Pages) -> Option<GearPage> {
         pages.last().copied()
     }
 
     fn process_pages(
         pages: Self::Pages,
-        mut process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
+        mut process_one: impl FnMut(GearPage) -> Result<(), Error>,
     ) -> Result<(), Error> {
         pages.iter().try_for_each(|page| -> Result<(), Error> {
             process_one(*page)?;
@@ -102,9 +106,9 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 fn accesses_pages(
     ctx: &mut LazyPagesExecutionContext,
     accesses: &[MemoryInterval],
-    pages: &mut BTreeSet<GearPageNumber>,
+    pages: &mut BTreeSet<GearPage>,
 ) -> Result<(), Error> {
-    let page_size = GearPageNumber::size(ctx);
+    let page_size = GearPage::size(ctx);
 
     accesses
         .iter()
@@ -120,7 +124,7 @@ fn accesses_pages(
             let end = (last_byte / page_size) * page_size;
             let mut offset = start;
             while offset <= end {
-                pages.insert(GearPageNumber::from_offset(ctx, offset));
+                pages.insert(GearPage::from_offset(ctx, offset));
                 offset = match offset.checked_add(page_size) {
                     Some(next_offset) => next_offset,
                     None => break,

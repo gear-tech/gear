@@ -48,10 +48,11 @@ use gear_core::{
     env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
+    memory::{Memory, MemoryInterval, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntryPoint,
     },
+    pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError as FallibleExtError, MemoryError};

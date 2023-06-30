@@ -38,8 +38,9 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{GearPage, PageBuf, PageU32Size, WasmPage},
+        memory::PageBuf,
         message::{StoredDispatch, StoredMessage},
+        pages::{GearPage, PageU32Size, WasmPage},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;

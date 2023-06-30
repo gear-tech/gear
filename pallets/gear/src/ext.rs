@@ -31,8 +31,9 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
+    memory::{GrowHandler, Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
+    pages::{GearPage, PageU32Size, WasmPage},
 };
 use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;

@@ -40,11 +40,12 @@ use gear_core::{
     env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, Memory, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
 };
@@ -620,7 +621,10 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
-    use gear_core::memory::{PageBufInner, WasmPage};
+    use gear_core::{
+        memory::PageBufInner,
+        pages::{PageNumber, WasmPage},
+    };
 
     struct TestExt;
     struct LazyTestExt;

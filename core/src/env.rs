@@ -20,8 +20,9 @@
 
 use crate::{
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, WasmPage},
+    memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
+    pages::WasmPage,
 };
 use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
