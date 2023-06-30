@@ -1,15 +1,18 @@
 [package]
 name = "demo-meta-state-v2"
 version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../../"
 
 [dependencies]
 gstd.workspace = true
-gmeta = { path = "../../../../gmeta", features = ["codegen"] }
+gmeta = { workspace = true, features = ["codegen"] }
 demo-meta-io = { path = "../io" }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../../../utils/wasm-builder", features = ["metawasm"] }
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
 
 [features]
 default = ["std"]

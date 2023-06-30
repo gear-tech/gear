@@ -3,8 +3,8 @@
 extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
-use codec::{Decode, Encode};
 use gmeta::{InOut, Metadata};
+use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 pub struct ProgramMetadata;

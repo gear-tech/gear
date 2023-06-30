@@ -7,7 +7,7 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+parity-scale-codec.workspace = true
 demo-meta-io = { path = "io" }
 demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
 demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
@@ -28,5 +28,5 @@ std = [
     "demo-meta-state-v1/std",
     "demo-meta-state-v2/std",
     "demo-meta-state-v3/std",
-    "codec/std",
+    "parity-scale-codec/std",
 ]
