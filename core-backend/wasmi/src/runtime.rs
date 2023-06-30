@@ -118,16 +118,6 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         self.caller.host_data_mut().replace(state);
         res
     }
-
-    fn memory_manager_write(
-        &mut self,
-        write: WasmMemoryWrite,
-        buff: &[u8],
-        gas_left: &mut GasLeft,
-    ) -> Result<(), MemoryAccessError> {
-        let mut memory = CallerWrap::memory(&mut self.caller, self.memory);
-        self.manager.write(&mut memory, write, buff, gas_left)
-    }
 }
 
 impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {

@@ -173,8 +173,12 @@ impl From<(&mut MessageContext, &mut PayloadSliceLock)> for UnlockPayloadBound {
 /// use by an executing program to trigger state transition
 /// in runtime.
 pub trait Externalities {
-    /// An error issued in api.
-    type Error;
+    /// An error issued in infallible sys-call.
+    type UnrecoverableError;
+
+    /// An error issued in fallible sys-call.
+    type FallibleError;
+
     /// An error issued during allocation.
     type AllocError: Display;
 
@@ -194,16 +198,16 @@ pub trait Externalities {
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Get the current block height.
-    fn block_height(&self) -> Result<u32, Self::Error>;
+    fn block_height(&self) -> Result<u32, Self::UnrecoverableError>;
 
     /// Get the current block timestamp.
-    fn block_timestamp(&self) -> Result<u64, Self::Error>;
+    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&mut self) -> Result<u32, Self::Error>;
+    fn send_init(&mut self) -> Result<u32, Self::FallibleError>;
 
     /// Push an extra buffer into message payload by handle.
-    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error>;
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::FallibleError>;
 
     /// Complete message and send it to another program.
     fn send_commit(
@@ -211,16 +215,21 @@ pub trait Externalities {
         handle: u32,
         msg: HandlePacket,
         delay: u32,
-    ) -> Result<MessageId, Self::Error>;
+    ) -> Result<MessageId, Self::FallibleError>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error> {
+    fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::FallibleError> {
         let handle = self.send_init()?;
         self.send_commit(handle, msg, delay)
     }
 
     /// Push the incoming message buffer into message payload by handle.
-    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error>;
+    fn send_push_input(
+        &mut self,
+        handle: u32,
+        offset: u32,
+        len: u32,
+    ) -> Result<(), Self::FallibleError>;
 
     /// Complete message and send it to another program using gas from reservation.
     fn reservation_send_commit(
@@ -229,7 +238,7 @@ pub trait Externalities {
         handle: u32,
         msg: HandlePacket,
         delay: u32,
-    ) -> Result<MessageId, Self::Error>;
+    ) -> Result<MessageId, Self::FallibleError>;
 
     /// Send message to another program using gas from reservation.
     fn reservation_send(
@@ -237,26 +246,26 @@ pub trait Externalities {
         id: ReservationId,
         msg: HandlePacket,
         delay: u32,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::FallibleError> {
         let handle = self.send_init()?;
         self.reservation_send_commit(id, handle, msg, delay)
     }
 
     /// Push an extra buffer into reply message.
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError>;
 
     /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error>;
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError>;
 
     /// Complete reply message and send it to source program from reservation.
     fn reservation_reply_commit(
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-    ) -> Result<MessageId, Self::Error>;
+    ) -> Result<MessageId, Self::FallibleError>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
         self.reply_commit(msg)
     }
 
@@ -265,45 +274,45 @@ pub trait Externalities {
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::FallibleError> {
         self.reservation_reply_commit(id, msg)
     }
 
     /// Get the message id of the initial message.
-    fn reply_to(&self) -> Result<MessageId, Self::Error>;
+    fn reply_to(&self) -> Result<MessageId, Self::FallibleError>;
 
     /// Get the message id which signal issues from.
-    fn signal_from(&self) -> Result<MessageId, Self::Error>;
+    fn signal_from(&self) -> Result<MessageId, Self::FallibleError>;
 
     /// Push the incoming message buffer into reply message.
-    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error>;
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError>;
 
     /// Get the source of the message currently being handled.
-    fn source(&self) -> Result<ProgramId, Self::Error>;
+    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError>;
 
     /// Get the reply code if the message being processed.
-    fn reply_code(&self) -> Result<ReplyCode, Self::Error>;
+    fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError>;
 
     /// Get the signal code if the message being processed.
-    fn signal_code(&self) -> Result<SignalCode, Self::Error>;
+    fn signal_code(&self) -> Result<SignalCode, Self::FallibleError>;
 
     /// Get the id of the message currently being handled.
-    fn message_id(&self) -> Result<MessageId, Self::Error>;
+    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError>;
 
     /// Pay rent for the specified program.
     fn pay_program_rent(
         &mut self,
         program_id: ProgramId,
         rent: u128,
-    ) -> Result<(u128, u32), Self::Error>;
+    ) -> Result<(u128, u32), Self::FallibleError>;
 
     /// Get the id of program itself
-    fn program_id(&self) -> Result<ProgramId, Self::Error>;
+    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError>;
 
     /// Send debug message.
     ///
     /// This should be no-op in release builds.
-    fn debug(&self, data: &str) -> Result<(), Self::Error>;
+    fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError>;
 
     /// Takes ownership over payload of the executing message and
     /// returns it in the wrapper [`PayloadSliceLock`], which acts
@@ -318,7 +327,7 @@ pub trait Externalities {
     /// message a [`Externalities::unlock_payload`] is introduced. For more info,
     /// read docs to [`PayloadSliceLock`], [`DropPayloadLockBound`],
     /// [`UnlockPayloadBound`], [`PayloadSliceAccess`] types and their methods.
-    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error>;
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError>;
 
     /// Reclaims ownership from the payload lock over previously taken payload from the
     /// currently executing message..
@@ -327,51 +336,59 @@ pub trait Externalities {
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound;
 
     /// Size of currently handled message payload.
-    fn size(&self) -> Result<usize, Self::Error>;
+    fn size(&self) -> Result<usize, Self::UnrecoverableError>;
 
     /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
-    fn random(&self) -> Result<(&[u8], u32), Self::Error>;
+    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError>;
 
     /// Reserve some gas for a few blocks.
-    fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
+    fn reserve_gas(
+        &mut self,
+        amount: u64,
+        duration: u32,
+    ) -> Result<ReservationId, Self::FallibleError>;
 
     /// Unreserve gas using reservation ID.
-    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error>;
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError>;
 
     /// Do system reservation.
-    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::FallibleError>;
 
     /// Tell how much gas is left in running context.
-    fn gas_available(&self) -> Result<u64, Self::Error>;
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError>;
 
     /// Value associated with message.
-    fn value(&self) -> Result<u128, Self::Error>;
+    fn value(&self) -> Result<u128, Self::UnrecoverableError>;
 
     /// Tell how much value is left in running context.
-    fn value_available(&self) -> Result<u128, Self::Error>;
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError>;
 
     /// Interrupt the program and reschedule execution for maximum.
-    fn wait(&mut self) -> Result<(), Self::Error>;
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError>;
 
     /// Interrupt the program and reschedule execution in duration.
-    fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error>;
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError>;
 
     /// Interrupt the program and reschedule execution for maximum,
     /// but not more than duration.
-    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error>;
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError>;
 
     /// Wake the waiting message and move it to the processing queue.
-    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError>;
 
     /// Send init message to create a new program.
     fn create_program(
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::Error>;
+    ) -> Result<(MessageId, ProgramId), Self::FallibleError>;
 
     /// Create deposit to handle reply on given message.
-    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error>;
+    fn reply_deposit(
+        &mut self,
+        message_id: MessageId,
+        amount: u64,
+    ) -> Result<(), Self::FallibleError>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;

@@ -16,31 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+//! Utility functions related to the current execution context or program
+//! execution flow.
+//!
+//! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
+//! for receiving details about the current execution and controlling it.
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
+pub use basic::*;
+pub use gcore::exec::{
+    block_height, block_timestamp, gas_available, leave, random, system_reserve_gas,
+    value_available, wait, wait_for, wait_up_to,
+};
+pub use r#async::*;
 
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-#[cfg(not(feature = "std"))]
-mod wasm {
-    use gstd::{debug, exec, msg};
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        msg::with_read_on_stack(|msg| {
-            let available_value = exec::value_available();
-            let value = msg::value();
-            debug!("inserted: {value}, total: {available_value}");
-
-            if msg.expect("Failed to load payload bytes") == b"smash" {
-                debug!("smashing, total: {available_value}");
-                msg::reply_bytes(b"send", available_value).unwrap();
-            }
-        });
-    }
-}
+mod r#async;
+mod basic;

@@ -96,16 +96,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         self.ext.alloc(pages, &mut self.memory)
     }
-
-    fn memory_manager_write(
-        &mut self,
-        write: WasmMemoryWrite,
-        buff: &[u8],
-        gas_left: &mut GasLeft,
-    ) -> Result<(), MemoryAccessError> {
-        self.memory_manager
-            .write(&mut self.memory, write, buff, gas_left)
-    }
 }
 
 impl<Ext: BackendExternalities> Runtime<Ext> {

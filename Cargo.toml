@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -32,6 +32,7 @@ members = [
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
     "examples/binaries/fungible-token",
+    "examples/binaries/stack-allocations",
     "examples/binaries/futures-unordered",
     "examples/binaries/gas-burned",
     "examples/binaries/incomplete-async-payloads",
@@ -395,6 +396,7 @@ demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
+demo-stack-allocations = { path = "examples/binaries/stack-allocations" }
 
 # Dependencies that only used in one package
 #
