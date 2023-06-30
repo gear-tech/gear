@@ -75,6 +75,26 @@ impl From<GearPage> for u32 {
     }
 }
 
+impl PageU32Size for GearPage {
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
+        unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
+    }
+
+    unsafe fn new_unchecked(num: u32) -> Self {
+        Self(num)
+    }
+}
+
+impl PageNumber for GearPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
+impl PageDynSize for GearPage {
+    const SIZE_NO: usize = PageSizeNo::GearSizeNo as usize;
+}
 /// Wasm page number.
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Default)]
 pub struct WasmPage(pub(crate) u32);
@@ -91,6 +111,27 @@ impl From<WasmPage> for u32 {
     fn from(value: WasmPage) -> Self {
         value.0
     }
+}
+
+impl PageNumber for WasmPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
+impl PageU32Size for WasmPage {
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
+        unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
+    }
+
+    unsafe fn new_unchecked(num: u32) -> Self {
+        Self(num)
+    }
+}
+
+impl PageDynSize for WasmPage {
+    const SIZE_NO: usize = PageSizeNo::WasmSizeNo as usize;
 }
 
 /// Page number trait - page, which can return it number as u32.
@@ -123,18 +164,6 @@ pub trait PageNumber: Into<u32> + Sized + Clone + Copy + PartialEq + Eq + Partia
         } else {
             Err(PageError::WrongRange(self.raw(), end.raw()))
         }
-    }
-}
-
-impl PageNumber for WasmPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-}
-
-impl PageNumber for GearPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
     }
 }
 
@@ -289,28 +318,6 @@ pub trait PageU32Size: PageNumber {
     }
 }
 
-impl PageU32Size for GearPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-impl PageU32Size for WasmPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
     /// Returns non-zero size of page.
@@ -375,14 +382,6 @@ pub enum PageSizeNo {
     GearSizeNo = 1,
     /// Amount of page sizes.
     Amount = 2,
-}
-
-impl PageDynSize for WasmPage {
-    const SIZE_NO: usize = PageSizeNo::WasmSizeNo as usize;
-}
-
-impl PageDynSize for GearPage {
-    const SIZE_NO: usize = PageSizeNo::GearSizeNo as usize;
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another.
