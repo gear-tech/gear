@@ -107,7 +107,7 @@ impl WasmBuilder {
         let profile = if profile == "debug" { "dev" } else { profile };
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
-        if profile != "dev" {
+        if env::var("__GEAR_WASM_BUILDER_NO_PATH_REMAP").is_err() && profile != "dev" {
             self.cargo.set_paths_to_remap(&self.paths_to_remap()?);
         }
 
