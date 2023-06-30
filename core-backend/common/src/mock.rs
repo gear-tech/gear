@@ -27,8 +27,9 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
+    memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
+    pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
 use gear_core_errors::{MemoryError, ReplyCode, SignalCode};

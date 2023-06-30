@@ -34,8 +34,9 @@ use gear_backend_common::{
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
-    memory::{GearPage, PageBuf},
+    memory::PageBuf,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    pages::GearPage,
     reservation::GasReservationState,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};

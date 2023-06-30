@@ -18,11 +18,9 @@
 
 //! Wrappers around system memory protections.
 
-use crate::{
-    pages::{PageDynSize, PagesIterInclusive, SizeManager},
-    utils,
-};
+use crate::utils;
 use core::ops::RangeInclusive;
+use gear_core::pages::{PageDynSize, PagesIterInclusive, SizeManager};
 use std::fmt::Debug;
 
 #[derive(Debug, derive_more::Display)]
@@ -116,11 +114,11 @@ pub(crate) fn mprotect_mem_interval_except_pages<S: SizeManager, P: PageDynSize>
 
     let mut interval_offset = start_offset;
     for page in except_pages {
-        let page_offset = page.offset(size_ctx) as usize;
+        let page_offset = PageDynSize::offset(&page, size_ctx) as usize;
         if page_offset > interval_offset {
             mprotect(interval_offset, page_offset)?;
         }
-        interval_offset = page.end_offset(size_ctx) as usize + 1;
+        interval_offset = PageDynSize::end_offset(&page, size_ctx) as usize + 1;
     }
     if mem_size > interval_offset {
         mprotect(interval_offset, mem_size)
@@ -147,18 +145,19 @@ pub(crate) fn mprotect_pages<S: SizeManager, P: PageDynSize + Ord>(
         let end = interval.end();
 
         let addr = mem_addr
-            .checked_add(start.offset(size_ctx) as usize)
+            .checked_add(PageDynSize::offset(&start, size_ctx) as usize)
             .ok_or(MprotectError::Overflow(
                 mem_addr,
-                start.offset(size_ctx) as usize,
+                PageDynSize::offset(&start, size_ctx) as usize,
             ))?;
 
         // `+ P::size()` because range is inclusive, and it's safe, because both are u32.
-        let size = end
-            .checked_sub(start)
-            .unwrap_or_else(|| unreachable!("`end` cannot be less than `start`"))
-            .offset(size_ctx) as usize
-            + P::size(size_ctx) as usize;
+        let size = PageDynSize::offset(
+            &end.checked_sub(start)
+                .unwrap_or_else(|| unreachable!("`end` cannot be less than `start`")),
+            size_ctx,
+        ) as usize
+            + <P as PageDynSize>::size(size_ctx) as usize;
         unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 

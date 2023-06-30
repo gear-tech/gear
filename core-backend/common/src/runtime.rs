@@ -22,7 +22,7 @@ use crate::{
     memory::{MemoryAccessRecorder, MemoryOwner},
     BackendExternalities, BackendState, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, memory::WasmPage};
+use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 
 pub trait Runtime<Ext: BackendExternalities>:
     MemoryOwner + MemoryAccessRecorder + BackendState

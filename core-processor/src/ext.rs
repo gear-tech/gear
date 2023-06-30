@@ -38,13 +38,14 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
-        NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryInterval, NoopGrowHandler,
+        PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{
@@ -1033,7 +1034,7 @@ impl Ext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::message::ContextSettings;
+    use gear_core::{message::ContextSettings, pages::PageNumber};
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1210,7 +1211,10 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use gear_core::memory::{HostPointer, PageError};
+        use gear_core::{
+            memory::HostPointer,
+            pages::{PageError, PageNumber},
+        };
         use proptest::{
             arbitrary::any,
             collection::size_range,

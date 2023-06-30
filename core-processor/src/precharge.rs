@@ -31,8 +31,8 @@ use gear_backend_common::SystemReservationContext;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
+    pages::{PageU32Size, WasmPage},
 };
 use scale_info::{
     scale::{self, Decode, Encode},
