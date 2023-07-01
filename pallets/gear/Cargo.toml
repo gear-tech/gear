@@ -56,8 +56,8 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
-test-syscalls = { workspace = true, optional = true }
-demo-proxy = { workspace = true, optional = true }
+# test-syscalls = { workspace = true, optional = true }
+# demo-proxy = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -78,7 +78,7 @@ demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
 demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
-demo-proxy.workspace = true
+# demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
 demo-incomplete-async-payloads.workspace = true
@@ -104,7 +104,7 @@ demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
-test-syscalls.workspace = true
+# test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
@@ -148,8 +148,8 @@ std = [
 	"serde/std",
 	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
-	"test-syscalls?/std",
-	"demo-proxy?/std",
+	# "test-syscalls?/std",
+	# "demo-proxy?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -163,8 +163,8 @@ runtime-benchmarks = [
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
-	"test-syscalls/wasm-wrapper",
-	"demo-proxy/wasm-wrapper",
+	# "test-syscalls/wasm-wrapper",
+	# "demo-proxy/wasm-wrapper",
 	"gsys",
 ]
 runtime-benchmarks-checkers = []

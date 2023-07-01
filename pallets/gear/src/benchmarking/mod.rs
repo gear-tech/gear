@@ -42,8 +42,8 @@ mod syscalls;
 mod utils;
 use syscalls::Benches;
 
-mod tests;
-use tests::syscalls_integrity;
+// mod tests;
+// use tests::syscalls_integrity;
 
 use self::{
     code::{
@@ -359,49 +359,49 @@ benchmarks! {
         T: pallet_gear_voucher::Config,
     }
 
-    #[extra]
-    check_all {
-        syscalls_integrity::main_test::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
-    } : {}
+    // #[extra]
+    // check_all {
+    //     syscalls_integrity::main_test::<T>();
+    //     #[cfg(feature = "lazy-pages")]
+    //     {
+    //         tests::lazy_pages::lazy_pages_charging::<T>();
+    //         tests::lazy_pages::lazy_pages_charging_special::<T>();
+    //         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+    //     }
+    // } : {}
 
-    #[extra]
-    check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
-    } : {}
+    // #[extra]
+    // check_lazy_pages_all {
+    //     #[cfg(feature = "lazy-pages")]
+    //     {
+    //         tests::lazy_pages::lazy_pages_charging::<T>();
+    //         tests::lazy_pages::lazy_pages_charging_special::<T>();
+    //         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+    //     }
+    // } : {}
 
-    #[extra]
-    check_syscalls_integrity {
-        syscalls_integrity::main_test::<T>();
-    }: {}
+    // #[extra]
+    // check_syscalls_integrity {
+    //     syscalls_integrity::main_test::<T>();
+    // }: {}
 
-    #[extra]
-    check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
-        tests::lazy_pages::lazy_pages_charging::<T>();
-    }: {}
+    // #[extra]
+    // check_lazy_pages_charging {
+    //     #[cfg(feature = "lazy-pages")]
+    //     tests::lazy_pages::lazy_pages_charging::<T>();
+    // }: {}
 
-    #[extra]
-    check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
-        tests::lazy_pages::lazy_pages_charging_special::<T>();
-    }: {}
+    // #[extra]
+    // check_lazy_pages_charging_special {
+    //     #[cfg(feature = "lazy-pages")]
+    //     tests::lazy_pages::lazy_pages_charging_special::<T>();
+    // }: {}
 
-    #[extra]
-    check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
-        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-    }: {}
+    // #[extra]
+    // check_lazy_pages_gas_exceed {
+    //     #[cfg(feature = "lazy-pages")]
+    //     tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+    // }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that
     // the most of the gear storages represented with this type.

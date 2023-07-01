@@ -7157,7 +7157,6 @@ dependencies = [
  "demo-out-of-memory",
  "demo-ping",
  "demo-program-factory",
- "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
  "demo-reservation-manager",
@@ -7218,7 +7217,6 @@ dependencies = [
  "sp-sandbox",
  "sp-std",
  "static_assertions",
- "test-syscalls",
  "wabt",
 ]
 

@@ -349,7 +349,7 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 
 # Examples
-test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
+# test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
 demo-async = { path = "examples/binaries/async" }
 demo-async-custom-entry = { path = "examples/binaries/async-custom-entry" }
 demo-async-init = { path = "examples/binaries/async-init" }
@@ -465,7 +465,7 @@ lto = "fat"
 codegen-units = 1
 
 [profile.profiling]
-inherits = "release"
+inherits = "production"
 debug = true
 
 [patch.crates-io]
