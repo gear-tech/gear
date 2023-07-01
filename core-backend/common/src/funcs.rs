@@ -20,7 +20,7 @@
 
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
-    runtime::Runtime,
+    runtime::{RunFallibleError, Runtime},
     syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
     BackendExternalitiesError, MessageWaitedType, TerminationReason, TrapExplanation,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
@@ -51,7 +51,7 @@ impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
     Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
@@ -69,12 +69,11 @@ where
     fn read_message_payload(
         ctx: &mut R,
         read_payload: WasmMemoryRead,
-    ) -> Result<Payload, TerminationReason> {
+    ) -> Result<Payload, RunFallibleError> {
         ctx.read(read_payload)?
             .try_into()
-            .map_err(|PayloadSizeError| {
-                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into()).into()
-            })
+            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+            .map_err(RunFallibleError::FallibleExt)
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]

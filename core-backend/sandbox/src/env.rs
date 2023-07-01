@@ -27,6 +27,7 @@ use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
+    runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
     BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult,
@@ -165,7 +166,7 @@ impl<Ext> EnvBuilder<Ext>
 where
     Ext: BackendExternalities + 'static,
     Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
@@ -199,7 +200,7 @@ impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
     Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
@@ -269,7 +270,7 @@ impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, 
 where
     EnvExt: BackendExternalities + 'static,
     EnvExt::UnrecoverableError: BackendExternalitiesError,
-    EnvExt::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {

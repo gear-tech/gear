@@ -26,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    runtime::Runtime as CommonRuntime,
+    runtime::{RunFallibleError, Runtime as CommonRuntime},
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
@@ -78,7 +78,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         f: F,
     ) -> Result<(), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
         self.run_any(cost, |ctx| {

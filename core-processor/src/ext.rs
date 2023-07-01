@@ -24,6 +24,7 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
+    runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
     BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
     TrapExplanation, UnrecoverableExecutionError,
@@ -38,8 +39,8 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryInterval, NoopGrowHandler,
-        PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
+        NoopGrowHandler, PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
@@ -49,8 +50,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MemoryError,
-    MessageError, ProgramRentError, ReplyCode, ReservationError, SignalCode,
+    ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
+    ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -197,16 +198,15 @@ impl From<ReservationError> for FallibleExtError {
     }
 }
 
-impl BackendExternalitiesError for FallibleExtError {
-    fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            FallibleExtError::Core(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::FallibleExt(err)).into()
-            }
-            FallibleExtError::ForbiddenFunction => {
-                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
-            }
-            FallibleExtError::Charge(err) => err.into(),
+impl From<FallibleExtError> for RunFallibleError {
+    fn from(err: FallibleExtError) -> Self {
+        match err {
+            FallibleExtError::Core(err) => err.into(),
+            FallibleExtError::ForbiddenFunction => TerminationReason::Actor(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
+            )
+            .into(),
+            FallibleExtError::Charge(err) => TerminationReason::from(err).into(),
         }
     }
 }

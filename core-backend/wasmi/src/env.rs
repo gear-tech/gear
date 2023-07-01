@@ -27,6 +27,7 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
+    runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
     BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,
@@ -127,7 +128,7 @@ impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, En
 where
     EnvExt: BackendExternalities + 'static,
     EnvExt::UnrecoverableError: BackendExternalitiesError,
-    EnvExt::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {

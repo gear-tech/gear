@@ -40,7 +40,7 @@ use gear_core::{
     env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, Memory, PageBuf},
+    memory::{AllocationsContext, Memory, MemoryError, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
@@ -49,7 +49,6 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::MemoryError;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,

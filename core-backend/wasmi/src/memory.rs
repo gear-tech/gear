@@ -21,10 +21,9 @@
 use crate::state::HostState;
 use gear_core::{
     env::Externalities,
-    memory::{HostPointer, Memory},
+    memory::{HostPointer, Memory, MemoryError},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
-use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
 pub(crate) struct MemoryWrapRef<'a, Ext: Externalities + 'static> {

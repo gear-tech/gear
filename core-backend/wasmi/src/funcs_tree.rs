@@ -21,8 +21,8 @@
 use crate::{runtime::CallerWrap, state::HostState, wasmi::Caller};
 use alloc::collections::{BTreeMap, BTreeSet};
 use gear_backend_common::{
-    funcs::FuncsHandler as CommonFuncsHandler, BackendAllocExternalitiesError,
-    BackendExternalities, BackendExternalitiesError,
+    funcs::FuncsHandler as CommonFuncsHandler, runtime::RunFallibleError,
+    BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
 };
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{core::Trap, Func, Memory, Store};
@@ -97,7 +97,7 @@ pub(crate) fn build<Ext>(
 where
     Ext: BackendExternalities + 'static,
     Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
+    RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
 {
     let f = FunctionBuilder(forbidden_funcs);

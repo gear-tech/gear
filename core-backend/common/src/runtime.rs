@@ -20,9 +20,25 @@
 
 use crate::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExternalities, BackendState, TerminationReason,
+    BackendExternalities, BackendExternalitiesError, BackendState, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
+use gear_core_errors::ExtError as FallibleExtError;
+
+#[derive(Debug, Clone, derive_more::From)]
+pub enum RunFallibleError {
+    TerminationReason(TerminationReason),
+    FallibleExt(FallibleExtError),
+}
+
+impl<E> From<E> for RunFallibleError
+where
+    E: BackendExternalitiesError,
+{
+    fn from(err: E) -> Self {
+        err.into_run_fallible_error()
+    }
+}
 
 pub trait Runtime<Ext: BackendExternalities>:
     MemoryOwner + MemoryAccessRecorder + BackendState
@@ -44,7 +60,7 @@ pub trait Runtime<Ext: BackendExternalities>:
         f: F,
     ) -> Result<(), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized;
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, Ext::AllocError>;

@@ -18,7 +18,10 @@
 
 //! Work with WASM program memory in backends.
 
-use crate::BackendExternalities;
+use crate::{
+    runtime::RunFallibleError, ActorTerminationReason, BackendExternalities,
+    BackendExternalitiesError, TerminationReason, TrapExplanation, UnrecoverableMemoryError,
+};
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
@@ -31,9 +34,9 @@ use core::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     gas::GasLeft,
-    memory::{Memory, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::MemoryError as FallibleMemoryError;
 use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
@@ -47,22 +50,52 @@ pub enum ProcessAccessError {
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
-    #[from]
     Memory(MemoryError),
-    #[from]
+    ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
     // TODO: remove #2164
     Decode,
-    GasLimitExceeded,
-    GasAllowanceExceeded,
 }
 
-impl From<ProcessAccessError> for MemoryAccessError {
-    fn from(err: ProcessAccessError) -> Self {
-        match err {
-            ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
-            ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
-            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
+impl BackendExternalitiesError for MemoryAccessError {
+    fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds)
+            | MemoryAccessError::Memory(MemoryError::AccessOutOfBounds) => {
+                TrapExplanation::UnrecoverableExt(
+                    UnrecoverableMemoryError::AccessOutOfBounds.into(),
+                )
+                .into()
+            }
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+                TrapExplanation::UnrecoverableExt(
+                    UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
+                )
+                .into()
+            }
+            MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
+                TrapExplanation::GasLimitExceeded.into()
+            }
+            MemoryAccessError::ProcessAccess(ProcessAccessError::GasAllowanceExceeded) => {
+                ActorTerminationReason::GasAllowanceExceeded
+            }
+            MemoryAccessError::Decode => unreachable!(),
+        }
+        .into()
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
+        match self {
+            MemoryAccessError::Memory(MemoryError::AccessOutOfBounds) => {
+                RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
+            }
+            MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
+                RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
+            }
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+                RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
+            }
+            e => e.into_termination_reason().into(),
         }
     }
 }
