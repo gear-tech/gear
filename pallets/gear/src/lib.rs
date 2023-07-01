@@ -906,10 +906,23 @@ pub mod pallet {
         pub fn next_message_id(user_id: H256) -> MessageId {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
-            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number: u32 =
+                <frame_system::Pallet<T>>::block_number().unique_saturated_into();
             let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce.into())
+            const SALT: &[u8] = b"outgoing";
+            let argument = [
+                SALT,
+                &block_number.to_le_bytes(),
+                user_id.as_ref(),
+                &nonce.to_le_bytes(),
+            ]
+            .concat();
+            // let id = MessageId::generate_from_user(block_number, user_id, nonce.into());
+            let mid = sp_io::hashing::blake2_256(&argument).into();
+            // assert!(id == mid);
+            mid
+            // MessageId::generate_from_user(block_number, user_id, nonce.into())
         }
 
         /// Delayed tasks processing.
