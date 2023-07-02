@@ -14,8 +14,6 @@ init_usage() {
     help           show help message and exit
 
     wasm           update rustc and add wasm target
-    js             install js packages via npm
-    update-js      update js packages via npm
     cargo          install 'cargo-hack' extension for cargo
 
 EOF
@@ -28,20 +26,6 @@ wasm_init() {
   fi
 
   rustup target add wasm32-unknown-unknown --toolchain nightly
-}
-
-# $1 = ROOT_DIR
-js_init() {
-  cd "$1"/utils/wasm-proc/metadata-js
-  npm install
-  cd "$1"
-}
-
-# $1 = ROOT_DIR
-js_update() {
-  cd "$1"/utils/wasm-proc/metadata-js
-  npm update
-  cd "$1"
 }
 
 cargo_init() {

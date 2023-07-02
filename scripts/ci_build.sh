@@ -12,9 +12,6 @@ cd "$ROOT_DIR"
 echo "Show: Versioning"
     ./scripts/gear.sh show
 
-echo "Install: Node.js packages"
-    ./scripts/gear.sh init js
-
 echo "Build: Examples (WASM)"
     ./scripts/gear.sh build examples --locked
 
@@ -43,9 +40,6 @@ echo "Test: Gear workspace"
 
 echo "Test: `gcli`"
     ./scripts/gear.sh test gcli --release --locked --retries 3
-
-echo "Test: JS metadata"
-    ./scripts/gear.sh test js
 
 echo "Test: Client tests"
     ./scripts/gear.sh test client

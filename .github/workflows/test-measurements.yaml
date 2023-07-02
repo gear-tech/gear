@@ -26,16 +26,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |

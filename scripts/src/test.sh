@@ -18,7 +18,6 @@ test_usage() {
     gear           run workspace tests
     gsdk           run gsdk package tests
     gcli           run gcli package tests
-    js             run metadata js tests
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -49,11 +48,6 @@ gsdk_test() {
 gcli_test() {
   cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
   cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
-}
-
-# $1 - ROOT DIR
-js_test() {
-  node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
 pallet_test() {

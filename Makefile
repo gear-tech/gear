@@ -143,19 +143,11 @@ fmt-doc-check:
 
 # Init section
 .PHONY: init
-init: init-wasm init-cargo init-js
+init: init-wasm init-cargo
 
 .PHONY: init-wasm
 init-wasm:
 	@ ./scripts/gear.sh init wasm
-
-.PHONY: init-js
-init-js:
-	@ ./scripts/gear.sh init js
-
-.PHONY: update-js
-update-js:
-	@ ./scripts/gear.sh init update-js
 
 .PHONY: init-cargo
 init-cargo:
@@ -197,23 +189,23 @@ purge-dev-chain-release:
 # Test section
 .PHONY: test # \
 	There should be no release builds to keep checks fast.
-test: test-gear test-js
+test: test-gear
 
 .PHONY: test-doc
 test-doc:
 	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
-test-release: test-gear-release test-js
+test-release: test-gear-release
 
 .PHONY: test-gear
-test-gear: init-js examples # \
+test-gear: examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples # \
+test-gear-release: examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
@@ -229,10 +221,6 @@ test-gcli: node
 .PHONY: test-gcli-release
 test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
-
-.PHONY: test-js
-test-js: init-js
-	@ ./scripts/gear.sh test js
 
 .PHONY: test-pallet
 test-pallet:
