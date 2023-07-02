@@ -67,10 +67,6 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
-.PHONY: node-release-rtest
-node-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
-
 .PHONY: vara
 vara:
 	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
@@ -78,10 +74,6 @@ vara:
 .PHONY: vara-release
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
-
-.PHONY: vara-release-rtest
-vara-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
 
 # Check section
 .PHONY: check
@@ -212,7 +204,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test # \
-	There should be no release builds (e.g. `rtest`) for fast checking.
+	There should be no release builds to keep checks fast.
 test: test-gear test-js gtest
 
 .PHONY: test-doc
@@ -220,7 +212,7 @@ test-doc:
 	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest
+test-release: test-gear-release test-js gtest
 
 .PHONY: test-gear
 test-gear: init-js examples # \
@@ -253,14 +245,6 @@ test-js: init-js
 .PHONY: gtest
 gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
-
-.PHONY: rtest
-rtest: init-js node-release-rtest examples
-	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
-
-.PHONY: rtest-vara
-rtest-vara: init-js vara-release-rtest examples
-	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:

@@ -56,14 +56,6 @@ echo "Test: Client tests"
 echo "Test: gsdk tests"
     ./scripts/gear.sh test gsdk
 
-echo "Test: Process node runtime spec tests"
-    cargo build -p gear-cli --release --features=runtime-test
-    ./scripts/gear.sh test rtest gear
-
-echo "Test: runtime spec tests no lazy pages"
-    cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-    ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
-
 echo "Test: Runtime benchmarks and benchmark tests work"
     cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
     ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096

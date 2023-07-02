@@ -3791,7 +3791,6 @@ dependencies = [
  "gcli",
  "gear-runtime",
  "gear-runtime-primitives",
- "gear-runtime-test-cli",
  "gear-service",
  "log",
  "mimalloc",
@@ -4108,46 +4107,6 @@ version = "0.1.0"
 dependencies = [
  "sp-core",
  "sp-runtime",
-]
-
-[[package]]
-name = "gear-runtime-test-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.3.4",
- "colored",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-core-processor",
- "gear-runtime",
- "gear-runtime-primitives",
- "gear-test",
- "junit-common",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-debug",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-im-online",
- "parity-scale-codec",
- "quick-xml",
- "rayon",
- "sc-cli",
- "sc-service",
- "serde_json",
- "sp-authority-discovery",
- "sp-consensus-babe",
- "sp-consensus-grandpa",
- "sp-consensus-slots",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "vara-runtime",
 ]
 
 [[package]]

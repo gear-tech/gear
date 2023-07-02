@@ -21,7 +21,6 @@ test_usage() {
     js             run metadata js tests
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
-    rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -79,25 +78,6 @@ gtest() {
   fi
 
   $ROOT_DIR/target/release/gear-test $YAMLS "$@"
-}
-
-# $1 - ROOT DIR
-# $2 - TARGET DIR
-# $3 - runtime str (gear / vara)
-# $4 - yamls list (optional)
-rtest() {
-  ROOT_DIR="$1"
-  TARGET_DIR="$2"
-  RUNTIME_STR="$3"
-
-  YAMLS=$(parse_yamls_list "$4")
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  test_run_node runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
