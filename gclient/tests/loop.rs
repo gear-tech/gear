@@ -38,8 +38,8 @@ async fn inf_loop() -> anyhow::Result<()> {
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
-    // Program initialization.
-    let (mid, pid, _) = api
+    // Program initialization with infinite loop inside.
+    let (mid, _pid, _) = api
         .upload_program_bytes(
             WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
@@ -48,12 +48,6 @@ async fn inf_loop() -> anyhow::Result<()> {
             0,
         )
         .await?;
-
-    // Asserting successful initialization.
-    assert!(listener.message_processed(mid).await?.succeed());
-
-    // Sending message to trigger loop.
-    let (mid, _) = api.send_message_bytes(pid, "", gas_limit, 0).await?;
 
     // Asserting message failure.
     assert!(listener.message_processed(mid).await?.failed());
