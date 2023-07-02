@@ -20,7 +20,7 @@
 
 use core::ops::Range;
 use gmeta::{In, InOut, Metadata};
-use gstd::{prelude::*, ActorId};
+use gstd::{codec::MaxEncodedLen, prelude::*, ActorId};
 
 pub struct FungibleTokenMetadata;
 
@@ -63,7 +63,7 @@ pub enum FTAction {
     BalanceOf(ActorId),
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum FTEvent {

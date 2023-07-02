@@ -29,8 +29,7 @@ use gear_backend_common::{
     runtime::Runtime,
     ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
-use gear_core_errors::ExtError;
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{
     core::{Trap, TrapCode, Value},
@@ -79,15 +78,6 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         Trap::Code(TrapCode::Unreachable)
     }
 
-    fn fallible_syscall_error(&self) -> Option<&ExtError> {
-        self.caller
-            .host_data()
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
-            .fallible_syscall_error
-            .as_ref()
-    }
-
     #[track_caller]
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
@@ -127,16 +117,6 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         let res = state.ext.alloc(pages, &mut mem);
         self.caller.host_data_mut().replace(state);
         res
-    }
-
-    fn memory_manager_write(
-        &mut self,
-        write: WasmMemoryWrite,
-        buff: &[u8],
-        gas_left: &mut GasLeft,
-    ) -> Result<(), MemoryAccessError> {
-        let mut memory = CallerWrap::memory(&mut self.caller, self.memory);
-        self.manager.write(&mut memory, write, buff, gas_left)
     }
 }
 
@@ -283,10 +263,6 @@ impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
 impl<Ext> BackendState for CallerWrap<'_, Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         caller_host_state_mut(&mut self.caller).set_termination_reason(reason);
-    }
-
-    fn set_fallible_syscall_error(&mut self, err: ExtError) {
-        caller_host_state_mut(&mut self.caller).set_fallible_syscall_error(err);
     }
 }
 

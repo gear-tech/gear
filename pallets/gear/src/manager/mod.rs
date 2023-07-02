@@ -69,8 +69,8 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::WasmPage,
     message::{DispatchKind, SignalMessage},
+    pages::WasmPage,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;

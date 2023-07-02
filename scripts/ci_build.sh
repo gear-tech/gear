@@ -24,9 +24,6 @@ echo "Build: Gear"
 echo "Build fuzzer"
     ./scripts/gear.sh build fuzz --locked --release
 
-echo "Build: WAT examples"
-    ./scripts/gear.sh build wat-examples
-
 echo "Check: Gear runtime imports"
     ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 

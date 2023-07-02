@@ -25,9 +25,6 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
-#[cfg(feature = "std")]
-pub mod memory_dump;
-
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
@@ -56,8 +53,9 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{GearPage, PageBuf, WasmPage},
+    memory::PageBuf,
     message::DispatchKind,
+    pages::{GearPage, WasmPage},
     reservation::GasReservationMap,
 };
 use primitive_types::H256;

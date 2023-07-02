@@ -39,16 +39,13 @@ Metadata {
             res: "Option<Wallet>",
         },
     },
-    reply:  {
-        input: str,
-        output: [u16],
-    },
     others:  {
         input: MessageAsyncIn {
             empty: "()",
         },
         output: Option<u8>,
     },
+    reply: str,
     signal: "()",
     state: [Wallet { id: "Id", person: "Person" }],
 }

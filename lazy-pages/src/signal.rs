@@ -21,12 +21,14 @@
 use crate::{
     common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
     globals::{self, GlobalNo},
-    pages::{GearPageNumber, PageDynSize},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::lazy_pages::Status;
-use gear_core::gas::GasLeft;
+use gear_core::{
+    gas::GasLeft,
+    pages::{GearPage, PageDynSize},
+};
 use std::convert::TryFrom;
 
 pub(crate) trait UserSignalHandler {
@@ -75,7 +77,7 @@ unsafe fn user_signal_handler_internal(
 
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
-    let page = GearPageNumber::from_offset(ctx, offset);
+    let page = GearPage::from_offset(ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
         let gas = globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| Ok(None))?;
@@ -113,14 +115,14 @@ struct SignalAccessHandler {
 }
 
 impl AccessHandler for SignalAccessHandler {
-    type Pages = GearPageNumber;
+    type Pages = GearPage;
     type Output = ();
 
     fn is_write(&self) -> bool {
         self.is_write
     }
 
-    fn last_page(page: &Self::Pages) -> Option<GearPageNumber> {
+    fn last_page(page: &Self::Pages) -> Option<GearPage> {
         Some(*page)
     }
 
@@ -148,7 +150,7 @@ impl AccessHandler for SignalAccessHandler {
 
     fn charge_for_page_access(
         &mut self,
-        page: GearPageNumber,
+        page: GearPage,
         is_accessed: bool,
     ) -> Result<Status, Error> {
         let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
@@ -167,8 +169,8 @@ impl AccessHandler for SignalAccessHandler {
     }
 
     fn process_pages(
-        page: GearPageNumber,
-        mut process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
+        page: GearPage,
+        mut process_one: impl FnMut(GearPage) -> Result<(), Error>,
     ) -> Result<(), Error> {
         process_one(page)
     }

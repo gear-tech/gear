@@ -22,7 +22,7 @@ use alloc::{collections::BTreeSet, vec::Vec};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
-    memory::{GearPage, WasmPage},
+    pages::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
