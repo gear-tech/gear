@@ -12,8 +12,5 @@ coverage_usage() {
   Subcommands:
     help           show help message and exit
 
-    gtest          run gear-test testing tool,
-                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
-
 EOF
 }

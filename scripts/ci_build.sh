@@ -47,9 +47,6 @@ echo "Test: `gcli`"
 echo "Test: JS metadata"
     ./scripts/gear.sh test js
 
-echo "Test: Process gear-test"
-    ./scripts/gear.sh test gtest
-
 echo "Test: Client tests"
     ./scripts/gear.sh test client
 

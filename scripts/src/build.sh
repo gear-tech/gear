@@ -17,7 +17,6 @@ build_usage() {
 
     gear           build gear workspace
     fuzz           build fuzzer crates
-    gear-test      build gear-test binary
     examples       build gear program examples,
                    you can specify yaml list to build coresponding examples
                    using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -34,10 +33,6 @@ gear_build() {
 
 fuzzer_build() {
   $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
-}
-
-gear_test_build() {
-  $CARGO build -p gear-test "$@"
 }
 
 node_build() {

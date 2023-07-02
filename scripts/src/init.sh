@@ -34,16 +34,12 @@ wasm_init() {
 js_init() {
   cd "$1"/utils/wasm-proc/metadata-js
   npm install
-  cd "$1"/gear-test/src/js
-  npm install
   cd "$1"
 }
 
 # $1 = ROOT_DIR
 js_update() {
   cd "$1"/utils/wasm-proc/metadata-js
-  npm update
-  cd "$1"/gear-test/src/js
   npm update
   cd "$1"
 }

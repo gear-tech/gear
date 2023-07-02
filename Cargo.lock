@@ -4189,34 +4189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-test"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 4.3.4",
- "colored",
- "derive_more",
- "env_logger",
- "gear-backend-common",
- "gear-backend-wasmi",
- "gear-core",
- "gear-core-errors",
- "gear-core-processor",
- "gear-wasm-instrument",
- "hex",
- "log",
- "once_cell",
- "parity-scale-codec",
- "primitive-types",
- "rand 0.8.5",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "serde_yaml",
-]
-
-[[package]]
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
@@ -10706,18 +10678,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_yaml"
-version = "0.8.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
-dependencies = [
- "indexmap",
- "ryu",
- "serde",
- "yaml-rust",
-]
-
-[[package]]
 name = "sha-1"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14489,15 +14449,6 @@ dependencies = [
  "rusticata-macros",
  "thiserror",
  "time 0.3.22",
-]
-
-[[package]]
-name = "yaml-rust"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
-dependencies = [
- "linked-hash-map",
 ]
 
 [[package]]

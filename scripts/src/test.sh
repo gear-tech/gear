@@ -19,8 +19,6 @@ test_usage() {
     gsdk           run gsdk package tests
     gcli           run gcli package tests
     js             run metadata js tests
-    gtest          run gear-test testing tool,
-                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -56,28 +54,6 @@ gcli_test() {
 # $1 - ROOT DIR
 js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
-}
-
-# $1 - ROOT DIR
-# $2 - yamls list (optional)
-gtest() {
-  ROOT_DIR="$1"
-  shift
-
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
-  fi
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  $ROOT_DIR/target/release/gear-test $YAMLS "$@"
 }
 
 pallet_test() {

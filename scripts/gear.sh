@@ -117,10 +117,6 @@ case "$COMMAND" in
         header "Builder fuzzer crates"
         fuzzer_build "$@"; ;;
 
-      gear-test)
-        header "Building gear test"
-        gear_test_build "$@"; ;;
-
       examples)
         check_extensions
         header "Building gear examples"
@@ -315,10 +311,6 @@ case "$COMMAND" in
         header "Running js tests"
         js_test "$ROOT_DIR"; ;;
 
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest "$ROOT_DIR" "$@"; ;;
-
       validators)
         header "Checking validators"
         validators "$ROOT_DIR" "$@"; ;;
@@ -355,10 +347,6 @@ case "$COMMAND" in
       -h | --help | help)
         coverage_usage
         exit; ;;
-
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest_debug "$ROOT_DIR" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

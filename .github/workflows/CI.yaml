@@ -209,9 +209,6 @@ jobs:
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
-
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
 
@@ -247,7 +244,6 @@ jobs:
           --ignore "examples/*"
           --ignore "utils/*"
           --ignore "target/*"
-          --ignore "gear-test/*"
           --ignore "node/*"
           --ignore "program/*"
           --ignore "pallets/gear/src/migration.rs"
@@ -301,10 +297,8 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
           strip artifact/gear || true
-          strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
