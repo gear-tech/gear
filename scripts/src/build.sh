@@ -47,7 +47,7 @@ wasm_proc_build() {
 examples_proc() {
   WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release
   WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" | tr '\n' ' ' | sed 's/ $//')
-  "$1"/release/wasm-proc --legacy-meta $WASM_EXAMPLES_LIST
+  "$1"/release/wasm-proc $WASM_EXAMPLES_LIST
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
