@@ -25,7 +25,6 @@ fi
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
@@ -65,7 +64,6 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear node
     test           test tool
-    coverage       coverage utilities
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
@@ -321,18 +319,6 @@ case "$COMMAND" in
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
-        exit 1; ;;
-    esac;;
-
-  coverage)
-    case "$SUBCOMMAND" in
-      -h | --help | help)
-        coverage_usage
-        exit; ;;
-
-      *)
-        header  "Unknown option: '$SUBCOMMAND'"
-        coverage_usage
         exit 1; ;;
     esac;;
 
