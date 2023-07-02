@@ -43,7 +43,7 @@ async fn inf_loop() -> anyhow::Result<()> {
         .upload_program_bytes(
             WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
-            Scheme::direct(Calls::builder().whiletrue()).encode(),
+            Scheme::direct(Calls::builder().infinite_loop()).encode(),
             gas_limit,
             0,
         )

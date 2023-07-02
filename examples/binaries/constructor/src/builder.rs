@@ -308,7 +308,7 @@ impl Calls {
         self.add_call(Call::LoadBytes).store(key)
     }
 
-    pub fn whiletrue(self) -> Self {
+    pub fn infinite_loop(self) -> Self {
         self.add_call(Call::Loop)
     }
 }

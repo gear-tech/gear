@@ -41,7 +41,7 @@ pub const CHILD_WAT: &str = r#"
 mod wasm {
     use gstd::{prelude::*, prog::ProgramGenerator, CodeId};
 
-    fn salt_uniqueness_test() {
+    fn check_salt_uniqueness() {
         let salts: Vec<_> = (0..10).map(|_| ProgramGenerator::get_salt()).collect();
         let salts_len = salts.len();
 
@@ -60,6 +60,6 @@ mod wasm {
         ProgramGenerator::create_program_with_gas(submitted_code, b"payload", 10_000_000_000, 0)
             .unwrap();
 
-        salt_uniqueness_test();
+        check_salt_uniqueness();
     }
 }
