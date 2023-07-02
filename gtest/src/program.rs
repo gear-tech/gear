@@ -705,9 +705,11 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_file(
+        let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
+            420,
+            demo_capacitor::WASM_BINARY.to_vec(),
+            None,
         );
 
         let signer = 42;

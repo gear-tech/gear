@@ -27,6 +27,7 @@ members = [
     "examples/binaries/backend-error",
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
+    "examples/binaries/capacitor",
     "examples/binaries/compose",
     "examples/binaries/constructor",
     "examples/binaries/delayed-sender",
@@ -48,6 +49,7 @@ members = [
     "examples/binaries/piggy-bank",
     "examples/binaries/ping",
     "examples/binaries/program-factory",
+    "examples/binaries/program-generator",
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-reservation-with-gas",
@@ -61,10 +63,12 @@ members = [
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
     "examples/binaries/vec",
+    "examples/binaries/wait",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
+    "examples/binaries/wat",
     "galloc",
     "gcli",
     "gclient",
@@ -361,6 +365,7 @@ demo-btree = { path = "examples/binaries/btree" }
 demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
+demo-capacitor = { path = "examples/binaries/capacitor" }
 demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
@@ -381,6 +386,7 @@ demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
 demo-piggy-bank = { path = "examples/binaries/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/binaries/ping" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
+demo-program-generator = { path = "examples/binaries/program-generator" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
@@ -392,11 +398,13 @@ demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-state-rollback = { path = "examples/binaries/state-rollback" }
 demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
 demo-vec = { path = "examples/binaries/vec" }
+demo-wait = { path = "examples/binaries/wait" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 demo-stack-allocations = { path = "examples/binaries/stack-allocations" }
+demo-wat = { path = "examples/binaries/wat" }
 
 # Dependencies that only used in one package
 #

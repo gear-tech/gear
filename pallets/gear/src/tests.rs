@@ -8884,6 +8884,96 @@ fn test_async_messages() {
 }
 
 #[test]
+fn program_generator_works() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        let code_id = CodeId::generate(&code);
+
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(generator_id));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            generator_id,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_id);
+        let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
+        let expected_child_id = ProgramId::generate(code_id, &expected_salt);
+        assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
+    });
+}
+
+#[test]
+fn wait_state_machine() {
+    use demo_wait::WASM_BINARY;
+
+    init_logger();
+
+    let init = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let wait_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(wait_id));
+
+        System::reset_events();
+
+        wait_id
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = init();
+
+        let to_send = vec![b"FIRST".to_vec(), b"SECOND".to_vec(), b"THIRD".to_vec()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[0].as_ref().to_vec()),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[1].as_ref().to_vec()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
 fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"

@@ -24,7 +24,6 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
-    wat-examples   build wat-examples
 
 EOF
 }
@@ -88,16 +87,4 @@ examples_build() {
       cd -
     done
   fi
-}
-
-wat_examples_build() {
-  ROOT_DIR="$1"
-  TARGET_DIR="$2"/wat-examples
-  WAT_DIR="$ROOT_DIR/examples/wat-examples"
-  mkdir -p $TARGET_DIR
-  for wat in `ls $WAT_DIR`; do
-    target_name=$TARGET_DIR/$(basename $wat .wat).wasm
-    wat2wasm $WAT_DIR/$wat -o $target_name;
-    echo "Built OK: $WAT_DIR/$wat";
-  done
 }
