@@ -1034,7 +1034,10 @@ impl Ext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::{message::{ContextSettings, IncomingDispatch}, pages::PageNumber};
+    use gear_core::{
+        message::{ContextSettings, IncomingDispatch},
+        pages::PageNumber,
+    };
 
     struct ProcessorContextBuilder(ProcessorContext);
 
