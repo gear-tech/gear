@@ -62,7 +62,7 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
 
     fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.instance
-            .set_global_val(name.as_str(), Value::I64(value))
+            .set_global_i64(name.as_str(), value)
             .ok()
             .flatten()
             .ok_or(GlobalsAccessError)?;
