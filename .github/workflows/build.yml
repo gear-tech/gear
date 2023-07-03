@@ -315,7 +315,7 @@ jobs:
 
   build-macos-x86:
     if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
-    needs: build
+    needs: linux
     runs-on: macos-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
