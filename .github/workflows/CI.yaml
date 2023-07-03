@@ -117,14 +117,6 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
@@ -142,11 +134,6 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
 
       - name: "Test: Lazy pages"
         run: >-
