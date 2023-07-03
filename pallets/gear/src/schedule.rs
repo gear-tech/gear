@@ -31,8 +31,8 @@ use frame_support::{
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
     message,
+    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -742,7 +742,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 7,
+            version: 8,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),

@@ -19,14 +19,12 @@
 use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core_errors::ExtError;
 
 pub(crate) type HostState<Ext> = Option<State<Ext>>;
 
 /// It's supposed that `E` implements [BackendExt]
 pub(crate) struct State<Ext> {
     pub ext: Ext,
-    pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
 }
 
@@ -44,9 +42,5 @@ impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
 impl<Ext> BackendState for State<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
-    }
-
-    fn set_fallible_syscall_error(&mut self, err: ExtError) {
-        self.fallible_syscall_error = Some(err);
     }
 }

@@ -39,6 +39,7 @@ pub enum Call {
     Wait,
     Wake(Arg<[u8; 32]>),
     MessageId,
+    Loop,
 }
 
 #[cfg(not(feature = "std"))]
@@ -118,8 +119,7 @@ mod wasm {
             let value = extra_encode.then(|| value.encode()).unwrap_or(value);
 
             debug!(
-                "\t[CONSTRUCTOR] >> Storing {:?}: {:?}",
-                key,
+                "\t[CONSTRUCTOR] >> Storing {key:?}: {:?}",
                 &value[extra_encode as usize..]
             );
 
@@ -278,7 +278,7 @@ mod wasm {
         }
 
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
-            debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
+            debug!("\t[CONSTRUCTOR] >> Processing {self:?}");
             let call = self.clone();
 
             let value = match self {
@@ -303,6 +303,8 @@ mod wasm {
                 Call::Wait => self.wait(),
                 Call::Wake(..) => self.wake(),
                 Call::MessageId => self.message_id(),
+                #[allow(clippy::empty_loop)]
+                Call::Loop => loop {},
             };
 
             (call, value)

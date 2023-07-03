@@ -23,8 +23,8 @@ use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::WasmPage,
     message::IncomingDispatch,
+    pages::WasmPage,
     program::Program,
     reservation::GasReserver,
 };

@@ -10,12 +10,6 @@ members = [
     "async-multisig",
     "async-sign",
     "bot",
-    "capacitor",
-    "status-code",
-    "loop",
-    "panicker",
-    "program_generator",
-    "wait",
 ]
 
 exclude = ["binaries/*"]

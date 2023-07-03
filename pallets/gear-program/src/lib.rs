@@ -159,7 +159,8 @@ pub mod pallet {
     use gear_core::{
         code::InstrumentedCode,
         ids::{CodeId, MessageId, ProgramId},
-        memory::{GearPage, PageBuf},
+        memory::PageBuf,
+        pages::GearPage,
     };
     use primitive_types::H256;
     use sp_runtime::DispatchError;

@@ -262,7 +262,7 @@ async fn process_events(
     mut rx: EventsReciever,
 ) -> Result<Report> {
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
-    let wait_for_events_blocks = 10;
+    let wait_for_events_blocks = 30;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
@@ -315,20 +315,32 @@ async fn process_events(
             .expect("always valid by definition");
         mailbox_added.append(&mut mailbox_from_events);
 
-        utils::err_or_succeed_batch(&mut v, messages.keys().copied())
+        utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied())
     };
 
     let mut program_ids = BTreeSet::new();
 
     for (mid, maybe_err) in results {
-        let (pid, call_id) = messages.remove(&mid).expect("Infallible");
-
-        if let Some(expl) = maybe_err {
-            tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
-        } else {
-            tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
-            program_ids.insert(pid);
+        // We receive here a lot of different events that may have no shared context
+        // with current messages we are expecting so making one-to-one relations
+        // is wrong. But we are expecting that all messages are done
+        // (removed from expectation map).
+        if messages.is_empty() {
+            break;
         }
+
+        if let Some((pid, call_id)) = messages.remove(&mid) {
+            if let Some(expl) = maybe_err {
+                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
+            } else {
+                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
+                program_ids.insert(pid);
+            }
+        }
+    }
+
+    if !messages.is_empty() {
+        unreachable!("Unresolved messages")
     }
 
     Ok(Report {

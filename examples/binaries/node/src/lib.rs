@@ -87,7 +87,7 @@ extern "C" fn handle() {
     let reply = match msg::load() {
         Ok(request) => process(request),
         Err(e) => {
-            debug!("Error processing request: {:?}", e);
+            debug!("Error processing request: {e:?}");
             Reply::Failure
         }
     };
@@ -260,7 +260,7 @@ extern "C" fn handle_reply() {
             }
             Err(e) => {
                 transition.state = TransitionState::Failed;
-                debug!("Error processing reply: {:?}", e);
+                debug!("Error processing reply: {e:?}");
                 exec::wake(transition.message_id).unwrap();
             }
         }
