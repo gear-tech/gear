@@ -22,7 +22,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage},
 };
-use gear_core_errors::{ErrorReplyReason, ReplyCode};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use std::{convert::TryInto, fmt::Debug};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -147,7 +147,7 @@ impl Log {
     /// Create a `Log` with a reply code of `SuccessReplyReason::Auto`.
     pub fn auto_reply_builder() -> Self {
         Self {
-            reply_code: ReplyCode::Success(SuccessReplyReason::Auto),
+            reply_code: Some(ReplyCode::Success(SuccessReplyReason::Auto)),
             ..Default::default()
         }
     }
