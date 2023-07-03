@@ -20,8 +20,6 @@ rustup target add wasm32-unknown-unknown
 
 ## First steps
 
-At least 10. x `npm` and `node` versions must be installed
-
 To create our app project use the command **cargo**:
 
 ```bash
