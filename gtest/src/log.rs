@@ -144,6 +144,14 @@ impl Log {
         log
     }
 
+    /// Create a `Log` with a reply code of `SuccessReplyReason::Auto`.
+    pub fn auto_reply_builder() -> Self {
+        Self {
+            reply_code: ReplyCode::Success(SuccessReplyReason::Auto),
+            ..Default::default()
+        }
+    }
+
     pub fn payload(self, payload: impl Encode) -> Self {
         self.payload_bytes(payload.encode())
     }
@@ -173,6 +181,17 @@ impl Log {
             panic!("Destination was already set for this log");
         }
         self.destination = Some(dest.into().0);
+
+        self
+    }
+
+    /// Set the reply code for this log.
+    pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
+        if self.reply_code.is_some() {
+            panic!("Reply code was already set for this log");
+        }
+
+        self.reply_code = Some(reply_code);
 
         self
     }
