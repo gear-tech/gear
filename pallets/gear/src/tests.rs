@@ -13232,6 +13232,9 @@ fn test_gas_allowance_exceed_with_context() {
     use demo_constructor::{Arg, Calls, Scheme};
 
     init_logger();
+
+    let process_task_weight = mock::get_min_weight();
+
     new_test_ext().execute_with(|| {
         let call_wait_key = "call_wait";
 
@@ -13280,7 +13283,7 @@ fn test_gas_allowance_exceed_with_context() {
             .and_then(|(m, _)| m.context().clone());
         assert!(handle1_ctx.is_some());
 
-        // This will set `call_wait` to false, wake the messag with `handle1_mid` id.
+        // This will set `call_wait` to false, wake the message with `handle1_mid` id.
         // We set the weight to such a value, so only message with `handle2`
         // payload is executed, That will allow us to reproduce the case in
         // `test_gas_allowance_exceed_no_context` test, but with message having
@@ -13297,13 +13300,14 @@ fn test_gas_allowance_exceed_with_context() {
             true,
         )
         .expect("failed getting gas info");
-        // We add 2000 as block running requires not only executing message, but
+        // We add `process_task_weight` as block running requires not only executing message, but
         // some other read/writes. By adding such small value we guarantee that
         // message with `handle2` payload is executed, but message with `handle1_mid`
         // id will not reach the executor.
-        execute(handle2, Some(gas_info.min_limit + 2000));
+        execute(handle2, Some(gas_info.min_limit + process_task_weight.ref_time()));
 
         assert_last_dequeued(1);
+        assert!(QueueProcessingOf::<Test>::denied());
 
         // Now we calculate a required for the execution of the `handle1_mid` message.
         // The queue processing is denied from the previous execution, now allowing it,
