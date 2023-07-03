@@ -72,7 +72,8 @@ impl Api {
     ///     let bn = api.fetch_storage(address).await?;
     /// }
     ///
-    /// // The code above equals to:
+    /// // The code above equals to the following code due to
+    /// // the implemented storage query `number` in `Api`.
     ///
     /// {
     ///     let bn = api.number().await?;

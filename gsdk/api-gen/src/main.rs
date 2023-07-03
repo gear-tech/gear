@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         panic!("Invalid metadata, doesn't even have enough bytes for the magic number.");
     }
 
-    // NOv TE: [4..] here for removing the magic number.
+    // NOTE: [4..] here for removing the magic number.
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
         .expect("decode metadata failed");
 

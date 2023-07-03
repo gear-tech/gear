@@ -88,7 +88,7 @@ impl Api {
     /// # Parse events from blocks
     ///
     /// ```ignore
-    /// use gsdk::metadata::Event;
+    /// use gsdk::metadata::{Event, system};
     ///
     /// let api = Api::new(None).await?;
     /// let mut blocks = api.blocks().await?;
