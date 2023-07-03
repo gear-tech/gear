@@ -13659,7 +13659,10 @@ fn test_gas_allowance_exceed_with_context() {
         // some other read/writes. By adding such small value we guarantee that
         // message with `handle2` payload is executed, but message with `handle1_mid`
         // id will not reach the executor.
-        execute(handle2, Some(gas_info.min_limit + process_task_weight.ref_time()));
+        execute(
+            handle2,
+            Some(gas_info.min_limit + process_task_weight.ref_time()),
+        );
 
         assert_last_dequeued(1);
         assert!(QueueProcessingOf::<Test>::denied());
@@ -13695,8 +13698,7 @@ fn test_gas_allowance_exceed_with_context() {
             .flatten()
             .expect("must be message after requeue");
         assert_eq!(msg.id(), handle1_mid);
-        // TODO uncomment after merging this https://github.com/gear-tech/gear/pull/2798
-        // assert_eq!(msg.context(), &handle1_ctx);
+        assert_eq!(msg.context(), &handle1_ctx);
         QueueOf::<Test>::requeue(msg).expect("requeue failed");
 
         run_to_next_block(None);
