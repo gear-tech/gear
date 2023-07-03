@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    memory::{PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -438,7 +438,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::memory::{GearPage, PageU32Size, WasmPage};
+    use gear_core::pages::{GearPage, PageU32Size, WasmPage};
 
     use super::*;
 

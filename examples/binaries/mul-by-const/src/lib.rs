@@ -61,8 +61,8 @@ mod wasm {
                 .checked_mul(other)
                 .expect("Multiplication overflow");
             debug!(
-                "[0x{} mul_by_const::unchecked_mul] Calculated {} x {} == {}",
-                DEBUG.me, self.intrinsic, other, z
+                "[0x{} mul_by_const::unchecked_mul] Calculated {} x {other} == {z}",
+                DEBUG.me, self.intrinsic
             );
             z
         }
@@ -86,9 +86,8 @@ mod wasm {
         }
         msg::reply_bytes([], 0).unwrap();
         debug!(
-            "[0x{} mul_by_const::init] Program initialized with input {}",
+            "[0x{} mul_by_const::init] Program initialized with input {val}",
             unsafe { &DEBUG.me },
-            val
         );
     }
 }

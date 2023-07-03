@@ -20,7 +20,7 @@ use super::{program_storage::MemoryMap, *};
 use crate::storage::{AppendMapStorage, MapStorage, ValueStorage};
 use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
-    memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;

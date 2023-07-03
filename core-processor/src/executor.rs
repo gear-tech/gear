@@ -40,11 +40,12 @@ use gear_core::{
     env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, Memory, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
 };
@@ -259,7 +260,7 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::Error: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -472,7 +473,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::Error: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
@@ -494,12 +495,7 @@ where
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
-        gas_reserver: GasReserver::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
+        gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(
@@ -620,7 +616,10 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
-    use gear_core::memory::{PageBufInner, WasmPage};
+    use gear_core::{
+        memory::PageBufInner,
+        pages::{PageNumber, WasmPage},
+    };
 
     struct TestExt;
     struct LazyTestExt;
