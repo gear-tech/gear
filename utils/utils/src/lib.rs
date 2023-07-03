@@ -18,7 +18,10 @@
 
 //! Useful utilities needed for testing and other stuff.
 
-use gear_core::memory::{GearPage, PageBuf, PageU32Size};
+use gear_core::{
+    memory::PageBuf,
+    pages::{GearPage, PageNumber, PageU32Size},
+};
 pub use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use path_clean::PathClean;

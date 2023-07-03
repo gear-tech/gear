@@ -128,9 +128,6 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 

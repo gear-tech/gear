@@ -583,7 +583,7 @@ pub mod runtime_types {
                     pub page_count: _1,
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
-                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                     pub code_hash: runtime_types::gear_core::ids::CodeId,
                     pub end_block: _1,
                 }
@@ -659,15 +659,15 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ActiveProgram<_0> {
-                pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
-                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::GearPage>,
+                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
+                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
                     runtime_types::gear_core::reservation::GasReservationSlot,
                 >,
                 pub code_hash: ::subxt::utils::H256,
                 pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::memory::WasmPage,
+                pub static_pages: runtime_types::gear_core::pages::WasmPage,
                 pub state: runtime_types::gear_common::ProgramState,
                 pub expiration_block: _0,
             }
@@ -713,7 +713,7 @@ pub mod runtime_types {
                     pub code: ::std::vec::Vec<::core::primitive::u8>,
                     pub original_code_len: ::core::primitive::u32,
                     pub exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                    pub static_pages: runtime_types::gear_core::memory::WasmPage,
+                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
                     pub version: ::core::primitive::u32,
                 }
             }
@@ -738,26 +738,10 @@ pub mod runtime_types {
             }
             pub mod memory {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct GearPage(pub ::core::primitive::u32);
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
                     pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
                 );
-                #[derive(
-                    ::subxt::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct WasmPage(pub ::core::primitive::u32);
             }
             pub mod message {
                 use super::runtime_types;
@@ -892,6 +876,25 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PayloadSizeError;
+            }
+            pub mod pages {
+                use super::runtime_types;
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct GearPage(pub ::core::primitive::u32);
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct WasmPage(pub ::core::primitive::u32);
             }
             pub mod reservation {
                 use super::runtime_types;
@@ -1892,7 +1895,7 @@ pub mod runtime_types {
                     #[doc = "- `code_hash`: id of the program binary code."]
                     resume_session_init {
                         program_id: runtime_types::gear_core::ids::ProgramId,
-                        allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                        allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                         code_hash: runtime_types::gear_core::ids::CodeId,
                     },
                     #[codec(index = 10)]
@@ -1906,7 +1909,7 @@ pub mod runtime_types {
                     resume_session_push {
                         session_id: ::core::primitive::u128,
                         memory_pages: ::std::vec::Vec<(
-                            runtime_types::gear_core::memory::GearPage,
+                            runtime_types::gear_core::pages::GearPage,
                             runtime_types::gear_core::memory::PageBuf,
                         )>,
                     },
@@ -2384,9 +2387,9 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ProgramInfo {
-                    pub static_pages: runtime_types::gear_core::memory::WasmPage,
+                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
-                        runtime_types::gear_core::memory::GearPage,
+                        runtime_types::gear_core::pages::GearPage,
                         runtime_types::gear_core::memory::PageBuf,
                     >,
                     pub code_hash: ::subxt::utils::H256,

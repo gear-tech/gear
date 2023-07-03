@@ -24,7 +24,10 @@ use ::alloc::{collections::BTreeSet, format};
 use common::ProgramStorage;
 use frame_support::codec::MaxEncodedLen;
 use gear_backend_common::lazy_pages::Status;
-use gear_core::memory::{MemoryInterval, PageU32Size};
+use gear_core::{
+    memory::MemoryInterval,
+    pages::{PageNumber, PageU32Size},
+};
 use gear_lazy_pages_common as lazy_pages;
 use rand::{Rng, SeedableRng};
 

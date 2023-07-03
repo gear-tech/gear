@@ -152,11 +152,12 @@ pub async fn capture_mailbox_messages(
 /// This function returns a vector of statuses with an associated message
 /// identifier ([`MessageId`]). Each status can be an error message in case
 /// of an error.
-pub fn err_or_succeed_batch(
+pub fn err_waited_or_succeed_batch(
     event_source: &mut [gsdk::metadata::Event],
     message_ids: impl IntoIterator<Item = MessageId>,
 ) -> Vec<(MessageId, Option<String>)> {
     let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
+    let mut caught_ids = Vec::with_capacity(message_ids.len());
 
     event_source
         .iter_mut()
@@ -169,26 +170,28 @@ pub fn err_or_succeed_batch(
                         ..
                     },
                 ..
-            }) => {
-                if message_ids.contains(to) && ReplyCode::from(code.clone()).is_success() {
-                    Some(vec![(
-                        (*to).into(),
-                        Some(String::from_utf8(payload.0.to_vec()).expect("Infallible")),
-                    )])
-                } else {
-                    None
-                }
+            }) if message_ids.contains(to) => {
+                caught_ids.push(*to);
+                Some(vec![(
+                    (*to).into(),
+                    (!ReplyCode::from(code.clone()).is_success())
+                        .then(|| String::from_utf8(payload.0.to_vec()).expect("Infallible")),
+                )])
+            }
+            Event::Gear(GearEvent::MessageWaited { id, .. }) if message_ids.contains(id) => {
+                Some(vec![((*id).into(), None)])
             }
             Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
                 let requested: Vec<_> = statuses
                     .iter_mut()
                     .filter_map(|(mid, status)| {
-                        if message_ids.contains(mid) && !matches!(status, GenDispatchStatus::Failed)
-                        {
-                            Some((MessageId::from(*mid), None))
-                        } else {
-                            None
-                        }
+                        (message_ids.contains(mid) && !caught_ids.contains(mid)).then(|| {
+                            (
+                                MessageId::from(*mid),
+                                matches!(status, GenDispatchStatus::Failed)
+                                    .then(|| String::from("UNKNOWN")),
+                            )
+                        })
                     })
                     .collect();
 

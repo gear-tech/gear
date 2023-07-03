@@ -1888,6 +1888,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-capacitor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -2118,6 +2126,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-program-generator"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal 0.3.4",
+]
+
+[[package]]
 name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
@@ -2197,6 +2214,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-stack-allocations"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "rand_pcg",
+ "static_assertions",
+]
+
+[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
@@ -2232,6 +2262,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-wait"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [
@@ -2255,6 +2294,7 @@ dependencies = [
 name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
@@ -2266,6 +2306,14 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+]
+
+[[package]]
+name = "demo-wat"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "wabt",
 ]
 
 [[package]]
@@ -3510,14 +3558,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3565,6 +3613,8 @@ dependencies = [
  "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
+ "demo-capacitor",
+ "demo-constructor",
  "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",
@@ -3573,6 +3623,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-reserve-gas",
+ "demo-wat",
  "env_logger",
  "futures",
  "futures-timer",
@@ -3599,7 +3650,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3730,7 +3781,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap 4.3.4",
  "frame-benchmarking",
@@ -3884,7 +3935,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4244,6 +4295,7 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "colored",
+ "dirs",
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
@@ -4449,7 +4501,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4542,7 +4594,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bs58",
  "futures",
@@ -4571,7 +4623,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.2.1"
+version = "0.2.2"
 
 [[package]]
 name = "gtest"
@@ -4579,6 +4631,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-capacitor",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "derive_more",
@@ -7142,6 +7195,7 @@ dependencies = [
  "demo-out-of-memory",
  "demo-ping",
  "demo-program-factory",
+ "demo-program-generator",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
@@ -7152,6 +7206,7 @@ dependencies = [
  "demo-signal-entry",
  "demo-state-rollback",
  "demo-sync-duplicate",
+ "demo-wait",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",

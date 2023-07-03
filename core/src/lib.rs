@@ -34,6 +34,7 @@ pub mod gas;
 pub mod ids;
 pub mod memory;
 pub mod message;
+pub mod pages;
 pub mod program;
 pub mod reservation;
 

@@ -29,7 +29,7 @@ use gear_backend_common::{
     runtime::Runtime,
     ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{
     core::{Trap, TrapCode, Value},
@@ -117,16 +117,6 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         let res = state.ext.alloc(pages, &mut mem);
         self.caller.host_data_mut().replace(state);
         res
-    }
-
-    fn memory_manager_write(
-        &mut self,
-        write: WasmMemoryWrite,
-        buff: &[u8],
-        gas_left: &mut GasLeft,
-    ) -> Result<(), MemoryAccessError> {
-        let mut memory = CallerWrap::memory(&mut self.caller, self.memory);
-        self.manager.write(&mut memory, write, buff, gas_left)
     }
 }
 

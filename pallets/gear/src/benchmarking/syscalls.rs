@@ -36,8 +36,9 @@ use core::{marker::PhantomData, mem::size_of};
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
+    memory::{PageBuf, PageBufInner},
     message::{Message, Value},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;

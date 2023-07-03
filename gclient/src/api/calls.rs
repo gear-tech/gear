@@ -21,7 +21,8 @@ use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_common::LockId;
 use gear_core::{
     ids::*,
-    memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    memory::PageBuf,
+    pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{

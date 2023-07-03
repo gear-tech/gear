@@ -39,6 +39,7 @@ pub enum Call {
     Wait,
     Wake(Arg<[u8; 32]>),
     MessageId,
+    Loop,
 }
 
 #[cfg(not(feature = "std"))]
@@ -302,6 +303,8 @@ mod wasm {
                 Call::Wait => self.wait(),
                 Call::Wake(..) => self.wake(),
                 Call::MessageId => self.message_id(),
+                #[allow(clippy::empty_loop)]
+                Call::Loop => loop {},
             };
 
             (call, value)

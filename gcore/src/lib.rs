@@ -67,6 +67,7 @@ pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;
+pub mod stack_buffer;
 
 mod general;
 pub use general::*;

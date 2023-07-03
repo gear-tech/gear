@@ -29,7 +29,7 @@ use gear_backend_common::{
     runtime::Runtime as CommonRuntime,
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, Value};
 
@@ -95,16 +95,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         self.ext.alloc(pages, &mut self.memory)
-    }
-
-    fn memory_manager_write(
-        &mut self,
-        write: WasmMemoryWrite,
-        buff: &[u8],
-        gas_left: &mut GasLeft,
-    ) -> Result<(), MemoryAccessError> {
-        self.memory_manager
-            .write(&mut self.memory, write, buff, gas_left)
     }
 }
 

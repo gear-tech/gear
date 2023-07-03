@@ -21,11 +21,12 @@ use crate::mock::*;
 use common::{self, event::MessageEntry, CodeStorage, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
-use gear_core::memory::GearPage;
+use gear_core::pages::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageU32Size, WasmPage},
+    memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
