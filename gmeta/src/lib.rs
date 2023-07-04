@@ -172,7 +172,7 @@
 //! # }
 //! #
 //! let metadata_hex = ContractMetadata::repr().hex();
-//! assert_eq!(metadata_hex.len(), 140);
+//! assert_eq!(metadata_hex.len(), 144);
 //! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
 //! ```
 //!
