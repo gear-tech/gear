@@ -1,6 +1,6 @@
 [package]
 name = "gcli"
-version = "0.2.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 description = "gear program cli"
@@ -24,6 +24,7 @@ dirs.workspace = true
 env_logger.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true

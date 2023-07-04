@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gclient::{code_from_os, now_micros, EventListener, EventProcessor, GearApi, Result};
+use demo_capacitor::WASM_BINARY;
+use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
 
 async fn charge_10(
@@ -44,7 +45,7 @@ async fn charge_10(
 
         api.claim_value(msg.0.id()).await.unwrap();
 
-        return Ok(String::from_utf8(message.payload().to_vec()).unwrap());
+        return Ok(String::from_utf8(message.payload_bytes().to_vec()).unwrap());
     }
 
     Ok(String::new())
@@ -70,19 +71,13 @@ async fn memory_dump() -> Result<()> {
     assert!(listener.blocks_running().await?);
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(
-            None,
-            code_from_os("../target/wasm32-unknown-unknown/release/demo_capacitor.wasm")?,
-            vec![],
-            0,
-            true,
-        )
+        .calculate_upload_gas(None, WASM_BINARY.to_vec(), vec![], 0, true)
         .await?;
     // Upload and init the program
     let (message_id, program_id, _hash) = api
-        .upload_program_bytes_by_path(
-            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
-            now_micros().to_le_bytes(),
+        .upload_program_bytes(
+            WASM_BINARY,
+            gclient::now_micros().to_le_bytes(),
             b"15".to_vec(),
             gas_info.min_limit,
             0,

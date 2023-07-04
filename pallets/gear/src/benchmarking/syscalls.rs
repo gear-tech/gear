@@ -36,10 +36,12 @@ use core::{marker::PhantomData, mem::size_of};
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
+    memory::{PageBuf, PageBufInner},
     message::{Message, Value},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReservationSlot,
 };
+use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -731,8 +733,6 @@ where
             InstrI32Const(payload_len),
             // value offset
             InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
         ];
 
         let name = match wgas {
@@ -759,19 +759,22 @@ where
         let value_offset = COMMON_OFFSET;
         let res_offset = value_offset + VALUE_SIZE;
 
-        let mut params = vec![
-            // value offset
-            InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
-        ];
+        let (name, params) = if wgas {
+            let params = vec![
+                // gas_limit
+                InstrI64Const(100_000_000),
+                // value offset
+                InstrI32Const(value_offset),
+            ];
 
-        let name = match wgas {
-            true => {
-                params.insert(0, InstrI64Const(100_000_000));
-                SysCallName::ReplyCommitWGas
-            }
-            false => SysCallName::ReplyCommit,
+            (SysCallName::ReplyCommitWGas, params)
+        } else {
+            let params = vec![
+                // value offset
+                InstrI32Const(value_offset),
+            ];
+
+            (SysCallName::ReplyCommit, params)
         };
 
         let module = ModuleDefinition {
@@ -874,8 +877,6 @@ where
                     InstrI32Const(payload_offset),
                     // payload len
                     InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
@@ -913,8 +914,6 @@ where
                 &[
                     // rid_value ptr
                     Counter(rid_value_offset, RID_VALUE_SIZE),
-                    // delay
-                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
@@ -943,8 +942,6 @@ where
                     InstrI32Const(payload_offset),
                     // payload len
                     InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
@@ -977,12 +974,15 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1022,8 +1022,6 @@ where
             InstrI32Const(input_len),
             // value offset
             InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
         ];
 
         let name = match wgas {
@@ -1166,13 +1164,13 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_code(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::StatusCode],
+            imported_functions: vec![SysCallName::ReplyCode],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1190,12 +1188,15 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1241,40 +1242,6 @@ where
                     InstrI32Const(string_len),
                 ],
             )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle(module, 0)
-    }
-
-    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = COMMON_OFFSET;
-        let err_data_buffer_offset = res_offset + ERR_LEN_SIZE;
-
-        let mut handle_body = body::fallible_syscall(
-            repetitions,
-            res_offset,
-            &[
-                // error encoded data buffer offset
-                InstrI32Const(err_data_buffer_offset),
-            ],
-        );
-
-        // Insert first `gr_error` call, which returns error, so all other `gr_error` calls will be Ok.
-        handle_body.code_mut().elements_mut().splice(
-            0..0,
-            [
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-            ],
-        );
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Error],
-            handle_body: Some(handle_body),
             ..Default::default()
         };
 

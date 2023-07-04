@@ -23,8 +23,8 @@ use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::WasmPage,
     message::IncomingDispatch,
+    pages::WasmPage,
     program::Program,
     reservation::GasReserver,
 };
@@ -120,7 +120,7 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
                 ContextData {
                     gas_counter,
                     gas_allowance_counter,
-                    mut dispatch,
+                    dispatch,
                     destination_id,
                     actor_data,
                 },
@@ -135,16 +135,9 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             actor_data.initialized,
         );
 
-        let gas_reserver = GasReserver::new(
-            dispatch.id(),
-            dispatch
-                .context_mut()
-                .as_mut()
-                .map(|ctx| ctx.fetch_inc_reservation_nonce())
-                .unwrap_or(0),
-            actor_data.gas_reservation_map,
-            max_reservations,
-        );
+        // Must be created once per taken from the queue dispatch by contract.
+        let gas_reserver =
+            GasReserver::new(&dispatch, actor_data.gas_reservation_map, max_reservations);
 
         Self {
             gas_counter,

@@ -26,14 +26,12 @@ pub use subscription::*;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gear_core::ids::MessageId;
+use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
         ids::MessageId as GenMId,
-        message::{
-            common::{MessageDetails, ReplyDetails},
-            stored::StoredMessage as GenStoredMessage,
-        },
+        message::{common::ReplyDetails as GenReplyDetails, user::UserMessage as GenUserMessage},
     },
 };
 
@@ -190,24 +188,20 @@ pub trait EventProcessor {
         self.proc(|e| {
             if let Event::Gear(GearEvent::UserMessageSent {
                 message:
-                    GenStoredMessage {
+                    GenUserMessage {
                         id,
                         payload,
                         value,
-                        details:
-                            Some(MessageDetails::Reply(ReplyDetails {
-                                reply_to,
-                                status_code,
-                            })),
+                        details: Some(GenReplyDetails { to, code }),
                         ..
                     },
                 ..
             }) = e
             {
-                reply_to.eq(&message_id).then(|| {
-                    let res = status_code
-                        .eq(&0)
-                        .then_some(payload.0.clone())
+                to.eq(&message_id).then(|| {
+                    let res = ReplyCode::from(code)
+                        .is_success()
+                        .then(|| payload.0.clone())
                         .ok_or_else(|| String::from_utf8(payload.0).expect("Infallible"));
 
                     (id.into(), res, value)
@@ -231,18 +225,14 @@ pub trait EventProcessor {
         self.proc(|e| match e {
             Event::Gear(GearEvent::UserMessageSent {
                 message:
-                    GenStoredMessage {
+                    GenUserMessage {
                         payload,
-                        details:
-                            Some(MessageDetails::Reply(ReplyDetails {
-                                reply_to,
-                                status_code,
-                            })),
+                        details: Some(GenReplyDetails { to, code }),
                         ..
                     },
                 ..
             }) => {
-                if reply_to == message_id && status_code != 0 {
+                if to == message_id && ReplyCode::from(code).is_success() {
                     Some(Some(String::from_utf8(payload.0).expect("Infallible")))
                 } else {
                     None
@@ -278,20 +268,16 @@ pub trait EventProcessor {
                 |e| match e {
                     Event::Gear(GearEvent::UserMessageSent {
                         message:
-                            GenStoredMessage {
+                            GenUserMessage {
                                 payload,
-                                details:
-                                    Some(MessageDetails::Reply(ReplyDetails {
-                                        reply_to,
-                                        status_code,
-                                    })),
+                                details: Some(GenReplyDetails { to, code }),
                                 ..
                             },
                         ..
                     }) => {
-                        if message_ids.contains(&reply_to) && status_code != 0 {
+                        if message_ids.contains(&to) && ReplyCode::from(code).is_success() {
                             Some(vec![(
-                                reply_to.into(),
+                                to.into(),
                                 Some(String::from_utf8(payload.0).expect("Infallible")),
                             )])
                         } else {

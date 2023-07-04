@@ -7,6 +7,8 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    types: [labeled, synchronize]
+
   workflow_dispatch:
 
 env:
@@ -90,6 +92,16 @@ jobs:
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
 
+      - name: "Test: Changes in gsdk generated code"
+        run: |
+          GENERATED_CODE="gsdk/src/metadata/generated.rs"
+          ./scripts/update-gsdk-metadata.sh
+          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
+            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            git --no-pager diff $GENERATED_CODE
+            exit 1
+          fi
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -99,7 +111,7 @@ jobs:
 
   build:
     # needs: spec_version
-    needs: check-commit-message
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -120,16 +132,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |
@@ -168,9 +172,6 @@ jobs:
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked --release
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
       - name: "Check: Gear runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 
@@ -187,34 +188,18 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
+
+      - name: "Test: gsdk tests"
+        run: ./scripts/gear.sh test gsdk
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
-
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
-
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
-
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
@@ -248,7 +233,6 @@ jobs:
           --ignore "examples/*"
           --ignore "utils/*"
           --ignore "target/*"
-          --ignore "gear-test/*"
           --ignore "node/*"
           --ignore "program/*"
           --ignore "pallets/gear/src/migration.rs"
@@ -302,10 +286,8 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
           strip artifact/gear || true
-          strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
@@ -385,19 +367,8 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
-
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
 
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
@@ -408,16 +379,11 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client
 
       - name: "Test: Lazy pages"
         run: >-
@@ -431,7 +397,7 @@ jobs:
           --release
 
   build-win-cross:
-    needs: check-commit-message
+    needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -461,16 +427,8 @@ jobs:
       - name: "Install: cargo config"
         run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |
@@ -487,16 +445,6 @@ jobs:
           sudo apt install --install-recommends -y winehq-stable winetricks
           wineboot
           winetricks win10
-
-      - name: "Install: Node.js in Wine"
-        run: |
-          wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
-          wget https://nodejs.org/download/release/v16.19.1/node-v16.19.1-win-x64.zip
-          unzip node-v16.19.1-win-x64.zip
-          node_js=$(winepath -w $(pwd)/node-v16.19.1-win-x64)
-          wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
-        env:
-          WINEDEBUG: "-all"
 
       - name: "Install: LLVM"
         run: |
@@ -527,9 +475,6 @@ jobs:
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
 
@@ -544,13 +489,6 @@ jobs:
       #    ./scripts/gear.sh test client
       #  env:
       #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo xwin build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Lazy pages"
         run: >-
@@ -694,7 +632,6 @@ jobs:
         run: ./scripts/check-fuzzer.sh
 
   check-commit-message:
-    name: check commit message
     runs-on: ubuntu-latest
     outputs:
       commit-message: ${{ steps.commit_message.outputs.commitMsg }}
@@ -706,3 +643,10 @@ jobs:
       - name: Print head git commit message
         id: commit_message
         run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
+
+  check-labels:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
+    steps:
+      - name: Build Condition Passed!
+        run: echo "bebop"

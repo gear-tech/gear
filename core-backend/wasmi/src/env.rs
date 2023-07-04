@@ -34,8 +34,9 @@ use gear_backend_common::{
 use gear_core::{
     env::Externalities,
     gas::GasLeft,
-    memory::{HostPointer, PageU32Size, WasmPage},
+    memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
+    pages::{PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
@@ -125,8 +126,9 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::Error: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
+    EnvExt::UnrecoverableError: BackendExternalitiesError,
+    EnvExt::FallibleError: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
@@ -180,7 +182,6 @@ where
 
         let runtime = State {
             ext,
-            fallible_syscall_error: None,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

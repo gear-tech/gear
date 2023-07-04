@@ -33,8 +33,8 @@ use gear_backend_common::{
 };
 use gear_core::{
     gas::GasLeft,
-    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntryPoint},
+    pages::{PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
@@ -164,8 +164,9 @@ struct EnvBuilder<Ext: BackendExternalities> {
 impl<Ext> EnvBuilder<Ext>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -197,8 +198,9 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
 impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
@@ -210,9 +212,9 @@ where
         builder.add_func(Debug, wrap_common_func!(FuncsHandler::debug, (2) -> ()));
         builder.add_func(Panic, wrap_common_func!(FuncsHandler::panic, (2) -> ()));
         builder.add_func(OomPanic, wrap_common_func!(FuncsHandler::oom_panic, () -> ()));
-        builder.add_func(Error, wrap_common_func!(FuncsHandler::error, (2) -> ()));
         builder.add_func(Exit, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
-        builder.add_func(StatusCode, wrap_common_func!(FuncsHandler::status_code, (1) -> ()));
+        builder.add_func(ReplyCode, wrap_common_func!(FuncsHandler::reply_code, (1) -> ()));
+        builder.add_func(SignalCode, wrap_common_func!(FuncsHandler::signal_code, (1) -> ()));
         builder.add_func(ReserveGas, wrap_common_func!(FuncsHandler::reserve_gas, (3) -> ()));
         builder.add_func(ReplyDeposit, wrap_common_func!(FuncsHandler::reply_deposit, (3) -> ()));
         builder.add_func(UnreserveGas, wrap_common_func!(FuncsHandler::unreserve_gas, (2) -> ()));
@@ -223,16 +225,16 @@ where
         builder.add_func(ProgramId, wrap_common_func!(FuncsHandler::program_id, (1) -> ()));
         builder.add_func(Random, wrap_common_func!(FuncsHandler::random, (2) -> ()));
         builder.add_func(Read, wrap_common_func!(FuncsHandler::read, (4) -> ()));
-        builder.add_func(Reply, wrap_common_func!(FuncsHandler::reply, (5) -> ()));
-        builder.add_func(ReplyCommit, wrap_common_func!(FuncsHandler::reply_commit, (3) -> ()));
-        builder.add_func(ReplyCommitWGas, wrap_common_func!(FuncsHandler::reply_commit_wgas, (4) -> ()));
+        builder.add_func(Reply, wrap_common_func!(FuncsHandler::reply, (4) -> ()));
+        builder.add_func(ReplyCommit, wrap_common_func!(FuncsHandler::reply_commit, (2) -> ()));
+        builder.add_func(ReplyCommitWGas, wrap_common_func!(FuncsHandler::reply_commit_wgas, (3) -> ()));
         builder.add_func(ReplyPush, wrap_common_func!(FuncsHandler::reply_push, (3) -> ()));
         builder.add_func(ReplyTo, wrap_common_func!(FuncsHandler::reply_to, (1) -> ()));
         builder.add_func(SignalFrom, wrap_common_func!(FuncsHandler::signal_from, (1) -> ()));
-        builder.add_func(ReplyWGas, wrap_common_func!(FuncsHandler::reply_wgas, (6) -> ()));
-        builder.add_func(ReplyInput, wrap_common_func!(FuncsHandler::reply_input, (5) -> ()));
+        builder.add_func(ReplyWGas, wrap_common_func!(FuncsHandler::reply_wgas, (5) -> ()));
+        builder.add_func(ReplyInput, wrap_common_func!(FuncsHandler::reply_input, (4) -> ()));
         builder.add_func(ReplyPushInput, wrap_common_func!(FuncsHandler::reply_push_input, (3) -> ()));
-        builder.add_func(ReplyInputWGas, wrap_common_func!(FuncsHandler::reply_input_wgas, (6) -> ()));
+        builder.add_func(ReplyInputWGas, wrap_common_func!(FuncsHandler::reply_input_wgas, (5) -> ()));
         builder.add_func(Send, wrap_common_func!(FuncsHandler::send, (5) -> ()));
         builder.add_func(SendCommit, wrap_common_func!(FuncsHandler::send_commit, (4) -> ()));
         builder.add_func(SendCommitWGas, wrap_common_func!(FuncsHandler::send_commit_wgas, (5) -> ()));
@@ -251,8 +253,8 @@ where
         builder.add_func(WaitUpTo, wrap_common_func!(FuncsHandler::wait_up_to, (1) -> ()));
         builder.add_func(Wake, wrap_common_func!(FuncsHandler::wake, (3) -> ()));
         builder.add_func(SystemReserveGas, wrap_common_func!(FuncsHandler::system_reserve_gas, (2) -> ()));
-        builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (5) -> ()));
-        builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (3) -> ()));
+        builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (4) -> ()));
+        builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (2) -> ()));
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
         builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
@@ -266,8 +268,9 @@ where
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::Error: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
+    EnvExt::UnrecoverableError: BackendExternalitiesError,
+    EnvExt::FallibleError: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
@@ -326,7 +329,6 @@ where
             memory: MemoryWrap::new(memory),
             globals: Default::default(),
             memory_manager: Default::default(),
-            fallible_syscall_error: None,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

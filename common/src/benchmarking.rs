@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{PageU32Size, WasmPage};
+use gear_core::pages::{PageNumber, PageU32Size, WasmPage};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;

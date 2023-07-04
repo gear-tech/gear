@@ -20,12 +20,8 @@
 
 use std::time::Duration;
 
+use demo_wat::WatExample;
 use gclient::{errors, Error, EventProcessor, GearApi};
-
-const PATHS: [&str; 2] = [
-    "../target/wat-examples/wrong_load.wasm",
-    "../target/wat-examples/inf_recursion.wasm",
-];
 
 async fn upload_programs_and_check(
     api: &GearApi,
@@ -76,10 +72,14 @@ async fn upload_programs_and_check(
 
 #[tokio::test]
 async fn harmless_upload() -> anyhow::Result<()> {
-    let mut codes = vec![];
-    for path in &PATHS {
-        codes.push(gclient::code_from_os(path)?);
-    }
+    let examples = vec![
+        WatExample::WrongLoad,
+        WatExample::InfRecursion,
+        WatExample::ReadAccess,
+        WatExample::ReadWriteAccess,
+    ];
+
+    let codes = examples.into_iter().map(|e| e.code()).collect();
 
     // Creating gear api.
     //
@@ -212,8 +212,8 @@ async fn get_mailbox() -> anyhow::Result<()> {
     assert_eq!(mailbox.len(), 5);
 
     for msg in mailbox {
-        assert_eq!(msg.0.payload().len(), 1000 * 1024); // 1MB payload
-        assert!(msg.0.payload().starts_with(b"PONG"));
+        assert_eq!(msg.0.payload_bytes().len(), 1000 * 1024); // 1MB payload
+        assert!(msg.0.payload_bytes().starts_with(b"PONG"));
     }
 
     Ok(())

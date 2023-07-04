@@ -36,14 +36,6 @@ gear:
 gear-release:
 	@ ./scripts/gear.sh build gear --release
 
-.PHONY: gear-test
-gear-test:
-	@ ./scripts/gear.sh build gear-test
-
-.PHONY: gear-test-release
-gear-test-release:
-	@ ./scripts/gear.sh build gear-test --release
-
 .PHONY: examples
 examples: build-examples proc-examples
 
@@ -54,10 +46,6 @@ build-examples:
 .PHONY: wasm-proc
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
-
-.PHONY: wat-examples
-wat-examples:
-	@ ./scripts/gear.sh build wat-examples
 
 .PHONY: proc-examples
 proc-examples: wasm-proc
@@ -71,10 +59,6 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
-.PHONY: node-release-rtest
-node-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
-
 .PHONY: vara
 vara:
 	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
@@ -82,10 +66,6 @@ vara:
 .PHONY: vara-release
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
-
-.PHONY: vara-release-rtest
-vara-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
 
 # Check section
 .PHONY: check
@@ -163,19 +143,11 @@ fmt-doc-check:
 
 # Init section
 .PHONY: init
-init: init-wasm init-cargo init-js
+init: init-wasm init-cargo
 
 .PHONY: init-wasm
 init-wasm:
 	@ ./scripts/gear.sh init wasm
-
-.PHONY: init-js
-init-js:
-	@ ./scripts/gear.sh init js
-
-.PHONY: update-js
-update-js:
-	@ ./scripts/gear.sh init update-js
 
 .PHONY: init-cargo
 init-cargo:
@@ -216,24 +188,24 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test # \
-	There should be no release builds (e.g. `rtest`) for fast checking.
-test: test-gear test-js gtest
+	There should be no release builds to keep checks fast.
+test: test-gear
 
 .PHONY: test-doc
 test-doc:
 	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest
+test-release: test-gear-release
 
 .PHONY: test-gear
-test-gear: init-js examples # \
+test-gear: examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples # \
+test-gear-release: examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
@@ -250,22 +222,6 @@ test-gcli: node
 test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
 
-.PHONY: test-js
-test-js: init-js
-	@ ./scripts/gear.sh test js
-
-.PHONY: gtest
-gtest: init-js gear-test-release examples
-	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
-
-.PHONY: rtest
-rtest: init-js node-release-rtest examples
-	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
-
-.PHONY: rtest-vara
-rtest-vara: init-js vara-release-rtest examples
-	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
-
 .PHONY: test-pallet
 test-pallet:
 	@ ./scripts/gear.sh test pallet
@@ -275,7 +231,7 @@ test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
 .PHONY: test-client
-test-client: node-release examples wat-examples
+test-client: node-release examples
 	@ ./scripts/gear.sh test client --run-node
 
 .PHONY: test-syscalls-integrity

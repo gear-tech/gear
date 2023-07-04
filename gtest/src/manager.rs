@@ -33,15 +33,16 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::PageBuf,
     message::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{SimpleExecutionError, SimpleReplyError, SimpleSignalError};
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -646,7 +647,7 @@ impl ExtManager {
             .expect("method called for unknown destination");
         if let TestActor::Uninitialized(maybe_message_id, _) = actor {
             let id = maybe_message_id.expect("message in dispatch queue has id");
-            dispatch.reply().is_none() && id != dispatch.id()
+            dispatch.reply_details().is_none() && id != dispatch.id()
         } else {
             false
         }
@@ -661,7 +662,7 @@ impl ExtManager {
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
-        let payload = dispatch.payload().to_vec();
+        let payload = dispatch.payload_bytes().to_vec();
 
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
@@ -725,7 +726,7 @@ impl ExtManager {
                 }
 
                 if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-                    let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
+                    let err = ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic);
                     let err_payload = expl
                         .as_bytes()
                         .to_vec()
@@ -902,15 +903,19 @@ impl JournalHandler for ExtManager {
 
     fn send_dispatch(
         &mut self,
-        _message_id: MessageId,
+        message_id: MessageId,
         dispatch: Dispatch,
         bn: u32,
         _reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
+            log::debug!(target: "gwasm", "[{}] new delayed dispatch#{}", message_id, dispatch.id());
+
             self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
             return;
         }
+
+        log::debug!(target: "gwasm", "[{}] new dispatch#{}", message_id, dispatch.id());
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -919,10 +924,14 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.status_code().map(|code| code.to_le_bytes()[0]) {
-                Some(0) | None => message,
+            let message = match message
+                .details()
+                .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
+            {
+                None => message,
+                Some(code) if code.is_success() => message,
                 _ => message
-                    .with_string_payload::<ActorExecutionErrorReason>()
+                    .with_string_payload::<ActorExecutionErrorReplyReason>()
                     .unwrap_or_else(|e| e),
             };
 
@@ -941,6 +950,8 @@ impl JournalHandler for ExtManager {
         _duration: Option<u32>,
         _: MessageWaitedType,
     ) {
+        log::debug!(target: "gwasm", "[{}] wait", dispatch.id());
+
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
@@ -948,11 +959,13 @@ impl JournalHandler for ExtManager {
 
     fn wake_message(
         &mut self,
-        _message_id: MessageId,
+        message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
         _delay: u32,
     ) {
+        log::debug!(target: "gwasm", "[{}] waked message#{}", message_id, awakening_id);
+
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
         }
@@ -1052,11 +1065,12 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                 } else {
-                    logger::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!(target: "gwasm", "Program with id {:?} already exists", candidate_id);
                 }
             }
         } else {
-            logger::debug!(
+            log::debug!(
+                target: "gwasm",
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
@@ -1119,13 +1133,7 @@ impl JournalHandler for ExtManager {
 
     fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 
-    fn send_signal(
-        &mut self,
-        _message_id: MessageId,
-        _destination: ProgramId,
-        _err: SimpleSignalError,
-    ) {
-    }
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 

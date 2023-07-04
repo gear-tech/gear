@@ -28,7 +28,7 @@ mod host;
 /// * `fallible`             - if the host function executes fallible call.
 /// * `wgas`                 - if the host function supports with-gas version.
 /// * `cost`                 - RuntimeCosts definition, for example `#[host(cost = RuntimeCosts::Null)]`
-/// * `err_len`              - Error length definition, for example `#[host(err_len = LengthBytes)]`
+/// * `err`                  - Structure definition with error code, for example `#[host(err = ErrorWithHash)]`
 ///
 /// # Example
 ///
@@ -62,7 +62,7 @@ mod host;
 /// ) -> Result<(), R::Error> {
 ///     syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
 ///
-///     ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
+///     ctx.run_fallible::<_, _, ErrorWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
 ///         // ...
 ///     })
 /// }
@@ -77,7 +77,7 @@ mod host;
 /// ) -> Result<(), R::Error> {
 ///     syscall_trace!("reply_wgas", payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr);
 ///
-///     ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
+///     ctx.run_fallible::<_, _, ErrorWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
 ///         // ...
 ///     })
 /// }
