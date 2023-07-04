@@ -32,12 +32,15 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        let available_value = exec::value_available();
-        debug!("inserted: {}, total: {}", msg::value(), available_value);
+        msg::with_read_on_stack(|msg| {
+            let available_value = exec::value_available();
+            let value = msg::value();
+            debug!("inserted: {value}, total: {available_value}");
 
-        if msg::load_bytes().expect("Failed to load payload bytes") == b"smash" {
-            debug!("smashing, total: {}", available_value);
-            msg::reply_bytes(b"send", available_value).unwrap();
-        }
+            if msg.expect("Failed to load payload bytes") == b"smash" {
+                debug!("smashing, total: {available_value}");
+                msg::reply_bytes(b"send", available_value).unwrap();
+            }
+        });
     }
 }

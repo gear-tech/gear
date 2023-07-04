@@ -284,8 +284,7 @@ pub fn do_optimization(
     // memory-packing pre-pass.
     .zero_filled_memory(true)
     .debug_info(keep_debug_symbols)
-    .run(dest_wasm, dest_optimized)
-    .expect("The wasm-opt optimization failed");
+    .run(dest_wasm, dest_optimized)?;
 
     Ok(())
 }

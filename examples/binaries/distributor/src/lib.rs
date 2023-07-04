@@ -91,7 +91,7 @@ mod wasm {
             let program_handle = self.handle;
             async move {
                 let reply_bytes =
-                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0)
+                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0, 0)
                         .expect("Error in message sending")
                         .await
                         .expect("Error in async message processing");
@@ -130,7 +130,7 @@ mod wasm {
                     Request::Report => Self::handle_report().await,
                 },
                 Err(e) => {
-                    debug!("Error processing request: {:?}", e);
+                    debug!("Error processing request: {e:?}");
                     Reply::Failure
                 }
             };
@@ -140,7 +140,7 @@ mod wasm {
         }
 
         async fn handle_receive(amount: u64) -> Reply {
-            debug!("Handling receive {}", amount);
+            debug!("Handling receive {amount}");
 
             let nodes = Program::nodes().lock().await;
             let subnodes_count = nodes.as_ref().len() as u64;
@@ -159,10 +159,10 @@ mod wasm {
                     }
                 }
 
-                debug!("Set own amount to: {}", left_over);
+                debug!("Set own amount to: {left_over}");
                 *Self::amount() = *Self::amount() + left_over;
             } else {
-                debug!("Set own amount to: {}", amount);
+                debug!("Set own amount to: {amount}");
                 *Self::amount() = *Self::amount() + amount;
             }
 
@@ -178,7 +178,7 @@ mod wasm {
 
         async fn handle_report() -> Reply {
             let mut amount = *Program::amount();
-            debug!("Own amount: {}", amount);
+            debug!("Own amount: {amount}");
 
             let nodes = Program::nodes().lock().await;
 
@@ -186,7 +186,7 @@ mod wasm {
                 debug!("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
-                        debug!("Sub-node result: {}", amount);
+                        debug!("Sub-node result: {amount}");
                         amount
                     }
                     Err(_) => {

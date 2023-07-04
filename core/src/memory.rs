@@ -18,13 +18,16 @@
 
 //! Module for memory and allocations context.
 
-use crate::{buffer::LimitedVec, gas::ChargeError};
+use crate::{
+    buffer::LimitedVec,
+    gas::ChargeError,
+    pages::{PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+};
 use alloc::{collections::BTreeSet, format};
 use core::{
     fmt,
     fmt::Debug,
     iter,
-    num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
 use gear_core_errors::MemoryError;
@@ -32,20 +35,6 @@ use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
 };
-
-/// A WebAssembly page has a constant size of 64KiB.
-pub const WASM_PAGE_SIZE: usize = 0x10000;
-
-/// A gear page size, currently 4KiB to fit the most common native page size.
-/// This is size of memory data pages in storage.
-/// So, in lazy-pages, when program tries to access some memory interval -
-/// we can download just some number of gear pages instead of whole wasm page.
-/// The number of small pages, which must be downloaded, is depends on host
-/// native page size, so can vary.
-pub const GEAR_PAGE_SIZE: usize = 0x4000;
-
-static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
 #[derive(Clone, Copy, Encode, Decode)]
@@ -99,7 +88,7 @@ impl Encode for PageBuf {
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        dest.write(self.0.get())
+        dest.write(self.0.inner())
     }
 }
 
@@ -107,7 +96,7 @@ impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
         let mut buffer = PageBufInner::new_default();
-        input.read(buffer.get_mut())?;
+        input.read(buffer.inner_mut())?;
         Ok(Self(buffer))
     }
 }
@@ -119,8 +108,8 @@ impl Debug for PageBuf {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0.get()[0..10],
-            &self.0.get()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.inner()[0..10],
+            &self.0.inner()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
         )
     }
 }
@@ -128,13 +117,13 @@ impl Debug for PageBuf {
 impl Deref for PageBuf {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        self.0.get()
+        self.0.inner()
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.get_mut()
+        self.0.inner_mut()
     }
 }
 
@@ -153,304 +142,6 @@ impl PageBuf {
     pub fn from_inner(mut inner: PageBufInner) -> Self {
         inner.extend_with(0);
         Self(inner)
-    }
-}
-
-/// Errors when act with PageU32Size.
-#[derive(Debug, Clone, derive_more::Display)]
-pub enum PageError {
-    /// Addition overflow.
-    #[display(fmt = "{_0} + {_1} overflows u32")]
-    AddOverflowU32(u32, u32),
-    /// Subtraction overflow.
-    #[display(fmt = "{_0} - {_1} overflows u32")]
-    SubOverflowU32(u32, u32),
-    /// Overflow U32 memory size: has bytes, which has offset bigger then u32::MAX.
-    #[display(fmt = "{_0} is too big to be number of page with size {_1}")]
-    OverflowU32MemorySize(u32, u32),
-    /// Cannot make pages iter from to.
-    #[display(fmt = "Cannot make pages iter from {_0} to {_1}")]
-    WrongRange(u32, u32),
-}
-
-/// U32 size pages iterator, to iterate continuously from one page to another.
-#[derive(Debug, Clone)]
-pub struct PagesIter<P: PageU32Size> {
-    page: P,
-    end: P,
-}
-
-impl<P: PageU32Size> Iterator for PagesIter<P> {
-    type Item = P;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.page.raw() >= self.end.raw() {
-            return None;
-        };
-        let res = self.page;
-        unsafe {
-            // Safe, because we checked that `page` is less than `end`.
-            self.page = P::new_unchecked(self.page.raw() + 1);
-        }
-        Some(res)
-    }
-}
-
-/// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
-#[derive(Debug, Clone)]
-pub struct PagesIterInclusive<P: PageU32Size> {
-    page: Option<P>,
-    end: P,
-}
-
-impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
-    type Item = P;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let page = self.page?;
-        match self.end.raw() {
-            end if end == page.raw() => self.page = None,
-            end if end > page.raw() => unsafe {
-                // Safe, because we checked that `page` is less than `end`.
-                self.page = Some(P::new_unchecked(page.raw() + 1));
-            },
-            _ => unreachable!(
-                "`page` {} cannot be bigger than `end` {}",
-                page.raw(),
-                self.end.raw(),
-            ),
-        }
-        Some(page)
-    }
-}
-
-impl<P: PageU32Size> PagesIterInclusive<P> {
-    /// Returns current page.
-    pub fn current(&self) -> Option<P> {
-        self.page
-    }
-    /// Returns the end page.
-    pub fn end(&self) -> P {
-        self.end
-    }
-    /// Returns another page type iter, which pages intersect with `self` pages.
-    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
-        PagesIterInclusive::<P1> {
-            page: self.page.map(|p| p.to_page()),
-            end: self.end.to_last_page(),
-        }
-    }
-}
-
-/// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
-/// All operations with page guarantees, that no addr or page number can be overflowed.
-pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
-    /// Returns size of page.
-    fn size_non_zero() -> NonZeroU32;
-    /// Returns raw page number.
-    fn raw(&self) -> u32;
-    /// Constructs new page without any checks.
-    /// # Safety
-    /// Doesn't guarantee, that page offset or page end offset is in not overflowed.
-    unsafe fn new_unchecked(num: u32) -> Self;
-
-    /// Size as u32. Cannot be zero, because uses `Self::size_non_zero`.
-    fn size() -> u32 {
-        Self::size_non_zero().into()
-    }
-    /// Constructs new page from byte offset: returns page which contains this byte.
-    fn from_offset(offset: u32) -> Self {
-        unsafe { Self::new_unchecked(offset / Self::size()) }
-    }
-    /// Constructs new page from raw page number with checks.
-    /// Returns error if page will contain bytes, with offsets bigger then u32::MAX.
-    fn new(num: u32) -> Result<Self, PageError> {
-        let page_begin = num
-            .checked_mul(Self::size())
-            .ok_or(PageError::OverflowU32MemorySize(num, Self::size()))?;
-        let last_byte_offset = Self::size() - 1;
-        // Check that the last page byte has index less or equal then u32::MAX
-        page_begin
-            .checked_add(last_byte_offset)
-            .ok_or(PageError::OverflowU32MemorySize(num, Self::size()))?;
-        // Now it is safe
-        unsafe { Ok(Self::new_unchecked(num)) }
-    }
-    /// Returns page zero byte offset.
-    fn offset(&self) -> u32 {
-        self.raw() * Self::size()
-    }
-    /// Returns page last byte offset.
-    fn end_offset(&self) -> u32 {
-        self.raw() * Self::size() + (Self::size() - 1)
-    }
-    /// Returns new page, which contains `self` zero byte.
-    fn to_page<P1: PageU32Size>(&self) -> P1 {
-        P1::from_offset(self.offset())
-    }
-    /// Returns new page, which contains `self` last byte.
-    fn to_last_page<P1: PageU32Size>(&self) -> P1 {
-        P1::from_offset(self.end_offset())
-    }
-    /// Returns page which has number `page.raw() + raw`, with checks.
-    fn add_raw(&self, raw: u32) -> Result<Self, PageError> {
-        self.raw()
-            .checked_add(raw)
-            .map(Self::new)
-            .ok_or(PageError::AddOverflowU32(self.raw(), raw))?
-    }
-    /// Returns page which has number `page.raw() - raw`, with checks.
-    fn sub_raw(&self, raw: u32) -> Result<Self, PageError> {
-        self.raw()
-            .checked_sub(raw)
-            .map(Self::new)
-            .ok_or(PageError::SubOverflowU32(self.raw(), raw))?
-    }
-    /// Returns page which has number `page.raw() + other.raw()`, with checks.
-    fn add(&self, other: Self) -> Result<Self, PageError> {
-        self.add_raw(other.raw())
-    }
-    /// Returns page which has number `page.raw() - other.raw()`, with checks.
-    fn sub(&self, other: Self) -> Result<Self, PageError> {
-        self.sub_raw(other.raw())
-    }
-    /// Returns page which has number `page.raw() + 1`, with checks.
-    fn inc(&self) -> Result<Self, PageError> {
-        self.add_raw(1)
-    }
-    /// Returns page which has number `page.raw() - 1`, with checks.
-    fn dec(&self) -> Result<Self, PageError> {
-        self.sub_raw(1)
-    }
-    /// Aligns page zero byte and returns page which contains this byte.
-    /// Normally if `size % Self::size() == 0`,
-    /// then aligned byte is zero byte of the returned page.
-    fn align_down(&self, size: NonZeroU32) -> Self {
-        let size: u32 = size.into();
-        Self::from_offset((self.offset() / size) * size)
-    }
-    /// Returns page, which has zero byte offset == 0.
-    fn zero() -> Self {
-        unsafe { Self::new_unchecked(0) }
-    }
-    /// Returns iterator `self`..`self` + `count`.
-    fn iter_count(&self, count: Self) -> Result<PagesIter<Self>, PageError> {
-        self.add(count).map(|end| PagesIter { page: *self, end })
-    }
-    /// Returns iterator `self`..`end`.
-    fn iter_end(&self, end: Self) -> Result<PagesIter<Self>, PageError> {
-        if end.raw() >= self.raw() {
-            Ok(PagesIter { page: *self, end })
-        } else {
-            Err(PageError::WrongRange(self.raw(), end.raw()))
-        }
-    }
-    /// Returns iterator `self`..=`end`.
-    fn iter_end_inclusive(&self, end: Self) -> Result<PagesIterInclusive<Self>, PageError> {
-        if end.raw() >= self.raw() {
-            Ok(PagesIterInclusive {
-                page: Some(*self),
-                end,
-            })
-        } else {
-            Err(PageError::WrongRange(self.raw(), end.raw()))
-        }
-    }
-    /// Returns iterator `0`..=`self`
-    fn iter_from_zero_inclusive(&self) -> PagesIterInclusive<Self> {
-        PagesIterInclusive {
-            page: Some(Self::zero()),
-            end: *self,
-        }
-    }
-    /// Returns iterator `0`..`self`
-    fn iter_from_zero(&self) -> PagesIter<Self> {
-        PagesIter {
-            page: Self::zero(),
-            end: *self,
-        }
-    }
-    /// Returns iterator `self`..=`self`
-    fn iter_once(&self) -> PagesIterInclusive<Self> {
-        PagesIterInclusive {
-            page: Some(*self),
-            end: *self,
-        }
-    }
-    /// To another page iterator. For example: PAGE1 has size 4 and PAGE2 has size 2:
-    /// ````ignored
-    /// Memory is splitted into PAGE1:
-    /// [<====><====><====><====><====>]
-    ///  0     1     2     3     4
-    /// Memory splitted into PAGE2:
-    /// [<=><=><=><=><=><=><=><=><=><=>]
-    ///  0  1  2  3  4  5  6  7  8  9
-    /// Then PAGE1 with number 2 contains [4, 5] pages of PAGE2,
-    /// and we returns iterator over [4, 5] PAGE2.
-    /// ````
-    fn to_pages_iter<P: PageU32Size>(&self) -> PagesIterInclusive<P> {
-        let start: P = self.to_page();
-        let end: P = P::from_offset(self.end_offset());
-        PagesIterInclusive {
-            page: Some(start),
-            end,
-        }
-    }
-}
-
-/// Page number.
-#[derive(
-    Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo, Default,
-)]
-pub struct GearPage(u32);
-
-impl PageU32Size for GearPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-/// Wasm page number.
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Default)]
-pub struct WasmPage(u32);
-
-impl PageU32Size for WasmPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-impl From<u16> for WasmPage {
-    fn from(value: u16) -> Self {
-        // u16::MAX * WasmPage::size() - 1 == u32::MAX
-        static_assertions::const_assert!(WASM_PAGE_SIZE == 0x10000);
-        WasmPage(value as u32)
-    }
-}
-
-impl From<u16> for GearPage {
-    fn from(value: u16) -> Self {
-        // u16::MAX * GearPage::size() - 1 <= u32::MAX
-        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
-        GearPage(value as u32)
     }
 }
 
@@ -671,6 +362,8 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of GearPage struct
 mod tests {
+    use crate::pages::{GearPage, PageNumber};
+
     use super::*;
 
     use alloc::vec::Vec;
@@ -715,7 +408,7 @@ mod tests {
         .expect("cannot init logger");
 
         let mut data = PageBufInner::filled_with(199u8);
-        data.get_mut()[1] = 2;
+        data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }

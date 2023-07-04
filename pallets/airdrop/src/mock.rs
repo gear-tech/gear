@@ -19,14 +19,14 @@
 use crate as pallet_airdrop;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU64, GenesisBuild},
+    traits::{ConstU64, GenesisBuild, WithdrawReasons},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use sp_core::ConstU128;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, ConvertInto, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -37,6 +37,7 @@ type BlockNumber = u64;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
+pub const BOB: AccountId = 2;
 pub const ROOT: AccountId = 255;
 
 // Configure a mock runtime to test the pallet.
@@ -57,6 +58,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         Airdrop: pallet_airdrop,
+        Vesting: pallet_vesting,
     }
 );
 
@@ -148,7 +150,8 @@ impl common::GasPrice for GasConverter {
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
-    pub RentResumePeriod: BlockNumber = 100;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -169,9 +172,11 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = ();
     type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramRentMinimalResumePeriod = RentResumePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -183,12 +188,29 @@ impl pallet_gear_scheduler::Config for Test {
     type DispatchHoldCost = ConstU64<100>;
 }
 
+parameter_types! {
+    pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+        WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
+}
+
+impl pallet_vesting::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type BlockNumberToBalance = ConvertInto;
+    type MinVestedTransfer = ();
+    type WeightInfo = ();
+    type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
+    const MAX_VESTING_SCHEDULES: u32 = 28;
+}
+
 impl pallet_airdrop::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
+    type VestingSchedule = Vesting;
 }
 
 pub type AirdropCall = pallet_airdrop::Call<Test>;
+pub type AirdropError = pallet_airdrop::Error<Test>;
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
@@ -197,7 +219,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ROOT, 100_000_000_u128)],
+        balances: vec![(ROOT, 100_000_000_u128), (BOB, 100_000_000_u128)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -205,5 +227,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_sudo::GenesisConfig::<Test> { key: Some(ROOT) }
         .assimilate_storage(&mut t)
         .unwrap();
+
+    pallet_vesting::GenesisConfig::<Test> {
+        vesting: vec![(BOB, 100, 1000, 0)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
     t.into()
 }

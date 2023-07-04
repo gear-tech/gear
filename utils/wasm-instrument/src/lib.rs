@@ -149,18 +149,18 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    // TODO: #1706
     let mut elements = vec![
         // check if there is enough gas
         Instruction::GetGlobal(gas_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge = gas_to_charge + cost_for_func
         // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        Instruction::TeeLocal(1),
         // }
-        // if gas < (gas_to_charge + cost_for_func)
+        // if gas < total_gas_to_charge
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_gas_index),
@@ -168,28 +168,22 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas
         Instruction::GetGlobal(gas_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // gas -= (gas_to_charge + cost_for_func)
+        // gas -= total_gas_to_charge
         // {
         Instruction::I64Sub,
         Instruction::SetGlobal(gas_index),
         // }
         // check if there is enough gas allowance
         Instruction::GetGlobal(allowance_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // if allowance < (gas_to_charge + cost_for_func)
+        // if allowance < total_gas_to_charge
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_allowance_index),
@@ -197,14 +191,11 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas allowance
         Instruction::GetGlobal(allowance_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // allowance -= (gas_to_charge + cost_for_func)
+        // allowance -= total_gas_to_charge
         // {
         Instruction::I64Sub,
         Instruction::SetGlobal(allowance_index),
@@ -213,17 +204,32 @@ pub fn inject<R: Rules>(
     ];
 
     // determine cost for successful execution
+    let mut block_of_code = false;
+
     let cost_blocks = match elements
         .iter()
-        .take(7)
-        // block with update instructions
-        .chain(elements.iter().skip(10).take(7))
+        .filter(|instruction| match instruction {
+            Instruction::If(_) => {
+                block_of_code = true;
+                true
+            }
+            Instruction::End => {
+                block_of_code = false;
+                false
+            }
+            _ => !block_of_code,
+        })
         .try_fold(0u64, |cost, instruction| {
             rules
                 .instruction_cost(instruction)
                 .and_then(|c| cost.checked_add(c.into()))
         }) {
-        Some(c) => 2 * c,
+        Some(c) => c,
+        None => return Err(mbuilder.build()),
+    };
+
+    let cost_push_arg = match rules.instruction_cost(&Instruction::I32Const(0)) {
+        Some(c) => c as u64,
         None => return Err(mbuilder.build()),
     };
 
@@ -232,7 +238,9 @@ pub fn inject<R: Rules>(
         None => return Err(mbuilder.build()),
     };
 
-    let cost = cost_call + cost_blocks;
+    let cost_local_var = rules.call_per_local_cost() as u64;
+
+    let cost = cost_push_arg + cost_call + cost_local_var + cost_blocks;
     // the cost is added to gas_to_charge which cannot
     // exceed u32::MAX value. This check ensures
     // there is no u64 overflow.
@@ -255,6 +263,7 @@ pub fn inject<R: Rules>(
             .with_param(ValueType::I32)
             .build()
             .body()
+            .with_locals(vec![elements::Local::new(1, ValueType::I64)])
             .with_instructions(elements::Instructions::new(elements))
             .build()
             .build(),

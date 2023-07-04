@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
+    substrate_build_script_utils::generate_cargo_keys();
     #[cfg(all(feature = "std", not(feature = "fuzz")))]
     {
         substrate_wasm_builder::WasmBuilder::new()

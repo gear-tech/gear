@@ -36,10 +36,11 @@
 //! ```
 
 use crate::{
-    errors::{ContractError, IntoContractResult, Result},
+    errors::{Error, IntoResult, Result},
     prelude::{convert::TryFrom, String},
 };
 use primitive_types::H256;
+use scale::MaxEncodedLen;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -56,7 +57,19 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 /// function. Also, each send function has a target `ActorId` as one of the
 /// arguments.
 #[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    TypeInfo,
+    Decode,
+    Encode,
+    MaxEncodedLen,
 )]
 #[codec(crate = scale)]
 pub struct ActorId([u8; 32]);
@@ -81,11 +94,11 @@ impl ActorId {
     pub fn from_bs58(address: String) -> Result<Self> {
         let decoded = bs58::decode(address)
             .into_vec()
-            .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?;
+            .map_err(|_| Error::Convert("Unable to decode bs58 address"))?;
 
         let len = decoded.len();
         if len < BS58_MIN_LEN {
-            Err(ContractError::Convert("Wrong address len"))
+            Err(Error::Convert("Wrong address len"))
         } else {
             Self::from_slice(&decoded[len - 34..len - 2])
         }
@@ -94,7 +107,7 @@ impl ActorId {
     /// Create a new `ActorId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
-            return Err(ContractError::Convert("Slice should be 32 length"));
+            return Err(Error::Convert("Slice should be 32 length"));
         }
 
         let mut actor_id: Self = Default::default();
@@ -116,7 +129,6 @@ impl AsMut<[u8]> for ActorId {
     }
 }
 
-#[cfg(feature = "debug")]
 impl From<u64> for ActorId {
     fn from(v: u64) -> Self {
         let mut arr = [0u8; 32];
@@ -156,7 +168,7 @@ impl From<ActorId> for gcore::ActorId {
 }
 
 impl TryFrom<&[u8]> for ActorId {
-    type Error = ContractError;
+    type Error = Error;
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
@@ -247,7 +259,7 @@ impl CodeId {
     /// Create a new `CodeId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
-            return Err(ContractError::Convert("Slice should be 32 length"));
+            return Err(Error::Convert("Slice should be 32 length"));
         }
 
         let mut ret: Self = Default::default();
@@ -300,7 +312,7 @@ impl From<CodeId> for gcore::CodeId {
 }
 
 impl TryFrom<&[u8]> for CodeId {
-    type Error = ContractError;
+    type Error = Error;
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
@@ -319,14 +331,16 @@ impl TryFrom<&[u8]> for CodeId {
 ///
 /// static mut RESERVED: Option<ReservationId> = None;
 ///
+/// #[no_mangle]
 /// extern "C" fn init() {
 ///     let reservation_id = ReservationId::reserve(50_000_000, 7).expect("Unable to reserve");
 ///     unsafe { RESERVED = Some(reservation_id) };
 /// }
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let reservation_id = unsafe { RESERVED.take().expect("Empty `RESERVED`") };
-///     reservation_id.unreserve();
+///     reservation_id.unreserve().expect("Unable to unreserve");
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
@@ -358,14 +372,14 @@ impl ReservationId {
     /// }
     /// ```
     pub fn reserve(amount: u64, duration: u32) -> Result<Self> {
-        gcore::exec::reserve_gas(amount, duration).into_contract_result()
+        gcore::exec::reserve_gas(amount, duration).into_result()
     }
 
     /// Unreserve unused gas from the reservation.
     ///
     /// If successful, it returns the reserved amount of gas.
     pub fn unreserve(self) -> Result<u64> {
-        gcore::exec::unreserve_gas(self.into()).into_contract_result()
+        gcore::exec::unreserve_gas(self.into()).into_result()
     }
 }
 

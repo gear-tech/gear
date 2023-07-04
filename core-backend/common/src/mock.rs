@@ -17,21 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
-    SystemReservationContext, TerminationReason,
+    memory::ProcessAccessError, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    memory::{Memory, MemoryInterval},
+    message::{HandlePacket, InitPacket, ReplyPacket},
+    pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -46,13 +47,13 @@ impl fmt::Display for Error {
     }
 }
 
-impl BackendExtError for Error {
+impl BackendExternalitiesError for Error {
     fn into_termination_reason(self) -> TerminationReason {
         unimplemented!()
     }
 }
 
-impl BackendAllocExtError for Error {
+impl BackendAllocExternalitiesError for Error {
     type ExtError = Self;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
@@ -77,10 +78,6 @@ impl CountersOwner for MockExt {
         Ok(())
     }
 
-    fn refund_gas(&mut self, _amount: u64) -> Result<(), ChargeError> {
-        Ok(())
-    }
-
     fn gas_left(&self) -> GasLeft {
         GasLeft {
             gas: 0,
@@ -91,8 +88,9 @@ impl CountersOwner for MockExt {
     fn set_gas_left(&mut self, _gas_left: GasLeft) {}
 }
 
-impl Ext for MockExt {
-    type Error = Error;
+impl Externalities for MockExt {
+    type UnrecoverableError = Error;
+    type FallibleError = Error;
     type AllocError = Error;
 
     fn alloc(
@@ -105,22 +103,19 @@ impl Ext for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn block_height(&self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn block_timestamp(&self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn origin(&self) -> Result<ProgramId, Self::Error> {
-        Ok(ProgramId::from(0))
-    }
-    fn send_init(&mut self) -> Result<u32, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
     fn send_push_input(
@@ -128,10 +123,10 @@ impl Ext for MockExt {
         _handle: u32,
         _offset: u32,
         _len: u32,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
+    fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
     fn send_commit(
@@ -139,88 +134,100 @@ impl Ext for MockExt {
         _handle: u32,
         _msg: HandlePacket,
         _delay: u32,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
-    fn reply_to(&self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(Default::default())
     }
-    fn reply_push_input(&mut self, _offset: u32, _len: u32) -> Result<(), Self::Error> {
+    fn reply_push_input(
+        &mut self,
+        _offset: u32,
+        _len: u32,
+    ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn source(&self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(ProgramId::from(0))
     }
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
         Ok(Default::default())
     }
-    fn message_id(&self) -> Result<MessageId, Self::Error> {
+    fn signal_code(&self) -> Result<SignalCode, Self::UnrecoverableError> {
+        Ok(Default::default())
+    }
+    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
     }
     fn pay_program_rent(
         &mut self,
         _program_id: ProgramId,
         _rent: u128,
-    ) -> Result<(u128, u32), Self::Error> {
+    ) -> Result<(u128, u32), Self::UnrecoverableError> {
         Ok((0, 0))
     }
-    fn program_id(&self) -> Result<ProgramId, Self::Error> {
+    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(0.into())
     }
-    fn debug(&self, _data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn read(&mut self, _at: u32, _len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        Ok((&[], Default::default()))
-    }
-    fn size(&self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn gas_available(&self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(1_000_000)
     }
-    fn value(&self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn value_available(&self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
         Ok(1_000_000)
     }
-    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
         Ok(([0u8; 32].as_ref(), 0))
     }
-    fn wait(&mut self) -> Result<(), Self::Error> {
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
+    fn wait_for(&mut self, _duration: u32) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::Error> {
+    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::UnrecoverableError> {
         Ok(false)
     }
-    fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::Error> {
+    fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
     fn create_program(
         &mut self,
         _packet: InitPacket,
         _delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::Error> {
+    ) -> Result<(MessageId, ProgramId), Self::UnrecoverableError> {
         Ok((Default::default(), Default::default()))
     }
-    fn reply_deposit(&mut self, _message_id: MessageId, _amount: u64) -> Result<(), Self::Error> {
+    fn reply_deposit(
+        &mut self,
+        _message_id: MessageId,
+        _amount: u64,
+    ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.0
     }
-    fn reserve_gas(&mut self, _amount: u64, _duration: u32) -> Result<ReservationId, Self::Error> {
+    fn reserve_gas(
+        &mut self,
+        _amount: u64,
+        _duration: u32,
+    ) -> Result<ReservationId, Self::UnrecoverableError> {
         Ok(ReservationId::default())
     }
-    fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::Error> {
+    fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
     }
 
-    fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
+    fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
 
@@ -230,7 +237,7 @@ impl Ext for MockExt {
         _handle: u32,
         _msg: HandlePacket,
         _delay: u32,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
 
@@ -238,16 +245,28 @@ impl Ext for MockExt {
         &mut self,
         _id: ReservationId,
         _msg: ReplyPacket,
-    ) -> Result<MessageId, Self::Error> {
+    ) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
 
-    fn signal_from(&self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
+    }
+
+    fn lock_payload(
+        &mut self,
+        _at: u32,
+        _len: u32,
+    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
+        unimplemented!()
+    }
+
+    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        unimplemented!()
     }
 }
 
-impl BackendExt for MockExt {
+impl BackendExternalities for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasCounter::new(0).to_amount(),

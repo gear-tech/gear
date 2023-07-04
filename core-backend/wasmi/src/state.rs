@@ -16,20 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{BackendExt, BackendState, BackendTermination, TerminationReason};
-use gear_core_errors::ExtError;
+use gear_backend_common::{
+    BackendExternalities, BackendState, BackendTermination, TerminationReason,
+};
 
-pub(crate) type HostState<E> = Option<State<E>>;
+pub(crate) type HostState<Ext> = Option<State<Ext>>;
 
 /// It's supposed that `E` implements [BackendExt]
-pub(crate) struct State<E> {
-    pub ext: E,
-    pub fallible_syscall_error: Option<ExtError>,
+pub(crate) struct State<Ext> {
+    pub ext: Ext,
     pub termination_reason: TerminationReason,
 }
 
-impl<E: BackendExt> BackendTermination<E, ()> for State<E> {
-    fn into_parts(self) -> (E, (), TerminationReason) {
+impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
+    fn into_parts(self) -> (Ext, (), TerminationReason) {
         let State {
             ext,
             termination_reason,
@@ -39,12 +39,8 @@ impl<E: BackendExt> BackendTermination<E, ()> for State<E> {
     }
 }
 
-impl<E> BackendState for State<E> {
+impl<Ext> BackendState for State<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
-    }
-
-    fn set_fallible_syscall_error(&mut self, err: ExtError) {
-        self.fallible_syscall_error = Some(err);
     }
 }

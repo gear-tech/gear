@@ -38,7 +38,10 @@ pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
 pub use executor::{execute_wasm, ActorPrepareMemoryError};
-pub use ext::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
+pub use ext::{
+    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    UnrecoverableExtError,
+};
 pub use handler::handle_journal;
 pub use precharge::{
     calculate_gas_for_code, calculate_gas_for_program, precharge_for_code,

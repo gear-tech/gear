@@ -20,18 +20,19 @@
 
 use crate::state::HostState;
 use gear_core::{
-    env::Ext,
-    memory::{HostPointer, Memory, PageU32Size, WasmPage},
+    env::Externalities,
+    memory::{HostPointer, Memory},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub(crate) struct MemoryWrapRef<'a, E: Ext + 'static> {
+pub(crate) struct MemoryWrapRef<'a, Ext: Externalities + 'static> {
     pub memory: WasmiMemory,
-    pub store: StoreContextMut<'a, HostState<E>>,
+    pub store: StoreContextMut<'a, HostState<Ext>>,
 }
 
-impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
+impl<'a, Ext: Externalities + 'static> Memory for MemoryWrapRef<'a, Ext> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -63,23 +64,23 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
 }
 
 /// Wrapper for [`wasmi::Memory`].
-pub struct MemoryWrap<E: Ext + 'static> {
+pub struct MemoryWrap<Ext: Externalities + 'static> {
     pub(crate) memory: WasmiMemory,
-    pub(crate) store: Store<HostState<E>>,
+    pub(crate) store: Store<HostState<Ext>>,
 }
 
-impl<E: Ext + 'static> MemoryWrap<E> {
+impl<Ext: Externalities + 'static> MemoryWrap<Ext> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
-    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
+    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<Ext>>) -> Self {
         MemoryWrap { memory, store }
     }
-    pub(crate) fn into_store(self) -> Store<HostState<E>> {
+    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
         self.store
     }
 }
 
 /// Memory interface for the allocator.
-impl<E: Ext + 'static> Memory for MemoryWrap<E> {
+impl<Ext: Externalities + 'static> Memory for MemoryWrap<Ext> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -132,7 +133,6 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                fallible_syscall_error: None,
                 termination_reason: ActorTerminationReason::Success.into(),
             }),
         );

@@ -22,13 +22,13 @@
 
 use crate::{
     async_runtime::signals,
-    errors::{ContractError, IntoContractResult, Result},
+    errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, ops::RangeBounds},
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode};
+use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
 
 /// Get a payload of the message that is currently being processed.
 ///
@@ -59,7 +59,18 @@ use scale_info::scale::{Decode, Encode};
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
 pub fn load<D: Decode>() -> Result<D> {
-    D::decode(&mut super::load_bytes()?.as_ref()).map_err(ContractError::Decode)
+    D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
+}
+
+/// Same as [`load`](self::load), but reads current message payload to allocated
+/// on stack buffer. Decoded object will be also on stack, but if it contains
+/// any fields, with heap allocations inside (for example vec), then
+/// this decoding may lead to heap allocations.
+pub fn load_on_stack<D: Decode>() -> Result<D> {
+    super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
+        let mut buffer = read_result? as &[u8];
+        D::decode(&mut buffer).map_err(Error::Decode)
+    })
 }
 
 /// Send a new message as a reply to the message being
@@ -111,6 +122,37 @@ pub fn load<D: Decode>() -> Result<D> {
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
+}
+
+// TODO: use encoded_size and in reply also. But should also check,
+// that does not lead to additional heap allocations and additional calculation
+// #2880.
+/// Same as [reply], but encodes payload to stack allocated buffer.
+/// Buffer size for encoding is at least `E::max_encoded_len()`.
+pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
+    struct ExternalBufferOutput<'a> {
+        buffer: &'a mut [u8],
+        offset: usize,
+    }
+
+    impl<'a> Output for ExternalBufferOutput<'a> {
+        fn write(&mut self, bytes: &[u8]) {
+            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
+            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
+            if end_offset > self.buffer.len() {
+                panic!("{}", ERROR_LOG);
+            }
+            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
+            self.offset = end_offset;
+        }
+    }
+
+    gcore::stack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
+        let mut output = ExternalBufferOutput { buffer, offset: 0 };
+        payload.encode_to(&mut output);
+        let ExternalBufferOutput { buffer, offset } = output;
+        super::reply_bytes(&buffer[..offset], value)
+    })
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of
@@ -215,7 +257,7 @@ pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Res
 pub fn reply_input<Range: RangeBounds<usize>>(value: u128, range: Range) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::reply_input(value, offset, len).into_contract_result()
+    gcore::msg::reply_input(value, offset, len).into_result()
 }
 
 /// Same as [`reply_input`], but with an explicit gas limit.
@@ -226,7 +268,7 @@ pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::reply_input_with_gas(gas_limit, value, offset, len).into_contract_result()
+    gcore::msg::reply_input_with_gas(gas_limit, value, offset, len).into_result()
 }
 
 /// Same as [`send`] but uses the input buffer as a payload source.
@@ -262,7 +304,7 @@ pub fn send_input<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input(program.into(), value, offset, len).into_contract_result()
+    gcore::msg::send_input(program.into(), value, offset, len).into_result()
 }
 
 /// Same as [`send_input`], but sends the message after the `delay` expressed in
@@ -275,7 +317,7 @@ pub fn send_input_delayed<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_delayed(program.into(), value, offset, len, delay).into_contract_result()
+    gcore::msg::send_input_delayed(program.into(), value, offset, len, delay).into_result()
 }
 
 /// Same as [`send_input`], but with an explicit gas limit.
@@ -288,8 +330,7 @@ pub fn send_input_with_gas<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_with_gas(program.into(), gas_limit, value, offset, len)
-        .into_contract_result()
+    gcore::msg::send_input_with_gas(program.into(), gas_limit, value, offset, len).into_result()
 }
 
 /// Same as [`send_input_with_gas`], but sends the message after the `delay`
@@ -304,7 +345,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
     let (offset, len) = utils::decay_range(range);
 
     gcore::msg::send_input_with_gas_delayed(program.into(), gas_limit, value, offset, len, delay)
-        .into_contract_result()
+        .into_result()
 }
 
 /// Send a new message to the program or user.
@@ -343,7 +384,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
 ///
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send(ActorId::new(id), payload, 0);
+///     msg::send(ActorId::new(id), payload, 0).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -408,7 +449,7 @@ pub fn send_with_gas_delayed<E: Encode>(
 /// Send a message to the sender's address:
 ///
 /// ```
-/// use gstd::{exec, msg, prelude::*, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]

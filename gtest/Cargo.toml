@@ -9,14 +9,13 @@ license.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
-gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+gear-backend-wasmi = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 gear-wasm-builder.workspace = true
-gear-common = { workspace = true, default-features = true }
+gear-utils.workspace = true
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }
-logger.workspace = true
 hex.workspace = true
 colored.workspace = true
 derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }
@@ -26,8 +25,10 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 scale-info.workspace = true
 gear-wasm-instrument.workspace = true
 gmeta.workspace = true
+log.workspace = true
 
 [dev-dependencies]
+demo-capacitor.workspace = true
 demo-piggy-bank.workspace = true
 demo-futures-unordered.workspace = true
 demo-meta-io.workspace = true

@@ -1,8 +1,10 @@
 node_modules/
 target/
 target-no-lazy/
+log/
 .binpath
 .vscode
 .DS_Store
 .idea
 .log
+*.meta.txt
