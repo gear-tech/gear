@@ -12,9 +12,6 @@ cd "$ROOT_DIR"
 echo "Show: Versioning"
     ./scripts/gear.sh show
 
-echo "Install: Node.js packages"
-    ./scripts/gear.sh init js
-
 echo "Build: Examples (WASM)"
     ./scripts/gear.sh build examples --locked
 
@@ -44,25 +41,11 @@ echo "Test: Gear workspace"
 echo "Test: `gcli`"
     ./scripts/gear.sh test gcli --release --locked --retries 3
 
-echo "Test: JS metadata"
-    ./scripts/gear.sh test js
-
-echo "Test: Process gear-test"
-    ./scripts/gear.sh test gtest
-
 echo "Test: Client tests"
     ./scripts/gear.sh test client
 
 echo "Test: gsdk tests"
     ./scripts/gear.sh test gsdk
-
-echo "Test: Process node runtime spec tests"
-    cargo build -p gear-cli --release --features=runtime-test
-    ./scripts/gear.sh test rtest gear
-
-echo "Test: runtime spec tests no lazy pages"
-    cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-    ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
 echo "Test: Runtime benchmarks and benchmark tests work"
     cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers

@@ -17,7 +17,6 @@ build_usage() {
 
     gear           build gear workspace
     fuzz           build fuzzer crates
-    gear-test      build gear-test binary
     examples       build gear program examples,
                    you can specify yaml list to build coresponding examples
                    using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -36,10 +35,6 @@ fuzzer_build() {
   $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
-gear_test_build() {
-  $CARGO build -p gear-test "$@"
-}
-
 node_build() {
   $CARGO build -p gear-cli "$@"
 }
@@ -52,7 +47,7 @@ wasm_proc_build() {
 examples_proc() {
   WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release
   WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" | tr '\n' ' ' | sed 's/ $//')
-  "$1"/release/wasm-proc --legacy-meta $WASM_EXAMPLES_LIST
+  "$1"/release/wasm-proc $WASM_EXAMPLES_LIST
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
