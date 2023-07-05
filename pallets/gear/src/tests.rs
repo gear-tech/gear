@@ -13487,6 +13487,7 @@ fn send_reply_with_voucher_works() {
 #[test]
 fn double_read_works() {
     use demo_constructor::{Calls, Scheme};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let noop_branch = Calls::builder().noop();
@@ -13498,14 +13499,14 @@ fn double_read_works() {
             .if_else("is_eq", noop_branch, panic_branch);
         let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
 
-        let (_, constructor_id) = utils::init_constructor(predefined_scheme);
+        let (_, pid) = utils::init_constructor(predefined_scheme);
 
         // Resetting events to check the result of the last message.
         System::reset_events();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
-            constructor_id,
+            pid,
             b"PAYLOAD".to_vec(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
@@ -13518,4 +13519,189 @@ fn double_read_works() {
             vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
         );
     });
+}
+
+/// Tests gas allowance exceed handling.
+/// More precisely, it checks one property:
+/// no context data is stored within previously
+/// executed message when gas allowance exceed
+/// happened.
+#[test]
+fn test_gas_allowance_exceed_no_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::{Counted, Queue, Toggler};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let wat = r#"
+            (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (call $reply (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+                (loop (br 0))
+            )
+        )"#;
+
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("failed uploading program");
+        run_to_next_block(None);
+
+        assert_ok!(send_default_message(USER_1, pid));
+        let mid = get_last_message_id();
+        // Setting to 100 million the gas allowance ends faster than gas limit
+        run_to_next_block(Some(100_000_000));
+
+        // Execution is denied after reque
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no execution context is saved after gas allowance exceeded error
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), mid);
+        assert!(msg.context().is_none());
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        // There should be now enough gas allowance, so the message is executed
+        // and execution ends with `GasLimitExceeded`.
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
+        );
+        assert_last_dequeued(1);
+    })
+}
+
+/// Does pretty same test as `test_gas_allowance_exceed_no_context`,
+/// but this time executed message will have non zero context.
+#[test]
+fn test_gas_allowance_exceed_with_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::*;
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    init_logger();
+
+    let process_task_weight = mock::get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let call_wait_key = "call_wait";
+
+        // Initialize a program and set `call_wait' value to `true`.
+        let init = Calls::builder().source("user1").bool(call_wait_key, true);
+        let (_, pid) = utils::init_constructor(Scheme::direct(init));
+
+        let execute = |calls: Calls, allowance: Option<u64>| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(allowance);
+
+            msg_id
+        };
+
+        // If `call_wait` is true, we execute a `wait`. Otherwise, we `reply` and `send`.
+        // It's intended that the message will be executed several times.
+        // That's to perform checks of the msg execution context when message
+        // is in queue after wake (so it has some context), and after gas allowance exceeded
+        // error (so the context remains unchanged).
+        let wait_branch = Calls::builder().wait();
+        let skip_wait_branch = Calls::builder().noop();
+        let handle1 = Calls::builder()
+            .if_else(
+                Arg::Get(call_wait_key.to_string()),
+                wait_branch,
+                skip_wait_branch,
+            )
+            .reply(b"random_message".to_vec())
+            .send("user1", b"another_random_message".to_vec());
+        let handle1_mid = execute(handle1.clone(), None);
+
+        // Check it waits.
+        assert!(WaitlistOf::<Test>::contains(&pid, &handle1_mid));
+        assert_eq!(WaitlistOf::<Test>::len(&pid), 1);
+
+        // Taking the context for the check later.
+        let handle1_ctx = WaitlistOf::<Test>::iter_key(pid)
+            .next()
+            .and_then(|(m, _)| m.context().clone());
+        assert!(handle1_ctx.is_some());
+
+        // This will set `call_wait` to false, wake the message with `handle1_mid` id.
+        // We set the weight to such a value, so only message with `handle2`
+        // payload is executed, That will allow us to reproduce the case in
+        // `test_gas_allowance_exceed_no_context` test, but with message having
+        // context already set.
+        let handle2 = Calls::builder()
+            .bool(call_wait_key, false)
+            .wake(<[u8; 32]>::from(handle1_mid));
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle2.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+        // We add `process_task_weight` as block running requires not only executing message, but
+        // some other read/writes. By adding such small value we guarantee that
+        // message with `handle2` payload is executed, but message with `handle1_mid`
+        // id will not reach the executor.
+        execute(
+            handle2,
+            Some(gas_info.min_limit + process_task_weight.ref_time()),
+        );
+
+        assert_last_dequeued(1);
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Now we calculate a required for the execution of the `handle1_mid` message.
+        // The queue processing is denied from the previous execution, now allowing it,
+        // to calculate gas properly.
+        QueueProcessingOf::<Test>::allow();
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle1.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+
+        // Trigger gas allowance exceeded error while executing only `handle1_mid`.
+        // With such gas allowance we are sure, that `reply` call from `handle1` calls set
+        // is called successfully executed, but there's not enough allowance to end the
+        // execution of the message.
+        run_to_next_block(Some(gas_info.min_limit - 100_000));
+
+        // Execution is denied after reque.
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no information on reply sent is saved in the execution
+        // context after gas allowance exceeded error.
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), handle1_mid);
+        assert_eq!(msg.context(), &handle1_ctx);
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        run_to_next_block(None);
+        assert_succeed(handle1_mid);
+    })
 }

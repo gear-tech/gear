@@ -795,7 +795,8 @@ pub mod runtime_types {
                         pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                         pub awaken: ::std::vec::Vec<runtime_types::gear_core::ids::MessageId>,
                         pub reply_sent: ::core::primitive::bool,
-                        pub reservation_nonce: ::core::primitive::u64,
+                        pub reservation_nonce:
+                            runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
                     }
                 }
@@ -904,6 +905,14 @@ pub mod runtime_types {
                     pub start: ::core::primitive::u32,
                     pub finish: ::core::primitive::u32,
                 }
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct ReservationNonce(pub ::core::primitive::u64);
             }
         }
         pub mod gear_core_errors {

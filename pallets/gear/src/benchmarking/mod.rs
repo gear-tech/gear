@@ -93,7 +93,7 @@ use gear_core::{
         AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
         WASM_PAGE_SIZE,
     },
-    message::{ContextSettings, DispatchKind, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
@@ -169,8 +169,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         gas_counter: GasCounter::new(0),
         gas_allowance_counter: GasAllowanceCounter::new(0),
         gas_reserver: GasReserver::new(
-            Default::default(),
-            0,
+            &<IncomingDispatch as Default>::default(),
             Default::default(),
             T::ReservationsLimit::get(),
         ),
