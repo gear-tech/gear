@@ -27,10 +27,9 @@
 //! message that consists at least from a payload and value.
 
 use crate::{
-    errors::{Result, SyscallError},
+    errors::{Error, Result, SyscallError},
     ActorId, CodeId, MessageId,
 };
-use gear_core_errors::ExtError;
 use gsys::{ErrorWithTwoHashes, HashWithValue};
 
 /// Create a new program and returns its address.
@@ -148,12 +147,9 @@ pub fn create_program_delayed(
 
     let mut res: ErrorWithTwoHashes = Default::default();
 
-    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+    let salt_len = salt.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_create_program(
@@ -188,12 +184,9 @@ pub fn create_program_with_gas_delayed(
 
     let mut res: ErrorWithTwoHashes = Default::default();
 
-    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+    let salt_len = salt.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_create_program_wgas(

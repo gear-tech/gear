@@ -214,11 +214,6 @@ pub enum ProgramRentError {
 )]
 #[non_exhaustive]
 pub enum ExtError {
-    // TODO: remove
-    /// Syscall usage error.
-    #[display(fmt = "Syscall usage error")]
-    SyscallUsage,
-
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
     Execution(ExecutionError),
@@ -247,7 +242,6 @@ impl ExtError {
     /// Convert error into code.
     pub fn to_u32(self) -> u32 {
         match self {
-            ExtError::SyscallUsage => 0xffff,
             ExtError::Execution(err) => err as u32,
             ExtError::Memory(err) => err as u32,
             ExtError::Message(err) => err as u32,
@@ -293,7 +287,6 @@ impl ExtError {
             //
             600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
-            0xffff => Some(ExtError::SyscallUsage),
             u32::MAX => Some(ExtError::Unsupported),
             _ => None,
         }
