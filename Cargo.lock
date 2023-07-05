@@ -4117,7 +4117,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "assert_matches",
  "gear-runtime-interface",
@@ -4133,7 +4133,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4142,7 +4142,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "environmental",
  "gear-sandbox-env",

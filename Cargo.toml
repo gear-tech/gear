@@ -210,9 +210,9 @@ gear-runtime = { path = "runtime/gear" }
 gear-runtime-test-cli = { path = "utils/gear-runtime-test-cli" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
-gear-sandbox = { path = "sandbox", default-features = false }
-gear-sandbox-env = { path = "sandbox-env", default-features = false }
-gear-sandbox-host = { path = "sandbox-host" }
+gear-sandbox = { path = "sandbox/sandbox", default-features = false }
+gear-sandbox-env = { path = "sandbox/env", default-features = false }
+gear-sandbox-host = { path = "sandbox/host" }
 gear-service = { path = "node/service", default-features = false }
 gear-test = { path = "gear-test" }
 gear-utils = { path = "utils/utils" }

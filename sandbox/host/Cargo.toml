@@ -1,6 +1,6 @@
 [package]
 name = "gear-sandbox-host"
-version = "0.0.0"
+version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
