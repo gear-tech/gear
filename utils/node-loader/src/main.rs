@@ -7,7 +7,7 @@
 
 use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::BatchPool;
+use batch_pool::{api::GearApiFacade, BatchPool};
 use gsdk::config::GearConfig;
 use names::Generator;
 use rand::rngs::SmallRng;
@@ -33,20 +33,22 @@ async fn run(params: Params) -> Result<()> {
     }
 }
 
+/// Connect to API of provided node address and subscribe for events.
+///
+/// Broadcast new events to recievers.
 async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: String) -> Result<()> {
     let api = gsdk::Api::new(Some(&node)).await?;
     let mut event_listener = api.finalized_blocks().await?;
 
-    loop {
-        while let Some(events) = event_listener.next_events().await {
-            tx.send(events?)?;
-        }
+    while let Some(events) = event_listener.next_events().await {
+        tx.send(events?)?;
     }
+
+    Err(anyhow!("Listen events: Can't get new events"))
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let (tx, rx) = tokio::sync::broadcast::channel(16);
-    tokio::spawn(listen_events(tx, params.node.clone()));
     let mut name_gen = Generator::default();
     let run_name = name_gen
         .next()
@@ -61,5 +63,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    BatchPool::<SmallRng>::run(params, rx).await
+    let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
+
+    let batch_pool =
+        BatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
+
+    let run_result = tokio::select! {
+        r = tokio::spawn(listen_events(tx, params.node.clone())) => r?,
+        r = tokio::spawn(batch_pool.run(params, rx)) => r?,
+    };
+
+    run_result
 }

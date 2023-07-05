@@ -120,6 +120,11 @@ impl WasmProject {
         self.out_dir.join("Cargo.toml")
     }
 
+    /// Return the path to the original project directory.
+    pub fn original_dir(&self) -> PathBuf {
+        self.original_dir.clone()
+    }
+
     /// Return the path to the target directory.
     pub fn target_dir(&self) -> PathBuf {
         self.target_dir.clone()
@@ -229,7 +234,6 @@ mod fake_gsys {{
             payload: *const u8,
             len: u32,
             value: *const u128,
-            _delay: u32,
             err_mid: *mut [u8; 36],
         );
     }}
@@ -244,7 +248,6 @@ extern "C" fn metahash() {{
             METAHASH.as_ptr(),
             METAHASH.len() as _,
             u32::MAX as _,
-            0,
             &mut res as _,
         );
     }}

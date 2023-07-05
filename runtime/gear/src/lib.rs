@@ -24,6 +24,7 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use common::storage::{Mailbox, Messenger};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
     codec::{Decode, Encode, MaxEncodedLen},
@@ -41,14 +42,14 @@ pub use frame_support::{
         },
         Weight,
     },
-    RuntimeDebug, StorageValue,
+    PalletId, RuntimeDebug, StorageValue,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -99,6 +100,16 @@ mod migrations;
 // Weights used in the runtime.
 mod weights;
 
+// By this we inject compile time version including commit hash
+// (https://github.com/paritytech/substrate/blob/297b3948f4a0f7f6504d4b654e16cb5d9201e523/utils/build-script-utils/src/version.rs#L44)
+// into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
+// The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
+// and the `commit_hash` is the hash of the commit from which the WASM blob was built.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+#[link_section = "wasm_blob_version"]
+static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
+    .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
+
 // The version of the runtime specification.
 //
 // Full node will not attempt to use its native runtime in substitute for the
@@ -110,7 +121,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 200,
+    spec_version: 220,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -460,6 +471,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -507,9 +519,42 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+// TODO: in case of the `send_reply_with_voucher` call we have to iterate through the
+// user's mailbox to dig out the stored message source `program_id` to check if it has
+// issued a voucher to pay for the reply extrinsic transaction fee.
+// Isn't there a better way to do that?
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination, ..
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id, ..
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
+    type DelegateFee = DelegateFeeAccountBuilder;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -554,6 +599,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -588,6 +634,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
     }
 );
 
@@ -645,6 +692,7 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
     );
 }
 

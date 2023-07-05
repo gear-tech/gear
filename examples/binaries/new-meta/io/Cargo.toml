@@ -1,9 +1,12 @@
 [package]
 name = "demo-meta-io"
 version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../../"
 
 [dependencies]
-gmeta = { path = "../../../../gmeta" }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "full"] }
+gmeta = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }

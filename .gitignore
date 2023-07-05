@@ -1,6 +1,7 @@
 node_modules/
 target/
 target-no-lazy/
+log/
 .binpath
 .vscode
 .DS_Store

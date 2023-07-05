@@ -76,8 +76,8 @@ impl Calls {
         self.add_call(Call::Source).store(key)
     }
 
-    pub fn status_code(self, key: impl AsRef<str>) -> Self {
-        self.add_call(Call::StatusCode).store(key)
+    pub fn reply_code(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::ReplyCode).store(key)
     }
 
     pub fn value(self, key: impl AsRef<str>) -> Self {
@@ -306,5 +306,9 @@ impl Calls {
 
     pub fn load_bytes(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::LoadBytes).store(key)
+    }
+
+    pub fn infinite_loop(self) -> Self {
+        self.add_call(Call::Loop)
     }
 }

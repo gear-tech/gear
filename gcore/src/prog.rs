@@ -31,7 +31,7 @@ use crate::{
     ActorId, CodeId, MessageId,
 };
 use gear_core_errors::ExtError;
-use gsys::{HashWithValue, LengthWithTwoHashes};
+use gsys::{ErrorWithTwoHashes, HashWithValue};
 
 /// Create a new program and returns its address.
 ///
@@ -146,7 +146,7 @@ pub fn create_program_delayed(
         value,
     };
 
-    let mut res: LengthWithTwoHashes = Default::default();
+    let mut res: ErrorWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -166,7 +166,7 @@ pub fn create_program_delayed(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }
@@ -186,7 +186,7 @@ pub fn create_program_with_gas_delayed(
         value,
     };
 
-    let mut res: LengthWithTwoHashes = Default::default();
+    let mut res: ErrorWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -207,7 +207,7 @@ pub fn create_program_with_gas_delayed(
             res.as_mut_ptr(),
         )
     };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }

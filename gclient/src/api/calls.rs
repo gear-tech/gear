@@ -18,14 +18,13 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::{
-    memory_dump::{MemoryPageDump, ProgramMemoryDump},
-    LockId,
-};
+use gear_common::LockId;
 use gear_core::{
     ids::*,
-    memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    memory::PageBuf,
+    pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
+use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
     config::GearConfig,
     ext::{
@@ -45,7 +44,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
-        Event,
+        Convert, Event,
     },
     types, Error as GsdkError,
 };
@@ -1187,7 +1186,7 @@ impl GearApi {
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
-                    who: to.into(),
+                    who: to.into().convert(),
                     new_free,
                     new_reserved,
                 }),

@@ -18,8 +18,9 @@
 
 #![no_std]
 
+use core::ops::Range;
 use gmeta::{In, InOut, Metadata};
-use gstd::{prelude::*, ActorId};
+use gstd::{codec::MaxEncodedLen, prelude::*, ActorId};
 
 pub struct FungibleTokenMetadata;
 
@@ -39,12 +40,14 @@ pub struct InitConfig {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+    pub initial_capacity: Option<u32>,
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum FTAction {
+    TestSet(Range<u64>, u128),
     Mint(u128),
     Burn(u128),
     Transfer {
@@ -60,7 +63,7 @@ pub enum FTAction {
     BalanceOf(ActorId),
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum FTEvent {

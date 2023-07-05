@@ -1,4 +1,5 @@
 [workspace.package]
+version = "0.2.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -26,11 +27,13 @@ members = [
     "examples/binaries/backend-error",
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
+    "examples/binaries/capacitor",
     "examples/binaries/compose",
     "examples/binaries/constructor",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
     "examples/binaries/fungible-token",
+    "examples/binaries/stack-allocations",
     "examples/binaries/futures-unordered",
     "examples/binaries/gas-burned",
     "examples/binaries/incomplete-async-payloads",
@@ -46,6 +49,7 @@ members = [
     "examples/binaries/piggy-bank",
     "examples/binaries/ping",
     "examples/binaries/program-factory",
+    "examples/binaries/program-generator",
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-reservation-with-gas",
@@ -59,10 +63,12 @@ members = [
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
     "examples/binaries/vec",
+    "examples/binaries/wait",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
+    "examples/binaries/wat",
     "galloc",
     "gcli",
     "gclient",
@@ -106,12 +112,13 @@ arbitrary = "1.3.0"
 async-recursion = "1.0.4"
 async-trait = "0.1.68"
 base64 = "0.21.0"
+blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
 clap = { version = "4.2.1" }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
-blake2-rfc = { version = "0.2.18", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+const-str = "0.5"
 derive_more = "0.99.17"
 dirs = "4.0.0"
 dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "9135baa", default-features = false }
@@ -128,9 +135,8 @@ jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.17", default-features = false }
-logger = { package = "log", version = "0.4.17", default-features = false }
 once_cell = "1.17.1"
-parity-scale-codec = { version = "3.4.0", default-features = false }
+parity-scale-codec = { version = "3.6.1", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.1"
 path-clean = "1.0.1"
@@ -149,7 +155,22 @@ serde = "^1"
 serde_json = "^1"
 serde_yaml = "0.8.26"
 static_assertions = "1"
-subxt = { version = "^0.27.1", default-features = false }
+# # NOTE
+#
+# 1. subxt v0.29.0 breaks the logging in gsdk, our fork is based on the
+# unpublished v0.29.0 from the main repo with fixes.
+#
+# 2. subxt v0.29.0 upgrades the substrate dependencies which are not
+# compatible with our current dependencies.
+#
+# 3. changing but patching the source here for making these work out of
+# workspace.
+#
+# 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
+# gathering them here for easy management.
+subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.15"
 thiserror = "1.0.40"
 tokio = { version = "1.27.0" }
@@ -211,6 +232,7 @@ pallet-gear-rpc = { path = "pallets/gear/rpc" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api", default-features = false }
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
 pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
+pallet-gear-voucher = { version = "1.0.0", path = "pallets/gear-voucher", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
@@ -343,6 +365,7 @@ demo-btree = { path = "examples/binaries/btree" }
 demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
+demo-capacitor = { path = "examples/binaries/capacitor" }
 demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
@@ -363,6 +386,7 @@ demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
 demo-piggy-bank = { path = "examples/binaries/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/binaries/ping" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
+demo-program-generator = { path = "examples/binaries/program-generator" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
@@ -374,10 +398,13 @@ demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-state-rollback = { path = "examples/binaries/state-rollback" }
 demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
 demo-vec = { path = "examples/binaries/vec" }
+demo-wait = { path = "examples/binaries/wait" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
+demo-stack-allocations = { path = "examples/binaries/stack-allocations" }
+demo-wat = { path = "examples/binaries/wat" }
 
 # Dependencies that only used in one package
 #
@@ -413,7 +440,9 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
+heck = "0.4.1"                                                           # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
+scale-decode = "0.7.0"                                                    # gsdk
 
 [profile.release]
 panic = "unwind"

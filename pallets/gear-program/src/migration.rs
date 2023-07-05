@@ -138,8 +138,8 @@ mod v1 {
     };
     use gear_core::{
         ids::ProgramId,
-        memory::{GearPage, WasmPage},
         message::DispatchKind,
+        pages::{GearPage, WasmPage},
         reservation::GasReservationMap,
     };
     use primitive_types::H256;

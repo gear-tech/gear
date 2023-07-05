@@ -17,9 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{metadata::runtime_types::sp_runtime::DispatchError, result::Result, Api};
+use crate::{
+    config::GearConfig, ext::sp_core::hashing, metadata::runtime_types::sp_runtime::DispatchError,
+    result::Result, Api,
+};
 use parity_scale_codec::Encode;
-use subxt::error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData};
+use sp_core::H256;
+use subxt::{
+    error::{DispatchError as SubxtDispatchError, Error},
+    metadata::Metadata,
+    storage::{Storage, StorageAddress},
+    OnlineClient,
+};
 
 impl Api {
     /// compare gas limit
@@ -38,21 +47,46 @@ impl Api {
 
     /// Decode `DispatchError` to `subxt::error::Error`.
     pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
-        if let DispatchError::Module(ref err) = dispatch_error {
-            if let Ok(error_details) = self.metadata().error(err.index, err.error[0]) {
-                return SubxtDispatchError::Module(ModuleError {
-                    pallet: error_details.pallet().to_string(),
-                    error: error_details.error().to_string(),
-                    description: error_details.docs().to_vec(),
-                    error_data: ModuleErrorData {
-                        pallet_index: err.index,
-                        error: err.error,
-                    },
-                })
-                .into();
-            }
+        match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
+            Ok(err) => err.into(),
+            Err(err) => err,
         }
-
-        SubxtDispatchError::Other(dispatch_error.encode()).into()
     }
+
+    /// Get storage from optional block hash.
+    pub async fn get_storage(
+        &self,
+        block_hash: Option<H256>,
+    ) -> Result<Storage<GearConfig, OnlineClient<GearConfig>>> {
+        let client = self.storage();
+        let storage = if let Some(h) = block_hash {
+            client.at(h)
+        } else {
+            client.at_latest().await?
+        };
+
+        Ok(storage)
+    }
+}
+
+/// Return the root of a given [`StorageAddress`]: hash the pallet name and entry name
+/// and append those bytes to the output.
+pub(crate) fn write_storage_address_root_bytes<Address: StorageAddress>(
+    addr: &Address,
+    out: &mut Vec<u8>,
+) {
+    out.extend(hashing::twox_128(addr.pallet_name().as_bytes()));
+    out.extend(hashing::twox_128(addr.entry_name().as_bytes()));
+}
+
+/// Outputs the [`storage_address_root_bytes`] as well as any additional bytes that represent
+/// a lookup in a storage map at that location.
+pub(crate) fn storage_address_bytes<Address: StorageAddress>(
+    addr: &Address,
+    metadata: &Metadata,
+) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    write_storage_address_root_bytes(addr, &mut bytes);
+    addr.append_entry_bytes(metadata, &mut bytes)?;
+    Ok(bytes)
 }

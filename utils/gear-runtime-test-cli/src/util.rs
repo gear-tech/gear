@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, GasPrice, Origin, QueueRunner};
-use gear_core::message::{StoredDispatch, StoredMessage};
+use gear_core::message::{StoredDispatch, UserMessage};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 #[cfg(feature = "vara-native")]
@@ -67,7 +67,7 @@ macro_rules! utils {
                 .collect()
         }
 
-        pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
+        pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<UserMessage>) {
             while !QueueOf::<Runtime>::is_empty() {
                 run_to_block(System::block_number() + 1, None, false);
                 // Parse data from events

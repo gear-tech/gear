@@ -29,7 +29,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[cfg(not(feature = "std"))]
 mod wasm {
     extern crate gstd;
-    use gsys::{HashWithValue, LengthWithHash};
+    use gsys::{ErrorWithHash, HashWithValue};
 
     #[no_mangle]
     extern "C" fn init() {
@@ -39,7 +39,7 @@ mod wasm {
             value: 0,
         };
 
-        let mut res: LengthWithHash = Default::default();
+        let mut res: ErrorWithHash = Default::default();
 
         // u32::MAX ptr + 42 len of the payload triggers error of payload read.
         unsafe {
@@ -52,6 +52,6 @@ mod wasm {
             )
         };
 
-        assert!(res.length != 0)
+        assert!(res.error_code != 0)
     }
 }

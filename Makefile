@@ -55,10 +55,6 @@ build-examples:
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
 
-.PHONY: wat-examples
-wat-examples:
-	@ ./scripts/gear.sh build wat-examples
-
 .PHONY: proc-examples
 proc-examples: wasm-proc
 	@ ./scripts/gear.sh build examples-proc
@@ -275,7 +271,7 @@ test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
 .PHONY: test-client
-test-client: node-release examples wat-examples
+test-client: node-release examples
 	@ ./scripts/gear.sh test client --run-node
 
 .PHONY: test-syscalls-integrity

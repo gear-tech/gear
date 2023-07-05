@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        ActorExecutionError, ActorExecutionErrorReason, DispatchResult, DispatchResultKind,
+        ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
         ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
@@ -40,11 +40,12 @@ use gear_core::{
     env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, Memory, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
 };
@@ -259,13 +260,12 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::Error: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
 {
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
         gas_reserver,
-        origin,
         program,
         mut pages_initial_data,
         memory_size,
@@ -310,7 +310,6 @@ where
         max_pages: settings.max_pages,
         page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
-        origin,
         program_id,
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
@@ -393,7 +392,7 @@ where
         Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::PrepareMemory(e),
+                reason: ActorExecutionErrorReplyReason::PrepareMemory(e),
             }))
         }
         Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
@@ -402,7 +401,7 @@ where
         Err(EnvironmentError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::Environment(err.into()),
+                reason: ActorExecutionErrorReplyReason::Environment(err.into()),
             }))
         }
     };
@@ -474,7 +473,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::Error: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
@@ -526,7 +525,6 @@ where
         max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),
-        origin: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
@@ -611,7 +609,7 @@ where
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec());
+            return Ok(dispatch.payload_bytes().to_vec());
         }
     }
 
@@ -623,7 +621,10 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
-    use gear_core::memory::{PageBufInner, WasmPage};
+    use gear_core::{
+        memory::PageBufInner,
+        pages::{PageNumber, WasmPage},
+    };
 
     struct TestExt;
     struct LazyTestExt;

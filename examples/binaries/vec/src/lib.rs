@@ -38,7 +38,7 @@ mod wasm {
 
         let request = format!("Request: size = {size}");
 
-        debug!(request);
+        debug!("{request}");
         unsafe { MESSAGE_LOG.push(request) };
 
         let vec = vec![42u8; size];
@@ -46,8 +46,8 @@ mod wasm {
 
         debug!("vec.len() = {:?}", vec.len());
         debug!(
-            "vec[{}]: {:p} -> {:#04x}",
-            last_idx, &vec[last_idx], vec[last_idx]
+            "vec[{last_idx}]: {:p} -> {:#04x}",
+            &vec[last_idx], vec[last_idx]
         );
 
         msg::reply(size as i32, 0).expect("Failed to send reply");
@@ -56,9 +56,10 @@ mod wasm {
         // so we must skip `v` destruction.
         core::mem::forget(vec);
 
-        debug!("Total requests amount: {}", unsafe { MESSAGE_LOG.len() });
+        let requests_amount = unsafe { MESSAGE_LOG.len() };
+        debug!("Total requests amount: {requests_amount}");
         unsafe {
-            MESSAGE_LOG.iter().for_each(|log| debug!(log));
+            MESSAGE_LOG.iter().for_each(|log| debug!("{log}"));
         }
     }
 }

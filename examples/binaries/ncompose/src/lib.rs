@@ -101,9 +101,8 @@ mod wasm {
             );
             let output = self.me.call(output_other).await?;
             debug!(
-                "[0x{} ncompose::compose_with_self] Composition output: {:?}",
+                "[0x{} ncompose::compose_with_self] Composition output: {output:?}",
                 hex::encode(exec::program_id()),
-                output
             );
 
             Ok(output)
@@ -141,16 +140,14 @@ mod wasm {
     async fn main() {
         let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
-            "[0x{} ncompose::handle] input = {:?}",
+            "[0x{} ncompose::handle] input = {input:?}",
             hex::encode(unsafe { STATE.me.handle }),
-            input
         );
 
         if let Ok(outcome) = (unsafe { STATE.compose_with_self(input) }).await {
             debug!(
-                "[0x{} ncompose::handle] Composition output: {:?}",
+                "[0x{} ncompose::handle] Composition output: {outcome:?}",
                 hex::encode(exec::program_id()),
-                outcome
             );
             msg::reply(outcome, 0).unwrap();
         }

@@ -31,8 +31,8 @@ use frame_support::{
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
     message,
+    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -352,9 +352,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
 
-    /// Weight of calling `gr_origin`.
-    pub gr_origin: Weight,
-
     /// Weight of calling `gr_pay_program_rent`.
     pub gr_pay_program_rent: Weight,
 
@@ -496,11 +493,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: Weight,
 
-    /// Weight of calling `gr_error`.
-    pub gr_error: Weight,
-
-    /// Weight of calling `gr_status_code`.
-    pub gr_status_code: Weight,
+    /// Weight of calling `gr_reply_code`.
+    pub gr_reply_code: Weight,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: Weight,
@@ -751,7 +745,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 7,
+            version: 8,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -855,7 +849,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_origin: self.gr_origin.ref_time(),
             gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
@@ -901,10 +894,9 @@ impl<T: Config> HostFnWeights<T> {
             gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
             gr_debug: self.gr_debug.ref_time(),
             gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
-            gr_error: self.gr_error.ref_time(),
             gr_reply_to: self.gr_reply_to.ref_time(),
             gr_signal_from: self.gr_signal_from.ref_time(),
-            gr_status_code: self.gr_status_code.ref_time(),
+            gr_reply_code: self.gr_reply_code.ref_time(),
             gr_exit: self.gr_exit.ref_time(),
             gr_leave: self.gr_leave.ref_time(),
             gr_wait: self.gr_wait.ref_time(),
@@ -976,7 +968,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_origin: to_weight!(cost_batched!(gr_origin)),
             gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
@@ -990,10 +981,9 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_random: to_weight!(cost_batched!(gr_random)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
-            gr_error: to_weight!(cost_batched!(gr_error)),
             gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
             gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
-            gr_status_code: to_weight!(cost_batched!(gr_status_code)),
+            gr_reply_code: to_weight!(cost_batched!(gr_reply_code)),
             gr_exit: to_weight!(cost!(gr_exit)),
             gr_leave: to_weight!(cost!(gr_leave)),
             gr_wait: to_weight!(cost!(gr_wait)),

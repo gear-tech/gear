@@ -36,11 +36,12 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageU32Size},
+    memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
 use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -421,11 +422,7 @@ where
         });
     }
 
-    fn update_allocations(
-        &mut self,
-        program_id: ProgramId,
-        allocations: BTreeSet<gear_core::memory::WasmPage>,
-    ) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
@@ -599,13 +596,8 @@ where
         }
     }
 
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    ) {
-        ExtManager::send_signal(self, message_id, destination, err)
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+        Self::send_signal(self, message_id, destination, code)
     }
 
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
