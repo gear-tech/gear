@@ -33,7 +33,7 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
-    /// [`gstd::errors::Error`] type.
+    /// [`gcore::errors::Error`] type.
     Core(CoreError),
     /// Timeout reached while expecting for reply.
     Timeout(u32, u32),
