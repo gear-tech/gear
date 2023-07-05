@@ -121,10 +121,6 @@ struct Args {
     /// Path to WASMs, accepts multiple files
     #[arg(value_parser)]
     path: Vec<String>,
-
-    /// Create legacy meta file until `gear-test` has been removed
-    #[arg(long)]
-    legacy_meta: bool,
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -153,7 +149,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         strip_custom_sections,
         check_runtime_imports,
         verbose,
-        legacy_meta,
     } = Args::parse();
 
     if assembly_script && insert_stack_end {
@@ -181,7 +176,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let original_wasm_path = PathBuf::from(file);
-        let meta_wasm_path = original_wasm_path.clone().with_extension("meta.wasm");
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
         // Make pre-handle if input wasm has been builded from as-script
@@ -215,16 +209,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if strip_custom_sections {
             optimizer.strip_custom_sections();
-        }
-
-        if legacy_meta {
-            log::debug!(
-                "*** Processing metadata optimization: {}",
-                meta_wasm_path.display()
-            );
-            let code = optimizer.optimize(OptType::Meta)?;
-            log::info!("Metadata wasm: {}", meta_wasm_path.to_string_lossy());
-            fs::write(meta_wasm_path, code)?;
         }
 
         log::debug!(

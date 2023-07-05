@@ -108,9 +108,9 @@ fn dequeued_impl_works_manually() {
         assert_eq!(DequeuedOf::get(), 0);
 
         // Value updates for future blocks.
-        SentOf::increase();
+        DequeuedOf::increase();
 
-        assert_eq!(SentOf::get(), 1);
+        assert_eq!(DequeuedOf::get(), 1);
 
         run_to_block(2);
 
