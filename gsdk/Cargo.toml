@@ -1,6 +1,6 @@
 [package]
 name = "gsdk"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
 description = "Gear network rust sdk."
@@ -22,7 +22,7 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
-gsdk-codegen = { path = "codegen" }
+gsdk-codegen = { version = "0.1.0", path = "codegen" }
 
 # Importing these two libraries for trimming
 # the the size of the generated file.
