@@ -193,12 +193,19 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
     // In case of locked mutex and an `.await`, function `poll` checks if the
     // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let current_msg_id = crate::msg::id();
         let lock = unsafe { &mut *self.mutex.locked.get() };
         if lock.is_none() {
-            *lock = Some(crate::msg::id());
+            *lock = Some(current_msg_id);
             Poll::Ready(MutexGuard { mutex: self.mutex })
         } else {
-            self.mutex.queue.enqueue(crate::msg::id());
+            // If the message is already in the access queue, and we come here,
+            // it means the message has just been woken up from the waitlist.
+            // In that case we do not want to register yet another access attempt
+            // and just go back to the waitlist.
+            if !self.mutex.queue.contains(&current_msg_id) {
+                self.mutex.queue.enqueue(crate::msg::id());
+            }
             Poll::Pending
         }
     }

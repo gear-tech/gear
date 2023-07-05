@@ -1,15 +1,9 @@
-use crate::{Command, SleepForWaitType, WaitSubcommand};
+use crate::{Command, MxLockContinuation, SleepForWaitType, WaitSubcommand};
 use futures::future;
 
-use gstd::{errors::Error, exec, format, msg, MessageId};
+use gstd::{errors::Error, exec, format, lock, msg, MessageId};
 
-fn process_wait_subcommand(subcommand: WaitSubcommand) {
-    match subcommand {
-        WaitSubcommand::Wait => exec::wait(),
-        WaitSubcommand::WaitFor(duration) => exec::wait_for(duration),
-        WaitSubcommand::WaitUpTo(duration) => exec::wait_up_to(duration),
-    }
-}
+static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
 
 #[gstd::async_main]
 async fn main() {
@@ -79,5 +73,24 @@ async fn main() {
         Command::WakeUp(msg_id) => {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
+        Command::MxLock(continuation) => {
+            let _lock_guard = unsafe { MUTEX.lock().await };
+            process_mx_lock_continuation(continuation).await;
+        }
+    }
+}
+
+fn process_wait_subcommand(subcommand: WaitSubcommand) {
+    match subcommand {
+        WaitSubcommand::Wait => exec::wait(),
+        WaitSubcommand::WaitFor(duration) => exec::wait_for(duration),
+        WaitSubcommand::WaitUpTo(duration) => exec::wait_up_to(duration),
+    }
+}
+
+async fn process_mx_lock_continuation(continuation: MxLockContinuation) {
+    match continuation {
+        MxLockContinuation::Nothing => {}
+        MxLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
     }
 }

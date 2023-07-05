@@ -8556,6 +8556,79 @@ fn call_forbidden_function() {
 }
 
 #[test]
+fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
+
+    let execution = || {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::SleepFor(4)));
+
+        let (lock_rival_1_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+        let (lock_rival_2_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_owner_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_1_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_2_msg_id
+        ));
+
+        // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+        // releases the mutex so the lock rival 1 can acquire and release it for
+        // the lock rival 2 to acquire it.
+        run_for_blocks(1, None);
+
+        assert_succeed(lock_owner_msg_id);
+        assert_succeed(lock_rival_1_msg_id);
+        assert_succeed(lock_rival_2_msg_id);
+    };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
 fn async_sleep_for() {
     use demo_waiter::{
         Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
