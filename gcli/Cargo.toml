@@ -1,6 +1,6 @@
 [package]
 name = "gcli"
-version.workspace = true
+version = "0.0.1"
 authors.workspace = true
 edition.workspace = true
 description = "gear program cli"
@@ -22,9 +22,6 @@ base64.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
-gmeta.workspace = true
-gear-core.workspace = true
-gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true
@@ -40,22 +37,28 @@ clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
-core-processor.workspace = true
-gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
+
+# dependencies for command meta
+gmeta = { workspace = true, optional = true }
+core-processor = { workspace = true, optional = true }
+gear-backend-wasmi = { workspace = true, features = [ "std" ], optional = true }
 
 [dev-dependencies]
 rand.workspace = true
 demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
+gear-core.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 
 [build-dependencies]
 which.workspace = true
 
 [features]
+default = []
+meta = [ "gmeta", "core-processor", "gear-backend-wasmi" ]
 node-key = [ "libp2p" ]
 vara-testing = [ ]
 

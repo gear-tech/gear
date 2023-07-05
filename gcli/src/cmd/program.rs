@@ -17,14 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::{meta::Meta, result::Result};
+#[cfg(feature = "meta")]
+use crate::meta::Meta;
+use crate::result::Result;
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
+#[cfg(feature = "meta")]
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]
 pub enum Program {
+    #[cfg(feature = "meta")]
     /// Display metadata of the program.
     ///
     /// More details please check https://wiki.gear-tech.io/docs/api/metadata-type-creation.
@@ -78,6 +82,7 @@ impl Program {
                     Self::full_state(api, *pid, *at).await?;
                 }
             }
+            #[cfg(feature = "meta")]
             Program::Meta { meta, derive } => Self::meta(meta, derive)?,
         }
 
@@ -105,6 +110,7 @@ impl Program {
         Ok(())
     }
 
+    #[cfg(feature = "meta")]
     /// Display meta.
     fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
         let ext = path

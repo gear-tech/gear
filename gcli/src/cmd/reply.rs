@@ -54,7 +54,7 @@ impl Reply {
 
         signer
             .send_reply(
-                reply_to_id.into(),
+                reply_to_id,
                 self.payload.to_vec()?,
                 self.gas_limit,
                 self.value,

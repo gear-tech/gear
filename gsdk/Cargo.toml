@@ -1,12 +1,13 @@
 [package]
 name = "gsdk"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 authors.workspace = true
 description = "Gear network rust sdk."
 license.workspace = true
 homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
+publish = true
 
 [dependencies]
 anyhow.workspace = true

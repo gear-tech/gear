@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Code generation library for gsdk."
+publish = true
 
 [lib]
 proc-macro = true

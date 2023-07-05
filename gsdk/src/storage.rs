@@ -199,13 +199,13 @@ impl Api {
     #[storage_fetch]
     pub async fn code_storage_at(
         &self,
-        code_id: CodeId,
+        code_id: impl Into<[u8; 32]>,
         block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
-            vec![Value::from_bytes(code_id.0)],
+            vec![Value::from_bytes(code_id.into())],
         );
         self.fetch_storage_at(&addr, block_hash).await
     }
@@ -214,13 +214,13 @@ impl Api {
     #[storage_fetch]
     pub async fn code_len_storage_at(
         &self,
-        code_id: CodeId,
+        code_id: impl Into<[u8; 32]>,
         block_hash: Option<H256>,
     ) -> Result<u32> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
-            vec![Value::from_bytes(code_id.0)],
+            vec![Value::from_bytes(code_id.into())],
         );
         self.fetch_storage_at(&addr, block_hash).await
     }
@@ -252,17 +252,18 @@ impl Api {
     #[storage_fetch]
     pub async fn gpages_at(
         &self,
-        program_id: ProgramId,
+        program_id: impl Into<[u8; 32]>,
         program: &ActiveProgram<BlockNumber>,
         block_hash: Option<H256>,
     ) -> Result<types::GearPages> {
         let mut pages = HashMap::new();
+        let program_id = program_id.into();
 
         for page in &program.pages_with_data {
             let addr = subxt::dynamic::storage(
                 "GearProgram",
                 "MemoryPageStorage",
-                vec![Value::from_bytes(program_id.0), Value::u128(page.0 as u128)],
+                vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
             );
 
             let metadata = self.metadata();
@@ -273,7 +274,7 @@ impl Api {
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
-                .ok_or_else(|| Error::PageNotFound(page.0, program_id.0.encode_hex()))?;
+                .ok_or_else(|| Error::PageNotFound(page.0, program_id.encode_hex()))?;
             pages.insert(page.0, encoded_page);
         }
 

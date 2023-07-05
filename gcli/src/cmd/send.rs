@@ -57,7 +57,7 @@ impl Send {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         signer
             .send_message(
-                self.destination.to_hash()?.into(),
+                self.destination.to_hash()?,
                 self.payload.to_vec()?,
                 self.gas_limit,
                 self.value,

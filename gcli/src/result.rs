@@ -59,14 +59,13 @@ pub enum Error {
     TypeNotFound(String),
     #[error(transparent)]
     Codec(#[from] scale_info::scale::Error),
-    #[error("{0:?}")]
-    Code(gear_core::code::CodeError),
     #[error("Invalid wasm file")]
     InvalidWasm,
     #[error("Wasm execution error {0}")]
     WasmExecution(String),
     #[error(transparent)]
     Etc(#[from] etc::Error),
+    #[cfg(feature = "meta")]
     #[error("Metadata parsing error {0:?}")]
     MetaParseError(gmeta::MetadataParseError),
 }
@@ -80,12 +79,6 @@ impl From<nacl::Error> for Error {
 impl From<schnorrkel::SignatureError> for Error {
     fn from(err: schnorrkel::SignatureError) -> Self {
         Self::Schnorrkel(err)
-    }
-}
-
-impl From<gear_core::code::CodeError> for Error {
-    fn from(err: gear_core::code::CodeError) -> Self {
-        Self::Code(err)
     }
 }
 

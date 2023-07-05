@@ -60,7 +60,11 @@ async fn test_command_program_state_works() -> Result<()> {
     Ok(())
 }
 
-const DEMO_NEW_META_METADATA: &str = r#"
+mod meta_tests {
+    #![cfg(feature = "meta")]
+    use super::*;
+
+    const DEMO_NEW_META_METADATA: &str = r#"
 Metadata {
     init:  {
         input: MessageInitIn {
@@ -92,43 +96,43 @@ Metadata {
 }
 "#;
 
-#[test]
-fn test_command_program_metadata_works() -> Result<()> {
-    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
-    let args = Args::new("program").action("meta").meta(meta);
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    #[test]
+    fn test_command_program_metadata_works() -> Result<()> {
+        let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+        let args = Args::new("program").action("meta").meta(meta);
+        let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
-    let stdout = result.stdout.convert();
-    assert_eq!(
+        let stdout = result.stdout.convert();
+        assert_eq!(
         stdout.trim(),
         DEMO_NEW_META_METADATA.trim(),
         "metadata should be equal to DEMO_NEW_META_METADATA. Expected metadata: {DEMO_NEW_META_METADATA}, got: {stdout:?}"
     );
-    Ok(())
-}
+        Ok(())
+    }
 
-#[test]
-fn test_command_program_metadata_derive_works() -> Result<()> {
-    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
-    let args = Args::new("program")
-        .action("meta")
-        .meta(meta)
-        .flag("--derive")
-        .derive("Person");
+    #[test]
+    fn test_command_program_metadata_derive_works() -> Result<()> {
+        let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+        let args = Args::new("program")
+            .action("meta")
+            .meta(meta)
+            .flag("--derive")
+            .derive("Person");
 
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
-    let stdout = result.stdout.convert();
+        let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+        let stdout = result.stdout.convert();
 
-    let expected = "Person { surname: String, name: String }";
-    assert_eq!(
-        stdout.trim(),
-        expected,
-        "metadata should be equal to {expected}, but got: {stdout:?}",
-    );
-    Ok(())
-}
+        let expected = "Person { surname: String, name: String }";
+        assert_eq!(
+            stdout.trim(),
+            expected,
+            "metadata should be equal to {expected}, but got: {stdout:?}",
+        );
+        Ok(())
+    }
 
-const META_WASM_V1_OUTPUT: &str = r#"
+    const META_WASM_V1_OUTPUT: &str = r#"
 Exports {
     first_and_last_wallets:  {
         input: (),
@@ -148,38 +152,39 @@ Exports {
 }
 "#;
 
-#[test]
-fn test_command_program_metawasm_works() -> Result<()> {
-    let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
-    let args = Args::new("program").action("meta").meta(meta);
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    #[test]
+    fn test_command_program_metawasm_works() -> Result<()> {
+        let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
+        let args = Args::new("program").action("meta").meta(meta);
+        let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
-    let stdout = result.stdout.convert();
-    assert_eq!(
+        let stdout = result.stdout.convert();
+        assert_eq!(
         stdout.trim(),
         META_WASM_V1_OUTPUT.trim(),
         "metadata should be equal to META_WASM_V1_OUTPUT. Expected metadata: {META_WASM_V1_OUTPUT}, got: {stdout:?}",
     );
-    Ok(())
-}
+        Ok(())
+    }
 
-#[test]
-fn test_command_program_metawasm_derive_works() -> Result<()> {
-    let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
-    let args = Args::new("program")
-        .action("meta")
-        .meta(meta)
-        .flag("--derive")
-        .derive("Person");
+    #[test]
+    fn test_command_program_metawasm_derive_works() -> Result<()> {
+        let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
+        let args = Args::new("program")
+            .action("meta")
+            .meta(meta)
+            .flag("--derive")
+            .derive("Person");
 
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
-    let stdout = result.stdout.convert();
+        let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+        let stdout = result.stdout.convert();
 
-    let expected = "Person { surname: String, name: String }";
-    assert_eq!(
-        stdout.trim(),
-        expected,
-        "metadata should be equal to {expected}, but got: {stdout:?}",
-    );
-    Ok(())
+        let expected = "Person { surname: String, name: String }";
+        assert_eq!(
+            stdout.trim(),
+            expected,
+            "metadata should be equal to {expected}, but got: {stdout:?}",
+        );
+        Ok(())
+    }
 }

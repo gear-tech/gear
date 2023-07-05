@@ -45,7 +45,7 @@ pub struct Create {
 impl Create {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code_id = self.code_id.to_hash()?.into();
+        let code_id = self.code_id.to_hash()?;
         let payload = self.init_payload.to_vec()?;
 
         let gas = if self.gas_limit == 0 {
