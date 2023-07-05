@@ -18,10 +18,6 @@ test_usage() {
     gear           run workspace tests
     gsdk           run gsdk package tests
     gcli           run gcli package tests
-    js             run metadata js tests
-    gtest          run gear-test testing tool,
-                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
-    rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -52,52 +48,6 @@ gsdk_test() {
 gcli_test() {
   cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
   cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
-}
-
-# $1 - ROOT DIR
-js_test() {
-  node "$1"/utils/wasm-proc/metadata-js/test.js
-}
-
-# $1 - ROOT DIR
-# $2 - yamls list (optional)
-gtest() {
-  ROOT_DIR="$1"
-  shift
-
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
-  fi
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  $ROOT_DIR/target/release/gear-test $YAMLS "$@"
-}
-
-# $1 - ROOT DIR
-# $2 - TARGET DIR
-# $3 - runtime str (gear / vara)
-# $4 - yamls list (optional)
-rtest() {
-  ROOT_DIR="$1"
-  TARGET_DIR="$2"
-  RUNTIME_STR="$3"
-
-  YAMLS=$(parse_yamls_list "$4")
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  test_run_node runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {

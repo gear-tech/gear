@@ -18,7 +18,10 @@
 
 //! Gas reservation structures.
 
-use crate::ids::{MessageId, ReservationId};
+use crate::{
+    ids::{MessageId, ReservationId},
+    message::IncomingDispatch,
+};
 use alloc::collections::BTreeMap;
 use gear_core_errors::ReservationError;
 use hashbrown::HashMap;
@@ -26,6 +29,47 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+
+/// An unchangeable wrapper over u64 value, which is required
+/// to be used as a "view-only" reservations nonce in a message
+/// execution context.
+///
+/// ### Note:
+/// By contract, It must be instantiated only once, when message execution
+/// context is created. Also the latter is required to be instantiated only
+/// once, when incoming dispatch is created.
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct ReservationNonce(u64);
+
+impl From<&InnerNonce> for ReservationNonce {
+    fn from(nonce: &InnerNonce) -> Self {
+        ReservationNonce(nonce.0)
+    }
+}
+
+/// A changeable wrapper over u64 value, which is required
+/// to be used as an "active" reservations nonce in a gas reserver.
+#[derive(Debug, Clone)]
+struct InnerNonce(u64);
+
+impl InnerNonce {
+    /// Fetches current state of the nonce and
+    /// updates its state by incrementing it.
+    fn fetch_inc(&mut self) -> u64 {
+        let current = self.0;
+        self.0 = self.0.saturating_add(1);
+
+        current
+    }
+}
+
+impl From<ReservationNonce> for InnerNonce {
+    fn from(frozen_nonce: ReservationNonce) -> Self {
+        InnerNonce(frozen_nonce.0)
+    }
+}
 
 /// Gas reserver.
 ///
@@ -39,9 +83,9 @@ pub struct GasReserver {
     ///
     /// It's really important that if gas reserver is created
     /// several times with the same `message_id`, value of this
-    /// field is re-used.
-    // TODO #2773
-    nonce: u64,
+    /// field is re-used. This property is guaranteed by instantiating
+    /// gas reserver from the [`IncomingDispatch`].
+    nonce: InnerNonce,
     /// Gas reservations states.
     states: GasReservationStates,
     /// Maximum allowed reservations to be stored in `states`.
@@ -60,11 +104,17 @@ impl GasReserver {
     /// `map`, which is a [`BTreeMap`] of [`GasReservationSlot`]s,
     /// will be converted to the [`HashMap`] of [`GasReservationState`]s.
     pub fn new(
-        message_id: MessageId,
-        nonce: u64,
+        incoming_dispatch: &IncomingDispatch,
         map: GasReservationMap,
         max_reservations: u64,
     ) -> Self {
+        let message_id = incoming_dispatch.id();
+        let nonce = incoming_dispatch
+            .context()
+            .as_ref()
+            .map(|c| c.reservation_nonce())
+            .unwrap_or_default()
+            .into();
         Self {
             message_id,
             nonce,
@@ -101,14 +151,6 @@ impl GasReserver {
         }
     }
 
-    /// Fetches current state of the `nonce` and
-    /// updates its state by incrementing it.
-    fn fetch_inc_nonce(&mut self) -> u64 {
-        let nonce = self.nonce;
-        self.nonce = nonce.saturating_add(1);
-        nonce
-    }
-
     /// Reserves gas.
     ///
     /// Creates a new reservation and returns its id.
@@ -121,7 +163,7 @@ impl GasReserver {
     ) -> Result<ReservationId, ReservationError> {
         self.check_execution_limit()?;
 
-        let id = ReservationId::generate(self.message_id, self.fetch_inc_nonce());
+        let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc());
 
         // TODO #2773
         let maybe_reservation = self.states.insert(
@@ -136,7 +178,7 @@ impl GasReserver {
         if maybe_reservation.is_some() {
             unreachable!(
                 "Duplicate reservation was created with message id {} and nonce {}",
-                self.message_id, self.nonce,
+                self.message_id, self.nonce.0,
             );
         }
 
@@ -200,8 +242,8 @@ impl GasReserver {
     }
 
     /// Returns gas reservations current nonce.
-    pub fn nonce(&self) -> u64 {
-        self.nonce
+    pub fn nonce(&self) -> ReservationNonce {
+        (&self.nonce).into()
     }
 
     /// Gets gas reservations states.
@@ -322,7 +364,8 @@ mod tests {
     const MAX_RESERVATIONS: u64 = 256;
 
     fn new_reserver() -> GasReserver {
-        GasReserver::new(Default::default(), 0, Default::default(), MAX_RESERVATIONS)
+        let d = IncomingDispatch::default();
+        GasReserver::new(&d, Default::default(), MAX_RESERVATIONS)
     }
 
     #[test]
@@ -392,7 +435,7 @@ mod tests {
             },
         );
 
-        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.unreserve(id).unwrap();
 
         assert_eq!(
@@ -426,7 +469,7 @@ mod tests {
             },
         );
 
-        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.mark_used(id).unwrap();
         assert_eq!(
             reserver.unreserve(id),

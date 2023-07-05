@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
     Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -489,7 +489,6 @@ where
             gas_burned,
         );
 
-        SentOf::<T>::increase();
         GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
