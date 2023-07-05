@@ -1,0 +1,18 @@
+[package]
+name = "gcli-meta"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+core-processor.workspace = true
+gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+gear-core.workspace = true
+gmeta.workspace = true
+hex.workspace = true
+scale-info = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+demo-new-meta.workspace = true

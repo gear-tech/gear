@@ -71,6 +71,7 @@ members = [
     "examples/binaries/wat",
     "galloc",
     "gcli",
+    "gcli/meta",
     "gclient",
     "gcore",
     "gmeta",

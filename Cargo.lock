@@ -3586,10 +3586,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-wasmi",
  "gear-core",
- "gear-core-processor",
- "gmeta",
  "gsdk",
  "hex",
  "jsonrpsee",
@@ -3608,6 +3605,20 @@ dependencies = [
  "tokio",
  "which",
  "whoami",
+]
+
+[[package]]
+name = "gcli-meta"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "demo-new-meta",
+ "gear-backend-wasmi",
+ "gear-core",
+ "gear-core-processor",
+ "gmeta",
+ "hex",
+ "scale-info",
 ]
 
 [[package]]

@@ -40,11 +40,6 @@ whoami.workspace = true
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
 
-# dependencies for command meta
-gmeta = { workspace = true, optional = true }
-core-processor = { workspace = true, optional = true }
-gear-backend-wasmi = { workspace = true, features = [ "std" ], optional = true }
-
 [dev-dependencies]
 rand.workspace = true
 demo-messager.workspace = true
@@ -58,7 +53,6 @@ which.workspace = true
 
 [features]
 default = []
-meta = [ "gmeta", "core-processor", "gear-backend-wasmi" ]
 node-key = [ "libp2p" ]
 vara-testing = [ ]
 

@@ -17,18 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-#[cfg(feature = "meta")]
-use crate::meta::Meta;
 use crate::result::Result;
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
-#[cfg(feature = "meta")]
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]
 pub enum Program {
-    #[cfg(feature = "meta")]
     /// Display metadata of the program.
     ///
     /// More details please check https://wiki.gear-tech.io/docs/api/metadata-type-creation.
@@ -82,7 +78,6 @@ impl Program {
                     Self::full_state(api, *pid, *at).await?;
                 }
             }
-            #[cfg(feature = "meta")]
             Program::Meta { meta, derive } => Self::meta(meta, derive)?,
         }
 
@@ -110,33 +105,33 @@ impl Program {
         Ok(())
     }
 
-    #[cfg(feature = "meta")]
     /// Display meta.
-    fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
-        let ext = path
-            .extension()
-            .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
-        let data = fs::read(path)?;
-
-        // parse fom hex if end with `txt`.
-        let meta = if ext == "txt" {
-            Meta::decode_hex(&data)?
-        } else if ext == "wasm" {
-            // parse fom wasm if end with `wasm`.
-            Meta::decode_wasm(&data)?
-        } else {
-            return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());
-        };
-
-        // Format types.
-        let fmt = if let Some(name) = name {
-            format!("{:#}", meta.derive(name)?)
-        } else {
-            format!("{:#}", meta)
-        };
-
-        // println result.
-        println!("{}", fmt.replace('"', ""));
-        Ok(())
+    fn meta(_path: &PathBuf, _name: &Option<String>) -> Result<()> {
+        todo!("This feature has been removed momentary, plz wait for the next release.")
+        // let ext = path
+        //     .extension()
+        //     .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
+        // let data = fs::read(path)?;
+        //
+        // // parse fom hex if end with `txt`.
+        // let meta = if ext == "txt" {
+        //     Meta::decode_hex(&data)?
+        // } else if ext == "wasm" {
+        //     // parse fom wasm if end with `wasm`.
+        //     Meta::decode_wasm(&data)?
+        // } else {
+        //     return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());
+        // };
+        //
+        // // Format types.
+        // let fmt = if let Some(name) = name {
+        //     format!("{:#}", meta.derive(name)?)
+        // } else {
+        //     format!("{:#}", meta)
+        // };
+        //
+        // // println result.
+        // println!("{}", fmt.replace('"', ""));
+        // Ok(())
     }
 }

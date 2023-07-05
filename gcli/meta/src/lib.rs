@@ -15,14 +15,11 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![cfg(feature = "meta")]
-
 //! Program metadata parser
 mod registry;
-#[cfg(test)]
 mod tests;
 
-use crate::result::{Error, Result};
+use anyhow::{anyhow, Result};
 use core_processor::configs::BlockInfo;
 use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
@@ -124,29 +121,27 @@ impl Meta {
             100_000_000,
             BlockInfo::default(),
         )
-        .map_err(Error::WasmExecution)
+        .map_err(|e| anyhow!("Failed to execute meta method: {e}"))
     }
 
     /// Decode metawasm from wasm binary.
     pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
-        let code = InstrumentedCodeAndId::from(CodeAndId::new(Code::new_raw(
-            wasm.to_vec(),
-            1,
-            None,
-            true,
-            false,
-        )?))
+        let code = InstrumentedCodeAndId::from(CodeAndId::new(
+            Code::new_raw(wasm.to_vec(), 1, None, true, false).map_err(|e| anyhow!(e))?,
+        ))
         .into_parts()
         .0;
 
-        Ok(Self::Wasm(MetawasmData::decode(
-            &mut Self::execute(code, "metadata")?.as_ref(),
-        )?))
+        Ok(Self::Wasm(
+            MetawasmData::decode(&mut Self::execute(code, "metadata")?.as_ref())
+                .map_err(|e| anyhow!(e))?,
+        ))
     }
 
     /// Decode metadata from hex bytes.
     pub fn decode_hex(hex: &[u8]) -> Result<Self> {
-        let meta = MetadataRepr::from_hex(hex).map_err(Error::MetaParseError)?;
+        let meta =
+            MetadataRepr::from_hex(hex).map_err(|e| anyhow!("Failed to parse metadata {e:?}"))?;
         Ok(Self::Data(meta))
     }
 
@@ -166,9 +161,12 @@ impl Meta {
             Meta::Data(meta) => meta.registry.as_ref(),
             Meta::Wasm(meta) => meta.registry.as_ref(),
         };
-        let registry = PortableRegistry::decode(&mut encoded_registry)?;
+        let registry = PortableRegistry::decode(&mut encoded_registry).map_err(|e| anyhow!(e))?;
 
-        Ok(format!("{}", registry.derive_name(name)?))
+        Ok(format!(
+            "{}",
+            registry.derive_name(name).map_err(|e| anyhow!(e))?
+        ))
     }
 }
 

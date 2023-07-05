@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Local type registry.
-use crate::result::{Error, Result};
+use anyhow::{anyhow, Result};
 use scale_info::{
     form::{Form, PortableForm},
     interner::UntrackedSymbol,
@@ -145,16 +145,19 @@ pub trait LocalRegistry: Sized + Clone {
 
 impl LocalRegistry for PortableRegistry {
     fn from_hex(encoded: &str) -> Result<Self> {
-        Ok(PortableRegistry::decode(
-            &mut hex::decode(encoded)?.as_ref(),
-        )?)
+        let registry: PortableRegistry =
+            PortableRegistry::decode(&mut hex::decode(encoded).map_err(|e| anyhow!(e))?.as_ref())
+                .map_err(|e| anyhow!(e))?;
+
+        Ok(registry)
     }
 
     fn derive_id(&self, id: u32) -> Result<LocalType<'_, PortableForm>> {
         Ok(LocalType {
             ty: self
                 .resolve(id)
-                .ok_or_else(|| Error::TypeNotFound(format!("{id:?}")))?,
+                .ok_or_else(|| format!("{id:?}"))
+                .map_err(|e| anyhow!(e))?,
             registry: self,
         })
     }
@@ -167,6 +170,6 @@ impl LocalRegistry for PortableRegistry {
             }
         }
 
-        Err(Error::TypeNotFound(ident.into()))
+        Err(anyhow!("type not found {ident}"))
     }
 }

@@ -15,9 +15,10 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![cfg(test)]
 
 //! Tests for metadata
-use crate::meta::Meta;
+use crate::Meta;
 
 const WASM_METADATA_OUTPUT: &str = r#"
 Metadata {

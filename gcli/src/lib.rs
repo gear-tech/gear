@@ -124,7 +124,6 @@
 
 pub mod cmd;
 pub mod keystore;
-pub mod meta;
 pub mod result;
 pub mod template;
 pub mod utils;
