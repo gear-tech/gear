@@ -54,13 +54,13 @@ impl sc_executor::NativeExecutionDispatch for GearExecutorDispatch {
     type ExtendHostFunctions = (
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
-        gear_runtime_interface::sandbox::HostFunctions,
+        gear_ri::sandbox::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
     #[cfg(not(feature = "runtime-benchmarks"))]
     type ExtendHostFunctions = (
         gear_ri::gear_ri::HostFunctions,
-        gear_runtime_interface::sandbox::HostFunctions,
+        gear_ri::sandbox::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -83,13 +83,13 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
     type ExtendHostFunctions = (
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
-        gear_runtime_interface::sandbox::HostFunctions,
+        gear_ri::sandbox::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
     #[cfg(not(feature = "runtime-benchmarks"))]
     type ExtendHostFunctions = (
         gear_ri::gear_ri::HostFunctions,
-        gear_runtime_interface::sandbox::HostFunctions,
+        gear_ri::sandbox::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
