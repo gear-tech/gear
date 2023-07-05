@@ -19,7 +19,6 @@
 //! RPC calls with signer
 #![allow(clippy::too_many_arguments)]
 use crate::{result::Result, signer::Signer, types::GasInfo};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 
 impl Signer {
@@ -32,7 +31,7 @@ impl Signer {
     pub async fn calculate_create_gas(
         &self,
         origin: Option<H256>,
-        code_id: CodeId,
+        code_id: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -76,7 +75,7 @@ impl Signer {
     pub async fn calculate_handle_gas(
         &self,
         origin: Option<H256>,
-        destination: ProgramId,
+        destination: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -98,7 +97,7 @@ impl Signer {
     pub async fn calculate_reply_gas(
         &self,
         origin: Option<H256>,
-        message_id: MessageId,
+        message_id: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,

@@ -4477,7 +4477,6 @@ dependencies = [
  "futures",
  "futures-util",
  "gear-core",
- "gear-core-errors",
  "gsdk",
  "gsdk-codegen",
  "hex",

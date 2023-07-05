@@ -19,7 +19,6 @@
 //! gear api rpc methods
 #![allow(clippy::too_many_arguments)]
 use crate::{result::Result, types::GasInfo, Api};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use subxt::rpc::rpc_params;
 
@@ -28,7 +27,7 @@ impl Api {
     pub async fn calculate_create_gas(
         &self,
         origin: H256,
-        code_id: CodeId,
+        code_id: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -80,7 +79,7 @@ impl Api {
     pub async fn calculate_handle_gas(
         &self,
         origin: H256,
-        destination: ProgramId,
+        destination: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -106,7 +105,7 @@ impl Api {
     pub async fn calculate_reply_gas(
         &self,
         origin: H256,
-        message_id: MessageId,
+        message_id: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,

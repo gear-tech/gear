@@ -19,15 +19,17 @@
 //! Shared types
 use crate::{
     config::GearConfig,
-    metadata::runtime_types::gear_common::{
-        gas_provider::node::{GasNode, GasNodeId},
-        ActiveProgram,
+    metadata::runtime_types::{
+        gear_common::{
+            gas_provider::node::{GasNode, GasNodeId},
+            ActiveProgram,
+        },
+        gear_core::ids::*,
     },
     result::Result,
     BlockNumber,
 };
 use futures::{Stream, StreamExt};
-use gear_core::ids::*;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::AccountId32;

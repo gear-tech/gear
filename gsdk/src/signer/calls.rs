@@ -24,7 +24,7 @@ use crate::{
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
-            gear_core::code::InstrumentedCode,
+            gear_core::{buffer::LimitedVec, code::InstrumentedCode, memory::PageBuf},
             sp_weights::weight_v2::Weight,
         },
         sudo::Event as SudoEvent,
@@ -36,11 +36,6 @@ use crate::{
     BlockNumber, Error,
 };
 use anyhow::anyhow;
-use gear_core::{
-    ids::*,
-    memory::{PageBuf, PageBufInner},
-};
-use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
@@ -78,7 +73,7 @@ impl Signer {
     /// `pallet_gear::create_program`
     pub async fn create_program(
         &self,
-        code_id: CodeId,
+        code_id: impl Into<[u8; 32]>,
         salt: Vec<u8>,
         payload: Vec<u8>,
         gas_limit: u64,
@@ -88,7 +83,7 @@ impl Signer {
             "Gear",
             "create_program",
             vec![
-                Value::from_bytes(code_id),
+                Value::from_bytes(code_id.into()),
                 Value::from_bytes(salt),
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
@@ -100,15 +95,19 @@ impl Signer {
     }
 
     /// `pallet_gear::claim_value`
-    pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
-        let tx = subxt::dynamic::tx("Gear", "claim_value", vec![Value::from_bytes(message_id)]);
+    pub async fn claim_value(&self, message_id: impl Into<[u8; 32]>) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Gear",
+            "claim_value",
+            vec![Value::from_bytes(message_id.into())],
+        );
         self.process(tx).await
     }
 
     /// `pallet_gear::send_message`
     pub async fn send_message(
         &self,
-        destination: ProgramId,
+        destination: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -117,7 +116,7 @@ impl Signer {
             "Gear",
             "send_message",
             vec![
-                Value::from_bytes(destination),
+                Value::from_bytes(destination.into()),
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
@@ -130,7 +129,7 @@ impl Signer {
     /// `pallet_gear::send_reply`
     pub async fn send_reply(
         &self,
-        reply_to_id: MessageId,
+        reply_to_id: impl Into<[u8; 32]>,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -139,7 +138,7 @@ impl Signer {
             "Gear",
             "send_reply",
             vec![
-                Value::from_bytes(reply_to_id),
+                Value::from_bytes(reply_to_id.into()),
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
@@ -288,21 +287,29 @@ impl Signer {
 // pallet-gear-program
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
-    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
+    pub async fn set_code_len_storage(
+        &self,
+        code_id: impl Into<[u8; 32]>,
+        code_len: u32,
+    ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
-            vec![Value::from_bytes(code_id)],
+            vec![Value::from_bytes(code_id.into())],
         );
         self.set_storage(&[(addr, code_len)]).await
     }
 
     /// Writes `InstrumentedCode` into storage at `CodeId`
-    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
+    pub async fn set_code_storage(
+        &self,
+        code_id: impl Into<[u8; 32]>,
+        code: &InstrumentedCode,
+    ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
-            vec![Value::from_bytes(code_id)],
+            vec![Value::from_bytes(code_id.into())],
         );
         self.set_storage(&[(addr, code)]).await
     }
@@ -310,10 +317,11 @@ impl Signer {
     /// Writes `GearPages` into storage at `program_id`
     pub async fn set_gpages(
         &self,
-        program_id: ProgramId,
+        program_id: impl Into<[u8; 32]>,
         program_pages: &types::GearPages,
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
+        let program_id = program_id.into();
         for program_page in program_pages {
             let addr = subxt::dynamic::storage(
                 "GearProgram",
@@ -323,9 +331,8 @@ impl Signer {
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
                 ],
             );
-            let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
-                .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
-            let value = PageBuf::from_inner(page_buf_inner);
+
+            let value = PageBuf(LimitedVec(program_page.1.clone(), Default::default()));
             program_pages_to_set.push((addr, value));
         }
         self.set_storage(&program_pages_to_set).await
@@ -334,13 +341,13 @@ impl Signer {
     /// Writes `ActiveProgram` into storage at `program_id`
     pub async fn set_gprog(
         &self,
-        program_id: ProgramId,
+        program_id: impl Into<[u8; 32]>,
         program: ActiveProgram<BlockNumber>,
     ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
-            vec![Value::from_bytes(program_id)],
+            vec![Value::from_bytes(program_id.into())],
         );
         self.set_storage(&[(addr, &Program::Active(program))]).await
     }

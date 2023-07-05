@@ -171,11 +171,11 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .mailbox(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
-    let message_id = mailbox[0].0.id.into();
+    let message_id = mailbox[0].0.id;
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
-        .calculate_reply_gas(None, message_id, vec![], 0, true, None)
+        .calculate_reply_gas(None, message_id.0, vec![], 0, true, None)
         .await?;
 
     signer

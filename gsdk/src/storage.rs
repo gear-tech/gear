@@ -23,7 +23,7 @@ use crate::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
+            gear_core::{code::InstrumentedCode, ids::*, message::user::UserStoredMessage},
             pallet_balances::AccountData,
         },
     },
@@ -33,7 +33,6 @@ use crate::{
     Api, BlockNumber,
 };
 use anyhow::anyhow;
-use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
 use sp_core::{crypto::Ss58Codec, H256};
@@ -206,7 +205,7 @@ impl Api {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
-            vec![Value::from_bytes(code_id)],
+            vec![Value::from_bytes(code_id.0)],
         );
         self.fetch_storage_at(&addr, block_hash).await
     }
@@ -221,7 +220,7 @@ impl Api {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
-            vec![Value::from_bytes(code_id)],
+            vec![Value::from_bytes(code_id.0)],
         );
         self.fetch_storage_at(&addr, block_hash).await
     }
@@ -230,13 +229,13 @@ impl Api {
     #[storage_fetch]
     pub async fn gprog_at(
         &self,
-        program_id: ProgramId,
+        program_id: impl Into<[u8; 32]>,
         block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
-            vec![Value::from_bytes(program_id)],
+            vec![Value::from_bytes(program_id.into())],
         );
 
         let program = self
@@ -263,7 +262,7 @@ impl Api {
             let addr = subxt::dynamic::storage(
                 "GearProgram",
                 "MemoryPageStorage",
-                vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
+                vec![Value::from_bytes(program_id.0), Value::u128(page.0 as u128)],
             );
 
             let metadata = self.metadata();
@@ -274,7 +273,7 @@ impl Api {
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
-                .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
+                .ok_or_else(|| Error::PageNotFound(page.0, program_id.0.encode_hex()))?;
             pages.insert(page.0, encoded_page);
         }
 

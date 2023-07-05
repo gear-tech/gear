@@ -32,98 +32,98 @@ use super::{
     },
 };
 use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::UserMessage};
+// use gear_core::{ids, message, message::UserMessage};
 use parity_scale_codec::{Decode, Encode};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
 type ApiEvent = super::Event;
 
-impl From<ids::MessageId> for generated_ids::MessageId {
-    fn from(other: ids::MessageId) -> Self {
-        Self(other.into())
-    }
-}
+// impl From<ids::MessageId> for generated_ids::MessageId {
+//     fn from(other: ids::MessageId) -> Self {
+//         Self(other.into())
+//     }
+// }
+//
+// impl From<generated_ids::MessageId> for ids::MessageId {
+//     fn from(other: generated_ids::MessageId) -> Self {
+//         other.0.into()
+//     }
+// }
+//
+// impl From<ids::ProgramId> for generated_ids::ProgramId {
+//     fn from(other: ids::ProgramId) -> Self {
+//         Self(other.into())
+//     }
+// }
+//
+// impl From<generated_ids::ProgramId> for ids::ProgramId {
+//     fn from(other: generated_ids::ProgramId) -> Self {
+//         other.0.into()
+//     }
+// }
+//
+// impl From<ids::CodeId> for generated_ids::CodeId {
+//     fn from(other: ids::CodeId) -> Self {
+//         Self(other.into())
+//     }
+// }
+//
+// impl From<generated_ids::CodeId> for ids::CodeId {
+//     fn from(other: generated_ids::CodeId) -> Self {
+//         other.0.into()
+//     }
+// }
+//
+// impl From<generated_ids::ReservationId> for ids::ReservationId {
+//     fn from(other: generated_ids::ReservationId) -> Self {
+//         other.0.into()
+//     }
+// }
+//
+// impl From<generated_core_errors::simple::ReplyCode> for gear_core_errors::ReplyCode {
+//     fn from(value: generated_core_errors::simple::ReplyCode) -> Self {
+//         Self::decode(&mut value.encode().as_ref()).expect("Incompatible metadata")
+//     }
+// }
+//
+// impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
+//     fn from(other: generated_message::common::ReplyDetails) -> Self {
+//         message::ReplyDetails::new(other.to.into(), other.code.into())
+//     }
+// }
 
-impl From<generated_ids::MessageId> for ids::MessageId {
-    fn from(other: generated_ids::MessageId) -> Self {
-        other.0.into()
-    }
-}
-
-impl From<ids::ProgramId> for generated_ids::ProgramId {
-    fn from(other: ids::ProgramId) -> Self {
-        Self(other.into())
-    }
-}
-
-impl From<generated_ids::ProgramId> for ids::ProgramId {
-    fn from(other: generated_ids::ProgramId) -> Self {
-        other.0.into()
-    }
-}
-
-impl From<ids::CodeId> for generated_ids::CodeId {
-    fn from(other: ids::CodeId) -> Self {
-        Self(other.into())
-    }
-}
-
-impl From<generated_ids::CodeId> for ids::CodeId {
-    fn from(other: generated_ids::CodeId) -> Self {
-        other.0.into()
-    }
-}
-
-impl From<generated_ids::ReservationId> for ids::ReservationId {
-    fn from(other: generated_ids::ReservationId) -> Self {
-        other.0.into()
-    }
-}
-
-impl From<generated_core_errors::simple::ReplyCode> for gear_core_errors::ReplyCode {
-    fn from(value: generated_core_errors::simple::ReplyCode) -> Self {
-        Self::decode(&mut value.encode().as_ref()).expect("Incompatible metadata")
-    }
-}
-
-impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
-    fn from(other: generated_message::common::ReplyDetails) -> Self {
-        message::ReplyDetails::new(other.to.into(), other.code.into())
-    }
-}
-
-impl From<generated_message::user::UserMessage> for message::UserMessage {
-    fn from(other: generated_message::user::UserMessage) -> Self {
-        message::UserMessage::new(
-            other.id.into(),
-            other.source.into(),
-            other.destination.into(),
-            // converting data from the same type
-            other.payload.0.try_into().expect("Infallible"),
-            other.value,
-            other.details.map(Into::into),
-        )
-    }
-}
-
-impl From<generated_message::user::UserStoredMessage> for message::UserStoredMessage {
-    fn from(other: generated_message::user::UserStoredMessage) -> Self {
-        message::UserStoredMessage::new(
-            other.id.into(),
-            other.source.into(),
-            other.destination.into(),
-            // converting data from the same type
-            other.payload.0.try_into().expect("Infallible"),
-            other.value,
-        )
-    }
-}
-
-impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
-    fn from(other: generated_ids::ReservationId) -> Self {
-        GasNodeId::Reservation(other.into())
-    }
-}
+// impl From<generated_message::user::UserMessage> for message::UserMessage {
+//     fn from(other: generated_message::user::UserMessage) -> Self {
+//         message::UserMessage::new(
+//             other.id.into(),
+//             other.source.into(),
+//             other.destination.into(),
+//             // converting data from the same type
+//             other.payload.0.try_into().expect("Infallible"),
+//             other.value,
+//             other.details.map(Into::into),
+//         )
+//     }
+// }
+//
+// impl From<generated_message::user::UserStoredMessage> for message::UserStoredMessage {
+//     fn from(other: generated_message::user::UserStoredMessage) -> Self {
+//         message::UserStoredMessage::new(
+//             other.id.into(),
+//             other.source.into(),
+//             other.destination.into(),
+//             // converting data from the same type
+//             other.payload.0.try_into().expect("Infallible"),
+//             other.value,
+//         )
+//     }
+// }
+//
+// impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
+//     fn from(other: generated_ids::ReservationId) -> Self {
+//         GasNodeId::Reservation(other.into())
+//     }
+// }
 
 impl<M: Clone, R: Clone> Clone for GasNodeId<M, R> {
     fn clone(&self) -> Self {
@@ -163,6 +163,24 @@ impl_basic! {
     generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
     Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
     generated_core_errors::simple::ReplyCode
+}
+
+macro_rules! impl_ids {
+    ($t:ty) => {
+        impl From<$t> for [u8; 32] {
+            fn from(id: $t) -> [u8; 32] {
+                id.0
+            }
+        }
+    };
+    ($($tt:ty),+) => {
+        $(impl_ids! { $tt }) +
+    };
+}
+
+impl_ids! {
+    generated_ids::MessageId, generated_ids::ProgramId, generated_ids::CodeId,
+    generated_ids::ReservationId
 }
 
 impl From<RuntimeCall> for Value {
