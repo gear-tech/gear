@@ -164,7 +164,11 @@ pub fn get_buff(context: &mut dyn FunctionContext, memory_idx: u32) -> HostPoint
     method_result
 }
 
-pub fn get_global_val(context: &mut dyn FunctionContext, instance_idx: u32, name: &str) -> Option<Value> {
+pub fn get_global_val(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+    name: &str,
+) -> Option<Value> {
     let mut method_result = None::<Value>;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
@@ -533,7 +537,12 @@ pub fn memory_teardown(context: &mut dyn FunctionContext, memory_idx: u32) {
     });
 }
 
-pub fn set_global_val(context: &mut dyn FunctionContext, instance_idx: u32, name: &str, value: Value) -> u32 {
+pub fn set_global_val(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+    name: &str,
+    value: Value,
+) -> u32 {
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
