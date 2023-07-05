@@ -1,9 +1,12 @@
-use crate::{Command, MxLockContinuation, SleepForWaitType, WaitSubcommand};
+use crate::{
+    Command, MxLockContinuation, RwLockContinuation, RwLockType, SleepForWaitType, WaitSubcommand,
+};
 use futures::future;
 
 use gstd::{errors::Error, exec, format, lock, msg, MessageId};
 
 static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
+static mut RW_LOCK: lock::RwLock<()> = lock::RwLock::new(());
 
 #[gstd::async_main]
 async fn main() {
@@ -77,6 +80,18 @@ async fn main() {
             let _lock_guard = unsafe { MUTEX.lock().await };
             process_mx_lock_continuation(continuation).await;
         }
+        Command::RwLock(lock_type, continuation) => {
+            match lock_type {
+                RwLockType::Read => {
+                    let _lock_guard = unsafe { RW_LOCK.read().await };
+                    process_rw_lock_continuation(continuation).await;
+                }
+                RwLockType::Write => {
+                    let _lock_guard = unsafe { RW_LOCK.write().await };
+                    process_rw_lock_continuation(continuation).await;
+                }
+            };
+        }
     }
 }
 
@@ -92,5 +107,12 @@ async fn process_mx_lock_continuation(continuation: MxLockContinuation) {
     match continuation {
         MxLockContinuation::Nothing => {}
         MxLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
+    }
+}
+
+async fn process_rw_lock_continuation(continuation: RwLockContinuation) {
+    match continuation {
+        RwLockContinuation::Nothing => {}
+        RwLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
     }
 }
