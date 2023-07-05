@@ -437,7 +437,6 @@ impl<'a> Program<'a> {
     /// # Examples
     ///
     /// ```
-    /// # fn example() -> Result<()> {
     /// # use gtest::{state_args, Program, System};
     /// # let system = System::new();
     /// # let program = Program::current(&system);
@@ -445,21 +444,31 @@ impl<'a> Program<'a> {
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, Option::<()>::None)
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!())?;
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, state_args!())
+    ///     .unwrap();
     /// // Read state bytes with one argument passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1))
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1))?;
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1))
+    ///     .unwrap();
     /// // Read state bytes with multiple arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))?;
-    /// # Ok(());
-    /// # }
+    /// let _ = program
+    ///     .read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))
+    ///     .unwrap();
     /// ```
     pub fn read_state_bytes_using_wasm<E: Encode + TypeInfo + 'static>(
         &self,
@@ -489,7 +498,6 @@ impl<'a> Program<'a> {
     /// # Examples
     ///
     /// ```
-    /// # fn example() -> Result<()> {
     /// # use gtest::{state_args, Program, System};
     /// # let system = System::new();
     /// # let program = Program::current(&system);
@@ -497,21 +505,31 @@ impl<'a> Program<'a> {
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, Option::<()>::None)
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!())?;
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, state_args!())
+    ///     .unwrap();
     /// // Read state bytes with one argument passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, Some(ARG_1))
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1))?;
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, state_args!(ARG_1))
+    ///     .unwrap();
     /// // Read state bytes with multiple arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))
+    ///     .unwrap();
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))?;
-    /// # Ok(());
-    /// # }
+    /// let _ = program
+    ///     .read_state_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))
+    ///     .unwrap();
     /// ```
     pub fn read_state_using_wasm<E: Encode + TypeInfo + 'static, D: Decode>(
         &self,
