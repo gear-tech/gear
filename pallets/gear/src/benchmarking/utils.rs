@@ -34,6 +34,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
+    pages::WasmPage,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -43,7 +44,6 @@ use sp_std::{convert::TryInto, prelude::*};
 use crate::ProgramStorageOf;
 #[cfg(feature = "lazy-pages")]
 use common::ProgramStorage;
-use gear_core::memory::WasmPage;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
