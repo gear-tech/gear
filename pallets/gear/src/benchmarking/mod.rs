@@ -1645,7 +1645,7 @@ benchmarks! {
         let mut mem = MemoryWrap::new(DefaultExecutorMemory::new(1, None).unwrap());
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(WasmPage::new(1).unwrap()).unwrap();
+            mem.grow(1.into()).unwrap();
         }
     }
 

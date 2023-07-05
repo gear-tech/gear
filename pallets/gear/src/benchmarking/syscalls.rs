@@ -114,6 +114,24 @@ where
         )
     }
 
+    fn prepare_handle_override_max_pages(
+        module: ModuleDefinition,
+        value: u32,
+        max_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![],
+            PrepareConfig {
+                value: value.into(),
+                max_pages_override: Some(max_pages),
+                ..Default::default()
+            },
+        )
+    }
+
     fn prepare_handle_with_reservation_slots(
         module: ModuleDefinition,
         repetitions: u32,
@@ -157,13 +175,17 @@ where
     }
 
     pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
+        const MAX_PAGES_OVERRIDE: u16 = 65535;
+
+        assert!(repetitions * pages * API_BENCHMARK_BATCH_SIZE <= MAX_PAGES_OVERRIDE as u32);
+
         let mut instructions = vec![
             Instruction::I32Const(pages as i32),
             Instruction::Call(0),
-            Instruction::I32Const(i32::MAX),
+            Instruction::I32Const(-1),
         ];
 
-        unreachable_condition(&mut instructions, Instruction::I32Eq); // if alloc returns i32::MAX then it's error
+        unreachable_condition(&mut instructions, Instruction::I32Eq); // if alloc returns -1 then it's error
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
@@ -175,7 +197,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
@@ -184,8 +206,8 @@ where
         use Instruction::*;
         let mut instructions = vec![];
         for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(i32::MAX)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns i32::MAX then it's error
+            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
+            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
             for page in 0..r {
                 instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
