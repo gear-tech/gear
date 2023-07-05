@@ -287,6 +287,7 @@ impl ExtError {
             //
             600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
+            0xffff /* SyscallUsage */ |
             u32::MAX => Some(ExtError::Unsupported),
             _ => None,
         }
@@ -343,6 +344,16 @@ mod tests {
         for err in enum_iterator::all::<ExtError>() {
             let code = err.to_u32();
             assert_ne!(code, 0); // success code
+        }
+    }
+
+    #[test]
+    fn error_codes_forbidden() {
+        let codes = [0xffff /* SyscallUsage */];
+
+        for code in codes {
+            let err = ExtError::from_u32(code);
+            assert_eq!(err, Some(ExtError::Unsupported));
         }
     }
 }
