@@ -455,18 +455,20 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 91_287_000 picoseconds.
-        Weight::from_parts(93_643_000, 0)
-            // Standard Error: 401_184
-            .saturating_add(Weight::from_parts(462_939_312, 0).saturating_mul(r.into()))
+        // Minimum execution time: 88_275_000 picoseconds.
+        Weight::from_parts(89_733_000, 0)
+            // Standard Error: 3_987_023
+            .saturating_add(Weight::from_parts(669_872_725, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[1, 512]`.
-    fn alloc_per_page(_p: u32, ) -> Weight {
+    fn alloc_per_page(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 409_179_000 picoseconds.
-        Weight::from_parts(555_869_988, 0)
+        // Minimum execution time: 413_044_000 picoseconds.
+        Weight::from_parts(343_710_210, 0)
+            // Standard Error: 8_256
+            .saturating_add(Weight::from_parts(31_367_607, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -483,10 +485,10 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 1_604_000 picoseconds.
-        Weight::from_parts(2_156_834, 0)
-            // Standard Error: 9_659
-            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
+        // Minimum execution time: 3_265_000 picoseconds.
+        Weight::from_parts(3_465_198, 0)
+            // Standard Error: 8_582
+            .saturating_add(Weight::from_parts(22_066_748, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2322,18 +2324,20 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 91_287_000 picoseconds.
-        Weight::from_parts(93_643_000, 0)
-            // Standard Error: 401_184
-            .saturating_add(Weight::from_parts(462_939_312, 0).saturating_mul(r.into()))
+        // Minimum execution time: 88_275_000 picoseconds.
+        Weight::from_parts(89_733_000, 0)
+            // Standard Error: 3_987_023
+            .saturating_add(Weight::from_parts(669_872_725, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[1, 512]`.
-    fn alloc_per_page(_p: u32, ) -> Weight {
+    fn alloc_per_page(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 409_179_000 picoseconds.
-        Weight::from_parts(555_869_988, 0)
+        // Minimum execution time: 413_044_000 picoseconds.
+        Weight::from_parts(343_710_210, 0)
+            // Standard Error: 8_256
+            .saturating_add(Weight::from_parts(31_367_607, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -2350,10 +2354,10 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 1_604_000 picoseconds.
-        Weight::from_parts(2_156_834, 0)
-            // Standard Error: 9_659
-            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
+        // Minimum execution time: 3_265_000 picoseconds.
+        Weight::from_parts(3_465_198, 0)
+            // Standard Error: 8_582
+            .saturating_add(Weight::from_parts(22_066_748, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
