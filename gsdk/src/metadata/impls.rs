@@ -18,6 +18,7 @@
 
 use super::{
     gear_runtime::{RuntimeCall, RuntimeEvent},
+    generated::runtime_types,
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
         gear_common::{
@@ -34,6 +35,7 @@ use super::{
 use core::ops::{Index, IndexMut};
 // use gear_core::{ids, message, message::UserMessage};
 use parity_scale_codec::{Decode, Encode};
+use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
 type ApiEvent = super::Event;
@@ -119,11 +121,11 @@ type ApiEvent = super::Event;
 //     }
 // }
 //
-// impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
-//     fn from(other: generated_ids::ReservationId) -> Self {
-//         GasNodeId::Reservation(other.into())
-//     }
-// }
+impl<M> From<generated_ids::ReservationId> for GasNodeId<M, generated_ids::ReservationId> {
+    fn from(other: generated_ids::ReservationId) -> Self {
+        GasNodeId::Reservation(other.into())
+    }
+}
 
 impl<M: Clone, R: Clone> Clone for GasNodeId<M, R> {
     fn clone(&self) -> Self {
@@ -172,6 +174,32 @@ macro_rules! impl_ids {
                 id.0
             }
         }
+
+        impl AsRef<[u8]> for $t {
+            fn as_ref(&self) -> &[u8] {
+                &self.0
+            }
+        }
+
+        impl AsRef<[u8;32]> for $t {
+            fn as_ref(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+
+        impl PartialOrd for $t {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                self.0.partial_cmp(&other.0)
+            }
+        }
+
+        impl Ord for $t {
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.0.cmp(&other.0)
+            }
+        }
+
+        impl Eq for $t {}
     };
     ($($tt:ty),+) => {
         $(impl_ids! { $tt }) +
@@ -181,6 +209,22 @@ macro_rules! impl_ids {
 impl_ids! {
     generated_ids::MessageId, generated_ids::ProgramId, generated_ids::CodeId,
     generated_ids::ReservationId
+}
+
+impl Into<sp_runtime::AccountId32> for generated_ids::ProgramId {
+    fn into(self) -> sp_runtime::AccountId32 {
+        sp_runtime::AccountId32::from(self.0)
+    }
+}
+
+impl generated_ids::ProgramId {
+    pub fn into_account_id(self) -> sp_runtime::AccountId32 {
+        self.into()
+    }
+
+    pub fn as_bytes(self) -> [u8; 32] {
+        self.into()
+    }
 }
 
 impl From<RuntimeCall> for Value {
@@ -369,5 +413,12 @@ impl Convert<subxt::utils::MultiAddress<subxt::utils::AccountId32, ()>>
             sp_runtime::MultiAddress::Index(index) => subxt::utils::MultiAddress::Index(index),
             sp_runtime::MultiAddress::Raw(raw) => subxt::utils::MultiAddress::Raw(raw),
         }
+    }
+}
+
+impl runtime_types::runtime_types::gear_core_errors::simple::ReplyCode {
+    /// Returns `true` if the result is a success value.
+    pub fn is_success(&self) -> bool {
+        matches!(self, Self::Success(_))
     }
 }

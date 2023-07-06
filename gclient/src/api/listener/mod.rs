@@ -25,14 +25,13 @@ pub use subscription::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gear_core::ids::MessageId;
-use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
-        ids::MessageId as GenMId,
+        ids::{MessageId as GenMId, MessageId},
         message::{common::ReplyDetails as GenReplyDetails, user::UserMessage as GenUserMessage},
     },
+    gear_core_errors::simple::ReplyCode,
 };
 
 /// Dispatch status returned after processing a message.
@@ -199,7 +198,7 @@ pub trait EventProcessor {
             }) = e
             {
                 to.eq(&message_id).then(|| {
-                    let res = ReplyCode::from(code)
+                    let res = code
                         .is_success()
                         .then(|| payload.0.clone())
                         .ok_or_else(|| String::from_utf8(payload.0).expect("Infallible"));

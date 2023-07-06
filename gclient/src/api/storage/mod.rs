@@ -24,11 +24,14 @@ pub use block::*;
 use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;
-use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
     ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
-        gear_common::storage::primitives::Interval, gear_core::message::user,
+        gear_common::storage::primitives::Interval,
+        gear_core::{
+            ids::*,
+            message::user::{self, UserStoredMessage},
+        },
         pallet_balances::AccountData,
     },
 };
@@ -55,7 +58,7 @@ impl GearApi {
             .api()
             .get_mailbox_account_message(account_id.into_account_id(), message_id)
             .await?;
-        Ok(data.map(|(m, i)| (m.into(), i)))
+        Ok(data.map(|(m, i)| (m, i)))
     }
 
     /// Get up to `count` messages from the mailbox for
@@ -70,7 +73,7 @@ impl GearApi {
             .api()
             .mailbox(Some(account_id.into_account_id()), count)
             .await?;
-        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+        Ok(data.into_iter().map(|(m, i)| (m, i)).collect())
     }
 
     /// Get up to `count` messages from the mailbox.

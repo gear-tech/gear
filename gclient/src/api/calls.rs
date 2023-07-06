@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{GearApi, Result};
-use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
+use crate::{utils, Error};
 use gear_common::LockId;
 use gear_core::{
-    ids::*,
     memory::PageBuf,
     pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
@@ -38,6 +37,7 @@ use gsdk::{
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_core::ids::*,
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
@@ -235,7 +235,7 @@ impl GearApi {
     ) -> Result<ProgramId> {
         if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
             return Err(Error::ProgramAlreadyExists(
-                src_program_id.as_ref().encode_hex(),
+                src_program_id.as_bytes().encode_hex(),
             ));
         }
 
@@ -248,20 +248,20 @@ impl GearApi {
 
         // Collect data from the source program
         let src_program_account_data = self
-            .account_data_at(src_program_id, src_block_hash)
+            .account_data_at(src_program_id.into_account_id(), src_block_hash)
             .await
             .or_else(|e| {
-            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                Ok(AccountData {
-                    free: 0u128,
-                    reserved: 0,
-                    misc_frozen: 0,
-                    fee_frozen: 0,
-                })
-            } else {
-                Err(e)
-            }
-        })?;
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        misc_frozen: 0,
+                        fee_frozen: 0,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
 
         let mut src_program = self
             .0
@@ -301,7 +301,7 @@ impl GearApi {
             }
         }
 
-        let src_code_id = src_program.code_hash.0.into();
+        let src_code_id = src_program.code_hash.0;
 
         let src_code_len = self
             .0
@@ -360,7 +360,7 @@ impl GearApi {
                 })?;
             dest_node_api
                 .set_balance(
-                    account_with_reserved_funds.into_account_id(),
+                    account_with_reserved_funds.clone(),
                     dest_account_data.free,
                     dest_account_data
                         .reserved
@@ -435,21 +435,21 @@ impl GearApi {
             })
             .collect();
 
-        let program_account_data =
-            self.account_data_at(program_id, block_hash)
-                .await
-                .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                        Ok(AccountData {
-                            free: 0u128,
-                            reserved: 0,
-                            misc_frozen: 0,
-                            fee_frozen: 0,
-                        })
-                    } else {
-                        Err(e)
-                    }
-                })?;
+        let program_account_data = self
+            .account_data_at(program_id.into_account_id(), block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        misc_frozen: 0,
+                        fee_frozen: 0,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
 
         ProgramMemoryDump {
             pages: program_pages,
@@ -476,7 +476,7 @@ impl GearApi {
             .collect::<HashMap<_, _>>();
 
         self.set_balance(
-            MultiAddress::Id(program_id.into_account_id()),
+            MultiAddress::Id(program_id.into()),
             memory_dump.balance,
             memory_dump.reserved_balance,
         )
@@ -504,7 +504,7 @@ impl GearApi {
         let value = self
             .get_mailbox_message(message_id)
             .await?
-            .map(|(message, _interval)| message.value());
+            .map(|(message, _interval)| message.value);
 
         let tx = self.0.claim_value(message_id).await?;
 
@@ -542,7 +542,7 @@ impl GearApi {
         let mut values: BTreeMap<_, _> = messages
             .into_iter()
             .flatten()
-            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .map(|(msg, _interval)| (msg.id, msg.value))
             .collect();
 
         let calls: Vec<_> = args
@@ -733,7 +733,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), message.value(), tx.block_hash()));
+                return Ok((id.into(), message.value, tx.block_hash()));
             }
         }
 
@@ -764,7 +764,7 @@ impl GearApi {
         let mut values: BTreeMap<_, _> = messages
             .into_iter()
             .flatten()
-            .map(|(msg, _interval)| (msg.id(), msg.value()))
+            .map(|(msg, _interval)| (msg.id, msg.value))
             .collect();
 
         let calls: Vec<_> = args
