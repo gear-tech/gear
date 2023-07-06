@@ -1,0 +1,19 @@
+[package]
+name = "gear-crates-io"
+version = "0.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = true
+
+[[bin]]
+path = "crates-io.rs"
+name = "crates-io"
+
+[dependencies]
+anyhow.workspace = true
+cargo_metadata.workspace  = true
+clap.workspace = true
+color-eyre.workspace = true
+crates-io.workspace = true
+curl.workspace = true
