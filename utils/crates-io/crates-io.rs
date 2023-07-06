@@ -153,6 +153,7 @@ impl CratesIo {
 #[derive(Parser)]
 struct Opt {
     /// Crates-io token.
+    #[clap(required = true, short, long)]
     pub token: String,
 
     /// Subcommands.
