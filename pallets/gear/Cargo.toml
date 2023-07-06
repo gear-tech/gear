@@ -92,7 +92,7 @@ demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true

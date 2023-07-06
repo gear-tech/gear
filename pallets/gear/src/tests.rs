@@ -8590,16 +8590,17 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
             (msg_id, msg_block_number)
         };
 
-        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::SleepFor(4)));
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+            WaiterCommand::MxLock(u32::MAX, MxLockContinuation::SleepFor(4)),
+        );
 
         let (lock_rival_1_msg_id, _) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+            send_command_to_waiter(WaiterCommand::MxLock(u32::MAX, MxLockContinuation::Nothing));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
         let (lock_rival_2_msg_id, _) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+            send_command_to_waiter(WaiterCommand::MxLock(u32::MAX, MxLockContinuation::Nothing));
 
         assert!(WaitlistOf::<Test>::contains(
             &waiter_prog_id,
@@ -8747,6 +8748,234 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
             assert_succeed(lock_rival_2_msg_id);
         }
     };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn mx_lock_ownership_exceedance() {
+    use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
+
+    const LOCK_HOLD_DURATION: u32 = 3;
+
+    fn execution() -> () {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (run_test_case, get_lock_ownership_exceeded_trap) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let run_test_case =
+                move |command: WaiterCommand,
+                      run_for_blocks_after_command: u32,
+                      assert_command_result: &dyn Fn(MessageId),
+                      assert_lock_result: &dyn Fn(MessageId, MessageId)| {
+                    let (command_msg_id, _) = send_command_to_waiter(command);
+
+                    run_for_blocks(run_for_blocks_after_command, None);
+
+                    assert_command_result(command_msg_id);
+
+                    let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+                        1,
+                        MxLockContinuation::Nothing,
+                    ));
+
+                    assert_lock_result(command_msg_id, lock_msg_id);
+                };
+
+            let get_lock_ownership_exceeded_trap = |command_msg_id| {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    format!(
+                        "Message 0x{} has exceeded lock ownership time",
+                        hex::encode(command_msg_id)
+                    )
+                    .into(),
+                ))
+            };
+
+            (run_test_case, get_lock_ownership_exceeded_trap)
+        };
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Wait),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Wait),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Forget),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Forget),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::SleepFor(LOCK_HOLD_DURATION * 2),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::SleepFor(LOCK_HOLD_DURATION * 2),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);

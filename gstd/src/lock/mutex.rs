@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::MessageId;
+use super::access::AccessQueue;
+use crate::{async_runtime, exec, msg, MessageId};
 use core::{
     cell::UnsafeCell,
     future::Future,
@@ -24,8 +25,6 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-
-use super::access::AccessQueue;
 
 /// A mutual exclusion primitive useful for protecting shared data.
 ///
@@ -78,7 +77,7 @@ use super::access::AccessQueue;
 /// # fn main() {}
 /// ```
 pub struct Mutex<T> {
-    locked: UnsafeCell<Option<MessageId>>,
+    locked: UnsafeCell<Option<(MessageId, u32)>>,
     value: UnsafeCell<T>,
     queue: AccessQueue,
 }
@@ -103,7 +102,10 @@ impl<T> Mutex<T> {
     /// returned to allow scoped unlock of the lock. When the guard goes out
     /// of scope, the mutex will be unlocked.
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
-        MutexLockFuture { mutex: self }
+        MutexLockFuture {
+            mutex: self,
+            own_up_for_block_count: None,
+        }
     }
 }
 
@@ -122,9 +124,14 @@ pub struct MutexGuard<'a, T> {
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
         unsafe {
-            *self.mutex.locked.get() = None;
-            if let Some(message_id) = self.mutex.queue.dequeue() {
-                crate::exec::wake(message_id).expect("Failed to wake the message");
+            let locked_by = &mut *self.mutex.locked.get();
+            // If 'locked_by' is None, it means the locked was seized by some other message,
+            // and the next rival message was awoken by the ousting mechanism in the MutexLockFuture::poll.
+            if let Some((_owner_msg_id, _)) = *locked_by {
+                *locked_by = None;
+                if let Some(message_id) = self.mutex.queue.dequeue() {
+                    exec::wake(message_id).expect("Failed to wake the message");
+                }
             }
         }
     }
@@ -185,6 +192,18 @@ unsafe impl<T> Sync for Mutex<T> {}
 /// ```
 pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
+    own_up_for_block_count: Option<u32>,
+}
+
+impl<'a, T> MutexLockFuture<'a, T> {
+    /// Sets the maximum number of blocks the mutex lock can be owned by
+    /// some message before the ownership can be seized by another rival
+    pub fn own_up_for(self, block_count: u32) -> Self {
+        MutexLockFuture {
+            mutex: self.mutex,
+            own_up_for_block_count: Some(block_count),
+        }
+    }
 }
 
 impl<'a, T> Future for MutexLockFuture<'a, T> {
@@ -193,10 +212,47 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
     // In case of locked mutex and an `.await`, function `poll` checks if the
     // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let current_msg_id = crate::msg::id();
-        let lock = unsafe { &mut *self.mutex.locked.get() };
-        if lock.is_none() {
-            *lock = Some(current_msg_id);
+        let current_msg_id = msg::id();
+        let current_block_number = exec::block_height();
+        let locked_by = unsafe { &mut *self.mutex.locked.get() };
+        if let Some((lock_owner_msg_id, deadline_block_number)) = *locked_by {
+            if current_block_number > deadline_block_number {
+                if let Some(msg_future_task) = async_runtime::futures().get_mut(&lock_owner_msg_id)
+                {
+                    msg_future_task.set_lock_exceeded();
+                    exec::wake(lock_owner_msg_id).expect("Failed to wake the message");
+                }
+
+                while let Some(next_msg_id) = self.mutex.queue.dequeue() {
+                    if next_msg_id == lock_owner_msg_id {
+                        continue;
+                    }
+                    *locked_by = None;
+                    exec::wake(next_msg_id).expect("Failed to wake the message");
+                    // If the message is already in the access queue, and we come here,
+                    // it means the message has just been woken up from the waitlist.
+                    // In that case we do not want to register yet another access attempt
+                    // and just go back to the waitlist.
+                    if !self.mutex.queue.contains(&current_msg_id) {
+                        self.mutex.queue.enqueue(current_msg_id);
+                    }
+                    return Poll::Pending;
+                }
+
+                *locked_by = Some((
+                    current_msg_id,
+                    self.own_up_for_block_count
+                        .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
+                ));
+                return Poll::Ready(MutexGuard { mutex: self.mutex });
+            }
+        }
+        if locked_by.is_none() {
+            *locked_by = Some((
+                current_msg_id,
+                self.own_up_for_block_count
+                    .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
+            ));
             Poll::Ready(MutexGuard { mutex: self.mutex })
         } else {
             // If the message is already in the access queue, and we come here,
@@ -204,7 +260,7 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
             // In that case we do not want to register yet another access attempt
             // and just go back to the waitlist.
             if !self.mutex.queue.contains(&current_msg_id) {
-                self.mutex.queue.enqueue(crate::msg::id());
+                self.mutex.queue.enqueue(current_msg_id);
             }
             Poll::Pending
         }
