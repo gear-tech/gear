@@ -138,10 +138,10 @@ fn page_costs_heuristic_test() {
     let expected_pages_costs = PageCosts {
         lazy_pages_signal_read: 28_000_000.into(),
         lazy_pages_signal_write: 33_000_000.into(),
-        lazy_pages_signal_write_after_read: 8_624_904.into(),
+        lazy_pages_signal_write_after_read: 9_500_000.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
-        lazy_pages_host_func_write_after_read: 7_531_864.into(),
+        lazy_pages_host_func_write_after_read: 8_700_000.into(),
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
