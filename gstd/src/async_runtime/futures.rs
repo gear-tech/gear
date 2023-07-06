@@ -26,7 +26,6 @@ use core::{
 };
 use futures::FutureExt;
 use hashbrown::HashMap;
-use hex;
 
 pub(crate) type FuturesMap = HashMap<MessageId, Task>;
 
