@@ -3942,12 +3942,12 @@ dependencies = [
 name = "gear-crates-io"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "cargo_metadata",
  "clap 4.3.4",
  "color-eyre",
  "crates-io",
  "curl",
+ "serde",
 ]
 
 [[package]]

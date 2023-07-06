@@ -1,15 +1,20 @@
 //! Gear crates-io utils
 
 use cargo_metadata::MetadataCommand;
+use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Result};
 use crates_io::Registry;
 use curl::easy::Easy;
+use std::{fs, path::PathBuf, process::Command};
 
 /// Pacakges have already taken by others.
 const WHITELIST: [&str; 1] = ["gear-core-processor"];
 const REGISTRY: &str = "https://crates.io";
 const WIDTH: usize = 30;
-const OWNERS: usize = 20;
+const OWNERS: usize = 50;
+const DEV_TEAM_LOGIN: &str = "github:gear-tech:dev";
+const DUMMY_PACKAGE: &str = "gear-package-template/Cargo.toml";
+const DUMMY_PACKAGE_NAME: &str = r#"name = "dummy""#;
 
 /// Crates-io manager
 struct CratesIo {
@@ -19,7 +24,7 @@ struct CratesIo {
 
 impl CratesIo {
     /// Create a new crates-io manager.
-    pub fn new() -> Result<Self> {
+    pub fn new(token: &str) -> Result<Self> {
         let metadata = MetadataCommand::new().no_deps().exec()?;
         let packages = metadata
             .packages
@@ -31,13 +36,72 @@ impl CratesIo {
         let mut handle = Easy::new();
         handle.useragent("crates-io-manager/0.0.0")?;
 
-        let registry = Registry::new_handle(
-            REGISTRY.into(),
-            std::env::var("CRATES_IO_TOKEN").ok(),
-            handle,
-            false,
-        );
+        let registry = Registry::new_handle(REGISTRY.into(), Some(token.into()), handle, false);
         Ok(Self { packages, registry })
+    }
+
+    pub fn publish(&mut self) -> Result<()> {
+        self.for_each_package(|package, owners| {
+            let Err(e) = owners else {
+                return Ok(())
+            };
+
+            if !e.to_string().contains("404") {
+                return Ok(());
+            }
+
+            let path = PathBuf::from(DUMMY_PACKAGE);
+            let manifest = fs::read_to_string(&path)?;
+
+            // Change package name.
+            let new_name = format!("name = \"{}\"", package);
+            fs::write(&path, manifest.replace(&DUMMY_PACKAGE_NAME, &new_name))?;
+
+            let revert_package_name = || -> Result<()> {
+                let manifest = fs::read_to_string(&path)?.replace(&new_name, &DUMMY_PACKAGE_NAME);
+                fs::write(&path, manifest)?;
+
+                Ok(())
+            };
+
+            // Publish the crate.
+            println!("publishing {}...", package);
+            let status = Command::new("cargo")
+                .arg("publish")
+                .arg("--manifest-path")
+                .arg(DUMMY_PACKAGE)
+                .arg("--allow-dirty")
+                .status()?;
+
+            if status.success() {
+                println!("published {}!", package);
+            } else {
+                revert_package_name()?;
+                return Err(eyre!("Failed to publish {}", package));
+            }
+
+            // Add dev team as owner.
+            println!("adding {} as owner of {}...", DEV_TEAM_LOGIN, package);
+            let status = Command::new("cargo")
+                .current_dir(path.parent().ok_or(eyre!("no parent"))?)
+                .arg("owner")
+                .arg("--add")
+                .arg(DEV_TEAM_LOGIN)
+                .status()?;
+
+            if status.success() {
+                println!("Added github:gear-tech:dev to {}!", package);
+            } else {
+                revert_package_name()?;
+                return Err(eyre!(
+                    "Failed to add github:gear-tech:dev as owner of {}",
+                    package
+                ));
+            }
+
+            revert_package_name()?;
+            Ok(())
+        })
     }
 
     /// Get status of gear packages.
@@ -46,24 +110,10 @@ impl CratesIo {
         println!("{} | {}", "-".repeat(WIDTH), "-".repeat(OWNERS));
 
         self.for_each_package(|package, owners| {
-            println!("{:0width$} | {:?}", package, owners, width = 30,);
-
-            Ok(())
-        })
-    }
-
-    /// Run a function for each package.
-    fn for_each_package(&mut self, f: impl Fn(&str, Vec<String>) -> Result<()>) -> Result<()> {
-        for package in self.packages.iter() {
-            if WHITELIST.contains(&package.as_str()) {
-                continue;
-            }
-
-            match self.registry.list_owners(&package) {
-                Ok(owners) => f(
-                    package,
-                    owners.into_iter().map(|u| u.login).collect::<Vec<_>>(),
-                )?,
+            match owners {
+                Ok(owners) => {
+                    println!("{:0width$} | {}", package, owners.join(", "), width = WIDTH)
+                }
                 Err(e) => {
                     if e.to_string().contains("404") {
                         println!("{:0width$} | no owner", package, width = WIDTH);
@@ -72,16 +122,62 @@ impl CratesIo {
                     }
                 }
             }
+
+            Ok(())
+        })
+    }
+
+    /// Run a function for each package.
+    fn for_each_package(
+        &mut self,
+        f: impl Fn(&str, Result<Vec<String>>) -> Result<()>,
+    ) -> Result<()> {
+        for package in self.packages.iter() {
+            if WHITELIST.contains(&package.as_str()) {
+                continue;
+            }
+
+            f(
+                package,
+                self.registry
+                    .list_owners(&package)
+                    .map(|owners| owners.into_iter().map(|u| u.login).collect::<Vec<_>>())
+                    .map_err(|e| eyre!(e)),
+            )?;
         }
 
         Ok(())
     }
 }
 
+#[derive(Parser)]
+struct Opt {
+    /// Crates-io token.
+    pub token: String,
+
+    /// Subcommands.
+    #[clap(subcommand)]
+    pub command: SubCommand,
+}
+
+/// Crates-io commands.
+#[derive(Subcommand)]
+enum SubCommand {
+    /// Show crates-io status.
+    Status,
+    /// Publish crates-io packages.
+    Publish,
+}
+
 fn main() -> Result<()> {
     color_eyre::install()?;
 
-    CratesIo::new()?.status()?;
+    let opt = Opt::parse();
+    let mut manager = CratesIo::new(&opt.token)?;
+    match opt.command {
+        SubCommand::Status => manager.status()?,
+        SubCommand::Publish => manager.publish()?,
+    }
 
     Ok(())
 }
