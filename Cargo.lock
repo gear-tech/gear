@@ -13419,8 +13419,7 @@ dependencies = [
 [[package]]
 name = "wasmer-types"
 version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39df01ea05dc0a9bab67e054c7cb01521e53b35a7bb90bd02eca564ed0b2667f"
+source = "git+https://github.com/gear-tech/wasmer?branch=gear-v2.3.0#447c2e3a152438db67be9ef649327fabcad6f5b8"
 dependencies = [
  "backtrace",
  "enum-iterator 0.7.0",
