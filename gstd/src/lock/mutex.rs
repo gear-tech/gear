@@ -126,7 +126,8 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
         unsafe {
             let locked_by = &mut *self.mutex.locked.get();
             // If 'locked_by' is None, it means the locked was seized by some other message,
-            // and the next rival message was awoken by the ousting mechanism in the MutexLockFuture::poll.
+            // and the next rival message was awoken by the ousting mechanism in
+            // the MutexLockFuture::poll.
             if let Some((_owner_msg_id, _)) = *locked_by {
                 *locked_by = None;
                 if let Some(message_id) = self.mutex.queue.dequeue() {
