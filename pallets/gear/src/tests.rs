@@ -8559,7 +8559,7 @@ fn call_forbidden_function() {
 fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
     use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -8623,7 +8623,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
         assert_succeed(lock_owner_msg_id);
         assert_succeed(lock_rival_1_msg_id);
         assert_succeed(lock_rival_2_msg_id);
-    };
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -8635,7 +8635,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
         Command as WaiterCommand, RwLockContinuation, RwLockType, WASM_BINARY as WAITER_WASM,
     };
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -8747,7 +8747,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
             assert_succeed(lock_rival_1_msg_id);
             assert_succeed(lock_rival_2_msg_id);
         }
-    };
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -8759,7 +8759,7 @@ fn mx_lock_ownership_exceedance() {
 
     const LOCK_HOLD_DURATION: u32 = 3;
 
-    fn execution() -> () {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
