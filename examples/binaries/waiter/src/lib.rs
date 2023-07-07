@@ -56,6 +56,24 @@ pub enum SleepForWaitType {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub enum MxLockContinuation {
+    Nothing,
+    SleepFor(u32),
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum RwLockType {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum RwLockContinuation {
+    Nothing,
+    SleepFor(u32),
+}
+
+#[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
     SendFor(ActorId, u32),
@@ -65,4 +83,6 @@ pub enum Command {
     ReplyAndWait(WaitSubcommand),
     SleepFor(Vec<u32>, SleepForWaitType),
     WakeUp([u8; 32]),
+    MxLock(MxLockContinuation),
+    RwLock(RwLockType, RwLockContinuation),
 }
