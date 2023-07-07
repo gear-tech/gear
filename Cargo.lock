@@ -2294,9 +2294,12 @@ dependencies = [
 name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
+ "demo-waiter",
  "futures",
+ "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "parity-scale-codec",
 ]
 

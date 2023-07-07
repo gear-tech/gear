@@ -59,6 +59,16 @@ pub enum SleepForWaitType {
 pub enum MxLockContinuation {
     Nothing,
     SleepFor(u32),
+    MoveToStatic,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum MxLockStaticAccessSubcommand {
+    Drop,
+    AsRef,
+    AsMut,
+    Deref,
+    DerefMut,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -84,5 +94,6 @@ pub enum Command {
     SleepFor(Vec<u32>, SleepForWaitType),
     WakeUp([u8; 32]),
     MxLock(MxLockContinuation),
+    MxLockStaticAccess(MxLockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
 }

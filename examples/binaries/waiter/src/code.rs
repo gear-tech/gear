@@ -1,11 +1,13 @@
 use crate::{
-    Command, MxLockContinuation, RwLockContinuation, RwLockType, SleepForWaitType, WaitSubcommand,
+    Command, MxLockContinuation, MxLockStaticAccessSubcommand, RwLockContinuation, RwLockType,
+    SleepForWaitType, WaitSubcommand,
 };
+use core::ops::{Deref, DerefMut};
 use futures::future;
-
 use gstd::{errors::Error, exec, format, lock, msg, MessageId};
 
 static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
+static mut MUTEX_LOCK_GUARD: Option<lock::MutexGuard<()>> = None;
 static mut RW_LOCK: lock::RwLock<()> = lock::RwLock::new(());
 
 #[gstd::async_main]
@@ -77,8 +79,11 @@ async fn main() {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
         Command::MxLock(continuation) => {
-            let _lock_guard = unsafe { MUTEX.lock().await };
-            process_mx_lock_continuation(continuation).await;
+            let lock_guard = unsafe { MUTEX.lock().await };
+            process_mx_lock_continuation(lock_guard, continuation).await;
+        }
+        Command::MxLockStaticAccess(subcommand) => {
+            process_mx_lock_static_access_subcommand(subcommand);
         }
         Command::RwLock(lock_type, continuation) => {
             match lock_type {
@@ -103,10 +108,36 @@ fn process_wait_subcommand(subcommand: WaitSubcommand) {
     }
 }
 
-async fn process_mx_lock_continuation(continuation: MxLockContinuation) {
+async fn process_mx_lock_continuation(
+    lock_guard: lock::MutexGuard<'static, ()>,
+    continuation: MxLockContinuation,
+) {
     match continuation {
         MxLockContinuation::Nothing => {}
         MxLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
+        MxLockContinuation::MoveToStatic => unsafe {
+            MUTEX_LOCK_GUARD = Some(lock_guard);
+        },
+    }
+}
+
+fn process_mx_lock_static_access_subcommand(subcommand: MxLockStaticAccessSubcommand) {
+    match subcommand {
+        MxLockStaticAccessSubcommand::Drop => unsafe {
+            MUTEX_LOCK_GUARD = None;
+        },
+        MxLockStaticAccessSubcommand::AsRef => unsafe {
+            let _ = MUTEX_LOCK_GUARD.as_ref().unwrap().as_ref();
+        },
+        MxLockStaticAccessSubcommand::AsMut => unsafe {
+            let _ = MUTEX_LOCK_GUARD.as_mut().unwrap().as_mut();
+        },
+        MxLockStaticAccessSubcommand::Deref => unsafe {
+            let _ = MUTEX_LOCK_GUARD.as_ref().unwrap().deref();
+        },
+        MxLockStaticAccessSubcommand::DerefMut => unsafe {
+            let _ = MUTEX_LOCK_GUARD.as_mut().unwrap().deref_mut();
+        },
     }
 }
 
