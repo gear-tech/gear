@@ -21,4 +21,6 @@ futures = { workspace = true, features = ["alloc"] }
 static_assertions.workspace = true
 
 [features]
+default = ["panic-handler"]
+panic-handler = []
 debug = ["galloc/debug", "gcore/debug"]
