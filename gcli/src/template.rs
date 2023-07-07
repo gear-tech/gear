@@ -131,5 +131,8 @@ fn process_manifest(manifest: &mut String) -> Result<()> {
 #[tokio::test]
 async fn list_examples() {
     let ls = list().await.expect("Failed to get examples");
-    assert!(ls.contains(&"dapps-app".to_string()), "all templates: {ls:?}");
+    assert!(
+        ls.contains(&"dapps-app".to_string()),
+        "all templates: {ls:?}"
+    );
 }
