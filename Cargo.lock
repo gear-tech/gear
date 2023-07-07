@@ -3787,6 +3787,7 @@ dependencies = [
  "futures",
  "gcli",
  "gear-runtime",
+ "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
  "log",

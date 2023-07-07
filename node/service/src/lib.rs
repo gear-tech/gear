@@ -203,8 +203,6 @@ where
         config.runtime_cache_size,
     );
 
-    gear_runtime_interface::sandbox_init();
-
     let (client, backend, keystore_container, task_manager) =
         sc_service::new_full_parts::<Block, RuntimeApi, _>(
             config,
