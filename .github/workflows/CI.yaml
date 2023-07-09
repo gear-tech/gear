@@ -182,10 +182,7 @@ jobs:
         run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: Gear pallet tests with lazy pages"
-        run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+        run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
@@ -388,9 +385,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages
@@ -493,9 +488,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: >-
           cargo xwin test
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages
@@ -556,9 +549,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages

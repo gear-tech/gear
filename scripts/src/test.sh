@@ -41,25 +41,39 @@ workspace_test() {
 }
 
 gsdk_test() {
-  cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
-  cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gsdk "$@"
+    $CARGO test -p gsdk --features vara-testing "$@"
+  else
+    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
+  fi
 }
 
 gcli_test() {
-  cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-  cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gcli "$@"
+    $CARGO test -p gcli --features vara-testing "$@"
+  else
+    cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
+  fi
 }
 
 pallet_test() {
-  cargo test -p pallet-gear "$@"
-  cargo test -p pallet-gear-debug "$@"
-  cargo test -p pallet-gear-payment "$@"
-  cargo test -p pallet-gear-messenger "$@"
-  cargo test -p pallet-gear-gas "$@"
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p "pallet-*" "$@"
+  else
+    cargo nextest run -p "pallet-*" --profile ci --no-fail-fast "$@"
+  fi
 }
 
 client_tests() {
-  $CARGO nextest run -p gclient --no-fail-fast "$@"
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gclient "$@"
+  else
+    cargo nextest run -p gclient --no-fail-fast "$@"
+  fi
 }
 
 validators() {
@@ -81,12 +95,12 @@ run_fuzzer() {
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
+  $CARGO test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
 }
 
 doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
 }
