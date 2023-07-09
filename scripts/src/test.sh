@@ -46,8 +46,8 @@ gsdk_test() {
 }
 
 gcli_test() {
-  cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
-  cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
+  cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
+  cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
 }
 
 pallet_test() {
