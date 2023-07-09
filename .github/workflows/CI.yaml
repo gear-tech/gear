@@ -199,7 +199,7 @@ jobs:
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
+        run: ./scripts/gear.sh test client --release
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
@@ -383,7 +383,7 @@ jobs:
         run: ./scripts/gear.sh test gsdk
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
+        run: ./scripts/gear.sh test client --release
 
       - name: "Test: Lazy pages"
         run: >-

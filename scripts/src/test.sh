@@ -59,7 +59,7 @@ pallet_test() {
 }
 
 client_tests() {
-  RUST_TEST_THREADS=1 $CARGO test -p gclient
+  $CARGO nextest run -p gclient --no-fail-fast "$@"
 }
 
 validators() {

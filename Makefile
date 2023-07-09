@@ -232,7 +232,11 @@ test-pallet-release:
 
 .PHONY: test-client
 test-client: node-release examples
-	@ ./scripts/gear.sh test client --run-node
+	@ ./scripts/gear.sh test client
+
+.PHONY: test-client-release
+test-client-release: node-release examples
+	@ ./scripts/gear.sh test client --release
 
 .PHONY: test-syscalls-integrity
 test-syscalls-integrity:
