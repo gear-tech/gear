@@ -191,7 +191,7 @@ jobs:
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
+        run: ./scripts/gear.sh test gsdk --release
 
       - name: "Test: `gcli`"
         env:
@@ -380,7 +380,7 @@ jobs:
         run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
+        run: ./scripts/gear.sh test gsdk --release
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --release

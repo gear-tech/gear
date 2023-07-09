@@ -214,6 +214,10 @@ test-gear-release: examples # \
 test-gsdk: node-release
 	@ ./scripts/gear.sh test gsdk
 
+.PHONY: test-gsdk-release
+test-gsdk-release: node-release
+	@ ./scripts/gear.sh test gsdk --release
+
 .PHONY: test-gcli
 test-gcli: node
 	@ ./scripts/gear.sh test gcli

@@ -41,8 +41,8 @@ workspace_test() {
 }
 
 gsdk_test() {
-  $CARGO test -p gsdk
-  $CARGO test -p gsdk --features vara-testing
+  cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
+  cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
 }
 
 gcli_test() {
