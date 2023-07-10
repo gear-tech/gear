@@ -40,8 +40,9 @@ impl CratesIo {
         Ok(Self { packages, registry })
     }
 
+    /// Publish all unpublished packages.
     pub fn publish(&mut self) -> Result<()> {
-        self.for_each_package(|package, owners| {
+        self.for_each_package(|_, package, owners| {
             let Err(e) = owners else {
                 return Ok(())
             };
@@ -109,7 +110,7 @@ impl CratesIo {
         println!("{:0width$} | Owners", "Pacakge", width = WIDTH);
         println!("{} | {}", "-".repeat(WIDTH), "-".repeat(OWNERS));
 
-        self.for_each_package(|package, owners| {
+        self.for_each_package(|_, package, owners| {
             match owners {
                 Ok(owners) => {
                     println!("{:0width$} | {}", package, owners.join(", "), width = WIDTH)
@@ -127,23 +128,64 @@ impl CratesIo {
         })
     }
 
+    /// Add owner for all packages.
+    pub fn add_owner(&mut self, login: String) -> Result<()> {
+        self.for_each_package(|registry, package, owners| {
+            let Ok(owners) = owners else {
+                return Ok(())
+            };
+
+            if !owners.contains(&login) {
+                println!("adding shamil as owner of {}...", package);
+                registry
+                    .add_owners(&package, &[&login])
+                    .map_err(|e| eyre!(e))?;
+            }
+
+            Ok(())
+        })
+    }
+
+    /// Remove owner for all packages.
+    pub fn remove_owner(&mut self, login: String) -> Result<()> {
+        self.for_each_package(|registry, package, owners| {
+            let Ok(owners) = owners else {
+                return Ok(());
+            };
+
+            if owners.contains(&login) {
+                println!("removing clearloop as owner of {}...", package);
+                registry
+                    .remove_owners(&package, &[&login])
+                    .map_err(|e| eyre!(e))?;
+            }
+
+            Ok(())
+        })
+    }
+
     /// Run a function for each package.
     fn for_each_package(
         &mut self,
-        f: impl Fn(&str, Result<Vec<String>>) -> Result<()>,
+        f: impl Fn(&mut Registry, &str, Result<Vec<String>>) -> Result<()>,
     ) -> Result<()> {
         for package in self.packages.iter() {
             if WHITELIST.contains(&package.as_str()) {
                 continue;
             }
 
-            f(
-                package,
-                self.registry
-                    .list_owners(&package)
-                    .map(|owners| owners.into_iter().map(|u| u.login).collect::<Vec<_>>())
-                    .map_err(|e| eyre!(e)),
-            )?;
+            let owners = self
+                .registry
+                .list_owners(&package)
+                .map(|owners| {
+                    owners
+                        .into_iter()
+                        .map(|u| u.login.clone())
+                        .collect::<Vec<_>>()
+                })
+                .map_err(|e| eyre!(e));
+
+            f(&mut self.registry, package, owners)?;
         }
 
         Ok(())
@@ -168,6 +210,10 @@ enum SubCommand {
     Status,
     /// Publish crates-io packages.
     Publish,
+    /// Add owner for all packages.
+    AddOwner { login: String },
+    /// Remove owner for all packages.
+    RemoveOwner { login: String },
 }
 
 fn main() -> Result<()> {
@@ -178,6 +224,8 @@ fn main() -> Result<()> {
     match opt.command {
         SubCommand::Status => manager.status()?,
         SubCommand::Publish => manager.publish()?,
+        SubCommand::AddOwner { login } => manager.add_owner(login)?,
+        SubCommand::RemoveOwner { login } => manager.remove_owner(login)?,
     }
 
     Ok(())

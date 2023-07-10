@@ -1,3 +1,3 @@
-Gear Technologies pacakges
+Gear Technologies packages
 
 https://github.com/gear-tech

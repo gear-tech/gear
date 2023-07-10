@@ -6,6 +6,6 @@ license = "GPL-3.0"
 authors = ["Gear Technologies"]
 homepage = "https://github.com/gear-tech"
 documentation = "https://github.com/gear-tech"
-description = "Gear Technologies pacakges"
+description = "Gear Technologies packages"
 
 [workspace]
