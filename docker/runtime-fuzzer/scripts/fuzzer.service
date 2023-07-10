@@ -6,7 +6,7 @@ After=docker.service
 [Service]
 WorkingDirectory=work dir
 User=root
-ExecStart=/bin/bash fuzzer.sh
+ExecStart=/bin/bash fuzzer.sh start
 Restart=always
 
 [Install]

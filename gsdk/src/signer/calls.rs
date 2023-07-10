@@ -32,10 +32,10 @@ use crate::{
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
+    utils::storage_address_bytes,
     BlockNumber, Error,
 };
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 use gear_core::{
     ids::*,
     memory::{PageBuf, PageBufInner},
@@ -48,14 +48,13 @@ use subxt::{
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
-    tx::{DynamicTxPayload, TxProgress},
+    tx::{DynamicPayload, TxProgress},
+    utils::Static,
     Error as SubxtError, OnlineClient,
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
-
-const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
 // pallet-balances
 impl Signer {
@@ -197,7 +196,7 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
-    async fn process_sudo(&self, tx: DynamicTxPayload<'_>) -> EventsResult {
+    async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
         let tx = self.process(tx).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
@@ -245,10 +244,10 @@ impl Signer {
         let metadata = self.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
-            let item_key = subxt::storage::utils::storage_address_bytes(&item.0, &metadata)?;
+            let item_key = storage_address_bytes(&item.0, &metadata)?;
             let mut item_value_bytes = Vec::new();
             let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
-            subxt::metadata::EncodeStaticType(&item.1).encode_with_metadata(
+            Static(&item.1).encode_with_metadata(
                 item_value_type_id,
                 &metadata,
                 &mut item_value_bytes,
@@ -279,11 +278,7 @@ impl Signer {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
-                vec![subxt::metadata::EncodeStaticType(gas_node.0)],
-            );
+            let addr = subxt::dynamic::storage("GearGas", "GasNodes", vec![Static(gas_node.0)]);
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
@@ -377,14 +372,12 @@ impl Signer {
         }
     }
 
-    /// Wrapper for submit and watch with error handling.
-    #[async_recursion(?Send)]
+    /// Wrapper for submit and watch with nonce.
     async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &DynamicTxPayload<'a>,
-        counter: u16,
+        tx: &DynamicPayload,
     ) -> Result<TxProgressT, SubxtError> {
-        let process = if let Some(nonce) = self.nonce {
+        if let Some(nonce) = self.nonce {
             self.api
                 .tx()
                 .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
@@ -395,34 +388,17 @@ impl Signer {
                 .tx()
                 .sign_and_submit_then_watch_default(tx, &self.signer)
                 .await
-        };
-
-        if counter >= self.api().retry {
-            return process;
         }
-
-        // TODO: Add more patterns for this retrying job.
-        if let Err(SubxtError::Rpc(rpc_error)) = &process {
-            let error_string = rpc_error.to_string();
-            for error in ERRORS_REQUIRE_RETRYING {
-                if error_string.contains(error) {
-                    return self.sign_and_submit_then_watch(tx, counter + 1).await;
-                }
-            }
-        }
-
-        process
     }
 
     /// Listen transaction process and print logs.
-    async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
+    async fn process<'a>(&self, tx: DynamicPayload) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
-
-        // Get extrinsic details.
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
         let (pallet, name) = (tx.pallet_name(), tx.call_name());
+
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
         while let Some(status) = process.next_item().await {
@@ -430,10 +406,6 @@ impl Signer {
             self.log_status(&status);
             match status {
                 Future | Ready | Broadcast(_) | InBlock(_) => (),
-                Dropped | Invalid | Usurped(_) | FinalityTimeout(_) | Retracted(_) => {
-                    self.log_balance_spent(before).await?;
-                    return Err(status.into());
-                }
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
@@ -445,6 +417,10 @@ impl Signer {
 
                     self.log_balance_spent(before).await?;
                     return Ok(b);
+                }
+                _ => {
+                    self.log_balance_spent(before).await?;
+                    return Err(status.into());
                 }
             }
         }

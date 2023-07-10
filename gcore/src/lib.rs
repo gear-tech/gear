@@ -52,7 +52,6 @@
 //! fn panic(_: &core::panic::PanicInfo) -> ! {
 //!     core::arch::wasm32::unreachable()
 //! }
-//!
 //! # fn main() {}
 //! ```
 
@@ -60,6 +59,7 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
 
@@ -67,6 +67,7 @@ pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;
+pub mod stack_buffer;
 
 mod general;
 pub use general::*;

@@ -18,7 +18,7 @@
 
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
-use crate::{funcs::SyscallOutput, MemoryWrap};
+use crate::MemoryWrap;
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -26,12 +26,12 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendState, BackendTermination, TerminationReason,
+    runtime::Runtime as CommonRuntime,
+    BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft};
-use gear_core_errors::ExtError;
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
+use sp_sandbox::{HostError, InstanceGlobals, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -40,17 +40,65 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E> {
-    pub ext: E,
+pub(crate) struct Runtime<Ext> {
+    pub ext: Ext,
     pub memory: MemoryWrap,
-    pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
-    pub memory_manager: MemoryAccessManager<E>,
+    pub memory_manager: MemoryAccessManager<Ext>,
 }
 
-impl<E: BackendExt> Runtime<E> {
+impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
+    type Error = HostError;
+
+    fn ext_mut(&mut self) -> &mut Ext {
+        &mut self.ext
+    }
+
+    fn unreachable_error() -> Self::Error {
+        HostError
+    }
+
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        self.with_globals_update(|ctx| {
+            ctx.prepare_run();
+            ctx.ext.charge_gas_runtime(cost)?;
+            f(ctx)
+        })
+    }
+
+    fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(cost, |ctx| {
+            let res = f(ctx);
+            let res = ctx.process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+        .map(|_| ())
+    }
+
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
+        self.ext.alloc(pages, &mut self.memory)
+    }
+}
+
+impl<Ext: BackendExternalities> Runtime<Ext> {
     // Cleans `memory_manager`, updates ext counters based on globals.
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
@@ -101,50 +149,10 @@ impl<E: BackendExt> Runtime<E> {
         result
     }
 
-    pub fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-    {
-        self.with_globals_update(|ctx| {
-            ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost)?;
-            f(ctx)
-        })
-    }
-
-    pub fn run_fallible<T: Sized, F, R>(
-        &mut self,
-        res_ptr: u32,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-        R: From<Result<T, u32>> + Sized,
-    {
-        self.run_any(cost, |ctx| {
-            let res = f(ctx);
-            let res = ctx.process_fallible_func_result(res)?;
-
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
-
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
-        .map(|_| ReturnValue::Unit)
-    }
-
-    pub fn run<F>(&mut self, cost: RuntimeCosts, f: F) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<(), TerminationReason>,
-    {
-        self.run_any(cost, f).map(|_| ReturnValue::Unit)
-    }
-
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
     where
         F: FnOnce(
-            &mut MemoryAccessManager<E>,
+            &mut MemoryAccessManager<Ext>,
             &mut MemoryWrap,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
@@ -156,7 +164,7 @@ impl<E: BackendExt> Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
+impl<Ext: BackendExternalities> MemoryAccessRecorder for Runtime<Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -181,7 +189,7 @@ impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryOwner for Runtime<E> {
+impl<Ext: BackendExternalities> MemoryOwner for Runtime<Ext> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
@@ -216,18 +224,14 @@ impl<E: BackendExt> MemoryOwner for Runtime<E> {
     }
 }
 
-impl<E> BackendState for Runtime<E> {
+impl<Ext> BackendState for Runtime<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
     }
-
-    fn set_fallible_syscall_error(&mut self, err: ExtError) {
-        self.fallible_syscall_error = Some(err);
-    }
 }
 
-impl<E: BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
-    fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
+impl<Ext: BackendExternalities> BackendTermination<Ext, MemoryWrap> for Runtime<Ext> {
+    fn into_parts(self) -> (Ext, MemoryWrap, TerminationReason) {
         let Self {
             ext,
             memory,

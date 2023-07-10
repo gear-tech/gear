@@ -23,15 +23,14 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
-use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
-use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_core_errors::SignalCode;
+use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -94,7 +93,7 @@ pub trait WasmProgram: Debug {
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
-        logger::debug!(target: "gwasm", "DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {}", data);
     }
 }
 
@@ -269,23 +268,9 @@ impl<'a> Program<'a> {
             "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
             Use Program::from_opt_and_meta() instead"
         );
-        let is_opt = filename.ends_with(".opt.wasm");
 
-        let opt_code = if !is_opt {
-            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
-
-            // Ignore result, because it's not important.
-            _ = optimizer.insert_stack_end_export();
-
-            optimizer.strip_custom_sections();
-            optimizer
-                .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary")
-        } else {
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, None)
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        Self::from_opt_and_meta_code_with_id(system, id, code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(
@@ -396,11 +381,7 @@ impl<'a> Program<'a> {
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
-    pub fn send_signal<ID: Into<ProgramIdWrapper>>(
-        &self,
-        from: ID,
-        err: SimpleSignalError,
-    ) -> RunResult {
+    pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
@@ -410,7 +391,7 @@ impl<'a> Program<'a> {
             source,
             system.fetch_inc_message_nonce() as u128,
         );
-        let message = SignalMessage::new(origin_msg_id, err);
+        let message = SignalMessage::new(origin_msg_id, code);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -546,6 +527,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 mod tests {
     use super::Program;
     use crate::{Log, System};
+    use gear_core_errors::ErrorReplyReason;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -563,14 +545,16 @@ mod tests {
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
-        assert!(run_result.main_failed);
+        assert!(run_result.main_failed());
 
         let log = run_result.log();
         assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
-        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::InactiveProgram)
+            .source(prog.id())
+            .dest(user_id);
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
@@ -721,9 +705,11 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_file(
+        let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
+            420,
+            demo_capacitor::WASM_BINARY.to_vec(),
+            None,
         );
 
         let signer = 42;
@@ -732,7 +718,7 @@ mod tests {
         prog.send_bytes(signer, b"15");
 
         // Charge capacitor with CHARGE = 10
-        let response = prog.send_bytes(signer, b"10");
+        let response = dbg!(prog.send_bytes(signer, b"10"));
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)

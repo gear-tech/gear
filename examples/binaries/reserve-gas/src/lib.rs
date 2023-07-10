@@ -39,6 +39,7 @@ pub enum InitAction {
     Normal(Vec<(u64, u32)>),
     Wait,
     CheckArgs { mailbox_threshold: u64 },
+    FreshReserveUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -49,6 +50,7 @@ pub enum HandleAction {
     AddReservationToList(GasAmount, BlockCount),
     ConsumeReservationsFromList,
     RunInifitely,
+    SendFromReservationAndUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -64,7 +66,7 @@ pub type BlockCount = u32;
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{ContractError, ExtError, ReservationError},
+        errors::{Error, ExecutionError, ExtError, ReservationError},
         exec, msg,
         prelude::*,
         MessageId, ReservationId,
@@ -124,36 +126,52 @@ mod wasm {
             InitAction::CheckArgs { mailbox_threshold } => {
                 assert_eq!(
                     ReservationId::reserve(0, 10),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(50_000, 0),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ZeroReservationDuration
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold - 1, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold, u32::MAX),
-                    Err(ContractError::Ext(ExtError::Reservation(
-                        ReservationError::InsufficientGasForReservation
+                    Err(Error::Ext(ExtError::Execution(
+                        ExecutionError::NotEnoughGas
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(u64::MAX, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
-                        ReservationError::InsufficientGasForReservation
+                    Err(Error::Ext(ExtError::Execution(
+                        ExecutionError::NotEnoughGas
+                    )))
+                );
+            }
+            InitAction::FreshReserveUnreserve => {
+                let id = ReservationId::reserve(10_000, 10).unwrap();
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"fresh_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(Error::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
                     )))
                 );
             }
@@ -204,6 +222,22 @@ mod wasm {
                 loop {
                     let _msg_source = msg::source();
                 }
+            }
+            HandleAction::SendFromReservationAndUnreserve => {
+                let id = unsafe { RESERVATION_ID.take().unwrap() };
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"existing_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(Error::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
+                    )))
+                );
             }
         }
     }

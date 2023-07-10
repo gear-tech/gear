@@ -17,10 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
-use std::{env, path::Path, process};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process,
+};
 use wasm_project::ProjectType;
 
 mod builder_error;
@@ -74,6 +78,7 @@ impl WasmBuilder {
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
+            self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return;
         }
 
@@ -102,6 +107,9 @@ impl WasmBuilder {
         let profile = if profile == "debug" { "dev" } else { profile };
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
+        if env::var("__GEAR_WASM_BUILDER_NO_PATH_REMAP").is_err() && profile != "dev" {
+            self.cargo.set_paths_to_remap(&self.paths_to_remap()?);
+        }
 
         self.cargo.run()?;
         self.wasm_project.postprocess()
@@ -157,6 +165,25 @@ impl WasmBuilder {
             );
         }
         Ok(matched_features)
+    }
+
+    fn paths_to_remap(&self) -> Result<Vec<(PathBuf, &'static str)>> {
+        let home_dir = dirs::home_dir().context("unable to get home directory")?;
+
+        let project_dir = self.wasm_project.original_dir();
+
+        let cargo_dir = std::env::var_os("CARGO_HOME")
+            .map(PathBuf::from)
+            .context("unable to get cargo home directory")?;
+
+        let cargo_checkouts_dir = cargo_dir.join("git").join("checkouts");
+
+        Ok(vec![
+            (home_dir, "/home"),
+            (project_dir, "/code"),
+            (cargo_dir, "/cargo"),
+            (cargo_checkouts_dir, "/deps"),
+        ])
     }
 }
 

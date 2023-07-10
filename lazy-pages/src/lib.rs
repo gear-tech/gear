@@ -33,7 +33,7 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
     LimitedStr,
 };
-use pages::{PageNumber, WasmPageNumber};
+use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
@@ -42,7 +42,6 @@ mod globals;
 mod host_func;
 mod init_flag;
 mod mprotect;
-mod pages;
 mod process;
 mod signal;
 mod sys;
@@ -54,7 +53,6 @@ use crate::{
     },
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
-    pages::{PageDynSize, PageSizeNo},
 };
 
 #[cfg(test)]
@@ -139,7 +137,7 @@ pub fn initialize_for_program(
         }
 
         let wasm_mem_size =
-            WasmPageNumber::new(wasm_mem_size, runtime_ctx).ok_or(Error::WasmMemSizeOverflow)?;
+            WasmPage::new(wasm_mem_size, runtime_ctx).ok_or(Error::WasmMemSizeOverflow)?;
         let wasm_mem_size_in_bytes = wasm_mem_size.offset(runtime_ctx);
 
         // Check wasm program memory size
@@ -149,8 +147,7 @@ pub fn initialize_for_program(
             return Err(Error::MemorySizeIsNotNull);
         }
 
-        let stack_end =
-            WasmPageNumber::new(stack_end, runtime_ctx).ok_or(Error::StackEndOverflow)?;
+        let stack_end = WasmPage::new(stack_end, runtime_ctx).ok_or(Error::StackEndOverflow)?;
 
         let weights: Weights = weights.try_into().map_err(|ws: Vec<u64>| {
             Error::WrongWeightsAmount(ws.len(), WeightNo::Amount as usize)
@@ -274,7 +271,7 @@ pub fn change_wasm_mem_addr_and_size(addr: Option<usize>, size: Option<u32>) -> 
         };
 
         let size = match size {
-            Some(size) => WasmPageNumber::new(size, ctx).ok_or(Error::WasmMemSizeOverflow)?,
+            Some(size) => WasmPage::new(size, ctx).ok_or(Error::WasmMemSizeOverflow)?,
             None => ctx.wasm_mem_size,
         };
 

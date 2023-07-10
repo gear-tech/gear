@@ -6,9 +6,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-gear-core-errors.workspace = true
+gear-core-errors = { workspace = true, features = ["codec"] }
 blake2-rfc.workspace = true
-parity-scale-codec = { workspace = true, features = [ "derive", "max-encoded-len" ] }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true

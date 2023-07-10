@@ -29,8 +29,8 @@ use gear_core::gas::GasLeft;
 use crate::{
     globals::{GlobalNo, GlobalsContext},
     mprotect::MprotectError,
-    pages::{GearPageNumber, PageDynSize, PageSizeNo, SizeManager, WasmPageNumber},
 };
+use gear_core::pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -48,9 +48,9 @@ pub(crate) enum Error {
     #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
     InvalidPageDataSize { expected: u32, actual: u32 },
     #[display(fmt = "Any page cannot be write accessed twice: {_0:?}")]
-    DoubleWriteAccess(GearPageNumber),
+    DoubleWriteAccess(GearPage),
     #[display(fmt = "Any page cannot be read charged twice: {_0:?}")]
-    DoubleReadCharge(GearPageNumber),
+    DoubleReadCharge(GearPage),
     #[display(fmt = "Memory protection error: {_0}")]
     #[from]
     MemoryProtection(MprotectError),
@@ -126,20 +126,20 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: WasmPageNumber,
+    pub wasm_mem_size: WasmPage,
     /// Current program prefix in storage
     pub program_storage_prefix: PagePrefix,
     /// Pages which has been accessed by program during current execution
-    pub accessed_pages: BTreeSet<GearPageNumber>,
+    pub accessed_pages: BTreeSet<GearPage>,
     /// Pages which has been write accessed by program during current execution
-    pub write_accessed_pages: BTreeSet<GearPageNumber>,
+    pub write_accessed_pages: BTreeSet<GearPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
     /// which lies before this value will never get into `write_accessed_pages`,
     /// which means that they will never be updated in storage.
-    pub stack_end: WasmPageNumber,
+    pub stack_end: WasmPage,
     /// Context to access globals and works with them: charge gas, set status global.
     pub globals_context: Option<GlobalsContext>,
     /// Lazy-pages status: indicates in which mod lazy-pages works actually.
@@ -164,19 +164,19 @@ impl SizeManager for LazyPagesRuntimeContext {
 }
 
 impl LazyPagesExecutionContext {
-    pub fn is_accessed(&self, page: GearPageNumber) -> bool {
+    pub fn is_accessed(&self, page: GearPage) -> bool {
         self.accessed_pages.contains(&page)
     }
 
-    pub fn is_write_accessed(&self, page: GearPageNumber) -> bool {
+    pub fn is_write_accessed(&self, page: GearPage) -> bool {
         self.write_accessed_pages.contains(&page)
     }
 
-    pub fn set_accessed(&mut self, page: GearPageNumber) {
+    pub fn set_accessed(&mut self, page: GearPage) {
         self.accessed_pages.insert(page);
     }
 
-    pub fn set_write_accessed(&mut self, page: GearPageNumber) -> Result<(), Error> {
+    pub fn set_write_accessed(&mut self, page: GearPage) -> Result<(), Error> {
         self.set_accessed(page);
         match self.write_accessed_pages.insert(page) {
             true => Ok(()),
@@ -184,23 +184,23 @@ impl LazyPagesExecutionContext {
         }
     }
 
-    pub fn key_for_page(&mut self, page: GearPageNumber) -> &[u8] {
+    pub fn key_for_page(&mut self, page: GearPage) -> &[u8] {
         self.program_storage_prefix.calc_key_for_page(page)
     }
 
-    pub fn page_has_data_in_storage(&mut self, page: GearPageNumber) -> bool {
+    pub fn page_has_data_in_storage(&mut self, page: GearPage) -> bool {
         sp_io::storage::exists(self.key_for_page(page))
     }
 
     pub fn load_page_data_from_storage(
         &mut self,
-        page: GearPageNumber,
+        page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, Error> {
         if let Some(size) = sp_io::storage::read(self.key_for_page(page), buffer, 0) {
-            if size != GearPageNumber::size(self) {
+            if size != GearPage::size(self) {
                 return Err(Error::InvalidPageDataSize {
-                    expected: GearPageNumber::size(self),
+                    expected: GearPage::size(self),
                     actual: size,
                 });
             }
@@ -236,7 +236,7 @@ impl PagePrefix {
     }
 
     /// Returns key in storage for `page`.
-    fn calc_key_for_page(&mut self, page: GearPageNumber) -> &[u8] {
+    fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         let page_no: u32 = page.into();
         self.buffer[len - size_of::<u32>()..len].copy_from_slice(page_no.to_le_bytes().as_slice());
@@ -271,7 +271,7 @@ impl GasLeftCharger {
     pub fn charge_for_page_access(
         &self,
         gas_left: &mut GasLeft,
-        page: GearPageNumber,
+        page: GearPage,
         is_write: bool,
         is_accessed: bool,
     ) -> Result<Status, Error> {

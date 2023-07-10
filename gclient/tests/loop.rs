@@ -18,9 +18,9 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
+use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
-
-const PATH: &str = "../target/wasm32-unknown-unknown/release/demo_loop.opt.wasm";
+use parity_scale_codec::Encode;
 
 #[tokio::test]
 async fn inf_loop() -> anyhow::Result<()> {
@@ -38,16 +38,16 @@ async fn inf_loop() -> anyhow::Result<()> {
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
-    // Program initialization.
-    let (mid, pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
+    // Program initialization with infinite loop inside.
+    let (mid, _pid, _) = api
+        .upload_program_bytes(
+            WASM_BINARY,
+            gclient::now_micros().to_le_bytes(),
+            Scheme::direct(Calls::builder().infinite_loop()).encode(),
+            gas_limit,
+            0,
+        )
         .await?;
-
-    // Asserting successful initialization.
-    assert!(listener.message_processed(mid).await?.succeed());
-
-    // Sending message to trigger loop.
-    let (mid, _) = api.send_message_bytes(pid, "", gas_limit, 0).await?;
 
     // Asserting message failure.
     assert!(listener.message_processed(mid).await?.failed());

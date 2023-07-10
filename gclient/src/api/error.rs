@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gsdk::testing::Error as NodeError;
+use gsdk::{testing::Error as NodeError, Error as GearSDKError};
 use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::{DispatchError, Error as SubxtError};
 
@@ -32,7 +32,7 @@ pub enum Error {
     Anyhow(#[from] AError),
     /// A wrapper around [`gsdk::Error`].
     #[error(transparent)]
-    GearSDK(#[from] gsdk::result::Error),
+    GearSDK(GearSDKError),
     /// Occurs when attempting to iterate events without a subscription.
     #[error("An attempt to iter events without subscription")]
     EventsSubscriptionNotFound,
@@ -99,33 +99,25 @@ pub enum Error {
     ///
     /// # Example
     ///
-    /// ```
-    /// use gclient::{
-    ///     errors::{self, ModuleError},
-    ///     Error,
-    /// };
-    /// use subxt::{
-    ///     error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
-    ///     Error as SubxtError,
-    /// };
+    /// ```ignore
+    /// use gclient::{errors, Error, EventProcessor, GearApi};
     ///
-    /// let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
-    ///     error_data: ModuleErrorData {
-    ///         pallet_index: 14,
-    ///         error: [3, 0, 0, 0],
-    ///     },
-    ///     description: vec![],
-    ///     pallet: "".into(),
-    ///     error: "".into(),
-    /// }))
-    /// .into();
+    /// #[tokio::test]
+    /// async fn test_upload_failed() -> anyhow::Result<()> {
+    ///     let api = GearApi::dev_from_path("../target/release/gear").await?;
     ///
-    /// assert!(matches!(
-    ///     error,
-    ///     Error::Module(ModuleError::Treasury(
-    ///         errors::Treasury::InsufficientPermission
-    ///     ))
-    /// ));
+    ///     let err = api
+    ///         .upload_program(vec![], vec![], b"", u64::MAX, 0)
+    ///         .await
+    ///         .expect_err("Should fail");
+    ///
+    ///     assert!(matches!(
+    ///         err,
+    ///         Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+    ///     ));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     #[error(transparent)]
     Module(gsdk::metadata::ModuleError),
@@ -141,35 +133,12 @@ impl From<SubxtError> for Error {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        errors::{self, ModuleError},
-        Error,
-    };
-    use subxt::{
-        error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
-        Error as SubxtError,
-    };
+impl From<GearSDKError> for Error {
+    fn from(e: GearSDKError) -> Self {
+        if let GearSDKError::Subxt(SubxtError::Runtime(DispatchError::Module(m))) = e {
+            return Error::Module(m.into());
+        }
 
-    #[test]
-    fn test_parsing_module_error() {
-        let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
-            error_data: ModuleErrorData {
-                pallet_index: 14,
-                error: [3, 0, 0, 0],
-            },
-            description: vec![],
-            pallet: "".into(),
-            error: "".into(),
-        }))
-        .into();
-
-        assert!(matches!(
-            error,
-            Error::Module(ModuleError::Treasury(
-                errors::Treasury::InsufficientPermission
-            ))
-        ));
+        Error::GearSDK(e)
     }
 }

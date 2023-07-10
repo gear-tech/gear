@@ -183,21 +183,12 @@ impl GearApi {
         &self,
         origin: Option<H256>,
         message_id: MessageId,
-        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
     ) -> Result<GasInfo> {
-        self.calculate_reply_gas_at(
-            origin,
-            message_id,
-            exit_code,
-            payload,
-            value,
-            allow_other_panics,
-            None,
-        )
-        .await
+        self.calculate_reply_gas_at(origin, message_id, payload, value, allow_other_panics, None)
+            .await
     }
 
     /// Same as [`calculate_reply_gas`](Self::calculate_reply_gas), but
@@ -206,22 +197,13 @@ impl GearApi {
         &self,
         origin: Option<H256>,
         message_id: MessageId,
-        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
-            .calculate_reply_gas(
-                origin,
-                message_id,
-                exit_code,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+            .calculate_reply_gas(origin, message_id, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
     }

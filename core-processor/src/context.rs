@@ -23,8 +23,8 @@ use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::WasmPage,
     message::IncomingDispatch,
+    pages::WasmPage,
     program::Program,
     reservation::GasReserver,
 };
@@ -106,24 +106,21 @@ pub struct ProcessExecutionContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) gas_reserver: GasReserver,
     pub(crate) dispatch: IncomingDispatch,
-    pub(crate) origin: ProgramId,
     pub(crate) balance: u128,
     pub(crate) program: Program,
     pub(crate) memory_size: WasmPage,
 }
 
-impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
-    for ProcessExecutionContext
-{
-    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128, ProgramId)) -> Self {
-        let (context, code, balance, origin) = args;
+impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutionContext {
+    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128)) -> Self {
+        let (context, code, balance) = args;
 
         let ContextChargedForMemory {
             data:
                 ContextData {
                     gas_counter,
                     gas_allowance_counter,
-                    mut dispatch,
+                    dispatch,
                     destination_id,
                     actor_data,
                 },
@@ -138,23 +135,15 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
             actor_data.initialized,
         );
 
-        let gas_reserver = GasReserver::new(
-            dispatch.id(),
-            dispatch
-                .context_mut()
-                .as_mut()
-                .map(|ctx| ctx.fetch_inc_reservation_nonce())
-                .unwrap_or(0),
-            actor_data.gas_reservation_map,
-            max_reservations,
-        );
+        // Must be created once per taken from the queue dispatch by contract.
+        let gas_reserver =
+            GasReserver::new(&dispatch, actor_data.gas_reservation_map, max_reservations);
 
         Self {
             gas_counter,
             gas_allowance_counter,
             gas_reserver,
             dispatch,
-            origin,
             balance,
             program,
             memory_size,

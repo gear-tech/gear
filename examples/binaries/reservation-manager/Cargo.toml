@@ -1,0 +1,21 @@
+[package]
+name = "demo-reservation-manager"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, default-features = false, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+std = ["parity-scale-codec/std"]
+default = ["std"]

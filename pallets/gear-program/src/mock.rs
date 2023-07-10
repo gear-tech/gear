@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused)]
+
 use crate as pallet_gear_program;
 use crate::*;
 use frame_support::{

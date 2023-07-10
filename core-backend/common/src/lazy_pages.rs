@@ -21,10 +21,7 @@
 use core::fmt::Debug;
 
 use core::any::Any;
-use gear_core::{
-    costs::CostPerPage,
-    memory::{GearPage, HostPointer},
-};
+use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage};
 use scale_info::scale::{self, Decode, Encode};
 
 use crate::utils::LimitedStr;

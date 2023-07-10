@@ -25,9 +25,6 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
-#[cfg(feature = "std")]
-pub mod memory_dump;
-
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
@@ -45,7 +42,6 @@ pub mod benchmarking;
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
-    dispatch::DispatchError,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -57,8 +53,9 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{GearPage, PageBuf, WasmPage},
+    memory::PageBuf,
     message::DispatchKind,
+    pages::{GearPage, WasmPage},
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -164,16 +161,6 @@ pub trait QueueRunner {
     type Gas;
 
     fn run_queue(initial_gas: Self::Gas) -> Self::Gas;
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 /// Contains various limits for the block.
@@ -322,5 +309,29 @@ where
 {
     fn extract_call(&self) -> Call {
         self.function.clone()
+    }
+}
+
+pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
+    type VoucherId;
+    type Error;
+
+    fn redeem_with_id(
+        who: AccountId,
+        program: ProgramId,
+        amount: Balance,
+    ) -> Result<Self::VoucherId, Self::Error>;
+}
+
+impl<AccountId, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
+    type VoucherId = AccountId;
+    type Error = &'static str;
+
+    fn redeem_with_id(
+        _who: AccountId,
+        _program: ProgramId,
+        _amount: Balance,
+    ) -> Result<AccountId, Self::Error> {
+        Err("Payment vouchers are not supported")
     }
 }

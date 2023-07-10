@@ -27,31 +27,15 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::errors::{ContractError, ExtError, MessageError};
+use gstd::errors::{Error, ExtError, MessageError};
 
 #[no_mangle]
 extern "C" fn init() {
-    unsafe {
-        let mut len = 0;
-        gsys::gr_error(ptr::null_mut(), &mut len);
-        assert_ne!(len, 0);
-
-        let mut buf = vec![0; len as usize];
-        let mut len = 0;
-        gsys::gr_error(buf.as_mut_ptr(), &mut len);
-        assert_eq!(len, 0);
-        let err = ExtError::decode(&mut buf.as_ref()).unwrap();
-        assert_eq!(err, ExtError::SyscallUsage);
-    }
-
     let res = msg::send(ActorId::default(), "dummy", 250);
     assert_eq!(
         res,
-        Err(ContractError::Ext(ExtError::Message(
-            MessageError::InsufficientValue {
-                message_value: 250,
-                existential_deposit: 500
-            }
+        Err(Error::Ext(ExtError::Message(
+            MessageError::InsufficientValue
         )))
     );
 }

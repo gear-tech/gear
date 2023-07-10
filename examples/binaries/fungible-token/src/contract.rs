@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::ops::Range;
 use ft_io::*;
 use gmeta::Metadata;
 use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
@@ -42,7 +43,16 @@ struct FungibleToken {
 static mut FUNGIBLE_TOKEN: Option<FungibleToken> = None;
 
 impl FungibleToken {
-    /// Executed on receiving `fungible-token-messages::MintInput`.
+    fn test_set(&mut self, user_ids: Range<u64>, amount: u128) {
+        let len = user_ids.end - user_ids.start;
+        self.total_supply += amount * len as u128;
+        for user_id in user_ids {
+            let mut arr = [0u8; 32];
+            arr[0..8].copy_from_slice(&user_id.to_le_bytes()[..]);
+            self.balances.insert(arr.into(), amount);
+        }
+    }
+
     fn mint(&mut self, amount: u128) {
         self.balances
             .entry(msg::source())
@@ -59,7 +69,7 @@ impl FungibleToken {
         )
         .unwrap();
     }
-    /// Executed on receiving `fungible-token-messages::BurnInput`.
+
     fn burn(&mut self, amount: u128) {
         if self.balances.get(&msg::source()).unwrap_or(&0) < &amount {
             panic!("Amount exceeds account balance");
@@ -79,7 +89,7 @@ impl FungibleToken {
         )
         .unwrap();
     }
-    /// Executed on receiving `fungible-token-messages::TransferInput` or `fungible-token-messages::TransferFromInput`.
+
     /// Transfers `amount` tokens from `sender` account to `recipient` account.
     fn transfer(&mut self, from: &ActorId, to: &ActorId, amount: u128) {
         if from == &ZERO_ID || to == &ZERO_ID {
@@ -98,7 +108,7 @@ impl FungibleToken {
             .entry(*to)
             .and_modify(|balance| *balance += amount)
             .or_insert(amount);
-        msg::reply(
+        msg::reply_on_stack(
             FTEvent::Transfer {
                 from: *from,
                 to: *to,
@@ -109,7 +119,6 @@ impl FungibleToken {
         .unwrap();
     }
 
-    /// Executed on receiving `fungible-token-messages::ApproveInput`.
     fn approve(&mut self, to: &ActorId, amount: u128) {
         if to == &ZERO_ID {
             panic!("Approve to zero address");
@@ -130,10 +139,7 @@ impl FungibleToken {
     }
 
     fn can_transfer(&mut self, from: &ActorId, amount: u128) -> bool {
-        if from == &msg::source()
-            || from == &exec::origin()
-            || self.balances.get(&msg::source()).unwrap_or(&0) >= &amount
-        {
+        if from == &msg::source() || self.balances.get(&msg::source()).unwrap_or(&0) >= &amount {
             return true;
         }
         if let Some(allowed_amount) = self
@@ -194,7 +200,7 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
 
 #[no_mangle]
 extern "C" fn handle() {
-    let action: FTAction = msg::load().expect("Could not load Action");
+    let action: FTAction = msg::load_on_stack().expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {
@@ -216,16 +222,18 @@ extern "C" fn handle() {
             let balance = ft.balances.get(&account).unwrap_or(&0);
             msg::reply(FTEvent::Balance(*balance), 0).unwrap();
         }
+        FTAction::TestSet(user_ids, amount) => ft.test_set(user_ids, amount),
     }
 }
 
 #[no_mangle]
 extern "C" fn init() {
-    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
+    let config: InitConfig = msg::load_on_stack().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
         symbol: config.symbol,
         decimals: config.decimals,
+        balances: HashMap::with_capacity(config.initial_capacity.unwrap_or(0) as usize),
         ..Default::default()
     };
     unsafe { FUNGIBLE_TOKEN = Some(ft) };
@@ -235,7 +243,7 @@ extern "C" fn init() {
 extern "C" fn meta_state() -> *mut [i32; 2] {
     let query: State = msg::load().expect("failed to decode input argument");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
-    debug!("{:?}", query);
+    debug!("{query:?}");
     let encoded = match query {
         State::Name => StateReply::Name(ft.name.clone()),
         State::Symbol => StateReply::Name(ft.symbol.clone()),

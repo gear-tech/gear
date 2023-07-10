@@ -17,14 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::Error,
-    init_with_handler, mprotect,
-    pages::{GearPageNumber, PageDynSize},
-    signal::ExceptionInfo,
-    LazyPagesVersion, UserSignalHandler,
+    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
+    UserSignalHandler,
 };
 use gear_backend_common::LimitedStr;
-use gear_core::memory::{GearPage, PageU32Size, WasmPage};
+use gear_core::pages::{GearPage, PageDynSize, PageU32Size, WasmPage};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {
@@ -80,7 +77,10 @@ fn read_write_flag_works() {
 
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
-        vec![WasmPage::size(), GearPage::size()],
+        vec![
+            <WasmPage as PageU32Size>::size(),
+            <GearPage as PageU32Size>::size(),
+        ],
         vec![LimitedStr::from_small_str(""); 2],
         Default::default(),
     )
@@ -104,8 +104,8 @@ fn test_mprotect_pages() {
     const NEW_VALUE: u8 = 100;
 
     let page_size = 0x4000;
-    let new_page = |p: u32| GearPageNumber::new(p, &page_size).unwrap();
-    let offset = |p: GearPageNumber| p.offset(&page_size) as usize;
+    let new_page = |p: u32| <GearPage as PageDynSize>::new(p, &page_size).unwrap();
+    let offset = |p: GearPage| PageDynSize::offset(&p, &page_size) as usize;
 
     struct TestHandler;
 
@@ -115,12 +115,17 @@ fn test_mprotect_pages() {
             let addr = region::page::floor(info.fault_addr);
             region::protect(
                 addr,
-                GearPage::size() as usize,
+                <GearPage as PageU32Size>::size() as usize,
                 region::Protection::READ_WRITE,
             )
             .unwrap();
             *(mem as *mut u8) = NEW_VALUE;
-            region::protect(addr, GearPage::size() as usize, region::Protection::READ).unwrap();
+            region::protect(
+                addr,
+                <GearPage as PageU32Size>::size() as usize,
+                region::Protection::READ,
+            )
+            .unwrap();
 
             Ok(())
         }
@@ -130,17 +135,21 @@ fn test_mprotect_pages() {
 
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
-        vec![WasmPage::size(), GearPage::size()],
+        vec![
+            <WasmPage as PageU32Size>::size(),
+            <GearPage as PageU32Size>::size(),
+        ],
         vec![LimitedStr::from_small_str(""); 2],
         Default::default(),
     )
     .unwrap();
 
-    let mut v = vec![0u8; 3 * WasmPage::size() as usize];
+    let mut v = vec![0u8; 3 * <WasmPage as PageU32Size>::size() as usize];
     let buff = v.as_mut_ptr() as usize;
-    let page_begin = ((buff + WasmPage::size() as usize) / WasmPage::size() as usize)
-        * WasmPage::size() as usize;
-    let mem_size = 2 * WasmPage::size();
+    let page_begin = ((buff + <WasmPage as PageU32Size>::size() as usize)
+        / <WasmPage as PageU32Size>::size() as usize)
+        * <WasmPage as PageU32Size>::size() as usize;
+    let mem_size = 2 * <WasmPage as PageU32Size>::size();
 
     // Randomly choose pages, which will be protected.
     let pages_protected = [0, 4, 5].map(new_page);
@@ -159,7 +168,7 @@ fn test_mprotect_pages() {
         0,
         mem_size as usize,
         pages_unprotected.iter().copied(),
-        &GearPage::size(),
+        &<GearPage as PageU32Size>::size(),
         false,
         false,
     )
