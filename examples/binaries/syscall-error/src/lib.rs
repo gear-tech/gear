@@ -34,9 +34,9 @@ extern "C" fn init() {
     let res = msg::send(ActorId::default(), "dummy", 250);
     assert_eq!(
         res,
-        Err(Error::Ext(ExtError::Message(
-            MessageError::InsufficientValue
-        )))
+        Err(Error::Core(
+            ExtError::Message(MessageError::InsufficientValue).into()
+        ))
     );
 }
 
