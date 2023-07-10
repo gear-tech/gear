@@ -163,7 +163,7 @@ impl BackendSyscallError for UnrecoverableExtError {
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {
-        self.into_termination_reason().into()
+        RunFallibleError::TerminationReason(self.into_termination_reason())
     }
 }
 
@@ -205,12 +205,15 @@ impl From<ReservationError> for FallibleExtError {
 impl From<FallibleExtError> for RunFallibleError {
     fn from(err: FallibleExtError) -> Self {
         match err {
-            FallibleExtError::Core(err) => err.into(),
-            FallibleExtError::ForbiddenFunction => TerminationReason::Actor(
-                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
-            )
-            .into(),
-            FallibleExtError::Charge(err) => TerminationReason::from(err).into(),
+            FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
+            FallibleExtError::ForbiddenFunction => {
+                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                    ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
+                ))
+            }
+            FallibleExtError::Charge(err) => {
+                RunFallibleError::TerminationReason(TerminationReason::from(err))
+            }
         }
     }
 }

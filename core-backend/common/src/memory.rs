@@ -95,7 +95,7 @@ impl BackendSyscallError for MemoryAccessError {
             MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
             }
-            e => e.into_termination_reason().into(),
+            e => RunFallibleError::TerminationReason(e.into_termination_reason()),
         }
     }
 }
