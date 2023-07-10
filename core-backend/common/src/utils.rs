@@ -18,7 +18,7 @@
 
 use alloc::{borrow::Cow, string::String};
 use scale_info::{
-    scale::{self, Decode, Encode},
+    scale::{Decode, Encode},
     TypeInfo,
 };
 
@@ -67,7 +67,6 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 #[derive(
     TypeInfo, Encode, Decode, Debug, Clone, derive_more::Display, PartialEq, Eq, PartialOrd, Ord,
 )]
-#[codec(crate = scale)]
 pub struct LimitedStr<'a>(Cow<'a, str>);
 
 impl<'a> LimitedStr<'a> {
