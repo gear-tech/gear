@@ -25,6 +25,7 @@ use crate::{
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_core_errors::ExtError as FallibleExtError;
 
+/// Error returned from closure argument in [`Runtime::run_fallible`].
 #[derive(Debug, Clone, derive_more::From)]
 pub enum RunFallibleError {
     TerminationReason(TerminationReason),
