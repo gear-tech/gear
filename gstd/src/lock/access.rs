@@ -38,6 +38,12 @@ impl AccessQueue {
         inner.as_mut().and_then(|v| v.pop_front())
     }
 
+    pub fn contains(&self, message_id: &MessageId) -> bool {
+        let inner = unsafe { &*self.0.get() };
+
+        inner.as_ref().map_or(false, |v| v.contains(message_id))
+    }
+
     pub const fn new() -> Self {
         AccessQueue(UnsafeCell::new(None))
     }

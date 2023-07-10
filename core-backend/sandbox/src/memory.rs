@@ -38,7 +38,7 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    type GrowError = sp_sandbox::Error;
+    type GrowError = gear_sandbox::Error;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
         self.0.grow(pages.raw()).map(|_| ())
@@ -74,7 +74,7 @@ mod tests {
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
-        use sp_sandbox::SandboxMemory as WasmMemory;
+        use gear_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
             WasmMemory::new(static_pages as u32, Some(max_pages as u32))

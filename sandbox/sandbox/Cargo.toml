@@ -1,0 +1,43 @@
+[package]
+name = "gear-sandbox"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "This crate provides means to instantiate and execute wasm modules."
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec.workspace = true
+log.workspace = true
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false }
+sp-core.workspace = true
+sp-std.workspace = true
+sp-wasm-interface.workspace = true
+gear-runtime-interface.workspace = true
+gear-sandbox-env.workspace = true
+
+[dev-dependencies]
+assert_matches = "1.3.0"
+wat = "1.0"
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"log/std",
+	"sp-core/std",
+	"sp-std/std",
+	"sp-wasm-interface/std",
+	"gear-runtime-interface/std",
+	"gear-sandbox-env/std",
+	"wasmi/std",
+	"wasmi/virtual_memory",
+]
+strict = []
+host-sandbox = ["gear-runtime-interface/host-sandbox"]
