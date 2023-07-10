@@ -105,7 +105,7 @@ fn deref_mut_mx_lock_guard_from_different_msg_fails() {
     );
 }
 
-fn init_fixture<'a>(system: &'a System) -> (Program<'a>, MessageId) {
+fn init_fixture(system: &System) -> (Program<'_>, MessageId) {
     system.init_logger_with_default_filter("");
     let program = Program::current(system);
     program.send_bytes(USER_ID, []);
