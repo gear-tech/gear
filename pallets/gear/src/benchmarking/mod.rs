@@ -95,6 +95,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::*;
+use gear_sandbox::SandboxMemory;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
@@ -109,7 +110,6 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill,
 };
-use sp_sandbox::SandboxMemory;
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;

@@ -23,9 +23,9 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
-use sp_sandbox::SandboxMemory;
+use gear_sandbox::SandboxMemory;
 
-pub type DefaultExecutorMemory = sp_sandbox::default_executor::Memory;
+pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
 
 /// Wrapper for sp_sandbox::Memory.
 pub struct MemoryWrap(DefaultExecutorMemory);
