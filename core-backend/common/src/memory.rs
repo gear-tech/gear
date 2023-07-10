@@ -86,10 +86,8 @@ impl BackendSyscallError for MemoryAccessError {
 
     fn into_run_fallible_error(self) -> RunFallibleError {
         match self {
-            MemoryAccessError::Memory(MemoryError::AccessOutOfBounds) => {
-                RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
-            }
-            MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
+            MemoryAccessError::Memory(MemoryError::AccessOutOfBounds)
+            | MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
             }
             MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
