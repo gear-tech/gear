@@ -1038,6 +1038,7 @@ mod tests {
         message::{ContextSettings, IncomingDispatch},
         pages::PageNumber,
     };
+    use gear_core::buffer::LimitedVec;
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1104,6 +1105,42 @@ mod tests {
 
         fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
             self.0.allocations_context = ctx;
+
+            self
+        }
+
+        fn with_sending_fee(mut self, fee: u64) -> Self {
+            self.0.message_context.settings_mut().set_sending_fee(fee);
+
+            self
+        }
+
+        fn with_scheduled_sending_fee(mut self, fee: u64) -> Self {
+            self.0.message_context.settings_mut().set_scheduled_sending_fee(fee);
+
+            self
+        }
+
+        fn with_waiting_fee(mut self, fee: u64) -> Self {
+            self.0.message_context.settings_mut().set_waiting_fee(fee);
+
+            self
+        }
+
+        fn with_waking_fee(mut self, fee: u64) -> Self {
+            self.0.message_context.settings_mut().set_waking_fee(fee);
+
+            self
+        }
+
+        fn with_reservation_fee(mut self, fee: u64) -> Self {
+            self.0.message_context.settings_mut().set_reservation_fee(fee);
+
+            self
+        }
+
+        fn with_max_outgoing_messages(mut self, limit: u32) -> Self {
+            self.0.message_context.settings_mut().set_outgoing_limit(limit);
 
             self
         }
@@ -1209,6 +1246,38 @@ mod tests {
         assert_eq!(initial_gas, gas_amount.burned());
         // there was lack of allowance
         assert_eq!(0, allowance);
+    }
+
+    #[test]
+    fn test_send_limit() {
+        // Max of 3 sends
+        let mut ext = Ext::new(ProcessorContextBuilder::new()
+            .with_max_outgoing_messages(3)
+            .build());
+
+        let handle = ext.send_init();
+        assert!(handle.is_ok());
+
+        // Default data
+        let data = HandlePacket::new(ProgramId::default(), LimitedVec::default(), 0);
+
+        let msg = ext.send_commit(handle.unwrap(), data, 0);
+        assert!(msg.is_ok());
+
+        let handle = ext.send_init();
+        assert!(handle.is_ok());
+
+        let msg = ext.send_push(handle.unwrap(), &[]);
+        assert!(msg.is_ok());
+
+        let handle = ext.send_init();
+        assert!(handle.is_ok());
+
+        let msg = ext.send_push_input(handle.unwrap(), 0, 0);
+
+        // The last handle should not be created since we set a limit of 3
+        let handle = ext.send_init();
+        assert!(handle.is_err());
     }
 
     mod property_tests {
