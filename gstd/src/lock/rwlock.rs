@@ -309,12 +309,19 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
         let readers = &self.lock.readers;
         let readers_count = readers.get().saturating_add(1);
 
+        let current_msg_id = crate::msg::id();
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && readers_count <= READERS_LIMIT {
             readers.replace(readers_count);
             Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
-            self.lock.queue.enqueue(crate::msg::id());
+            // If the message is already in the access queue, and we come here,
+            // it means the message has just been woken up from the waitlist.
+            // In that case we do not want to register yet another access attempt
+            // and just go back to the waitlist.
+            if !self.lock.queue.contains(&current_msg_id) {
+                self.lock.queue.enqueue(current_msg_id);
+            }
             Poll::Pending
         }
     }
@@ -324,12 +331,19 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let current_msg_id = crate::msg::id();
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && self.lock.readers.get() == 0 {
-            *lock = Some(crate::msg::id());
+            *lock = Some(current_msg_id);
             Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
-            self.lock.queue.enqueue(crate::msg::id());
+            // If the message is already in the access queue, and we come here,
+            // it means the message has just been woken up from the waitlist.
+            // In that case we do not want to register yet another access attempt
+            // and just go back to the waitlist.
+            if !self.lock.queue.contains(&current_msg_id) {
+                self.lock.queue.enqueue(current_msg_id);
+            }
             Poll::Pending
         }
     }
