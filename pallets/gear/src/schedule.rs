@@ -960,6 +960,7 @@ impl<T: Config> Default for HostFnWeights<T> {
 
             // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
             alloc: to_weight!(cost_batched!(alloc))
+                .saturating_sub(to_weight!(cost_batched!(alloc_per_page)))
                 .saturating_sub(to_weight!(cost_batched!(mem_grow))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
             free: to_weight!(cost_batched!(free)),

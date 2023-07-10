@@ -84,7 +84,7 @@ use frame_support::{
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
-use gear_backend_sandbox::memory::MemoryWrap;
+use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
@@ -109,7 +109,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill,
 };
-use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
+use sp_sandbox::SandboxMemory;
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
@@ -825,7 +825,7 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
-    // Alloc there 1 page because `alloc` execution time is nearly a constant for any non-zero amount of pages but for 0 pages it's significally less.
+    // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -837,7 +837,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // For now it's nearly a constant for any non-zero amount of pages.
     alloc_per_page {
         let p in 1 .. MAX_PAGES;
         let mut res = None;
