@@ -37,14 +37,14 @@ use gear_core::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
-use gear_wasm_instrument::{
-    syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
-};
-use sp_sandbox::{
+use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostError, HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder,
     SandboxInstance, SandboxMemory, Value,
+};
+use gear_wasm_instrument::{
+    syscalls::SysCallName::{self, *},
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -133,7 +133,7 @@ macro_rules! wrap_common_func {
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
-    CreateEnvMemory(sp_sandbox::Error),
+    CreateEnvMemory(gear_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]

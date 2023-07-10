@@ -30,8 +30,8 @@ use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
+use gear_sandbox::{HostError, InstanceGlobals, Value};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use sp_sandbox::{HostError, InstanceGlobals, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -44,7 +44,7 @@ pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
     pub termination_reason: TerminationReason,
-    pub globals: sp_sandbox::default_executor::InstanceGlobals,
+    pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<Ext>,
 }

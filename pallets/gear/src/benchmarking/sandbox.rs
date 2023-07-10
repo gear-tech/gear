@@ -25,7 +25,7 @@ use super::{
 };
 
 use common::Origin;
-use sp_sandbox::{
+use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory},
     SandboxEnvironmentBuilder, SandboxInstance,
 };
