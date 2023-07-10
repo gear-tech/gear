@@ -25,10 +25,10 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
-    TrapExplanation, UnrecoverableExecutionError,
-    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
+    UnrecoverableWaitError,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -152,7 +152,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
     }
 }
 
-impl BackendExternalitiesError for UnrecoverableExtError {
+impl BackendSyscallError for UnrecoverableExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
@@ -226,7 +226,7 @@ pub enum AllocExtError {
     Alloc(AllocError),
 }
 
-impl BackendAllocExternalitiesError for AllocExtError {
+impl BackendAllocSyscallError for AllocExtError {
     type ExtError = UnrecoverableExtError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {

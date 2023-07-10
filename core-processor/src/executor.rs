@@ -32,8 +32,8 @@ use alloc::{
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    ActorTerminationReason, BackendExternalities, BackendExternalitiesError, BackendReport,
-    Environment, EnvironmentError, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
+    EnvironmentError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -259,7 +259,7 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -472,7 +472,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);

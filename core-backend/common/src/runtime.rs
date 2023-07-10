@@ -20,7 +20,7 @@
 
 use crate::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExternalities, BackendExternalitiesError, BackendState, TerminationReason,
+    BackendExternalities, BackendState, BackendSyscallError, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_core_errors::ExtError as FallibleExtError;
@@ -34,7 +34,7 @@ pub enum RunFallibleError {
 
 impl<E> From<E> for RunFallibleError
 where
-    E: BackendExternalitiesError,
+    E: BackendSyscallError,
 {
     fn from(err: E) -> Self {
         err.into_run_fallible_error()

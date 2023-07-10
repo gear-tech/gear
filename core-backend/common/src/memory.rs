@@ -19,8 +19,8 @@
 //! Work with WASM program memory in backends.
 
 use crate::{
-    runtime::RunFallibleError, ActorTerminationReason, BackendExternalities,
-    BackendExternalitiesError, TerminationReason, TrapExplanation, UnrecoverableMemoryError,
+    runtime::RunFallibleError, ActorTerminationReason, BackendExternalities, BackendSyscallError,
+    TerminationReason, TrapExplanation, UnrecoverableMemoryError,
 };
 use alloc::vec::Vec;
 use core::{
@@ -57,7 +57,7 @@ pub enum MemoryAccessError {
     Decode,
 }
 
-impl BackendExternalitiesError for MemoryAccessError {
+impl BackendSyscallError for MemoryAccessError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds)

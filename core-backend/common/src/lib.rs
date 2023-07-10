@@ -89,7 +89,7 @@ impl From<TrapExplanation> for TerminationReason {
     }
 }
 
-impl<E: BackendExternalitiesError> From<E> for TerminationReason {
+impl<E: BackendSyscallError> From<E> for TerminationReason {
     fn from(err: E) -> Self {
         err.into_termination_reason()
     }
@@ -289,8 +289,9 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
-/// A trait for conversion of the externalities API error to `TerminationReason`.
-pub trait BackendExternalitiesError: Sized {
+/// A trait for conversion of the externalities API error
+/// to `TerminationReason` and `RunFallibleError`.
+pub trait BackendSyscallError: Sized {
     fn into_termination_reason(self) -> TerminationReason;
 
     fn into_run_fallible_error(self) -> RunFallibleError;
@@ -300,8 +301,8 @@ pub trait BackendExternalitiesError: Sized {
 /// A trait for conversion of the externalities memory management error to api error.
 ///
 /// If the conversion fails, then `Self` is returned in the `Err` variant.
-pub trait BackendAllocExternalitiesError: Sized {
-    type ExtError: BackendExternalitiesError;
+pub trait BackendAllocSyscallError: Sized {
+    type ExtError: BackendSyscallError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
@@ -407,7 +408,7 @@ pub trait BackendState {
     }
 
     /// Process alloc function result
-    fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocExternalitiesError>(
+    fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocSyscallError>(
         &mut self,
         res: Result<T, ExtAllocError>,
     ) -> Result<Result<T, ExtAllocError>, TerminationReason> {

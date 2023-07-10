@@ -21,8 +21,8 @@
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::{RunFallibleError, Runtime},
-    syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, MessageWaitedType, TerminationReason, TrapExplanation,
+    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendSyscallError, MessageWaitedType, TerminationReason, TrapExplanation,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -50,9 +50,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,

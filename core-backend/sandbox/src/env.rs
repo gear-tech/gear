@@ -28,8 +28,8 @@ use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
+    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult,
 };
 use gear_core::{
@@ -165,9 +165,9 @@ struct EnvBuilder<Ext: BackendExternalities> {
 impl<Ext> EnvBuilder<Ext>
 where
     Ext: BackendExternalities + 'static,
-    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -199,9 +199,9 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
 impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
-    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
@@ -269,9 +269,9 @@ where
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::UnrecoverableError: BackendExternalitiesError,
+    EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
+    EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
