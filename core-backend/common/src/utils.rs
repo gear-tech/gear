@@ -91,12 +91,16 @@ impl<'a> LimitedStr<'a> {
     }
 }
 
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "String must be less than {} bytes.", TRIMMED_MAX_LEN)]
+pub struct LimitedStrTryFromError;
+
 impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
-    type Error = &'static str;
+    type Error = LimitedStrTryFromError;
 
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         if s.len() > TRIMMED_MAX_LEN {
-            return Err(Self::INIT_ERROR_MSG);
+            return Err(LimitedStrTryFromError);
         }
 
         Ok(Self(Cow::from(s)))
