@@ -347,13 +347,29 @@ mod tests {
         }
     }
 
+    /// check forbidden error codes
+    ///
+    /// forbidden codes either:
+    /// 1. never actually used
+    /// 2. deprecated
+    ///
+    /// codes are forbidden to avoid collision in
+    /// old smart-contracts that built their logic on these error codes
+    /// if we accidentally re-use such codes
     #[test]
     fn error_codes_forbidden() {
         let codes = [0xffff /* SyscallUsage */];
 
+        // check forbidden code is `Unsupported` variant now
         for code in codes {
             let err = ExtError::from_u32(code);
             assert_eq!(err, Some(ExtError::Unsupported));
+        }
+
+        // check forbidden code is never produced
+        for err in enum_iterator::all::<ExtError>() {
+            let code = err.to_u32();
+            assert!(!codes.contains(&code));
         }
     }
 }
