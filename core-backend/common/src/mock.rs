@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocExternalitiesError,
+    BackendExternalities, BackendExternalitiesError, ExtInfo, SystemReservationContext,
+    TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
@@ -49,6 +50,10 @@ impl fmt::Display for Error {
 
 impl BackendExternalitiesError for Error {
     fn into_termination_reason(self) -> TerminationReason {
+        unimplemented!()
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
         unimplemented!()
     }
 }

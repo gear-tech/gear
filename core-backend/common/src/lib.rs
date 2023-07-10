@@ -293,9 +293,7 @@ pub trait BackendExternalities: Externalities + CountersOwner {
 pub trait BackendExternalitiesError: Sized {
     fn into_termination_reason(self) -> TerminationReason;
 
-    fn into_run_fallible_error(self) -> RunFallibleError {
-        RunFallibleError::TerminationReason(self.into_termination_reason())
-    }
+    fn into_run_fallible_error(self) -> RunFallibleError;
 }
 
 // TODO: consider to remove this trait and use Result<Result<Page, AllocError>, GasError> instead #2571

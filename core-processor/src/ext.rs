@@ -161,6 +161,10 @@ impl BackendExternalitiesError for UnrecoverableExtError {
             UnrecoverableExtError::Charge(err) => err.into(),
         }
     }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
+        self.into_termination_reason().into()
+    }
 }
 
 /// Fallible API error.
