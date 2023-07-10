@@ -2150,6 +2150,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-read-big-state"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
