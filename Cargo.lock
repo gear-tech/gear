@@ -4262,6 +4262,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-wasm"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f745ed9eb163f4509f01d5564e37db52ec43dd23569bafdba597a5f1e4c125c9"
+
+[[package]]
 name = "gear-wasm-builder"
 version = "0.1.2"
 dependencies = [
@@ -4311,7 +4317,7 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
- "wasm-instrument 0.2.1",
+ "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
 ]
@@ -4623,6 +4629,15 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "gwasm-instrument"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcb127cb43d375de7cdacffd0e4e1c746e52381d11a0465909ae6fbecb99c6c3"
+dependencies = [
+ "gear-wasm",
 ]
 
 [[package]]
@@ -9648,7 +9663,7 @@ dependencies = [
  "sp-maybe-compressed-blob",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "thiserror",
- "wasm-instrument 0.3.0",
+ "wasm-instrument",
  "wasmi 0.13.2",
 ]
 
@@ -13398,14 +13413,6 @@ version = "0.1.0"
 dependencies = [
  "clap 4.2.1",
  "hex",
- "parity-wasm 0.45.0",
-]
-
-[[package]]
-name = "wasm-instrument"
-version = "0.2.1"
-source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#756a8b92dab5a5fa841226eebbaf215812262e3b"
-dependencies = [
  "parity-wasm 0.45.0",
 ]
 
