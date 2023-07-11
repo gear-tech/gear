@@ -1,9 +1,13 @@
 [package]
 name = "gear-core-processor"
 version = "0.1.0"
+description = "gear core processor"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [dependencies]
 gear-core.workspace = true

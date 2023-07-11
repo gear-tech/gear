@@ -22,8 +22,8 @@ mod registry;
 mod tests;
 
 use crate::result::{Error, Result};
-use core_processor::configs::BlockInfo;
 use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
+use gear_processor::configs::BlockInfo;
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -110,8 +110,8 @@ impl Meta {
 
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+        gear_processor::informational::execute_for_reply::<
+            gear_backend_wasmi::WasmiEnvironment<gear_processor::Ext, String>,
             String,
         >(
             method.into(),

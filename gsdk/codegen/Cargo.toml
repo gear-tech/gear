@@ -1,9 +1,13 @@
 [package]
 name = "gsdk-codegen"
 version = "0.1.0"
-edition.workspace = true
+description = "gear sdk codegen"
 authors.workspace = true
+edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [lib]
 proc-macro = true
