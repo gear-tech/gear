@@ -1,9 +1,13 @@
 [package]
 name = "gear-core-errors"
 version = "0.1.0"
+description = "Gear core errors."
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }
