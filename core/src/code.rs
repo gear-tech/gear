@@ -25,13 +25,13 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
+    gwasm_instrument::{
+        self as wasm_instrument,
+        gas_metering::{ConstantCostRules, Rules},
+    },
     parity_wasm::{
         self,
         elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
-    },
-    wasm_instrument::{
-        self,
-        gas_metering::{ConstantCostRules, Rules},
     },
     STACK_END_EXPORT_NAME,
 };

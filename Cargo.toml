@@ -205,8 +205,8 @@ gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
-gear-core = { path = "core" }
-gear-core-errors = { path = "core-errors" }
+gear-core = { version = "0.1.0", path = "core" }
+gear-core-errors = { version = "0.1.0", path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
@@ -221,7 +221,7 @@ gear-service = { path = "node/service", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
-gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
+gear-wasm-instrument = { version = "0.1.0", path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 pallet-airdrop = { path = "pallets/airdrop", default-features = false }
 pallet-gear = { path = "pallets/gear", default-features = false }
