@@ -214,6 +214,10 @@ test-gear-release: examples # \
 test-gsdk: node-release
 	@ ./scripts/gear.sh test gsdk
 
+.PHONY: test-gsdk-release
+test-gsdk-release: node-release
+	@ ./scripts/gear.sh test gsdk --release
+
 .PHONY: test-gcli
 test-gcli: node
 	@ ./scripts/gear.sh test gcli
@@ -232,7 +236,11 @@ test-pallet-release:
 
 .PHONY: test-client
 test-client: node-release examples
-	@ ./scripts/gear.sh test client --run-node
+	@ ./scripts/gear.sh test client
+
+.PHONY: test-client-release
+test-client-release: node-release examples
+	@ ./scripts/gear.sh test client --release
 
 .PHONY: test-syscalls-integrity
 test-syscalls-integrity:
