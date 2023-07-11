@@ -32,10 +32,11 @@ use gear_backend_common::{
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, WasmPage},
+    memory::PageBuf,
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
+    pages::{GearPage, WasmPage},
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -483,7 +484,9 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
-                TrapExplanation::Ext(_err) => SimpleExecutionError::BackendError,
+                TrapExplanation::UnrecoverableExt(_) | TrapExplanation::FallibleExt(_) => {
+                    SimpleExecutionError::BackendError
+                }
                 TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },

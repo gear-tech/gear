@@ -11,6 +11,7 @@ env:
   TERM: xterm-256color
   COUNT: 100
   BINARYEN_VERSION: version_111
+  __GEAR_WASM_BUILDER_NO_PATH_REMAP: 1
 
 jobs:
   build:
@@ -26,16 +27,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |
@@ -47,10 +40,10 @@ jobs:
       - name: "Cache: Unpack"
         continue-on-error: true
         run: |
-          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+          tar -xf /cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
+        run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks,lazy-pages
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -70,21 +63,6 @@ jobs:
           ./target/release/regression-analysis convert
           --data-folder-path ./target/analysis/tests/
           --output-file ./target/action-pallet-output.json
-
-      - name: "Collect: Node runtime tests"
-        run: |
-          rm -rf ./target/analysis/
-          mkdir -p ./target/analysis/tests/
-          mkdir -p ./target/analysis/output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest gear > ./target/analysis/output/$i 2>&1 ; mv ./target/runtime-test-junit.xml ./target/analysis/tests/$i; done
-          ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/analysis/tests/ --output-path ./target/runtime-tests.json
-
-      - name: "Generate report: Node runtime tests"
-        run: >-
-          ./target/release/regression-analysis convert
-          --disable-filter
-          --data-folder-path ./target/analysis/tests/
-          --output-file ./target/action-runtime-output.json
 
       - name: "Collect: pallet-gear benches"
         run: >-
@@ -113,14 +91,6 @@ jobs:
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Deploy: Node runtime tests"
-        uses: ./.github/actions/deploy-benchmark
-        with:
-          name: Node runtime tests
-          file: ./target/action-runtime-output.json
-          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: "Deploy: pallet-gear host function weights"
         uses: ./.github/actions/deploy-benchmark
         with:
@@ -137,7 +107,7 @@ jobs:
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Deploy: pallet-gear instruction weights"
+      - name: "Deploy: pallet-gear extrinsic weights"
         uses: ./.github/actions/deploy-benchmark
         with:
           name: pallet-gear extrinsic weights

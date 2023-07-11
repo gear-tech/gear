@@ -10,7 +10,7 @@ gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-common = { workspace = true, default-features = true }
+gear-common = { workspace = true, features = ["std"] }
 
 futures.workspace = true
 anyhow.workspace = true
@@ -37,6 +37,8 @@ demo-backend-error.workspace = true
 demo-btree.workspace = true
 demo-calc-hash.workspace = true
 demo-calc-hash-in-one-block.workspace = true
+demo-capacitor.workspace = true
+demo-constructor.workspace = true
 demo-distributor.workspace = true
 demo-meta-io.workspace = true
 demo-mul-by-const.workspace = true
@@ -47,3 +49,4 @@ demo-proxy-relay.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 gmeta = { workspace = true }
 gstd = { workspace = true, features = ["debug"] }
+demo-wat.workspace = true

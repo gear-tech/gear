@@ -63,11 +63,10 @@ mod wasm {
 
         async fn compose(&mut self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
             debug!(
-                "[0x{} compose::compose] Composing programs 0x{} and 0x{} on input {:?}",
+                "[0x{} compose::compose] Composing programs 0x{} and 0x{} on input {input:?}",
                 hex::encode(exec::program_id()),
                 hex::encode(self.contract_a.handle),
                 hex::encode(self.contract_b.handle),
-                input
             );
             debug!(
                 "[0x{} compose::compose] Calling contract #1 at 0x{}",
@@ -82,9 +81,8 @@ mod wasm {
             );
             let output = self.contract_b.call(output_a).await?;
             debug!(
-                "[0x{} compose::compose] Composition output: {:?}",
+                "[0x{} compose::compose] Composition output: {output:?}",
                 hex::encode(exec::program_id()),
-                output
             );
 
             Ok(output)
@@ -122,17 +120,15 @@ mod wasm {
     async fn main() {
         let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
-            "[0x{} compose::handle] input = {:?}, gas_available = {}",
+            "[0x{} compose::handle] input = {input:?}, gas_available = {}",
             hex::encode(exec::program_id()),
-            input,
             exec::gas_available()
         );
 
         if let Ok(outcome) = (unsafe { STATE.compose(input) }).await {
             debug!(
-                "[0x{} compose::handle] Composition output: {:?}",
+                "[0x{} compose::handle] Composition output: {outcome:?}",
                 hex::encode(exec::program_id()),
-                outcome
             );
             msg::reply(outcome, 0).unwrap();
         }

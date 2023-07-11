@@ -33,17 +33,17 @@ use gear_backend_common::{
 };
 use gear_core::{
     gas::GasLeft,
-    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntryPoint},
+    pages::{PageNumber, WasmPage},
+};
+use gear_sandbox::{
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
+    HostError, HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder,
+    SandboxInstance, SandboxMemory, Value,
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
     GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
-};
-use sp_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostError, HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder,
-    SandboxInstance, SandboxMemory, Value,
 };
 
 #[derive(Clone, Copy)]
@@ -132,7 +132,7 @@ macro_rules! wrap_common_func {
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
-    CreateEnvMemory(sp_sandbox::Error),
+    CreateEnvMemory(gear_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
@@ -164,8 +164,9 @@ struct EnvBuilder<Ext: BackendExternalities> {
 impl<Ext> EnvBuilder<Ext>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -197,8 +198,9 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
 impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
-    Ext::Error: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    Ext::UnrecoverableError: BackendExternalitiesError,
+    Ext::FallibleError: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
@@ -266,8 +268,9 @@ where
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::Error: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
+    EnvExt::UnrecoverableError: BackendExternalitiesError,
+    EnvExt::FallibleError: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
@@ -326,7 +329,6 @@ where
             memory: MemoryWrap::new(memory),
             globals: Default::default(),
             memory_manager: Default::default(),
-            fallible_syscall_error: None,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

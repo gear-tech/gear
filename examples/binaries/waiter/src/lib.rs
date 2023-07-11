@@ -18,7 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use codec::{Decode, Encode};
+use alloc::vec::Vec;
 
 type ActorId = [u8; 32];
 
@@ -54,6 +57,30 @@ pub enum WaitSubcommand {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub enum SleepForWaitType {
+    All,
+    Any,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum MxLockContinuation {
+    Nothing,
+    SleepFor(u32),
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum RwLockType {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum RwLockContinuation {
+    Nothing,
+    SleepFor(u32),
+}
+
+#[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
     SendFor(ActorId, u32),
@@ -61,4 +88,8 @@ pub enum Command {
     SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
     ReplyAndWait(WaitSubcommand),
+    SleepFor(Vec<u32>, SleepForWaitType),
+    WakeUp([u8; 32]),
+    MxLock(MxLockContinuation),
+    RwLock(RwLockType, RwLockContinuation),
 }

@@ -21,9 +21,9 @@
 use crate::{
     common::{Error, LazyPagesExecutionContext},
     mprotect,
-    pages::{GearPageNumber, PageDynSize},
 };
 use gear_backend_common::lazy_pages::Status;
+use gear_core::pages::{GearPage, PageDynSize};
 use std::slice;
 
 /// `process_lazy_pages` use struct which implements this trait,
@@ -50,7 +50,7 @@ pub(crate) trait AccessHandler {
     /// Charge for accessed gear page.
     fn charge_for_page_access(
         &mut self,
-        page: GearPageNumber,
+        page: GearPage,
         is_already_accessed: bool,
     ) -> Result<Status, Error>;
 
@@ -58,12 +58,12 @@ pub(crate) trait AccessHandler {
     fn charge_for_page_data_loading(&mut self) -> Result<Status, Error>;
 
     /// Get the biggest page from `pages`.
-    fn last_page(pages: &Self::Pages) -> Option<GearPageNumber>;
+    fn last_page(pages: &Self::Pages) -> Option<GearPage>;
 
     /// Apply `f` for all `pages`.
     fn process_pages(
         pages: Self::Pages,
-        process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
+        process_one: impl FnMut(GearPage) -> Result<(), Error>,
     ) -> Result<(), Error>;
 
     /// Drops and returns output.
@@ -126,9 +126,9 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             }
         };
 
-        let page_size = GearPageNumber::size(ctx) as usize;
+        let page_size = GearPage::size(ctx) as usize;
 
-        let process_one = |page: GearPageNumber| {
+        let process_one = |page: GearPage| {
             let page_offset = page.offset(ctx);
             let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page_offset as usize);
 

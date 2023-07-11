@@ -28,7 +28,7 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode};
+use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
 
 /// Get a payload of the message that is currently being processed.
 ///
@@ -60,6 +60,17 @@ use scale_info::scale::{Decode, Encode};
 ///   vector.
 pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
+}
+
+/// Same as [`load`](self::load), but reads current message payload to allocated
+/// on stack buffer. Decoded object will be also on stack, but if it contains
+/// any fields, with heap allocations inside (for example vec), then
+/// this decoding may lead to heap allocations.
+pub fn load_on_stack<D: Decode>() -> Result<D> {
+    super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
+        let mut buffer = read_result? as &[u8];
+        D::decode(&mut buffer).map_err(Error::Decode)
+    })
 }
 
 /// Send a new message as a reply to the message being
@@ -111,6 +122,37 @@ pub fn load<D: Decode>() -> Result<D> {
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
+}
+
+// TODO: use encoded_size and in reply also. But should also check,
+// that does not lead to additional heap allocations and additional calculation
+// #2880.
+/// Same as [reply], but encodes payload to stack allocated buffer.
+/// Buffer size for encoding is at least `E::max_encoded_len()`.
+pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
+    struct ExternalBufferOutput<'a> {
+        buffer: &'a mut [u8],
+        offset: usize,
+    }
+
+    impl<'a> Output for ExternalBufferOutput<'a> {
+        fn write(&mut self, bytes: &[u8]) {
+            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
+            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
+            if end_offset > self.buffer.len() {
+                panic!("{}", ERROR_LOG);
+            }
+            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
+            self.offset = end_offset;
+        }
+    }
+
+    gcore::stack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
+        let mut output = ExternalBufferOutput { buffer, offset: 0 };
+        payload.encode_to(&mut output);
+        let ExternalBufferOutput { buffer, offset } = output;
+        super::reply_bytes(&buffer[..offset], value)
+    })
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of

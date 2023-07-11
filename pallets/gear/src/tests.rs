@@ -22,6 +22,7 @@ use crate::{
     mock::{
         self,
         new_test_ext,
+        run_for_blocks,
         run_to_block,
         run_to_block_maybe_with_queue,
         run_to_next_block,
@@ -63,12 +64,14 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::TrapExplanation;
+use gear_backend_common::{
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
+};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageU32Size, WasmPage},
     message::UserStoredMessage,
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -3013,7 +3016,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{GearPage, PageU32Size};
+    use gear_core::pages::{GearPage, PageU32Size};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -4649,9 +4652,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case no gas.
@@ -4685,9 +4688,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitUpTo case no gas.
@@ -4721,9 +4724,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::NotEnoughGas,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
+            )),
         );
 
         // Command::WaitFor case invalid argument.
@@ -4758,9 +4761,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
 
         // Command::WaitUpTo case invalid argument.
@@ -4795,9 +4798,9 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::ZeroDuration,
-            ))),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
+            )),
         );
     });
 }
@@ -4837,9 +4840,9 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                    WaitError::WaitAfterReply,
-                ))),
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
+                    UnrecoverableExtError::Wait(UnrecoverableWaitError::WaitAfterReply),
+                )),
             );
         });
     };
@@ -6567,8 +6570,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
@@ -6612,10 +6615,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::ProgramRent(
-                    ProgramRentError::MaximumBlockCountPaid
-                ))
+                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
+                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
             )
         } else {
             String::from("no info")
@@ -7722,8 +7723,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Message(MessageError::InsufficientValue)
             )
         } else {
             String::from("no info")
@@ -7775,8 +7776,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
+                "Failed to create program: Ext({:?})",
+                ExtError::Execution(ExecutionError::NotEnoughValue)
             )
         } else {
             String::from("no info")
@@ -8558,6 +8559,467 @@ fn call_forbidden_function() {
 }
 
 #[test]
+fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
+
+    let execution = || {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::SleepFor(4)));
+
+        let (lock_rival_1_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+        let (lock_rival_2_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_owner_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_1_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_2_msg_id
+        ));
+
+        // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+        // releases the mutex so the lock rival 1 can acquire and release it for
+        // the lock rival 2 to acquire it.
+        run_for_blocks(1, None);
+
+        assert_succeed(lock_owner_msg_id);
+        assert_succeed(lock_rival_1_msg_id);
+        assert_succeed(lock_rival_2_msg_id);
+    };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{
+        Command as WaiterCommand, RwLockContinuation, RwLockType, WASM_BINARY as WAITER_WASM,
+    };
+
+    let execution = || {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        // For write lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+                WaiterCommand::RwLock(RwLockType::Read, RwLockContinuation::SleepFor(4)),
+            );
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+
+        // For read lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+                WaiterCommand::RwLock(RwLockType::Write, RwLockContinuation::SleepFor(4)),
+            );
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Read,
+                RwLockContinuation::Nothing,
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+    };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn async_sleep_for() {
+    use demo_waiter::{
+        Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
+    };
+
+    const SLEEP_FOR_BLOCKS: u32 = 2;
+    const LONGER_SLEEP_FOR_BLOCKS: u32 = 3;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        // Block 2
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (send_command_to_waiter, assert_waiter_single_reply) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let assert_waiter_single_reply = |expected_reply| {
+                assert_eq!(
+                    MailboxOf::<Test>::len(&USER_1),
+                    1,
+                    "Asserting Waiter reply {}",
+                    expected_reply
+                );
+                let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload_bytes())
+                    .expect("Failed to decode Waiter reply");
+                assert_eq!(
+                    waiter_reply, expected_reply,
+                    "Asserting Waiter reply {}",
+                    expected_reply
+                );
+            };
+
+            (send_command_to_waiter, assert_waiter_single_reply)
+        };
+
+        // Block 3
+        let (sleep_for_msg_id, sleep_for_block_number) = send_command_to_waiter(
+            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS], WaitType::All),
+        );
+
+        // Assert the program replied with a message before the sleep.
+        // The message payload is a number of the block the program received
+        // the SleepFor message in.
+        assert_waiter_single_reply(format!(
+            "Before the sleep at block: {}",
+            sleep_for_block_number
+        ));
+
+        // Assert the SleepFor message is in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // Block 4
+        send_command_to_waiter(WaiterCommand::WakeUp(sleep_for_msg_id.into()));
+
+        // Assert there are no any replies yet.
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+        // Assert the SleepFor message is still in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // Block 5
+        run_to_next_block(None);
+
+        // Assert the program replied with a message after the sleep.
+        // The message payload is a number of the block the program
+        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        assert_waiter_single_reply(format!(
+            "After the sleep at block: {}",
+            sleep_for_block_number + SLEEP_FOR_BLOCKS
+        ));
+
+        // Assert the SleepFor message is no longer in the waitlist.
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &sleep_for_msg_id
+        ));
+
+        // let long_sleep = sleep_for(longer);
+        // let short_sleep = sleep_for(shorter);
+        // join!(long_sleep, short_sleep);
+        {
+            // Block 6
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    WaitType::All,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 8
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert there are no any replies yet even though SLEEP_FOR_BLOCKS blocks
+            // has just passed.
+            assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+            // Assert the SleepFor message is still in the waitlist.
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+
+            // Block 9
+            run_to_next_block(None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let short_sleep = sleep_for(shorter);
+        // let long_sleep = sleep_for(longer);
+        // join!(short_sleep, long_sleep);
+        {
+            // Block 10
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    WaitType::All,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 12
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert there are no any replies yet even though SLEEP_FOR_BLOCKS blocks
+            // has just passed.
+            assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+            // Assert the SleepFor message is still in the waitlist.
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+
+            // Block 13
+            run_to_next_block(None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let long_sleep = sleep_for(longer);
+        // let short_sleep = sleep_for(shorter);
+        // select!(short_sleep, long_sleep);
+        {
+            // Block 14
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    WaitType::Any,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 16
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+
+        // let short_sleep = sleep_for(shorter);
+        // let long_sleep = sleep_for(longer);
+        // select!(short_sleep, long_sleep);
+        {
+            // Block 17
+            let (sleep_for_msg_id, sleep_for_block_number) =
+                send_command_to_waiter(WaiterCommand::SleepFor(
+                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    WaitType::Any,
+                ));
+            // Clear the before sleep reply.
+            MailboxOf::<Test>::clear();
+
+            // Block 18
+            run_for_blocks(SLEEP_FOR_BLOCKS, None);
+
+            // Assert the program replied with a message after the sleep.
+            // The message payload is a number of the block the program
+            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            assert_waiter_single_reply(format!(
+                "After the sleep at block: {}",
+                sleep_for_block_number + SLEEP_FOR_BLOCKS
+            ));
+
+            // Assert the SleepFor message is no longer in the waitlist.
+            assert!(!WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &sleep_for_msg_id
+            ));
+        }
+    });
+}
+
+#[test]
 fn test_async_messages() {
     use demo_async_tester::{Kind, WASM_BINARY};
 
@@ -8619,6 +9081,96 @@ fn test_async_messages() {
 
         assert!(Gear::is_active(pid));
     })
+}
+
+#[test]
+fn program_generator_works() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        let code_id = CodeId::generate(&code);
+
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(generator_id));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            generator_id,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_id);
+        let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
+        let expected_child_id = ProgramId::generate(code_id, &expected_salt);
+        assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
+    });
+}
+
+#[test]
+fn wait_state_machine() {
+    use demo_wait::WASM_BINARY;
+
+    init_logger();
+
+    let init = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let wait_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(wait_id));
+
+        System::reset_events();
+
+        wait_id
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = init();
+
+        let to_send = vec![b"FIRST".to_vec(), b"SECOND".to_vec(), b"THIRD".to_vec()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[0].as_ref().to_vec()),
+            Assertion::ReplyCode(ReplyCode::Success(SuccessReplyReason::Auto)),
+            Assertion::Payload(ids[1].as_ref().to_vec()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
 }
 
 #[test]
@@ -13135,6 +13687,7 @@ fn send_reply_with_voucher_works() {
 #[test]
 fn double_read_works() {
     use demo_constructor::{Calls, Scheme};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let noop_branch = Calls::builder().noop();
@@ -13146,14 +13699,14 @@ fn double_read_works() {
             .if_else("is_eq", noop_branch, panic_branch);
         let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
 
-        let (_, constructor_id) = utils::init_constructor(predefined_scheme);
+        let (_, pid) = utils::init_constructor(predefined_scheme);
 
         // Resetting events to check the result of the last message.
         System::reset_events();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
-            constructor_id,
+            pid,
             b"PAYLOAD".to_vec(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
@@ -13166,4 +13719,189 @@ fn double_read_works() {
             vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
         );
     });
+}
+
+/// Tests gas allowance exceed handling.
+/// More precisely, it checks one property:
+/// no context data is stored within previously
+/// executed message when gas allowance exceed
+/// happened.
+#[test]
+fn test_gas_allowance_exceed_no_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::{Counted, Queue, Toggler};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let wat = r#"
+            (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (call $reply (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+                (loop (br 0))
+            )
+        )"#;
+
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("failed uploading program");
+        run_to_next_block(None);
+
+        assert_ok!(send_default_message(USER_1, pid));
+        let mid = get_last_message_id();
+        // Setting to 100 million the gas allowance ends faster than gas limit
+        run_to_next_block(Some(100_000_000));
+
+        // Execution is denied after reque
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no execution context is saved after gas allowance exceeded error
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), mid);
+        assert!(msg.context().is_none());
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        // There should be now enough gas allowance, so the message is executed
+        // and execution ends with `GasLimitExceeded`.
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
+        );
+        assert_last_dequeued(1);
+    })
+}
+
+/// Does pretty same test as `test_gas_allowance_exceed_no_context`,
+/// but this time executed message will have non zero context.
+#[test]
+fn test_gas_allowance_exceed_with_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::*;
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    init_logger();
+
+    let process_task_weight = mock::get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let call_wait_key = "call_wait";
+
+        // Initialize a program and set `call_wait' value to `true`.
+        let init = Calls::builder().source("user1").bool(call_wait_key, true);
+        let (_, pid) = utils::init_constructor(Scheme::direct(init));
+
+        let execute = |calls: Calls, allowance: Option<u64>| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(allowance);
+
+            msg_id
+        };
+
+        // If `call_wait` is true, we execute a `wait`. Otherwise, we `reply` and `send`.
+        // It's intended that the message will be executed several times.
+        // That's to perform checks of the msg execution context when message
+        // is in queue after wake (so it has some context), and after gas allowance exceeded
+        // error (so the context remains unchanged).
+        let wait_branch = Calls::builder().wait();
+        let skip_wait_branch = Calls::builder().noop();
+        let handle1 = Calls::builder()
+            .if_else(
+                Arg::Get(call_wait_key.to_string()),
+                wait_branch,
+                skip_wait_branch,
+            )
+            .reply(b"random_message".to_vec())
+            .send("user1", b"another_random_message".to_vec());
+        let handle1_mid = execute(handle1.clone(), None);
+
+        // Check it waits.
+        assert!(WaitlistOf::<Test>::contains(&pid, &handle1_mid));
+        assert_eq!(WaitlistOf::<Test>::len(&pid), 1);
+
+        // Taking the context for the check later.
+        let handle1_ctx = WaitlistOf::<Test>::iter_key(pid)
+            .next()
+            .and_then(|(m, _)| m.context().clone());
+        assert!(handle1_ctx.is_some());
+
+        // This will set `call_wait` to false, wake the message with `handle1_mid` id.
+        // We set the weight to such a value, so only message with `handle2`
+        // payload is executed, That will allow us to reproduce the case in
+        // `test_gas_allowance_exceed_no_context` test, but with message having
+        // context already set.
+        let handle2 = Calls::builder()
+            .bool(call_wait_key, false)
+            .wake(<[u8; 32]>::from(handle1_mid));
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle2.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+        // We add `process_task_weight` as block running requires not only executing message, but
+        // some other read/writes. By adding such small value we guarantee that
+        // message with `handle2` payload is executed, but message with `handle1_mid`
+        // id will not reach the executor.
+        execute(
+            handle2,
+            Some(gas_info.min_limit + process_task_weight.ref_time()),
+        );
+
+        assert_last_dequeued(1);
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Now we calculate a required for the execution of the `handle1_mid` message.
+        // The queue processing is denied from the previous execution, now allowing it,
+        // to calculate gas properly.
+        QueueProcessingOf::<Test>::allow();
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle1.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+
+        // Trigger gas allowance exceeded error while executing only `handle1_mid`.
+        // With such gas allowance we are sure, that `reply` call from `handle1` calls set
+        // is called successfully executed, but there's not enough allowance to end the
+        // execution of the message.
+        run_to_next_block(Some(gas_info.min_limit - 100_000));
+
+        // Execution is denied after reque.
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no information on reply sent is saved in the execution
+        // context after gas allowance exceeded error.
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), handle1_mid);
+        assert_eq!(msg.context(), &handle1_ctx);
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        run_to_next_block(None);
+        assert_succeed(handle1_mid);
+    })
 }

@@ -51,7 +51,7 @@ pallet-timestamp.workspace = true
 sp-consensus-babe = { workspace = true, optional = true}
 
 # Benchmark deps
-sp-sandbox = { workspace = true, optional = true }
+gear-sandbox = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
@@ -83,6 +83,7 @@ demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
 demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
+demo-program-generator.workspace = true
 demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
@@ -95,6 +96,7 @@ demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
+demo-wait.workspace = true
 demo-waiter.workspace = true
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
@@ -168,7 +170,7 @@ runtime-benchmarks = [
 	"common/runtime-benchmarks",
 	"gear-backend-common/mock",
 	"gear-core-errors/codec",
-	"sp-sandbox",
+	"gear-sandbox",
 	"sp-consensus-slots",
 	"sp-consensus-babe",
 	"rand",

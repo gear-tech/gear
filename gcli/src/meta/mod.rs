@@ -79,9 +79,13 @@ impl Meta {
         let mut display = fmt.debug_struct("Metadata");
         display.field("init", &Io::new(&meta.init, &registry));
         display.field("handle", &Io::new(&meta.handle, &registry));
-        display.field("reply", &Io::new(&meta.reply, &registry));
         display.field("others", &Io::new(&meta.others, &registry));
-        for (name, ty) in [("signal", meta.signal), ("state", meta.state)].into_iter() {
+        let single_types = [
+            ("reply", meta.reply),
+            ("signal", meta.signal),
+            ("state", meta.state),
+        ];
+        for (name, ty) in single_types {
             if let Some(id) = ty {
                 display.field(name, &registry.derive_id(id).map_err(|_| fmt::Error)?);
             } else {
@@ -139,18 +143,17 @@ impl Meta {
         )?))
     }
 
-    /// Decode matdata from hex bytes.
+    /// Decode metadata from hex bytes.
     pub fn decode_hex(hex: &[u8]) -> Result<Self> {
-        Ok(Self::Data(MetadataRepr::decode(
-            &mut ::hex::decode(hex)?.as_ref(),
-        )?))
+        let meta = MetadataRepr::from_hex(hex).map_err(Error::MetaParseError)?;
+        Ok(Self::Data(meta))
     }
 
     /// Decode program meta.
     ///
     /// Either program metadata or state reading functions.
-    pub fn decode(mut encoded: &[u8]) -> Result<Self> {
-        MetadataRepr::decode(&mut encoded)
+    pub fn decode(encoded: &[u8]) -> Result<Self> {
+        MetadataRepr::from_bytes(encoded)
             .map(Meta::Data)
             .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded) })
             .map_err(Into::into)

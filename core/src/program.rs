@@ -18,7 +18,7 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, memory::WasmPage};
+use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
 use alloc::collections::BTreeSet;
 use scale_info::scale::{Decode, Encode};
 

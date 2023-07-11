@@ -292,12 +292,6 @@ pub fn run() -> sc_cli::Result<()> {
                 }
             })
         }
-        #[cfg(feature = "runtime-test")]
-        Some(Subcommand::GearRuntimeTest(cmd)) => {
-            let runner = cli.create_runner(cmd)?;
-
-            runner.sync_run(|config| cmd.run(config))
-        }
         #[cfg(feature = "try-runtime")]
         Some(Subcommand::TryRuntime(cmd)) => {
             use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};

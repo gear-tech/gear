@@ -18,7 +18,7 @@
 
 use codec::Error as CodecError;
 use gear_backend_wasmi::wasmi;
-use gear_core::{ids::ProgramId, memory::WasmPage};
+use gear_core::{ids::ProgramId, pages::WasmPage};
 use gear_core_errors::ExtError;
 
 /// Type alias for the testing functions running result.

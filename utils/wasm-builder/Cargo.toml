@@ -20,6 +20,7 @@ log.workspace = true
 pathdiff.workspace = true
 which.workspace = true
 colored.workspace = true
+dirs.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
