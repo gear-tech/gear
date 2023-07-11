@@ -197,7 +197,7 @@ pub fn get_global_i32(
     let mut method_result = None::<i32>;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        // trace("get_global_val", caller);
+        trace("get_global_val", caller);
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
@@ -222,7 +222,7 @@ pub fn get_global_i64(
     let mut method_result = None::<i64>;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        // trace("get_global_val", caller);
+        trace("get_global_val", caller);
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
