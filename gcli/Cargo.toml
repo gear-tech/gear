@@ -39,7 +39,9 @@ clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
-gear-processor.workspace = true
+# the package name `gear-core-processor` has been taken by others,
+# use `gear-processor` instead while publishing this package.
+core-processor.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
