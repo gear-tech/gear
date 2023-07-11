@@ -1,7 +1,13 @@
 [package]
 name = "gear-utils"
 version = "0.1.0"
+description = "Gear utils."
+authors.workspace = true
 edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [dependencies]
 nonempty.workspace = true
