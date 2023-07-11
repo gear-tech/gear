@@ -56,7 +56,7 @@ Other than that it's a good tool.
 * Execute block against a local snapshot
 
     * Download snapshot at block `$HASH` (if omitted, the state at the latest finalized block is downloaded)
-    
+
         Note the `existing` value for the `--runtime` option which means the downloaded on-chain runtime is used (the only allowed option for `create-snapshot` command)
 
         ```bash
@@ -78,11 +78,11 @@ Other than that it's a good tool.
 
         <b>Warning:</b> By default the `try-runtime execute-block` command runs with the `--try-state` option value set to `all`, that is it will try to validate the state of all the pallets in the snapshot. This may result in an error caused by inconsistencies in some pallets storage (for instance, at the moment of this writing the `BagsList` pallet has inconsisent data). This is, of course, something to look into, but it goes beyond the scope of the problem in question.
         Since this doesn't affect the internal logic of the Gear flow we want to reproduce, we might consider either comletely omitting setting the `try_state` by setting the respective option to `none`
-        
+
         ```bash
         gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --try-state none live --uri wss://archive-rpc.vara-network.io:443
         ```
-        
+
         or enumerate a number of pallets in the runtime we are only concerned with:
 
         ```bash
@@ -134,13 +134,13 @@ In order to use the native runtime build make sure the node is built with the Ru
 
 The `remote-ext-tests-replay-block` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
 
-The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocker connection uri).
-This is the default way of building the tool:    
+The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
+This is the default way of building the tool:
 ```bash
 ./scripts/gear.sh build remote-ext-tests --release
 ```
 or simply
-    
+
 ```bash
 make remote-ext-tests
 ```

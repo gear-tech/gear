@@ -25,9 +25,9 @@ use frame_remote_externalities::{
 };
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::HostFunctions;
-use sc_executor::WasmExecutor;
 #[cfg(not(feature = "always-wasm"))]
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::{WasmExecutor, WasmtimeInstantiationStrategy};
 use sp_core::{
     offchain::{
         testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -74,7 +74,9 @@ pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
     let runtime_cache_size = 2;
 
     WasmExecutor::new(
-        sc_executor::WasmExecutionMethod::Interpreted,
+        sc_executor::WasmExecutionMethod::Compiled {
+            instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
+        },
         heap_pages,
         max_runtime_instances,
         None,

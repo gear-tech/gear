@@ -166,35 +166,41 @@ async fn main() -> sc_cli::Result<()> {
     let executor = build_executor::<
         ExtendedHostFunctions<
             sp_io::SubstrateHostFunctions,
-            gear_runtime_interface::gear_ri::HostFunctions,
+            (
+                gear_runtime_interface::gear_ri::HostFunctions,
+                gear_runtime_interface::sandbox::HostFunctions,
+            ),
         >,
     >();
 
     // for now, hardcoded for the sake of simplicity. We might customize them one day.
+    #[cfg(not(feature = "try-runtime"))]
     let payload = block.encode();
+    #[cfg(feature = "try-runtime")]
+    let payload = (block, false, false, "none").encode();
+    #[cfg(not(feature = "try-runtime"))]
+    let method = "Core_execute_block";
+    #[cfg(feature = "try-runtime")]
+    let method = "TryRuntime_execute_block";
 
     #[cfg(not(feature = "always-wasm"))]
     let strategy = ExecutionStrategy::NativeElseWasm;
     #[cfg(feature = "always-wasm")]
     let strategy = ExecutionStrategy::AlwaysWasm;
 
-    let _ = state_machine_call(
+    let (_changes, _enc_res) = state_machine_call(
         &ext,
         &executor,
-        "Core_execute_block",
+        method,
         &payload,
         full_extensions(),
         strategy,
     )?;
-
-    log::info!(target: LOG_TARGET, "Done",);
+    log::info!(
+        target: LOG_TARGET,
+        "Core_execute_block for block {} completed",
+        current_number
+    );
 
     Ok(())
 }
-
-// fn main() -> sc_cli::Result<()> {
-//     let options = Opt::parse();
-//     println!("Option {:?}", options);
-
-//     Ok(())
-// }

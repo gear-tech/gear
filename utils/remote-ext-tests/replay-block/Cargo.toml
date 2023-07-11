@@ -9,7 +9,7 @@ license.workspace = true
 # Internal
 vara-runtime = { workspace = true, optional = true }
 gear-runtime = { workspace = true, optional = true }
-gear-runtime-interface = { workspace = true, optional = true }
+gear-runtime-interface = { workspace = true, features = ["std"], optional = true }
 runtime-primitives.workspace = true
 service = { workspace = true, optional = true }
 
@@ -22,6 +22,7 @@ sp-rpc.workspace = true
 sp-runtime.workspace = true
 sp-state-machine.workspace = true
 sp-tracing.workspace = true
+# sp-api.workspace = true
 
 # Substrate client
 sc-executor.workspace = true
@@ -52,12 +53,13 @@ std = [
     "sp-tracing/std",
     "sp-externalities/std",
     "sc-executor/std",
+    # "sp-api/std",
     "frame-system/std",
     "gear-runtime?/std",
     "vara-runtime?/std",
 ]
 always-wasm = [
-    "gear-runtime-interface/std",
+    "gear-runtime-interface",
 ]
 vara-native = [
     "service/vara-native",
@@ -66,4 +68,9 @@ vara-native = [
 gear-native = [
     "service/gear-native",
     "gear-runtime",
+]
+try-runtime = [
+    "service/try-runtime",
+    "gear-runtime?/try-runtime",
+    "vara-runtime?/try-runtime",
 ]
