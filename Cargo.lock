@@ -7177,6 +7177,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
+ "demo-read-big-state",
  "demo-reservation-manager",
  "demo-reserve-gas",
  "demo-rwlock",
