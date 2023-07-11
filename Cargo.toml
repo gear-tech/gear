@@ -169,8 +169,10 @@ static_assertions = "1"
 #
 # 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
 # gathering them here for easy management.
-# subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-subxt = { package ="gear-subxt", version = "0.29.0" }
+#
+# Use the version below while publishing the packages:
+# subxt = { package ="gear-subxt", version = "0.29.0" }
+subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.15"
