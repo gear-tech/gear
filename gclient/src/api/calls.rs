@@ -18,7 +18,6 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::LockId;
 use gear_core::{
     ids::*,
     memory::PageBuf,
@@ -295,7 +294,8 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
+                // `2` here `LockId::Reservation` in `u8`
+                src_program_reserved_gas_total += value + lock.0[2];
             } else {
                 unreachable!("Unexpected gas node type");
             }

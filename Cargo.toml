@@ -204,8 +204,8 @@ gear-backend-common = { version = "0.1.0", path = "core-backend/common" }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { version = "0.1.0", path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
-gear-common = { path = "common", default-features = false }
-gear-common-codegen = { path = "common/codegen" }
+gear-common = { version = "0.1.0", path = "common", default-features = false }
+gear-common-codegen = { version = "0.1.0", path = "common/codegen" }
 gear-core = { version = "0.1.0", path = "core" }
 gear-core-errors = { version = "0.1.0", path = "core-errors" }
 gear-core-processor = { version = "0.1.0", path = "core-processor", default-features = false }
@@ -219,7 +219,7 @@ gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }
 gear-service = { path = "node/service", default-features = false }
-gear-utils = { path = "utils/utils" }
+gear-utils = { version = "0.1.0", path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { version = "0.1.0", path = "utils/wasm-instrument", default-features = false }
@@ -251,8 +251,6 @@ gear-wasm = "0.45.0"
 # the package name `gear-core-processor` is taken by others.
 gear-processor = { version = "0.1.0", path = "core-processor", default-features = false }
 gwasm-instrument = "0.2.1"
-
-
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }

@@ -1,9 +1,13 @@
 [package]
 name = "gear-common"
 version = "0.1.0"
+description = "Gear common"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
@@ -26,7 +30,8 @@ sp-core.workspace = true
 sp-io.workspace = true
 sp-std.workspace = true
 sp-arithmetic.workspace = true
-frame-support.workspace = true
+# frame-support.workspace = true
+frame-support = "21.0.0"
 frame-system = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, optional = true }
 
