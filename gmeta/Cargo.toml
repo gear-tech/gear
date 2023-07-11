@@ -1,7 +1,7 @@
 [package]
 name = "gmeta"
 version = "0.1.0"
-description = "gear metadata"
+description = "Gear metadata"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

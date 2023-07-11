@@ -1,7 +1,7 @@
 [package]
 name = "gcli"
 version = "0.1.0"
-description = "gear program cli"
+description = "Gear program CLI"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -39,7 +39,7 @@ clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
-gear-processor = { workspace = true }
+gear-processor.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true

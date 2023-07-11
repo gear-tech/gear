@@ -1,7 +1,7 @@
 [package]
 name = "gsdk-codegen"
 version = "0.1.0"
-description = "gear sdk codegen"
+description = "Gear SDK codegen"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

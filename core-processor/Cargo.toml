@@ -1,7 +1,7 @@
 [package]
 name = "gear-core-processor"
 version = "0.1.0"
-description = "gear core processor"
+description = "Gear core processor"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
