@@ -36,8 +36,8 @@ use frame_support::traits::{Currency, ExistenceRequirement};
 use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     message::{DispatchKind, ReplyMessage},
+    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 use sp_runtime::traits::Zero;

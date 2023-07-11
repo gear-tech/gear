@@ -20,8 +20,8 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
 use alloc::vec::Vec;
+use codec::{Decode, Encode};
 
 type ActorId = [u8; 32];
 
