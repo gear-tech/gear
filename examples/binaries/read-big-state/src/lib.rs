@@ -69,7 +69,7 @@ mod wasm {
     static mut STATE: Option<State> = None;
 
     fn state_mut() -> &'static mut State {
-        unsafe { STATE.get_or_insert_with(|| State::new(8)) }
+        unsafe { STATE.get_or_insert_with(|| State::new(16)) }
     }
 
     #[no_mangle]

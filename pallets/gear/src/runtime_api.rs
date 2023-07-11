@@ -302,7 +302,7 @@ where
             None,
             None,
             payload,
-            BlockGasLimitOf::<T>::get() / 4,
+            BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
     }
@@ -336,7 +336,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            BlockGasLimitOf::<T>::get() / 4,
+            BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
     }
@@ -370,7 +370,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            BlockGasLimitOf::<T>::get() / 4,
+            BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
         .and_then(|bytes| {
