@@ -30,15 +30,8 @@ use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
-use gear_sandbox::{HostError, InstanceGlobals, Value};
+use gear_sandbox::{HostError, InstanceGlobals};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-
-pub(crate) fn as_i64(v: Value) -> Option<i64> {
-    match v {
-        Value::I64(i) => Some(i),
-        _ => None,
-    }
-}
 
 pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
@@ -105,14 +98,12 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
 
         let gas = self
             .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(as_i64)
+            .get_global_i64(GLOBAL_NAME_GAS)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         let allowance = self
             .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(as_i64)
+            .get_global_i64(GLOBAL_NAME_ALLOWANCE)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.set_gas_left((gas, allowance).into());

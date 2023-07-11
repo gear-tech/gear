@@ -189,6 +189,31 @@ pub fn get_global_val(
     method_result
 }
 
+pub fn get_global_i64(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+    name: &str,
+) -> Option<i64> {
+    let mut method_result = None::<i64>;
+
+    sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("get_global_val", caller);
+
+        let data_ptr: *const _ = caller.data();
+        method_result = SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as usize)
+                .instance(instance_idx)
+                .map(|i| i.get_global_i64(name))
+                .map_err(|e| e.to_string())
+                .expect("Failed to get global from sandbox")
+        });
+    });
+
+    method_result
+}
+
 pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> HostPointer {
     let mut method_result: HostPointer = u32::MAX.into();
 

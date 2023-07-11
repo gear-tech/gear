@@ -200,6 +200,11 @@ impl super::InstanceGlobals for InstanceGlobals {
         self.instance_idx
             .and_then(|i| sandbox::get_global_val(i, name))
     }
+    
+    fn get_global_i64(&self, name: &str) -> Option<i64> {
+        self.instance_idx
+            .and_then(|i| sandbox::get_global_i64(i, name))
+    }
 
     fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
         match self.instance_idx {

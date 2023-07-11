@@ -363,6 +363,11 @@ pub fn get_global(instance: &wasmi::ModuleRef, name: &str) -> Option<Value> {
     ))
 }
 
+/// Get global `i64` value by name
+pub fn get_global_i64(instance: &wasmi::ModuleRef, name: &str) -> Option<i64> {
+    instance.export_by_name(name)?.as_global()?.get().try_into()
+}
+
 /// Set global value by name
 pub fn set_global(
     instance: &wasmi::ModuleRef,

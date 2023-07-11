@@ -52,11 +52,7 @@ struct GlobalsAccessWasmRuntime<'a> {
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.instance
-            .get_global_val(name.as_str())
-            .and_then(|value| match value {
-                Value::I64(value) => Some(value),
-                _ => None,
-            })
+            .get_global_i64(name.as_str())
             .ok_or(GlobalsAccessError)
     }
 

@@ -18,10 +18,7 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{
-    memory::MemoryWrap,
-    runtime::{self, Runtime},
-};
+use crate::{memory::MemoryWrap, runtime::Runtime};
 use alloc::{collections::BTreeSet, format};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
@@ -414,14 +411,12 @@ where
 
         let gas = runtime
             .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(runtime::as_i64)
+            .get_global_i64(GLOBAL_NAME_GAS)
             .ok_or(System(WrongInjectedGas))?;
 
         let allowance = runtime
             .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(runtime::as_i64)
+            .get_global_i64(GLOBAL_NAME_ALLOWANCE)
             .ok_or(System(WrongInjectedAllowance))?;
 
         let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
