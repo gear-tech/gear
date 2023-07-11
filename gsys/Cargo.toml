@@ -1,6 +1,10 @@
 [package]
 name = "gsys"
-version.workspace = true
+version = "0.1.0"
+description = "gsys"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true

@@ -1,9 +1,13 @@
 [package]
 name = "gear-backend-codegen"
 version = "0.1.0"
+description = "Gear core backend codegen"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [lib]
 proc-macro = true
