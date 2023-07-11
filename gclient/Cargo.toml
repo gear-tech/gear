@@ -38,7 +38,7 @@ demo-btree.workspace = true
 demo-calc-hash.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-capacitor.workspace = true
-demo-constructor.workspace = true
+demo-constructor = { workspace = true, features = ["std"] }
 demo-distributor.workspace = true
 demo-meta-io.workspace = true
 demo-mul-by-const.workspace = true
