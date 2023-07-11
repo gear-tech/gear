@@ -115,6 +115,14 @@ pub trait Sandbox {
     /// `instance_idx`.
     ///
     /// Returns `Some(_)` when the requested global variable could be found.
+    fn get_global_i32(&mut self, instance_idx: u32, name: &str) -> Option<i32> {
+        detail::get_global_i32(*self, instance_idx, name)
+    }
+
+    /// Get the value from a global with the given `name`. The sandbox is determined by the given
+    /// `instance_idx`.
+    ///
+    /// Returns `Some(_)` when the requested global variable could be found.
     fn get_global_i64(&mut self, instance_idx: u32, name: &str) -> Option<i64> {
         detail::get_global_i64(*self, instance_idx, name)
     }

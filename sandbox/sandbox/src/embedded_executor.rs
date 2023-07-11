@@ -291,6 +291,10 @@ impl super::InstanceGlobals for InstanceGlobals {
         None
     }
 
+    fn get_global_i32(&self, _name: &str) -> Option<i32> {
+        None
+    }
+
     fn get_global_i64(&self, _name: &str) -> Option<i64> {
         None
     }

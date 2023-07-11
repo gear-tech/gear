@@ -237,6 +237,11 @@ pub trait InstanceGlobals: Sized + Clone {
     /// Returns `Some(_)` if the global could be found.
     fn get_global_val(&self, name: &str) -> Option<Value>;
 
+    /// Get the  `i32` value from a global with the given `name`.
+    ///
+    /// Returns `Some(_)` if the global could be found.
+    fn get_global_i32(&self, name: &str) -> Option<i32>;
+
     /// Get the  `i64` value from a global with the given `name`.
     ///
     /// Returns `Some(_)` if the global could be found.

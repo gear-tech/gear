@@ -363,16 +363,16 @@ where
             entry_point,
         } = self;
 
-        let stack_end = instance
-            .get_global_val(STACK_END_EXPORT_NAME)
-            .and_then(|global| global.as_i32())
-            .map(|global| global as u32);
-
         runtime.globals = instance
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
         let GasLeft { gas, allowance } = runtime.ext.gas_left();
+
+        let stack_end = runtime
+            .globals
+            .get_global_i32(STACK_END_EXPORT_NAME)
+            .map(|global| global as u32);
 
         runtime
             .globals
