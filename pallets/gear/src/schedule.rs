@@ -34,7 +34,7 @@ use gear_core::{
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
-use gear_wasm_instrument::{gwasm_instrument::gas_metering, parity_wasm::elements};
+use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]

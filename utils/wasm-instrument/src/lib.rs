@@ -32,7 +32,7 @@ use gwasm_instrument::{
 };
 
 use crate::syscalls::SysCallName;
-pub use gwasm_instrument::{self, parity_wasm};
+pub use gwasm_instrument::{self as wasm_instrument, parity_wasm};
 
 #[cfg(test)]
 mod tests;
