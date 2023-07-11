@@ -1,9 +1,9 @@
-use demo_waiter::{Command, MxLockContinuation, MxLockStaticAccessSubcommand};
+use demo_waiter::{Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation};
 use gear_core::ids::MessageId;
-use gstd::errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
-use gtest::{Program, RunResult, System};
+use gtest::{Program, System};
+use utils::{assert_paniced, USER_ID};
 
-const USER_ID: u64 = 10;
+mod utils;
 
 #[test]
 fn drop_mx_lock_guard_from_different_msg_fails() {
@@ -12,7 +12,7 @@ fn drop_mx_lock_guard_from_different_msg_fails() {
 
     let lock_access_result = program.send(
         USER_ID,
-        Command::MxLockStaticAccess(MxLockStaticAccessSubcommand::Drop),
+        Command::MxLockStaticAccess(LockStaticAccessSubcommand::Drop),
     );
 
     assert_paniced(
@@ -32,7 +32,7 @@ fn as_ref_mx_lock_guard_from_different_msg_fails() {
 
     let lock_access_result = program.send(
         USER_ID,
-        Command::MxLockStaticAccess(MxLockStaticAccessSubcommand::AsRef),
+        Command::MxLockStaticAccess(LockStaticAccessSubcommand::AsRef),
     );
 
     assert_paniced(
@@ -52,7 +52,7 @@ fn as_mut_mx_lock_guard_from_different_msg_fails() {
 
     let lock_access_result = program.send(
         USER_ID,
-        Command::MxLockStaticAccess(MxLockStaticAccessSubcommand::AsMut),
+        Command::MxLockStaticAccess(LockStaticAccessSubcommand::AsMut),
     );
 
     assert_paniced(
@@ -72,7 +72,7 @@ fn deref_mx_lock_guard_from_different_msg_fails() {
 
     let lock_access_result = program.send(
         USER_ID,
-        Command::MxLockStaticAccess(MxLockStaticAccessSubcommand::Deref),
+        Command::MxLockStaticAccess(LockStaticAccessSubcommand::Deref),
     );
 
     assert_paniced(
@@ -92,7 +92,7 @@ fn deref_mut_mx_lock_guard_from_different_msg_fails() {
 
     let lock_access_result = program.send(
         USER_ID,
-        Command::MxLockStaticAccess(MxLockStaticAccessSubcommand::DerefMut),
+        Command::MxLockStaticAccess(LockStaticAccessSubcommand::DerefMut),
     );
 
     assert_paniced(
@@ -109,24 +109,9 @@ fn init_fixture(system: &System) -> (Program<'_>, MessageId) {
     system.init_logger_with_default_filter("");
     let program = Program::current(system);
     program.send_bytes(USER_ID, []);
-    let lock_result = program.send(USER_ID, Command::MxLock(MxLockContinuation::MoveToStatic));
+    let lock_result = program.send(
+        USER_ID,
+        Command::MxLock(MxLockContinuation::General(LockContinuation::MoveToStatic)),
+    );
     (program, lock_result.sent_message_id())
-}
-
-#[track_caller]
-fn assert_paniced(result: &RunResult, panic_msg: &str) {
-    assert_eq!(result.log().len(), 1);
-    assert!(matches!(
-        result.log()[0].reply_code(),
-        Some(ReplyCode::Error(ErrorReplyReason::Execution(
-            SimpleExecutionError::UserspacePanic
-        )))
-    ));
-    let payload = String::from_utf8(result.log()[0].payload().into())
-        .expect("Unable to decode panic message")
-        .split(',')
-        .map(String::from)
-        .next()
-        .expect("Unable to split panic message");
-    assert_eq!(payload, format!("'{}'", panic_msg));
 }
