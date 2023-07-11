@@ -1,13 +1,19 @@
 [package]
 name = "gmeta"
-version.workspace = true
+version = "0.1.0"
+description = "gear metadata"
+authors.workspace = true
 edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [dependencies]
 scale-info.workspace = true
 blake2-rfc.workspace = true
 hex = { workspace = true, features = ["alloc"] }
-gmeta-codegen = { path = "codegen", optional = true }
+gmeta-codegen = { version = "0.1.0", path = "codegen", optional = true }
 derive_more.workspace = true
 
 [features]
