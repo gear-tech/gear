@@ -563,3 +563,20 @@ pub fn set_global(
         .map(|_| Some(()))
         .map_err(|e| crate::error::Error::Sandbox(e.message()))
 }
+
+/// Set global value by name
+pub fn set_global_i64(
+    instance: &wasmer::Instance,
+    name: &str,
+    value: i64,
+) -> core::result::Result<Option<()>, crate::error::Error> {
+    let global = match instance.exports.get_global(name) {
+        Ok(g) => g,
+        Err(_) => return Ok(None),
+    };
+
+    global
+        .set(wasmer::Val::I64(value))
+        .map(|_| Some(()))
+        .map_err(|e| crate::error::Error::Sandbox(e.message()))
+}

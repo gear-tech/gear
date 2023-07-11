@@ -573,3 +573,40 @@ pub fn set_global_val(
 
     method_result
 }
+
+pub fn set_global_i64(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+    name: &str,
+    value: i64,
+) -> u32 {
+    let mut method_result = u32::MAX;
+
+    sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("set_global_val", caller);
+
+        log::trace!("set_global_val, instance_idx={instance_idx}");
+
+        let data_ptr: *const _ = caller.data();
+        let result = SANDBOXES.with(|sandboxes| {
+            let instance = sandboxes
+                .borrow_mut()
+                .get(data_ptr as usize)
+                .instance(instance_idx)
+                .map_err(|e| e.to_string())
+                .expect("Failed to set global in sandbox");
+
+            instance.set_global_i64(name, value)
+        });
+
+        log::trace!("set_global_val, name={name}, value={value:?}, result={result:?}",);
+
+        method_result = match result {
+            Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,
+            Ok(Some(_)) => sandbox_env::env::ERROR_GLOBALS_OK,
+            Err(_) => sandbox_env::env::ERROR_GLOBALS_OTHER,
+        };
+    });
+
+    method_result
+}

@@ -38,7 +38,8 @@ use crate::{
 #[cfg(feature = "host-sandbox")]
 use self::wasmer_backend::{
     get_global as wasmer_get_global, instantiate as wasmer_instantiate, invoke as wasmer_invoke,
-    new_memory as wasmer_new_memory, set_global as wasmer_set_global, Backend as WasmerBackend,
+    new_memory as wasmer_new_memory, set_global as wasmer_set_global,
+    set_global_i64 as wasmer_set_global_i64, Backend as WasmerBackend,
     MemoryWrapper as WasmerMemoryWrapper,
 };
 use self::wasmi_backend::{
@@ -258,6 +259,26 @@ impl SandboxInstance {
             #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {
                 wasmer_set_global(wasmer_instance, name, value)
+            }
+        }
+    }
+
+    /// Set the `i64` value of a global with the given `name`.
+    ///
+    /// Returns `Ok(Some(()))` if the global could be modified.
+    pub fn set_global_i64(
+        &self,
+        name: &str,
+        value: i64,
+    ) -> std::result::Result<Option<()>, error::Error> {
+        match &self.backend_instance {
+            BackendInstance::Wasmi(wasmi_instance) => {
+                wasmi_set_global(wasmi_instance, name, sp_wasm_interface::Value::I64(value))
+            }
+
+            #[cfg(feature = "host-sandbox")]
+            BackendInstance::Wasmer(wasmer_instance) => {
+                wasmer_set_global_i64(wasmer_instance, name, value)
             }
         }
     }

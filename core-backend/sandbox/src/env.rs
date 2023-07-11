@@ -379,12 +379,12 @@ where
 
         runtime
             .globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
+            .set_global_i64(GLOBAL_NAME_GAS, gas as i64)
             .map_err(|_| System(WrongInjectedGas))?;
 
         runtime
             .globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
+            .set_global_i64(GLOBAL_NAME_ALLOWANCE, allowance as i64)
             .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {

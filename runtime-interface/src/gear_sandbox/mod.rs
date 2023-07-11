@@ -122,6 +122,9 @@ pub trait Sandbox {
         detail::set_global_val(*self, instance_idx, name, value)
     }
 
+    fn set_global_i64(&mut self, instance_idx: u32, name: &str, value: i64) -> u32 {
+        detail::set_global_i64(*self, instance_idx, name, value)
+    }
     fn memory_grow(&mut self, memory_idx: u32, size: u32) -> u32 {
         detail::memory_grow(*self, memory_idx, size)
     }

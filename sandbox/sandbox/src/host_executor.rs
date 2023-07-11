@@ -211,6 +211,17 @@ impl super::InstanceGlobals for InstanceGlobals {
             },
         }
     }
+
+    fn set_global_i64(&self, name: &str, value: i64) -> Result<(), super::GlobalsSetError> {
+        match self.instance_idx {
+            None => Err(super::GlobalsSetError::Other),
+            Some(i) => match sandbox::set_global_i64(i, name, value) {
+                env::ERROR_GLOBALS_OK => Ok(()),
+                env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
+                _ => Err(super::GlobalsSetError::Other),
+            },
+        }
+    }
 }
 
 /// The primary responsibility of this thunk is to deserialize arguments and
