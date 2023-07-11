@@ -22,8 +22,9 @@ wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
-
 wasmer-cache = { version = "2.2.1", optional = true }
+once_cell = "1.17.1"
+tempfile = "3.5.0"
 
 [features]
 default = ["host-sandbox"]
