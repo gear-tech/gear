@@ -81,7 +81,7 @@ type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
 fn read_big_state() {
-    use demo_read_big_state::{Strings, WASM_BINARY};
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
 
     init_logger();
 
@@ -100,12 +100,28 @@ fn read_big_state() {
         run_to_next_block(None);
         assert!(Gear::is_active(pid));
 
-        let payload = Strings::new("gear's read state should work with big data".into(), 256);
-        for _ in 0..40 {
+        let string = String::from("hi").repeat(4095);
+        let string_size = 8 * 1024;
+        assert_eq!(string.encoded_size(), string_size);
+
+        let strings = Strings::new(string);
+        let strings_size = (string_size * Strings::LEN) + 1;
+        assert_eq!(strings.encoded_size(), strings_size);
+
+        let approx_size =
+            |size: usize, iteration: usize| -> usize { size - 17 - 144 * (iteration + 1) };
+
+        // with initial data step is ~2 MiB
+        let expected_size = |iteration: usize| -> usize {
+            Strings::LEN * State::LEN * string_size * (iteration + 1)
+        };
+
+        // go to 6 MiB due to approximate calculations and 8MiB reply restrictions
+        for i in 0..3 {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
-                payload.encode(),
+                strings.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0
             ));
@@ -115,12 +131,7 @@ fn read_big_state() {
 
             assert_succeed(mid);
             let state = Gear::read_state_impl(pid).expect("Failed to read state");
-            log::debug!(
-                "Len {}B ({} KiB, {} MiB)",
-                state.len(),
-                state.len() / 1024,
-                state.len() / 1024 / 1024
-            );
+            assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
 }

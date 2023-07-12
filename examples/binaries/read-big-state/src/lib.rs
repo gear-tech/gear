@@ -35,28 +35,26 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub struct Strings(pub Vec<String>);
 
 impl Strings {
-    pub fn new(string: String, count: usize) -> Self {
-        Self(vec![string; count])
+    pub const LEN: usize = 16;
+
+    pub fn new(string: String) -> Self {
+        Self(vec![string; Self::LEN])
     }
 }
 
 #[derive(Encode, Decode, Default, Debug, Clone)]
-pub struct State {
-    pub counter: u64,
-    pub maps: Vec<BTreeMap<u64, Strings>>,
-}
+pub struct State(pub Vec<BTreeMap<u64, Strings>>);
 
 impl State {
-    pub fn new(count: usize) -> Self {
-        Self {
-            counter: 0,
-            maps: vec![Default::default(); count],
-        }
+    pub const LEN: usize = 16;
+
+    pub fn new() -> Self {
+        Self(vec![Default::default(); Self::LEN])
     }
+
     pub fn insert(&mut self, strings: Strings) {
-        self.counter += 1;
-        for map in &mut self.maps {
-            map.insert(self.counter, strings.clone());
+        for map in &mut self.0 {
+            map.insert(map.keys().count() as u64, strings.clone());
         }
     }
 }
@@ -69,18 +67,13 @@ mod wasm {
     static mut STATE: Option<State> = None;
 
     fn state_mut() -> &'static mut State {
-        unsafe { STATE.get_or_insert_with(|| State::new(16)) }
+        unsafe { STATE.get_or_insert_with(State::new) }
     }
 
     #[no_mangle]
     extern "C" fn handle() {
-        debug!("Handling message!");
-
         let strings = msg::load().expect("Failed to load state");
-
         state_mut().insert(strings);
-
-        debug!("Counter = {:?}", state_mut().counter);
     }
 
     #[no_mangle]
