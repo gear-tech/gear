@@ -91,9 +91,6 @@ pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
-    /// Weight per allocated page for `alloc`.
-    pub alloc_per_page: u64,
-
     /// Weight of calling `alloc`.
     pub free: u64,
 
@@ -316,8 +313,8 @@ impl Token for RuntimeToken {
 pub enum RuntimeCosts {
     /// Charge zero gas
     Null,
-    /// Weight of calling `alloc` per amount of pages.
-    Alloc(u32),
+    /// Weight of calling `alloc`.
+    Alloc,
     /// Weight of calling `free`.
     Free,
     /// Weight of calling `gr_reserve_gas`.
@@ -449,13 +446,9 @@ impl RuntimeCosts {
             };
         }
 
-        let cost_with_weight_per_page = |call_weight: u64, weight_per_page: u64, pages: u32| {
-            call_weight.saturating_add(weight_per_page.saturating_mul(pages as u64))
-        };
-
         let weight = match *self {
             Null => 0,
-            Alloc(pages) => cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages),
+            Alloc => s.alloc,
             Free => s.free,
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,

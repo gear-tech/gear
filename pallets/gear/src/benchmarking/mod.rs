@@ -54,12 +54,10 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager,
-    pallet,
-    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
-    ResumeMinimalPeriodOf, Schedule,
+    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BalanceOf, BenchmarkStorage,
+    Call, Config, Event, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
+    Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf,
+    Schedule,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -84,18 +82,16 @@ use frame_support::{
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
-use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf},
+    memory::{AllocationsContext, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
 use gear_core_errors::*;
-use gear_sandbox::SandboxMemory;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
@@ -825,22 +821,10 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
-    // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::alloc(r, 1)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    alloc_per_page {
-        let p in 1 .. MAX_PAGES;
-        let mut res = None;
-        let exec = Benches::<T>::alloc(1, p)?;
+        let exec = Benches::<T>::alloc(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1670,15 +1654,6 @@ benchmarks! {
     }
     verify {
         verify_process(res.unwrap());
-    }
-
-    mem_grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut mem = MemoryWrap::new(DefaultExecutorMemory::new(1, None).unwrap());
-    }: {
-        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(1.into()).unwrap();
-        }
     }
 
     // w_load = w_bench

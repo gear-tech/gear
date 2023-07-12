@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
             alloc: 1_000,
             ..Default::default()
         });
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn charge_allowance_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
             alloc: 1_000,
             ..Default::default()
         });
