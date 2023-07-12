@@ -77,7 +77,7 @@ pub enum LockStaticAccessSubcommand {
     DerefMut,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone, Copy)]
 pub enum RwLockType {
     Read,
     Write,

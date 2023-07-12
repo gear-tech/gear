@@ -4,7 +4,7 @@ use gtest::RunResult;
 pub const USER_ID: u64 = 10;
 
 #[track_caller]
-pub fn assert_paniced(result: &RunResult, panic_msg: &str) {
+pub fn assert_panicked(result: &RunResult, panic_msg: &str) {
     assert_eq!(result.log().len(), 1);
     assert!(matches!(
         result.log()[0].reply_code(),
