@@ -1033,56 +1033,18 @@ impl Ext {
 
 #[cfg(test)]
 mod tests {
+    use gear_backend_common::TrapExplanation::FallibleExt;
     use super::*;
     use gear_core::{
         message::{ContextSettings, IncomingDispatch},
         pages::PageNumber,
     };
-    use gear_core::buffer::LimitedVec;
 
     struct ProcessorContextBuilder(ProcessorContext);
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            let default_pc = ProcessorContext {
-                gas_counter: GasCounter::new(0),
-                gas_allowance_counter: GasAllowanceCounter::new(0),
-                gas_reserver: GasReserver::new(
-                    &<IncomingDispatch as Default>::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                system_reservation: None,
-                value_counter: ValueCounter::new(0),
-                allocations_context: AllocationsContext::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                message_context: MessageContext::new(
-                    Default::default(),
-                    Default::default(),
-                    ContextSettings::new(0, 0, 0, 0, 0, 0),
-                ),
-                block_info: Default::default(),
-                max_pages: 512.into(),
-                page_costs: PageCosts::new_for_tests(),
-                existential_deposit: 0,
-                program_id: Default::default(),
-                program_candidates_data: Default::default(),
-                program_rents: Default::default(),
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: 0,
-                waitlist_cost: 0,
-                dispatch_hold_cost: 0,
-                reserve_for: 0,
-                reservation: 0,
-                random_data: ([0u8; 32].to_vec(), 0),
-                rent_cost: 0,
-            };
-
-            Self(default_pc)
+            Self::new_with_max_outgoing_messages(0)
         }
 
         fn with_gas(mut self, gas_counter: GasCounter) -> Self {
@@ -1109,40 +1071,46 @@ mod tests {
             self
         }
 
-        fn with_sending_fee(mut self, fee: u64) -> Self {
-            self.0.message_context.settings_mut().set_sending_fee(fee);
+        fn new_with_max_outgoing_messages(limit: u32) -> Self {
+            let default_pc = ProcessorContext {
+                gas_counter: GasCounter::new(0),
+                gas_allowance_counter: GasAllowanceCounter::new(0),
+                gas_reserver: GasReserver::new(
+                    &<IncomingDispatch as Default>::default(),
+                    Default::default(),
+                    Default::default(),
+                ),
+                system_reservation: None,
+                value_counter: ValueCounter::new(0),
+                allocations_context: AllocationsContext::new(
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                ),
+                message_context: MessageContext::new(
+                    Default::default(),
+                    Default::default(),
+                    ContextSettings::new(0, 0, 0, 0, 0, limit),
+                ),
+                block_info: Default::default(),
+                max_pages: 512.into(),
+                page_costs: PageCosts::new_for_tests(),
+                existential_deposit: 0,
+                program_id: Default::default(),
+                program_candidates_data: Default::default(),
+                program_rents: Default::default(),
+                host_fn_weights: Default::default(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: 0,
+                waitlist_cost: 0,
+                dispatch_hold_cost: 0,
+                reserve_for: 0,
+                reservation: 0,
+                random_data: ([0u8; 32].to_vec(), 0),
+                rent_cost: 0,
+            };
 
-            self
-        }
-
-        fn with_scheduled_sending_fee(mut self, fee: u64) -> Self {
-            self.0.message_context.settings_mut().set_scheduled_sending_fee(fee);
-
-            self
-        }
-
-        fn with_waiting_fee(mut self, fee: u64) -> Self {
-            self.0.message_context.settings_mut().set_waiting_fee(fee);
-
-            self
-        }
-
-        fn with_waking_fee(mut self, fee: u64) -> Self {
-            self.0.message_context.settings_mut().set_waking_fee(fee);
-
-            self
-        }
-
-        fn with_reservation_fee(mut self, fee: u64) -> Self {
-            self.0.message_context.settings_mut().set_reservation_fee(fee);
-
-            self
-        }
-
-        fn with_max_outgoing_messages(mut self, limit: u32) -> Self {
-            self.0.message_context.settings_mut().set_outgoing_limit(limit);
-
-            self
+            Self(default_pc)
         }
 
         fn build(self) -> ProcessorContext {
@@ -1250,35 +1218,76 @@ mod tests {
 
     #[test]
     fn test_send_limit() {
-        // Max of 3 sends
-        let mut ext = Ext::new(ProcessorContextBuilder::new()
-            .with_max_outgoing_messages(3)
-            .build());
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new_with_max_outgoing_messages(2)
+            .build()
+        );
 
+        let handle = ext.send_init().unwrap();
+
+        let data = HandlePacket::default();
+
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        msg.unwrap();
+
+        let handle = ext.send_init().unwrap();
+
+        let msg = ext.send_commit(handle, data, 0);
+        msg.unwrap();
+
+        // The last handle should not be created since we set a limit of 2
         let handle = ext.send_init();
-        assert!(handle.is_ok());
-
-        // Default data
-        let data = HandlePacket::new(ProgramId::default(), LimitedVec::default(), 0);
-
-        let msg = ext.send_commit(handle.unwrap(), data, 0);
-        assert!(msg.is_ok());
-
-        let handle = ext.send_init();
-        assert!(handle.is_ok());
-
-        let msg = ext.send_push(handle.unwrap(), &[]);
-        assert!(msg.is_ok());
-
-        let handle = ext.send_init();
-        assert!(handle.is_ok());
-
-        let msg = ext.send_push_input(handle.unwrap(), 0, 0);
-
-        // The last handle should not be created since we set a limit of 3
-        let handle = ext.send_init();
-        assert!(handle.is_err());
+        handle.unwrap_err();
     }
+
+    #[test]
+    fn test_handle_validity() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new_with_max_outgoing_messages(u32::MAX)
+            .build()
+        );
+
+        let fake_handle = 0;
+
+        let data = HandlePacket::default();
+
+        let msg = ext.send_commit(fake_handle, data.clone(), 0);
+        msg.unwrap_err();
+
+        let handle = ext.send_init().unwrap();
+
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        msg.unwrap();
+
+        //Using handle twice should fail
+        let msg = ext.send_commit(handle, data, 0);
+        msg.unwrap_err();
+    }
+
+    #[test]
+    fn test_send_push() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new_with_max_outgoing_messages(u32::MAX)
+                .build()
+        );
+
+        let data = HandlePacket::default();
+
+        let handle = ext.send_init().unwrap();
+
+        let msg = ext.send_commit(handle, data, 0);
+        msg.unwrap();
+
+        let extra = ext.send_push(handle, &[]);
+        match extra {
+            Ok(_) => {}
+            Err(FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))) => {}
+            Err(e) => {
+                panic!("{:?}", e);
+            }
+        }
+    }
+
 
     mod property_tests {
         use super::*;

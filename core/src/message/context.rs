@@ -78,19 +78,9 @@ impl ContextSettings {
         self.sending_fee
     }
 
-    /// Setter for inner sending fee field.
-    pub fn set_sending_fee(&mut self, fee: u64) {
-        self.sending_fee = fee;
-    }
-
     /// Getter for inner scheduled sending fee field.
     pub fn scheduled_sending_fee(&self) -> u64 {
         self.scheduled_sending_fee
-    }
-
-    /// Setter for inner scheduled sending fee field.
-    pub fn set_scheduled_sending_fee(&mut self, fee: u64) {
-        self.scheduled_sending_fee = fee;
     }
 
     /// Getter for inner waiting fee field.
@@ -98,19 +88,9 @@ impl ContextSettings {
         self.waiting_fee
     }
 
-    /// Setter for inner waiting fee field.
-    pub fn set_waiting_fee(&mut self, fee: u64) {
-        self.waiting_fee = fee;
-    }
-
     /// Getter for inner waking fee field.
     pub fn waking_fee(&self) -> u64 {
         self.waking_fee
-    }
-
-    /// Setter for inner waking fee field.
-    pub fn set_waking_fee(&mut self, fee: u64) {
-        self.waking_fee = fee;
     }
 
     /// Getter for inner reservation fee field.
@@ -118,20 +98,9 @@ impl ContextSettings {
         self.reservation_fee
     }
 
-    /// Setter for inner reservation fee field.
-
-    pub fn set_reservation_fee(&mut self, fee: u64) {
-        self.reservation_fee = fee;
-    }
-
     /// Getter for inner outgoing limit field.
     pub fn outgoing_limit(&self) -> u32 {
         self.outgoing_limit
-    }
-
-    /// Setter for inner outgoing limit field.
-    pub fn set_outgoing_limit(&mut self, limit: u32) {
-        self.outgoing_limit = limit;
     }
 }
 
@@ -285,11 +254,6 @@ impl MessageContext {
     /// Getter for inner settings.
     pub fn settings(&self) -> &ContextSettings {
         &self.settings
-    }
-
-    /// Getter for mutable inner settings.
-    pub fn settings_mut(&mut self) -> &mut ContextSettings {
-        &mut self.settings
     }
 
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
