@@ -232,7 +232,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(cost = RuntimeCosts::Alloc)]
+    #[host(cost = RuntimeCosts::Alloc(pages))]
     pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {
         let res = ctx.alloc(pages);
         let res = ctx.process_alloc_func_result(res)?;
