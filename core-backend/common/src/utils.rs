@@ -58,7 +58,7 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
+/// Wrapped string to fit `core_backend::TRIMMED_MAX_LEN` amount of bytes.
 ///
 /// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
 /// created from a `&str`.
