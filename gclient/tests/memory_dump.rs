@@ -70,15 +70,16 @@ async fn memory_dump() -> Result<()> {
     // Check that blocks are still running
     assert!(listener.blocks_running().await?);
     // Calculate gas amount needed for initialization
+    let payload = b"15".to_vec();
     let gas_info = api
-        .calculate_upload_gas(None, WASM_BINARY.to_vec(), vec![], 0, true)
+        .calculate_upload_gas(None, WASM_BINARY.to_vec(), payload.clone(), 0, true)
         .await?;
     // Upload and init the program
     let (message_id, program_id, _hash) = api
         .upload_program_bytes(
             WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
-            b"15".to_vec(),
+            payload,
             gas_info.min_limit,
             0,
         )

@@ -53,9 +53,6 @@ use common::{
     LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
-use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
-use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
-use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -77,11 +74,56 @@ use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
-use test_syscalls::WASM_BINARY as TEST_SYSCALLS_BINARY;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn read_big_state() {
+    use demo_read_big_state::{Strings, WASM_BINARY};
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(pid));
+
+        let payload = Strings::new("gear's read state should work with big data".into(), 256);
+        for _ in 0..40 {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0
+            ));
+            let mid = get_last_message_id();
+
+            run_to_next_block(None);
+
+            assert_succeed(mid);
+            let state = Gear::read_state_impl(pid).expect("Failed to read state");
+            log::debug!(
+                "Len {}B ({} KiB, {} MiB)",
+                state.len(),
+                state.len() / 1024,
+                state.len() / 1024 / 1024
+            );
+        }
+    });
+}
 
 #[test]
 fn auto_reply_sent() {
@@ -5633,6 +5675,8 @@ fn test_create_program_works() {
 
 #[test]
 fn test_create_program_no_code_hash() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     let non_constructable_wat = r#"
     (module)
     "#;
@@ -5730,6 +5774,8 @@ fn test_create_program_no_code_hash() {
 
 #[test]
 fn test_create_program_simple() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -5816,6 +5862,7 @@ fn test_create_program_simple() {
 
 #[test]
 fn test_pausing_programs_works() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6485,7 +6532,7 @@ fn uninitialized_program_terminates_on_pause() {
 
 #[test]
 fn pay_program_rent_syscall_works() {
-    use test_syscalls::{Kind, PAY_PROGRAM_RENT_EXPECT};
+    use test_syscalls::{Kind, PAY_PROGRAM_RENT_EXPECT, WASM_BINARY as TEST_SYSCALLS_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6751,6 +6798,7 @@ fn pay_program_rent_extrinsic_works() {
 
 #[test]
 fn test_create_program_duplicate() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6848,6 +6896,8 @@ fn test_create_program_duplicate() {
 
 #[test]
 fn test_create_program_duplicate_in_one_execution() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6910,6 +6960,8 @@ fn test_create_program_duplicate_in_one_execution() {
 
 #[test]
 fn test_create_program_miscellaneous() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     // Same as ProgramCodeKind::Default, but has a different hash (init and handle method are swapped)
     // So code hash is different
     let child2_wat = r#"
@@ -7564,6 +7616,9 @@ fn gas_spent_precalculated() {
 
 #[test]
 fn test_two_contracts_composition_works() {
+    use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
@@ -8174,6 +8229,7 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
     use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 
     init_logger();
@@ -8553,6 +8609,203 @@ fn call_forbidden_function() {
             ))
         );
     });
+}
+
+#[test]
+fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
+
+    let execution = || {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::SleepFor(4)));
+
+        let (lock_rival_1_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+        let (lock_rival_2_msg_id, _) =
+            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_owner_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_1_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_2_msg_id
+        ));
+
+        // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+        // releases the mutex so the lock rival 1 can acquire and release it for
+        // the lock rival 2 to acquire it.
+        run_for_blocks(1, None);
+
+        assert_succeed(lock_owner_msg_id);
+        assert_succeed(lock_rival_1_msg_id);
+        assert_succeed(lock_rival_2_msg_id);
+    };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{
+        Command as WaiterCommand, RwLockContinuation, RwLockType, WASM_BINARY as WAITER_WASM,
+    };
+
+    let execution = || {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        // For write lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+                WaiterCommand::RwLock(RwLockType::Read, RwLockContinuation::SleepFor(4)),
+            );
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+
+        // For read lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+                WaiterCommand::RwLock(RwLockType::Write, RwLockContinuation::SleepFor(4)),
+            );
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Read,
+                RwLockContinuation::Nothing,
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::Nothing,
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+    };
+
+    init_logger();
+    new_test_ext().execute_with(execution);
 }
 
 #[test]
