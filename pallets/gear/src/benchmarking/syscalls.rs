@@ -177,7 +177,7 @@ where
     }
 
     pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
-        const MAX_PAGES_OVERRIDE: u16 = 65535;
+        const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
 
         assert!(repetitions * pages * API_BENCHMARK_BATCH_SIZE <= MAX_PAGES_OVERRIDE as u32);
 
