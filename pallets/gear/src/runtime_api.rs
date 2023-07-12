@@ -23,6 +23,10 @@ use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
+// Multiplier 6 was experimentally found as median value for performance,
+// security and abilities for calculations on-chain.
+const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
@@ -104,12 +108,12 @@ where
         let mut ext_manager = ExtManager::<T>::default();
 
         // Gas calculation info should not depend on the current block gas allowance.
-        // We set it to 'block gas limit" * 5 for the calculation purposes with a subsequent restore.
+        // We set it to 'block gas limit" * RUNTIME_API_BLOCK_LIMITS_COUNT for the calculation purposes with a subsequent restore.
         // This is done in order to avoid abusing running node. If one wants to check
         // executions exceeding the set threshold, they can build their own node with that
         // parameter set to a higher value.
         let gas_allowance = GasAllowanceOf::<T>::get();
-        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * 5);
+        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT);
         // Restore gas allowance.
         let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
 
@@ -302,9 +306,7 @@ where
             None,
             None,
             payload,
-            // Multiplier 6 was experimentally found as median value between performance,
-            // security and abilities for calculations.
-            BlockGasLimitOf::<T>::get() * 6,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
     }
@@ -338,9 +340,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            // Multiplier 6 was experimentally found as median value between performance,
-            // security and abilities for calculations.
-            BlockGasLimitOf::<T>::get() * 6,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
     }
@@ -374,9 +374,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            // Multiplier 6 was experimentally found as median value between performance,
-            // security and abilities for calculations.
-            BlockGasLimitOf::<T>::get() * 6,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
         .and_then(|bytes| {
