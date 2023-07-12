@@ -302,6 +302,8 @@ where
             None,
             None,
             payload,
+            // Multiplier 6 was experimentally found as median value between performance,
+            // security and abilities for calculations.
             BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
@@ -336,6 +338,8 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
+            // Multiplier 6 was experimentally found as median value between performance,
+            // security and abilities for calculations.
             BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
@@ -370,6 +374,8 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
+            // Multiplier 6 was experimentally found as median value between performance,
+            // security and abilities for calculations.
             BlockGasLimitOf::<T>::get() * 6,
             block_info,
         )
