@@ -21,12 +21,11 @@ sp-keystore.workspace = true
 sp-rpc.workspace = true
 sp-runtime.workspace = true
 sp-state-machine.workspace = true
-sp-tracing.workspace = true
-# sp-api.workspace = true
 
 # Substrate client
 sc-executor.workspace = true
 sc-cli.workspace = true
+sc-tracing.workspace = true
 
 # Substrate other
 frame-system.workspace = true
@@ -50,10 +49,8 @@ std = [
     "sp-runtime/std",
     "sp-state-machine/std",
     "sp-keystore/std",
-    "sp-tracing/std",
     "sp-externalities/std",
     "sc-executor/std",
-    # "sp-api/std",
     "frame-system/std",
     "gear-runtime?/std",
     "vara-runtime?/std",

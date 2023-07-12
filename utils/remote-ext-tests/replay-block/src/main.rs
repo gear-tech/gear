@@ -23,6 +23,7 @@ use codec::Encode;
 use runtime_primitives::Block;
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
+use sc_tracing::logging::LoggerBuilder;
 #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
 use service::GearExecutorDispatch;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
@@ -85,13 +86,27 @@ struct Opt {
     /// Otherwise, it must be enabled explicitly using this flag.
     #[arg(long)]
     child_tree: bool,
+
+    /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lsync=debug.
+    ///
+    /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
+    /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
+    #[arg(short = 'l', long, value_name = "LOG_PATTERN", num_args = 1..)]
+    pub log: Vec<String>,
+}
+
+impl Opt {
+    fn log_filters(&self) -> sc_cli::Result<String> {
+        Ok(self.log.join(","))
+    }
 }
 
 #[tokio::main]
 async fn main() -> sc_cli::Result<()> {
     let options = Opt::parse();
 
-    sp_tracing::try_init_simple();
+    let logger = LoggerBuilder::new(options.log_filters()?);
+    logger.init()?;
 
     let ss58_prefix = match options.uri.contains("vara") {
         true => VARA_SS58_PREFIX,

@@ -113,9 +113,7 @@ In order to use the native runtime build make sure the node is built with the Ru
     * current latest finalized block on Vara chain
 
         ```bash
-        export RUST_LOG=remote-ext::cli=info,gear::runtime=debug
-
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443
+        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime=debug -lpallet_gear,gear_common,pallet_gear_scheduler=debug
         ```
 
     * block with `$HASH` or `$BLOCK_NUM`
@@ -124,8 +122,8 @@ In order to use the native runtime build make sure the node is built with the Ru
         export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
         export BLOCK_NUM=2000000
 
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$HASH"
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM"
+        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$HASH" -lgear::runtime=debug -lpallet_gear,gear_common=debug
+        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM" -lgear::runtime=debug -lpallet_gear,gear_common=debug
         ```
 
 <br/>
