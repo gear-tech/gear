@@ -109,8 +109,6 @@ pub enum Error {
     AbortedDueToTrap(MessageWithBacktrace),
 }
 
-impl wasmi::HostError for Error {}
-
 impl From<&'static str> for Error {
     fn from(err: &'static str) -> Error {
         Error::Other(err.into())

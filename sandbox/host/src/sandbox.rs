@@ -24,7 +24,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{collections::HashMap, pin::Pin, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
 use gear_sandbox_env as sandbox_env;
@@ -43,7 +43,7 @@ use self::wasmer_backend::{
 };
 use self::wasmi_backend::{
     get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
-    new_memory as wasmi_new_memory, set_global as wasmi_set_global,
+    new_memory as wasmi_new_memory, set_global as wasmi_set_global, Backend as WasmiBackend,
     MemoryWrapper as WasmiMemoryWrapper,
 };
 
@@ -171,19 +171,10 @@ pub trait SandboxContext {
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()>;
 }
 
-/// Implementation of [`Externals`] that allows execution of guest module with
-/// [externals][`Externals`] that might refer functions defined by supervisor.
-///
-/// [`Externals`]: ../wasmi/trait.Externals.html
-pub struct GuestExternals<'a> {
-    /// Instance of sandboxed module to be dispatched
-    sandbox_instance: &'a SandboxInstance,
-}
-
 /// Module instance in terms of selected backend
 enum BackendInstance {
     /// Wasmi module instance
-    Wasmi(wasmi::ModuleRef),
+    Wasmi(wasmi::Instance, Rc<RefCell<wasmi::Store<()>>>),
 
     /// Wasmer module instance
     #[cfg(feature = "host-sandbox")]
@@ -206,7 +197,6 @@ enum BackendInstance {
 /// [`invoke`]: #method.invoke
 pub struct SandboxInstance {
     backend_instance: BackendInstance,
-    guest_to_supervisor_mapping: GuestToSupervisorFunctionMapping,
 }
 
 impl SandboxInstance {
@@ -221,9 +211,13 @@ impl SandboxInstance {
         sandbox_context: &mut dyn SandboxContext,
     ) -> std::result::Result<Option<sp_wasm_interface::Value>, error::Error> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => {
-                wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
-            }
+            BackendInstance::Wasmi(wasmi_instance, store) => wasmi_invoke(
+                wasmi_instance,
+                store.clone(),
+                export_name,
+                args,
+                sandbox_context,
+            ),
 
             #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {
@@ -237,7 +231,9 @@ impl SandboxInstance {
     /// Returns `Some(_)` if the global could be found.
     pub fn get_global_val(&self, name: &str) -> Option<sp_wasm_interface::Value> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
+            BackendInstance::Wasmi(wasmi_instance, store) => {
+                wasmi_get_global(wasmi_instance, &store.borrow(), name)
+            }
 
             #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => wasmer_get_global(wasmer_instance, name),
@@ -253,7 +249,9 @@ impl SandboxInstance {
         value: sp_wasm_interface::Value,
     ) -> std::result::Result<Option<()>, error::Error> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance) => wasmi_set_global(wasmi_instance, name, value),
+            BackendInstance::Wasmi(wasmi_instance, store) => {
+                wasmi_set_global(wasmi_instance, store.clone(), name, value)
+            }
 
             #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {
@@ -469,7 +467,7 @@ impl util::MemoryTransfer for Memory {
 /// Information specific to a particular execution backend
 enum BackendContext {
     /// Wasmi specific context
-    Wasmi,
+    Wasmi(WasmiBackend),
 
     /// Wasmer specific context
     #[cfg(feature = "host-sandbox")]
@@ -479,10 +477,10 @@ enum BackendContext {
 impl BackendContext {
     pub fn new(backend: SandboxBackend) -> BackendContext {
         match backend {
-            SandboxBackend::Wasmi => BackendContext::Wasmi,
+            SandboxBackend::Wasmi => BackendContext::Wasmi(WasmiBackend::new()),
 
             #[cfg(not(feature = "host-sandbox"))]
-            SandboxBackend::TryWasmer => BackendContext::Wasmi,
+            SandboxBackend::TryWasmer => BackendContext::Wasmi(WasmiBackend::new()),
 
             #[cfg(feature = "host-sandbox")]
             SandboxBackend::Wasmer | SandboxBackend::TryWasmer => {
@@ -528,11 +526,9 @@ impl<DT: Clone> Store<DT> {
         );
         self.memories.clear();
 
-        match self.backend_context {
-            BackendContext::Wasmi => (),
-            BackendContext::Wasmer(_) => {
-                self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
-            }
+        self.backend_context = match self.backend_context {
+            BackendContext::Wasmi(_) => BackendContext::Wasmi(WasmiBackend::new()),
+            BackendContext::Wasmer(_) => BackendContext::Wasmer(WasmerBackend::new()),
         }
     }
 
@@ -544,15 +540,15 @@ impl<DT: Clone> Store<DT> {
     /// Typically happens if `initial` is more than `maximum`.
     pub fn new_memory(&mut self, initial: u32, maximum: u32) -> Result<u32> {
         let memories = &mut self.memories;
-        let backend_context = &self.backend_context;
+        let backend_context = &mut self.backend_context;
 
         let maximum = match maximum {
             sandbox_env::MEM_UNLIMITED => None,
             specified_limit => Some(specified_limit),
         };
 
-        let memory = match &backend_context {
-            BackendContext::Wasmi => wasmi_new_memory(initial, maximum)?,
+        let memory = match backend_context {
+            BackendContext::Wasmi(context) => wasmi_new_memory(context, initial, maximum)?,
 
             #[cfg(feature = "host-sandbox")]
             BackendContext::Wasmer(context) => wasmer_new_memory(context, initial, maximum)?,
@@ -658,11 +654,13 @@ impl<DT: Clone> Store<DT> {
         guest_env: GuestEnvironment,
         sandbox_context: &mut dyn SandboxContext,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
-        let sandbox_instance = match self.backend_context {
-            BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
+        let sandbox_instance = match &mut self.backend_context {
+            BackendContext::Wasmi(context) => {
+                wasmi_instantiate(context, wasm, guest_env, sandbox_context)?
+            }
 
             #[cfg(feature = "host-sandbox")]
-            BackendContext::Wasmer(ref context) => {
+            BackendContext::Wasmer(context) => {
                 wasmer_instantiate(context, wasm, guest_env, sandbox_context)?
             }
         };

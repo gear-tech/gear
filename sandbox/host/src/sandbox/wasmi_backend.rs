@@ -18,118 +18,53 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::fmt;
+use std::{cell::RefCell, rc::Rc};
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
-    memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
-    RuntimeValue, Trap,
+    core::{Pages, Trap},
+    Engine, ExternType, Func, Linker, Module, Store,
 };
 
 use crate::{
     error::{self, Error},
     sandbox::{
-        BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
-        InstantiationError, Memory, SandboxContext, SandboxInstance,
+        BackendInstance, GuestEnvironment, InstantiationError, Memory, SandboxContext,
+        SandboxInstance, SupervisorFuncIndex,
     },
     util::MemoryTransfer,
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
-#[derive(Debug)]
-struct CustomHostError(String);
-
-impl fmt::Display for CustomHostError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HostError: {}", self.0)
-    }
+/// Wasmer specific context
+pub struct Backend {
+    engine: Engine,
+    store: Rc<RefCell<Store<()>>>,
 }
 
-impl wasmi::HostError for CustomHostError {}
-
-/// Construct trap error from specified message
-fn trap(msg: &'static str) -> Trap {
-    Trap::host(CustomHostError(msg.into()))
-}
-
-impl ImportResolver for Imports {
-    fn resolve_func(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        signature: &wasmi::Signature,
-    ) -> std::result::Result<wasmi::FuncRef, wasmi::Error> {
-        let idx = self.func_by_name(module_name, field_name).ok_or_else(|| {
-            wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name))
-        })?;
-
-        Ok(wasmi::FuncInstance::alloc_host(signature.clone(), idx.0))
-    }
-
-    fn resolve_memory(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _memory_type: &wasmi::MemoryDescriptor,
-    ) -> std::result::Result<wasmi::MemoryRef, wasmi::Error> {
-        let mem = self
-            .memory_by_name(module_name, field_name)
-            .ok_or_else(|| {
-                wasmi::Error::Instantiation(format!(
-                    "Export {}:{} not found",
-                    module_name, field_name
-                ))
-            })?;
-
-        let wrapper = mem.as_wasmi().ok_or_else(|| {
-            wasmi::Error::Instantiation(format!(
-                "Unsupported non-wasmi export {}:{}",
-                module_name, field_name
-            ))
-        })?;
-
-        // Here we use inner memory reference only to resolve the imports
-        // without accessing the memory contents. All subsequent memory accesses
-        // should happen through the wrapper, that enforces the memory access protocol.
-        let mem = wrapper.0;
-
-        Ok(mem)
-    }
-
-    fn resolve_global(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _global_type: &wasmi::GlobalDescriptor,
-    ) -> std::result::Result<wasmi::GlobalRef, wasmi::Error> {
-        Err(wasmi::Error::Instantiation(format!(
-            "Export {}:{} not found",
-            module_name, field_name
-        )))
-    }
-
-    fn resolve_table(
-        &self,
-        module_name: &str,
-        field_name: &str,
-        _table_type: &wasmi::TableDescriptor,
-    ) -> std::result::Result<wasmi::TableRef, wasmi::Error> {
-        Err(wasmi::Error::Instantiation(format!(
-            "Export {}:{} not found",
-            module_name, field_name
-        )))
+impl Backend {
+    pub fn new() -> Self {
+        let engine = Engine::default();
+        let store = Store::new(&engine, ());
+        let store = Rc::new(RefCell::new(store));
+        Backend { engine, store }
     }
 }
 
 /// Allocate new memory region
-pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Memory> {
-    let memory = Memory::Wasmi(MemoryWrapper::new(
-        MemoryInstance::alloc(Pages(initial as usize), maximum.map(|m| Pages(m as usize)))
-            .map_err(|error| Error::Sandbox(error.to_string()))?,
-    ));
+pub fn new_memory(
+    context: &mut Backend,
+    initial: u32,
+    maximum: Option<u32>,
+) -> crate::error::Result<Memory> {
+    let memory_type =
+        wasmi::MemoryType::new(initial, maximum).map_err(|err| Error::Sandbox(err.to_string()))?;
+    let memory = wasmi::Memory::new(&mut *context.store.borrow_mut(), memory_type)
+        .map_err(|err| Error::Sandbox(err.to_string()))?;
+    let memory = Memory::Wasmi(MemoryWrapper::new(context, memory));
 
     Ok(memory)
 }
@@ -138,249 +73,311 @@ pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Me
 ///
 /// This wrapper limits the scope where the slice can be taken to
 #[derive(Debug, Clone)]
-pub struct MemoryWrapper(wasmi::MemoryRef);
+pub struct MemoryWrapper {
+    memory: wasmi::Memory,
+    store: Rc<RefCell<Store<()>>>,
+}
 
 impl MemoryWrapper {
     /// Take ownership of the memory region and return a wrapper object
-    fn new(memory: wasmi::MemoryRef) -> Self {
-        Self(memory)
+    fn new(context: &Backend, memory: wasmi::Memory) -> Self {
+        Self {
+            memory,
+            store: context.store.clone(),
+        }
     }
 }
 
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
-        self.0.with_direct_access(|source| {
-            let range = util::checked_range(source_addr.into(), size, source.len())
-                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+        let store = self.store.borrow();
+        let source = self.memory.data(&*store);
 
-            Ok(Vec::from(&source[range]))
-        })
+        let range = util::checked_range(source_addr.into(), size, source.len())
+            .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+
+        Ok(Vec::from(&source[range]))
     }
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
-        self.0.with_direct_access(|source| {
-            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
-                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+        let store = self.store.borrow();
+        let source = self.memory.data(&*store);
+        let range = util::checked_range(source_addr.into(), destination.len(), source.len())
+            .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
 
-            destination.copy_from_slice(&source[range]);
-            Ok(())
-        })
+        destination.copy_from_slice(&source[range]);
+        Ok(())
     }
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
-        self.0.with_direct_access_mut(|destination| {
-            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
-                .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
+        let mut store = self.store.borrow_mut();
+        let destination = self.memory.data_mut(&mut *store);
+        let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
+            .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
 
-            destination[range].copy_from_slice(source);
-            Ok(())
-        })
+        destination[range].copy_from_slice(source);
+        Ok(())
     }
 
     fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
-        self.0
-            .grow(Pages(pages as usize))
+        self.memory
+            .grow(&mut *self.store.borrow_mut(), Pages::from(pages as u16))
             .map_err(|e| {
                 Error::Sandbox(format!(
                     "Cannot grow memory in masmi sandbox executor: {}",
                     e
                 ))
             })
-            .map(|p| p.0 as u32)
+            .map(Into::into)
     }
 
     fn memory_size(&mut self) -> u32 {
-        self.0.current_size().0 as u32
+        self.memory.current_pages(&*self.store.borrow()).into()
     }
 
     fn get_buff(&mut self) -> *mut u8 {
-        self.0.direct_access_mut().as_mut().as_mut_ptr()
+        let mut store = self.store.borrow_mut();
+        self.memory.data_mut(&mut *store).as_mut_ptr()
     }
-}
-
-impl<'a> wasmi::Externals for GuestExternals<'a> {
-    fn invoke_index(
-        &mut self,
-        index: usize,
-        args: RuntimeArgs,
-    ) -> std::result::Result<Option<RuntimeValue>, Trap> {
-        SandboxContextStore::with(|sandbox_context| {
-			// Make `index` typesafe again.
-			let index = GuestFuncIndex(index);
-
-			// Convert function index from guest to supervisor space
-			let func_idx = self.sandbox_instance
-				.guest_to_supervisor_mapping
-				.func_by_guest_index(index)
-				.expect(
-					"`invoke_index` is called with indexes registered via `FuncInstance::alloc_host`;
-					`FuncInstance::alloc_host` is called with indexes that were obtained from `guest_to_supervisor_mapping`;
-					`func_by_guest_index` called with `index` can't return `None`;
-					qed"
-				);
-
-			// Serialize arguments into a byte vector.
-			let invoke_args_data: Vec<u8> = args
-				.as_ref()
-				.iter()
-				.cloned()
-				.map(Value::from)
-				.collect::<Vec<_>>()
-				.encode();
-
-			// Move serialized arguments inside the memory, invoke dispatch thunk and
-			// then free allocated memory.
-			let invoke_args_len = invoke_args_data.len() as WordSize;
-			let invoke_args_ptr = sandbox_context
-				.allocate_memory(invoke_args_len)
-				.map_err(|_| trap("Can't allocate memory in supervisor for the arguments"))?;
-
-			let deallocate = |sandbox_context: &mut dyn SandboxContext, ptr, fail_msg| {
-				sandbox_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
-			};
-
-			if sandbox_context
-				.write_memory(invoke_args_ptr, &invoke_args_data)
-				.is_err()
-			{
-				deallocate(
-					sandbox_context,
-					invoke_args_ptr,
-					"Failed dealloction after failed write of invoke arguments",
-				)?;
-				return Err(trap("Can't write invoke args into memory"))
-			}
-
-			let result = sandbox_context.invoke(
-				invoke_args_ptr,
-				invoke_args_len,
-				func_idx,
-			);
-
-			deallocate(
-				sandbox_context,
-				invoke_args_ptr,
-				"Can't deallocate memory for dispatch thunk's invoke arguments",
-			)?;
-			let result = result?;
-
-			// dispatch_thunk returns pointer to serialized arguments.
-			// Unpack pointer and len of the serialized result data.
-			let (serialized_result_val_ptr, serialized_result_val_len) = {
-				// Cast to u64 to use zero-extension.
-				let v = result as u64;
-				let ptr = (v >> 32) as u32;
-				let len = (v & 0xFFFFFFFF) as u32;
-				(Pointer::new(ptr), len)
-			};
-
-			let serialized_result_val = sandbox_context
-				.read_memory(serialized_result_val_ptr, serialized_result_val_len)
-				.map_err(|_| trap("Can't read the serialized result from dispatch thunk"));
-
-			deallocate(
-				sandbox_context,
-				serialized_result_val_ptr,
-				"Can't deallocate memory for dispatch thunk's result",
-			)
-			.and(serialized_result_val)
-			.and_then(|serialized_result_val| {
-				let result_val = std::result::Result::<ReturnValue, HostError>::decode(&mut serialized_result_val.as_slice())
-					.map_err(|_| trap("Decoding Result<ReturnValue, HostError> failed!"))?;
-
-				match result_val {
-					Ok(return_value) => Ok(match return_value {
-						ReturnValue::Unit => None,
-						ReturnValue::Value(typed_value) => Some(From::from(typed_value)),
-					}),
-					Err(HostError) => Err(trap("Supervisor function returned sandbox::HostError")),
-				}
-			})
-		}).expect("SandboxContextStore is set when invoking sandboxed functions; qed")
-    }
-}
-
-fn with_guest_externals<R, F>(sandbox_instance: &SandboxInstance, f: F) -> R
-where
-    F: FnOnce(&mut GuestExternals) -> R,
-{
-    f(&mut GuestExternals { sandbox_instance })
 }
 
 /// Instantiate a module within a sandbox context
 pub fn instantiate(
+    context: &mut Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
     sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
-    let wasmi_module = Module::from_buffer(wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
-    let wasmi_instance = ModuleInstance::new(&wasmi_module, &guest_env.imports)
-        .map_err(|_| InstantiationError::Instantiation)?;
+    let mut store = context.store.borrow_mut();
+    let module =
+        Module::new(&context.engine, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
 
-    let sandbox_instance = SandboxInstance {
-        // In general, it's not a very good idea to use `.not_started_instance()` for
-        // anything but for extracting memory and tables. But in this particular case, we
-        // are extracting for the purpose of running `start` function which should be ok.
-        backend_instance: BackendInstance::Wasmi(wasmi_instance.not_started_instance().clone()),
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
-    };
+    let mut linker = Linker::new(&context.engine);
+    for import in module.imports() {
+        match import.ty() {
+            ExternType::Func(func_type) => {
+                let Some(guest_func_index) = guest_env
+                    .imports
+                    .func_by_name(import.module(), import.name()) else {
+                    continue
+                };
 
-    with_guest_externals(&sandbox_instance, |guest_externals| {
-        SandboxContextStore::using(sandbox_context, || {
-            wasmi_instance
-                .run_start(guest_externals)
-                .map_err(|_| InstantiationError::StartTrapped)
-        })
+                let supervisor_func_index = guest_env
+                    .guest_to_supervisor_mapping
+                    .func_by_guest_index(guest_func_index)
+                    .ok_or(InstantiationError::ModuleDecoding)?;
+
+                let func = dispatch_function(supervisor_func_index, &mut store, func_type.clone());
+                linker
+                    .define(import.module(), import.name(), func)
+                    .map_err(|_| InstantiationError::Instantiation)?;
+            }
+            ExternType::Memory(_) => {
+                let memory = guest_env
+                    .imports
+                    .memory_by_name(import.module(), import.name())
+                    .ok_or(InstantiationError::ModuleDecoding)?;
+
+                let memory = memory.as_wasmi().expect(
+                    "memory is created by wasmi; \
+					exported by the same module and backend; \
+					thus the operation can't fail; \
+					qed",
+                );
+
+                linker
+                    .define(import.module(), import.name(), memory.memory)
+                    .map_err(|_| InstantiationError::Instantiation)?;
+            }
+            _ => continue,
+        }
+    }
+
+    let instance = SandboxContextStore::using(sandbox_context, move || {
+        linker
+            .instantiate(&mut *store, &module)
+            .map_err(|_| InstantiationError::Instantiation)?
+            .start(&mut *store)
+            .map_err(|_| InstantiationError::StartTrapped)
     })?;
 
-    Ok(sandbox_instance)
+    Ok(SandboxInstance {
+        backend_instance: BackendInstance::Wasmi(instance, context.store.clone()),
+    })
+}
+
+fn dispatch_function(
+    supervisor_func_index: SupervisorFuncIndex,
+    store: &mut Store<()>,
+    func_ty: wasmi::FuncType,
+) -> Func {
+    Func::new(store, func_ty, move |_caller, params, results| {
+        SandboxContextStore::with(|sandbox_context| {
+            // Serialize arguments into a byte vector.
+            let invoke_args_data = params
+                .iter()
+                .cloned()
+                .map(|val| wasmi_to_ri(val).map_err(Trap::new))
+                .collect::<std::result::Result<Vec<_>, _>>()?
+                .encode();
+
+            // Move serialized arguments inside the memory, invoke dispatch thunk and
+            // then free allocated memory.
+            let invoke_args_len = invoke_args_data.len() as WordSize;
+            let invoke_args_ptr = sandbox_context
+                .allocate_memory(invoke_args_len)
+                .map_err(|_| Trap::new("Can't allocate memory in supervisor for the arguments"))?;
+
+            let deallocate = |fe: &mut dyn SandboxContext, ptr, fail_msg| {
+                fe.deallocate_memory(ptr).map_err(|_| Trap::new(fail_msg))
+            };
+
+            if sandbox_context
+                .write_memory(invoke_args_ptr, &invoke_args_data)
+                .is_err()
+            {
+                deallocate(
+                    sandbox_context,
+                    invoke_args_ptr,
+                    "Failed dealloction after failed write of invoke arguments",
+                )?;
+
+                return Err(Trap::new("Can't write invoke args into memory"));
+            }
+
+            // Perform the actuall call
+            let serialized_result = sandbox_context
+                .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
+                .map_err(|e| Trap::new(e.to_string()));
+
+            deallocate(
+                sandbox_context,
+                invoke_args_ptr,
+                "Failed dealloction after invoke",
+            )?;
+
+            let serialized_result = serialized_result?;
+
+            // dispatch_thunk returns pointer to serialized arguments.
+            // Unpack pointer and len of the serialized result data.
+            let (serialized_result_val_ptr, serialized_result_val_len) = {
+                // Cast to u64 to use zero-extension.
+                let v = serialized_result as u64;
+                let ptr = (v >> 32) as u32;
+                let len = (v & 0xFFFFFFFF) as u32;
+                (Pointer::new(ptr), len)
+            };
+
+            let serialized_result_val = sandbox_context
+                .read_memory(serialized_result_val_ptr, serialized_result_val_len)
+                .map_err(|_| Trap::new("Can't read the serialized result from dispatch thunk"));
+
+            deallocate(
+                sandbox_context,
+                serialized_result_val_ptr,
+                "Can't deallocate memory for dispatch thunk's result",
+            )?;
+
+            let serialized_result_val = serialized_result_val?;
+
+            let deserialized_result = std::result::Result::<ReturnValue, HostError>::decode(
+                &mut serialized_result_val.as_slice(),
+            )
+            .map_err(|_| Trap::new("Decoding Result<ReturnValue, HostError> failed!"))?
+            .map_err(|_| Trap::new("Supervisor function returned sandbox::HostError"))?;
+
+            match deserialized_result {
+                ReturnValue::Value(value) => {
+                    results[0] = ri_to_wasmi(value);
+                }
+                ReturnValue::Unit => {}
+            };
+
+            Ok(())
+        })
+        .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
+    })
 }
 
 /// Invoke a function within a sandboxed module
 pub fn invoke(
-    instance: &SandboxInstance,
-    module: &wasmi::ModuleRef,
+    instance: &wasmi::Instance,
+    store: Rc<RefCell<Store<()>>>,
     export_name: &str,
     args: &[Value],
     sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<Option<Value>, error::Error> {
-    with_guest_externals(instance, |guest_externals| {
-        SandboxContextStore::using(sandbox_context, || {
-            let args = args.iter().cloned().map(From::from).collect::<Vec<_>>();
+    let mut store = store.borrow_mut();
+    let function = instance
+        .get_func(&*store, export_name)
+        .ok_or_else(|| Error::MethodNotFound(export_name.to_string()))?;
 
-            module
-                .invoke_export(export_name, &args, guest_externals)
-                .map(|result| result.map(Into::into))
-                .map_err(|error| error::Error::Sandbox(error.to_string()))
-        })
-    })
+    let args: Vec<wasmi::Value> = args.iter().cloned().map(ri_to_wasmi).collect();
+
+    let results = function.ty(&*store).results().len();
+    let mut results = vec![wasmi::Value::I32(0); results];
+    SandboxContextStore::using(sandbox_context, || {
+        function
+            .call(&mut *store, &args, &mut results)
+            .map_err(|error| Error::Sandbox(error.to_string()))
+    })?;
+
+    let results: &[wasmi::Value] = results.as_ref();
+    match results {
+        [] => Ok(None),
+
+        [wasm_value] => wasmi_to_ri(wasm_value.clone())
+            .map(Some)
+            .map_err(Error::Sandbox),
+
+        _ => Err(Error::Sandbox(
+            "multiple return types are not supported yet".into(),
+        )),
+    }
 }
 
 /// Get global value by name
-pub fn get_global(instance: &wasmi::ModuleRef, name: &str) -> Option<Value> {
-    Some(Into::into(
-        instance.export_by_name(name)?.as_global()?.get(),
-    ))
+pub fn get_global(instance: &wasmi::Instance, store: &Store<()>, name: &str) -> Option<Value> {
+    instance
+        .get_global(store, name)
+        .map(|global| global.get(store))
+        .and_then(|value| wasmi_to_ri(value).ok())
 }
 
 /// Set global value by name
 pub fn set_global(
-    instance: &wasmi::ModuleRef,
+    instance: &wasmi::Instance,
+    store: Rc<RefCell<Store<()>>>,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
-    let export = match instance.export_by_name(name) {
-        Some(e) => e,
-        None => return Ok(None),
+    let mut store = store.borrow_mut();
+    let Some(global) = instance.get_global(&*store, name) else {
+        return Ok(None);
     };
 
-    let global = match export.as_global() {
-        Some(g) => g,
-        None => return Ok(None),
-    };
-
+    let value = ri_to_wasmi(value);
     global
-        .set(From::from(value))
-        .map(|_| Some(()))
-        .map_err(error::Error::Wasmi)
+        .set(&mut *store, value)
+        .map_err(|err| Error::Sandbox(err.to_string()))?;
+    Ok(Some(()))
+}
+
+fn wasmi_to_ri(val: wasmi::Value) -> Result<Value, String> {
+    match val {
+        wasmi::Value::I32(val) => Ok(Value::I32(val)),
+        wasmi::Value::I64(val) => Ok(Value::I64(val)),
+        wasmi::Value::F32(val) => Ok(Value::F32(val.to_bits())),
+        wasmi::Value::F64(val) => Ok(Value::F64(val.to_bits())),
+        _ => Err(format!("Unsupported function argument: {:?}", val)),
+    }
+}
+
+fn ri_to_wasmi(val: Value) -> wasmi::Value {
+    match val {
+        Value::I32(val) => wasmi::Value::I32(val),
+        Value::I64(val) => wasmi::Value::I64(val),
+        Value::F32(val) => wasmi::Value::F32(wasmi::core::F32::from_bits(val)),
+        Value::F64(val) => wasmi::Value::F64(wasmi::core::F64::from_bits(val)),
+    }
 }

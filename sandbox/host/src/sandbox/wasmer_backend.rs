@@ -269,7 +269,6 @@ pub fn instantiate(
 
     Ok(SandboxInstance {
         backend_instance: BackendInstance::Wasmer(instance),
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     })
 }
 
