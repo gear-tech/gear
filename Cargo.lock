@@ -2150,6 +2150,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-read-big-state"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
@@ -4143,9 +4152,11 @@ dependencies = [
  "environmental",
  "gear-sandbox-env",
  "log",
+ "once_cell",
  "parity-scale-codec",
  "sp-allocator",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "tempfile",
  "thiserror",
  "wasmer",
  "wasmer-cache",
@@ -4479,8 +4490,11 @@ version = "0.2.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "gear-wasm-builder",
  "gmeta-codegen",
+ "gstd",
  "hex",
+ "parity-scale-codec",
  "scale-info",
 ]
 
@@ -7168,6 +7182,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
+ "demo-read-big-state",
  "demo-reservation-manager",
  "demo-reserve-gas",
  "demo-rwlock",

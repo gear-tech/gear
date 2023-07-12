@@ -22,9 +22,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use wasmer::RuntimeError;
 
-#[cfg(feature = "wasmer-cache")]
-use wasmer::Module;
-
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
@@ -39,6 +36,24 @@ use crate::{
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
+
+#[cfg(feature = "wasmer-cache")]
+enum CachedModuleErr {
+    FileSystemErr,
+    ModuleLoadErr(FileSystemCache, Hash),
+}
+
+#[cfg(feature = "wasmer-cache")]
+use {
+    once_cell::sync::OnceCell,
+    tempfile::TempDir,
+    wasmer::Module,
+    wasmer_cache::{Cache, FileSystemCache, Hash},
+    CachedModuleErr::*,
+};
+
+#[cfg(feature = "wasmer-cache")]
+static CACHE_DIR: OnceCell<TempDir> = OnceCell::new();
 
 /// Wasmer specific context
 pub struct Backend {
@@ -109,26 +124,17 @@ pub fn invoke(
 }
 
 #[cfg(feature = "wasmer-cache")]
-use wasmer_cache::{Cache, FileSystemCache, Hash};
-
-#[cfg(feature = "wasmer-cache")]
-enum CachedModuleErr {
-    FileSystemErr,
-    ModuleLoadErr(FileSystemCache, Hash),
-}
-
-#[cfg(feature = "wasmer-cache")]
-use CachedModuleErr::*;
-
-#[cfg(feature = "wasmer-cache")]
 fn get_cached_module(
     wasm: &[u8],
     store: &wasmer::Store,
 ) -> core::result::Result<Module, CachedModuleErr> {
-    let mut cache_path = std::env::temp_dir();
-    cache_path.push("substrate-wasmer-cache");
-    cache_path.push(wasmer::VERSION);
-    log::trace!("Wasmer sandbox cache dir is: {:?}", cache_path);
+    let cache_path = CACHE_DIR
+        .get_or_init(|| {
+            tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
+        })
+        .path();
+    log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
+
     let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
     let code_hash = Hash::generate(wasm);
     unsafe {

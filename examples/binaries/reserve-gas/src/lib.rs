@@ -126,37 +126,39 @@ mod wasm {
             InitAction::CheckArgs { mailbox_threshold } => {
                 assert_eq!(
                     ReservationId::reserve(0, 10),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::ReservationBelowMailboxThreshold
-                    )))
+                    Err(Error::Core(
+                        ExtError::Reservation(ReservationError::ReservationBelowMailboxThreshold)
+                            .into()
+                    ))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(50_000, 0),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::ZeroReservationDuration
-                    )))
+                    Err(Error::Core(
+                        ExtError::Reservation(ReservationError::ZeroReservationDuration).into()
+                    ))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold - 1, 1),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::ReservationBelowMailboxThreshold
-                    )))
+                    Err(Error::Core(
+                        ExtError::Reservation(ReservationError::ReservationBelowMailboxThreshold)
+                            .into()
+                    ))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold, u32::MAX),
-                    Err(Error::Ext(ExtError::Execution(
-                        ExecutionError::NotEnoughGas
-                    )))
+                    Err(Error::Core(
+                        ExtError::Execution(ExecutionError::NotEnoughGas).into()
+                    ))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(u64::MAX, 1),
-                    Err(Error::Ext(ExtError::Execution(
-                        ExecutionError::NotEnoughGas
-                    )))
+                    Err(Error::Core(
+                        ExtError::Execution(ExecutionError::NotEnoughGas).into()
+                    ))
                 );
             }
             InitAction::FreshReserveUnreserve => {
@@ -170,9 +172,9 @@ mod wasm {
                 .unwrap();
                 assert_eq!(
                     id.unreserve(),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::InvalidReservationId
-                    )))
+                    Err(Error::Core(
+                        ExtError::Reservation(ReservationError::InvalidReservationId).into()
+                    ))
                 );
             }
         }
@@ -234,9 +236,9 @@ mod wasm {
                 .unwrap();
                 assert_eq!(
                     id.unreserve(),
-                    Err(Error::Ext(ExtError::Reservation(
-                        ReservationError::InvalidReservationId
-                    )))
+                    Err(Error::Core(
+                        ExtError::Reservation(ReservationError::InvalidReservationId).into()
+                    ))
                 );
             }
         }

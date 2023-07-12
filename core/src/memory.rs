@@ -30,7 +30,6 @@ use core::{
     iter,
     ops::{Deref, DerefMut},
 };
-use gear_core_errors::MemoryError;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -152,6 +151,14 @@ pub type HostPointer = u64;
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
 );
+
+/// Core memory error.
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum MemoryError {
+    /// The error occurs in attempt to access memory outside wasm program memory.
+    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    AccessOutOfBounds,
+}
 
 /// Backend wasm memory interface.
 pub trait Memory {
