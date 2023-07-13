@@ -72,6 +72,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gstd::errors::Error as GstdError;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
@@ -6653,8 +6654,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
@@ -6698,8 +6699,10 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(
+                    ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid).into()
+                )
             )
         } else {
             String::from("no info")
@@ -7814,8 +7817,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Message(MessageError::InsufficientValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
             )
         } else {
             String::from("no info")
@@ -7867,8 +7870,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
