@@ -177,9 +177,7 @@ mod wasm {
                 let res = exec::system_reserve_gas(0);
                 assert_eq!(
                     res,
-                    Err(ExtError::Reservation(
-                        ReservationError::ZeroReservationAmount
-                    ))
+                    Err(ExtError::Reservation(ReservationError::ZeroReservationAmount).into())
                 );
             }
             HandleAction::ForbiddenCallInSignal(user) => {

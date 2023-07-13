@@ -120,7 +120,7 @@ impl Meta {
             None,
             None,
             Default::default(),
-            100_000_000,
+            u64::MAX,
             BlockInfo::default(),
         )
         .map_err(Error::WasmExecution)

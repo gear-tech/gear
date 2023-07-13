@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
+    BackendExternalities, BackendSyscallError, ExtInfo, SystemReservationContext,
+    TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
@@ -27,12 +28,12 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -47,13 +48,17 @@ impl fmt::Display for Error {
     }
 }
 
-impl BackendExternalitiesError for Error {
+impl BackendSyscallError for Error {
     fn into_termination_reason(self) -> TerminationReason {
+        unimplemented!()
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
         unimplemented!()
     }
 }
 
-impl BackendAllocExternalitiesError for Error {
+impl BackendAllocSyscallError for Error {
     type ExtError = Self;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
@@ -353,18 +358,18 @@ impl Memory for MockMemory {
         self.write_attempt_count.set(self.write_attempt_count() + 1);
         let page_index = self
             .page_index(offset)
-            .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
+            .ok_or(MemoryError::AccessOutOfBounds)?;
         let page_offset = offset as usize % WASM_PAGE_SIZE;
 
         if page_offset + buffer.len() > WASM_PAGE_SIZE {
-            return Err(MemoryError::RuntimeAllocOutOfBounds);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         let page_start = page_index * WASM_PAGE_SIZE;
         let start = page_start + page_offset;
 
         if start + buffer.len() > self.pages.len() {
-            return Err(MemoryError::RuntimeAllocOutOfBounds);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         let dest = &mut self.pages[start..(start + buffer.len())];

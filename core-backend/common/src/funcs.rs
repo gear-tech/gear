@@ -20,9 +20,9 @@
 
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
-    runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, MessageWaitedType, TerminationReason, TrapExplanation,
+    runtime::{RunFallibleError, Runtime},
+    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendSyscallError, MessageWaitedType, TerminationReason, TrapExplanation,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -50,9 +50,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
+    Ext::UnrecoverableError: BackendSyscallError,
+    RunFallibleError: From<Ext::FallibleError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
@@ -69,12 +69,11 @@ where
     fn read_message_payload(
         ctx: &mut R,
         read_payload: WasmMemoryRead,
-    ) -> Result<Payload, TerminationReason> {
+    ) -> Result<Payload, RunFallibleError> {
         ctx.read(read_payload)?
             .try_into()
-            .map_err(|PayloadSizeError| {
-                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into()).into()
-            })
+            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+            .map_err(RunFallibleError::FallibleExt)
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
@@ -233,7 +232,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(cost = RuntimeCosts::Alloc)]
+    #[host(cost = RuntimeCosts::Alloc(pages))]
     pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {
         let res = ctx.alloc(pages);
         let res = ctx.process_alloc_func_result(res)?;

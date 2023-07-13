@@ -24,10 +24,11 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
-    TrapExplanation, UnrecoverableExecutionError,
-    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
+    runtime::RunFallibleError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
+    UnrecoverableWaitError,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -38,8 +39,8 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryInterval, NoopGrowHandler,
-        PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
+        NoopGrowHandler, PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
@@ -49,8 +50,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MemoryError,
-    MessageError, ProgramRentError, ReplyCode, ReservationError, SignalCode,
+    ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
+    ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -151,7 +152,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
     }
 }
 
-impl BackendExternalitiesError for UnrecoverableExtError {
+impl BackendSyscallError for UnrecoverableExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
@@ -159,6 +160,10 @@ impl BackendExternalitiesError for UnrecoverableExtError {
             }
             UnrecoverableExtError::Charge(err) => err.into(),
         }
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
+        RunFallibleError::TerminationReason(self.into_termination_reason())
     }
 }
 
@@ -197,16 +202,18 @@ impl From<ReservationError> for FallibleExtError {
     }
 }
 
-impl BackendExternalitiesError for FallibleExtError {
-    fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            FallibleExtError::Core(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::FallibleExt(err)).into()
-            }
+impl From<FallibleExtError> for RunFallibleError {
+    fn from(err: FallibleExtError) -> Self {
+        match err {
+            FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
             FallibleExtError::ForbiddenFunction => {
-                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
+                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                    ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
+                ))
             }
-            FallibleExtError::Charge(err) => err.into(),
+            FallibleExtError::Charge(err) => {
+                RunFallibleError::TerminationReason(TerminationReason::from(err))
+            }
         }
     }
 }
@@ -222,7 +229,7 @@ pub enum AllocExtError {
     Alloc(AllocError),
 }
 
-impl BackendAllocExternalitiesError for AllocExtError {
+impl BackendAllocSyscallError for AllocExtError {
     type ExtError = UnrecoverableExtError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
