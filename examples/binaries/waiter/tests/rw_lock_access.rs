@@ -95,7 +95,7 @@ fn access_rw_lock_guard_from_different_msg_fails(
 }
 
 fn init_fixture(system: &System, lock_type: RwLockType) -> (Program<'_>, MessageId) {
-    system.init_logger_with_fallback_filter("");
+    system.init_logger_with_default_filter("");
     let program = Program::current(system);
     program.send_bytes(USER_ID, []);
     let lock_result = program.send(
