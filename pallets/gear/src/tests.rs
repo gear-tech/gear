@@ -80,6 +80,42 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn calculate_gas_returns_not_block_limit() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(generator_id));
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(generator_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ne!(min_limit, BlockGasLimitOf::<Test>::get());
+    });
+}
+
+#[test]
 fn read_big_state() {
     use demo_read_big_state::{Strings, WASM_BINARY};
 
@@ -9162,23 +9198,11 @@ fn program_generator_works() {
 
         assert!(Gear::is_active(generator_id));
 
-        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(generator_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true,
-            true,
-        )
-        .expect("calculate_gas_info failed");
-
-        assert_ne!(min_limit, BlockGasLimitOf::<Test>::get());
-
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             generator_id,
             EMPTY_PAYLOAD.to_vec(),
-            min_limit,
+            BlockGasLimitOf::<Test>::get(),
             0
         ));
 
