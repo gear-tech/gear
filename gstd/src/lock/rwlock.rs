@@ -247,23 +247,22 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
         self.ensure_access_by_holder();
         unsafe {
             let locked_by = &mut *self.lock.locked.get();
-            if let Some(owner_msg_id) = *locked_by {
-                if owner_msg_id != self.holder_msg_id {
-                    panic!(
-                        "Write lock guard held by message 0x{} does not match lock owner message 0x{}",
-                        hex::encode(self.holder_msg_id),
-                        hex::encode(owner_msg_id),
-                    );
-                }
-                *locked_by = None;
-                if let Some(message_id) = self.lock.queue.dequeue() {
-                    exec::wake(message_id).expect("Failed to wake the message");
-                }
-            } else {
+            let owner_msg_id = locked_by.unwrap_or_else(|| {
                 panic!(
                     "Write lock guard held by message 0x{} is being dropped for non-existing lock",
                     hex::encode(self.holder_msg_id),
                 );
+            });
+            if owner_msg_id != self.holder_msg_id {
+                panic!(
+                    "Write lock guard held by message 0x{} does not match lock owner message 0x{}",
+                    hex::encode(self.holder_msg_id),
+                    hex::encode(owner_msg_id),
+                );
+            }
+            *locked_by = None;
+            if let Some(message_id) = self.lock.queue.dequeue() {
+                exec::wake(message_id).expect("Failed to wake the message");
             }
         }
     }
