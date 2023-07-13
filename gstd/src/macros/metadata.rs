@@ -122,7 +122,7 @@ macro_rules! metadata {
 #[allow(missing_docs)]
 #[deprecated(
     since = "0.1.0",
-    note = "https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta"
+    note = "https://github.com/gear-tech/gear/tree/master/examples/new-meta"
 )]
 #[macro_export]
 macro_rules! metadata {

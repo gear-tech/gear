@@ -23,7 +23,7 @@ use parity_scale_codec::Decode;
 use tokio::fs;
 
 const WASM_PATH: &str = "../target/wasm32-unknown-unknown/release/demo_new_meta.opt.wasm";
-const META_PATH: &str = "../examples/binaries/new-meta/demo_new_meta.meta.txt";
+const META_PATH: &str = "../examples/new-meta/demo_new_meta.meta.txt";
 const META_WASM_PATH: &str =
     "../target/wasm32-unknown-unknown/release/demo_meta_state_v1.meta.wasm";
 
