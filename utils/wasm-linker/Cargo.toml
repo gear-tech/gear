@@ -1,0 +1,9 @@
+[package]
+name = "wasm-linker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pwasm-utils.workspace = true
+wasmparser.workspace = true
+rustc-demangle = "0.1.23"
