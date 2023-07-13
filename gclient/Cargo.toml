@@ -1,13 +1,12 @@
 [package]
 name = "gclient"
 version = "0.1.0"
-description = "gear client"
+description = "Gear client"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-documentation.workspace = true
 
 [dependencies]
 gear-utils.workspace = true
