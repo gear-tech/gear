@@ -18,7 +18,13 @@
 
 //! Utils
 
-use crate::{result::Result, signer::Signer};
+use crate::{
+    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, types::InBlock, Error,
+};
+use scale_value::Composite;
+use subxt::blocks::ExtrinsicEvents;
+
+type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 impl Signer {
     /// Get self balance
@@ -32,5 +38,65 @@ impl Signer {
         log::info!("	Balance spent: {after}");
 
         Ok(())
+    }
+
+    /// Run transaction.
+    ///
+    /// This function allows us to execute any transactions in gear.
+    ///
+    /// # You may not need this.
+    ///
+    /// Read the docs of [`Signer`] to checkout the wrappred transactions,
+    /// we need this function only when we want to execute a transaction
+    /// which has not been wrapped in `gsdk`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use gsdk::{
+    ///   Api,
+    ///   Signer,
+    ///   metadata::calls::BalancesCall,
+    ///   Value,
+    /// };
+    ///
+    /// let api = Api::new(None).await?;
+    /// let signer = Signer::new(api, "//Alice", None).await?;
+    ///
+    /// {
+    ///     let args = vec![
+    ///         Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+    ///         Value::u128(value),
+    ///     ];
+    ///     let in_block = signer.run_tx(BalancesCall::Transfer, args).await?;
+    /// }
+    ///
+    /// // The code above euqals to:
+    ///
+    /// {
+    ///    let in_block = signer.transfer(dest, value).await?;
+    /// }
+    ///
+    /// // ...
+    /// ```
+    pub async fn run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process(tx).await
+    }
+
+    /// Run transaction with sudo.
+    pub async fn sudo_run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> EventsResult {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process_sudo(tx).await
     }
 }
