@@ -9162,11 +9162,23 @@ fn program_generator_works() {
 
         assert!(Gear::is_active(generator_id));
 
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(generator_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ne!(min_limit, BlockGasLimitOf::<Test>::get());
+
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             generator_id,
-            vec![],
-            BlockGasLimitOf::<Test>::get(),
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit,
             0
         ));
 
