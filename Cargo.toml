@@ -441,7 +441,8 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
-heck = "0.4.1"                                                           # gsdk-api-gen
+scale-value = "^0.10"                                                     # gsdk
+heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
 

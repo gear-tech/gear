@@ -7633,6 +7633,1354 @@ pub mod runtime_types {
         }
     }
 }
+pub mod calls {
+    #[doc = r" Show the call info."]
+    pub trait CallInfo {
+        const PALLET: &'static str;
+        #[doc = r" returns call name."]
+        fn call_name(&self) -> &'static str;
+    }
+    #[doc = "Calls of pallet `Airdrop`."]
+    pub enum AirdropCall {
+        Transfer,
+        TransferVested,
+    }
+    impl CallInfo for AirdropCall {
+        const PALLET: &'static str = "Airdrop";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Transfer => "transfer",
+                Self::TransferVested => "transfer_vested",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Babe`."]
+    pub enum BabeCall {
+        ReportEquivocation,
+        ReportEquivocationUnsigned,
+        PlanConfigChange,
+    }
+    impl CallInfo for BabeCall {
+        const PALLET: &'static str = "Babe";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::ReportEquivocation => "report_equivocation",
+                Self::ReportEquivocationUnsigned => "report_equivocation_unsigned",
+                Self::PlanConfigChange => "plan_config_change",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `BagsList`."]
+    pub enum BagsListCall {
+        Rebag,
+        PutInFrontOf,
+    }
+    impl CallInfo for BagsListCall {
+        const PALLET: &'static str = "BagsList";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Rebag => "rebag",
+                Self::PutInFrontOf => "put_in_front_of",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Balances`."]
+    pub enum BalancesCall {
+        Transfer,
+        SetBalance,
+        ForceTransfer,
+        TransferKeepAlive,
+        TransferAll,
+        ForceUnreserve,
+    }
+    impl CallInfo for BalancesCall {
+        const PALLET: &'static str = "Balances";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Transfer => "transfer",
+                Self::SetBalance => "set_balance",
+                Self::ForceTransfer => "force_transfer",
+                Self::TransferKeepAlive => "transfer_keep_alive",
+                Self::TransferAll => "transfer_all",
+                Self::ForceUnreserve => "force_unreserve",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ConvictionVoting`."]
+    pub enum ConvictionVotingCall {
+        Vote,
+        Delegate,
+        Undelegate,
+        Unlock,
+        RemoveVote,
+        RemoveOtherVote,
+    }
+    impl CallInfo for ConvictionVotingCall {
+        const PALLET: &'static str = "ConvictionVoting";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Vote => "vote",
+                Self::Delegate => "delegate",
+                Self::Undelegate => "undelegate",
+                Self::Unlock => "unlock",
+                Self::RemoveVote => "remove_vote",
+                Self::RemoveOtherVote => "remove_other_vote",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `FellowshipCollective`."]
+    pub enum FellowshipCollectiveCall {
+        AddMember,
+        PromoteMember,
+        DemoteMember,
+        RemoveMember,
+        Vote,
+        CleanupPoll,
+    }
+    impl CallInfo for FellowshipCollectiveCall {
+        const PALLET: &'static str = "FellowshipCollective";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::AddMember => "add_member",
+                Self::PromoteMember => "promote_member",
+                Self::DemoteMember => "demote_member",
+                Self::RemoveMember => "remove_member",
+                Self::Vote => "vote",
+                Self::CleanupPoll => "cleanup_poll",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `FellowshipReferenda`."]
+    pub enum FellowshipReferendaCall {
+        Submit,
+        PlaceDecisionDeposit,
+        RefundDecisionDeposit,
+        Cancel,
+        Kill,
+        NudgeReferendum,
+        OneFewerDeciding,
+        RefundSubmissionDeposit,
+        SetMetadata,
+    }
+    impl CallInfo for FellowshipReferendaCall {
+        const PALLET: &'static str = "FellowshipReferenda";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Submit => "submit",
+                Self::PlaceDecisionDeposit => "place_decision_deposit",
+                Self::RefundDecisionDeposit => "refund_decision_deposit",
+                Self::Cancel => "cancel",
+                Self::Kill => "kill",
+                Self::NudgeReferendum => "nudge_referendum",
+                Self::OneFewerDeciding => "one_fewer_deciding",
+                Self::RefundSubmissionDeposit => "refund_submission_deposit",
+                Self::SetMetadata => "set_metadata",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Gear`."]
+    pub enum GearCall {
+        UploadCode,
+        UploadProgram,
+        CreateProgram,
+        SendMessage,
+        SendReply,
+        ClaimValue,
+        Run,
+        SetExecuteInherent,
+        PayProgramRent,
+        ResumeSessionInit,
+        ResumeSessionPush,
+        ResumeSessionCommit,
+        SendMessageWithVoucher,
+        SendReplyWithVoucher,
+    }
+    impl CallInfo for GearCall {
+        const PALLET: &'static str = "Gear";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::UploadCode => "upload_code",
+                Self::UploadProgram => "upload_program",
+                Self::CreateProgram => "create_program",
+                Self::SendMessage => "send_message",
+                Self::SendReply => "send_reply",
+                Self::ClaimValue => "claim_value",
+                Self::Run => "run",
+                Self::SetExecuteInherent => "set_execute_inherent",
+                Self::PayProgramRent => "pay_program_rent",
+                Self::ResumeSessionInit => "resume_session_init",
+                Self::ResumeSessionPush => "resume_session_push",
+                Self::ResumeSessionCommit => "resume_session_commit",
+                Self::SendMessageWithVoucher => "send_message_with_voucher",
+                Self::SendReplyWithVoucher => "send_reply_with_voucher",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `GearDebug`."]
+    pub enum GearDebugCall {
+        EnableDebugMode,
+    }
+    impl CallInfo for GearDebugCall {
+        const PALLET: &'static str = "GearDebug";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::EnableDebugMode => "enable_debug_mode",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `GearVoucher`."]
+    pub enum GearVoucherCall {
+        Issue,
+    }
+    impl CallInfo for GearVoucherCall {
+        const PALLET: &'static str = "GearVoucher";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Issue => "issue",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Grandpa`."]
+    pub enum GrandpaCall {
+        ReportEquivocation,
+        ReportEquivocationUnsigned,
+        NoteStalled,
+    }
+    impl CallInfo for GrandpaCall {
+        const PALLET: &'static str = "Grandpa";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::ReportEquivocation => "report_equivocation",
+                Self::ReportEquivocationUnsigned => "report_equivocation_unsigned",
+                Self::NoteStalled => "note_stalled",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Identity`."]
+    pub enum IdentityCall {
+        AddRegistrar,
+        SetIdentity,
+        SetSubs,
+        ClearIdentity,
+        RequestJudgement,
+        CancelRequest,
+        SetFee,
+        SetAccountId,
+        SetFields,
+        ProvideJudgement,
+        KillIdentity,
+        AddSub,
+        RenameSub,
+        RemoveSub,
+        QuitSub,
+    }
+    impl CallInfo for IdentityCall {
+        const PALLET: &'static str = "Identity";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::AddRegistrar => "add_registrar",
+                Self::SetIdentity => "set_identity",
+                Self::SetSubs => "set_subs",
+                Self::ClearIdentity => "clear_identity",
+                Self::RequestJudgement => "request_judgement",
+                Self::CancelRequest => "cancel_request",
+                Self::SetFee => "set_fee",
+                Self::SetAccountId => "set_account_id",
+                Self::SetFields => "set_fields",
+                Self::ProvideJudgement => "provide_judgement",
+                Self::KillIdentity => "kill_identity",
+                Self::AddSub => "add_sub",
+                Self::RenameSub => "rename_sub",
+                Self::RemoveSub => "remove_sub",
+                Self::QuitSub => "quit_sub",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ImOnline`."]
+    pub enum ImOnlineCall {
+        Heartbeat,
+    }
+    impl CallInfo for ImOnlineCall {
+        const PALLET: &'static str = "ImOnline";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Heartbeat => "heartbeat",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Multisig`."]
+    pub enum MultisigCall {
+        AsMultiThreshold1,
+        AsMulti,
+        ApproveAsMulti,
+        CancelAsMulti,
+    }
+    impl CallInfo for MultisigCall {
+        const PALLET: &'static str = "Multisig";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::AsMultiThreshold1 => "as_multi_threshold_1",
+                Self::AsMulti => "as_multi",
+                Self::ApproveAsMulti => "approve_as_multi",
+                Self::CancelAsMulti => "cancel_as_multi",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Preimage`."]
+    pub enum PreimageCall {
+        NotePreimage,
+        UnnotePreimage,
+        RequestPreimage,
+        UnrequestPreimage,
+    }
+    impl CallInfo for PreimageCall {
+        const PALLET: &'static str = "Preimage";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::NotePreimage => "note_preimage",
+                Self::UnnotePreimage => "unnote_preimage",
+                Self::RequestPreimage => "request_preimage",
+                Self::UnrequestPreimage => "unrequest_preimage",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Proxy`."]
+    pub enum ProxyCall {
+        Proxy,
+        AddProxy,
+        RemoveProxy,
+        RemoveProxies,
+        CreatePure,
+        KillPure,
+        Announce,
+        RemoveAnnouncement,
+        RejectAnnouncement,
+        ProxyAnnounced,
+    }
+    impl CallInfo for ProxyCall {
+        const PALLET: &'static str = "Proxy";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Proxy => "proxy",
+                Self::AddProxy => "add_proxy",
+                Self::RemoveProxy => "remove_proxy",
+                Self::RemoveProxies => "remove_proxies",
+                Self::CreatePure => "create_pure",
+                Self::KillPure => "kill_pure",
+                Self::Announce => "announce",
+                Self::RemoveAnnouncement => "remove_announcement",
+                Self::RejectAnnouncement => "reject_announcement",
+                Self::ProxyAnnounced => "proxy_announced",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Referenda`."]
+    pub enum ReferendaCall {
+        Submit,
+        PlaceDecisionDeposit,
+        RefundDecisionDeposit,
+        Cancel,
+        Kill,
+        NudgeReferendum,
+        OneFewerDeciding,
+        RefundSubmissionDeposit,
+        SetMetadata,
+    }
+    impl CallInfo for ReferendaCall {
+        const PALLET: &'static str = "Referenda";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Submit => "submit",
+                Self::PlaceDecisionDeposit => "place_decision_deposit",
+                Self::RefundDecisionDeposit => "refund_decision_deposit",
+                Self::Cancel => "cancel",
+                Self::Kill => "kill",
+                Self::NudgeReferendum => "nudge_referendum",
+                Self::OneFewerDeciding => "one_fewer_deciding",
+                Self::RefundSubmissionDeposit => "refund_submission_deposit",
+                Self::SetMetadata => "set_metadata",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Scheduler`."]
+    pub enum SchedulerCall {
+        Schedule,
+        Cancel,
+        ScheduleNamed,
+        CancelNamed,
+        ScheduleAfter,
+        ScheduleNamedAfter,
+    }
+    impl CallInfo for SchedulerCall {
+        const PALLET: &'static str = "Scheduler";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Schedule => "schedule",
+                Self::Cancel => "cancel",
+                Self::ScheduleNamed => "schedule_named",
+                Self::CancelNamed => "cancel_named",
+                Self::ScheduleAfter => "schedule_after",
+                Self::ScheduleNamedAfter => "schedule_named_after",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Session`."]
+    pub enum SessionCall {
+        SetKeys,
+        PurgeKeys,
+    }
+    impl CallInfo for SessionCall {
+        const PALLET: &'static str = "Session";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::SetKeys => "set_keys",
+                Self::PurgeKeys => "purge_keys",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Staking`."]
+    pub enum StakingCall {
+        Bond,
+        BondExtra,
+        Unbond,
+        WithdrawUnbonded,
+        Validate,
+        Nominate,
+        Chill,
+        SetPayee,
+        SetController,
+        SetValidatorCount,
+        IncreaseValidatorCount,
+        ScaleValidatorCount,
+        ForceNoEras,
+        ForceNewEra,
+        SetInvulnerables,
+        ForceUnstake,
+        ForceNewEraAlways,
+        CancelDeferredSlash,
+        PayoutStakers,
+        Rebond,
+        ReapStash,
+        Kick,
+        SetStakingConfigs,
+        ChillOther,
+        ForceApplyMinCommission,
+        SetMinCommission,
+    }
+    impl CallInfo for StakingCall {
+        const PALLET: &'static str = "Staking";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Bond => "bond",
+                Self::BondExtra => "bond_extra",
+                Self::Unbond => "unbond",
+                Self::WithdrawUnbonded => "withdraw_unbonded",
+                Self::Validate => "validate",
+                Self::Nominate => "nominate",
+                Self::Chill => "chill",
+                Self::SetPayee => "set_payee",
+                Self::SetController => "set_controller",
+                Self::SetValidatorCount => "set_validator_count",
+                Self::IncreaseValidatorCount => "increase_validator_count",
+                Self::ScaleValidatorCount => "scale_validator_count",
+                Self::ForceNoEras => "force_no_eras",
+                Self::ForceNewEra => "force_new_era",
+                Self::SetInvulnerables => "set_invulnerables",
+                Self::ForceUnstake => "force_unstake",
+                Self::ForceNewEraAlways => "force_new_era_always",
+                Self::CancelDeferredSlash => "cancel_deferred_slash",
+                Self::PayoutStakers => "payout_stakers",
+                Self::Rebond => "rebond",
+                Self::ReapStash => "reap_stash",
+                Self::Kick => "kick",
+                Self::SetStakingConfigs => "set_staking_configs",
+                Self::ChillOther => "chill_other",
+                Self::ForceApplyMinCommission => "force_apply_min_commission",
+                Self::SetMinCommission => "set_min_commission",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `StakingRewards`."]
+    pub enum StakingRewardsCall {
+        Refill,
+        ForceRefill,
+        Withdraw,
+    }
+    impl CallInfo for StakingRewardsCall {
+        const PALLET: &'static str = "StakingRewards";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Refill => "refill",
+                Self::ForceRefill => "force_refill",
+                Self::Withdraw => "withdraw",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Sudo`."]
+    pub enum SudoCall {
+        Sudo,
+        SudoUncheckedWeight,
+        SetKey,
+        SudoAs,
+    }
+    impl CallInfo for SudoCall {
+        const PALLET: &'static str = "Sudo";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Sudo => "sudo",
+                Self::SudoUncheckedWeight => "sudo_unchecked_weight",
+                Self::SetKey => "set_key",
+                Self::SudoAs => "sudo_as",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `System`."]
+    pub enum SystemCall {
+        Remark,
+        SetHeapPages,
+        SetCode,
+        SetCodeWithoutChecks,
+        SetStorage,
+        KillStorage,
+        KillPrefix,
+        RemarkWithEvent,
+    }
+    impl CallInfo for SystemCall {
+        const PALLET: &'static str = "System";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Remark => "remark",
+                Self::SetHeapPages => "set_heap_pages",
+                Self::SetCode => "set_code",
+                Self::SetCodeWithoutChecks => "set_code_without_checks",
+                Self::SetStorage => "set_storage",
+                Self::KillStorage => "kill_storage",
+                Self::KillPrefix => "kill_prefix",
+                Self::RemarkWithEvent => "remark_with_event",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Timestamp`."]
+    pub enum TimestampCall {
+        Set,
+    }
+    impl CallInfo for TimestampCall {
+        const PALLET: &'static str = "Timestamp";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Set => "set",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Treasury`."]
+    pub enum TreasuryCall {
+        ProposeSpend,
+        RejectProposal,
+        ApproveProposal,
+        Spend,
+        RemoveApproval,
+    }
+    impl CallInfo for TreasuryCall {
+        const PALLET: &'static str = "Treasury";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::ProposeSpend => "propose_spend",
+                Self::RejectProposal => "reject_proposal",
+                Self::ApproveProposal => "approve_proposal",
+                Self::Spend => "spend",
+                Self::RemoveApproval => "remove_approval",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Utility`."]
+    pub enum UtilityCall {
+        Batch,
+        AsDerivative,
+        BatchAll,
+        DispatchAs,
+        ForceBatch,
+        WithWeight,
+    }
+    impl CallInfo for UtilityCall {
+        const PALLET: &'static str = "Utility";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Batch => "batch",
+                Self::AsDerivative => "as_derivative",
+                Self::BatchAll => "batch_all",
+                Self::DispatchAs => "dispatch_as",
+                Self::ForceBatch => "force_batch",
+                Self::WithWeight => "with_weight",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ValidatorSet`."]
+    pub enum ValidatorSetCall {
+        AddValidator,
+        RemoveValidator,
+        AddValidatorAgain,
+    }
+    impl CallInfo for ValidatorSetCall {
+        const PALLET: &'static str = "ValidatorSet";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::AddValidator => "add_validator",
+                Self::RemoveValidator => "remove_validator",
+                Self::AddValidatorAgain => "add_validator_again",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Vesting`."]
+    pub enum VestingCall {
+        Vest,
+        VestOther,
+        VestedTransfer,
+        ForceVestedTransfer,
+        MergeSchedules,
+    }
+    impl CallInfo for VestingCall {
+        const PALLET: &'static str = "Vesting";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Vest => "vest",
+                Self::VestOther => "vest_other",
+                Self::VestedTransfer => "vested_transfer",
+                Self::ForceVestedTransfer => "force_vested_transfer",
+                Self::MergeSchedules => "merge_schedules",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Whitelist`."]
+    pub enum WhitelistCall {
+        WhitelistCall,
+        RemoveWhitelistedCall,
+        DispatchWhitelistedCall,
+        DispatchWhitelistedCallWithPreimage,
+    }
+    impl CallInfo for WhitelistCall {
+        const PALLET: &'static str = "Whitelist";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::WhitelistCall => "whitelist_call",
+                Self::RemoveWhitelistedCall => "remove_whitelisted_call",
+                Self::DispatchWhitelistedCall => "dispatch_whitelisted_call",
+                Self::DispatchWhitelistedCallWithPreimage => {
+                    "dispatch_whitelisted_call_with_preimage"
+                }
+            }
+        }
+    }
+}
+pub mod storage {
+    #[doc = r" Show the call info."]
+    pub trait StorageInfo {
+        const PALLET: &'static str;
+        #[doc = r" returns call name."]
+        fn storage_name(&self) -> &'static str;
+    }
+    #[doc = "Storage of pallet `AuthorityDiscovery`."]
+    pub enum AuthorityDiscoveryStorage {
+        Keys,
+        NextKeys,
+    }
+    impl StorageInfo for AuthorityDiscoveryStorage {
+        const PALLET: &'static str = "AuthorityDiscovery";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Keys => "Keys",
+                Self::NextKeys => "NextKeys",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Authorship`."]
+    pub enum AuthorshipStorage {
+        Author,
+    }
+    impl StorageInfo for AuthorshipStorage {
+        const PALLET: &'static str = "Authorship";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Author => "Author",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Babe`."]
+    pub enum BabeStorage {
+        EpochIndex,
+        Authorities,
+        GenesisSlot,
+        CurrentSlot,
+        Randomness,
+        PendingEpochConfigChange,
+        NextRandomness,
+        NextAuthorities,
+        SegmentIndex,
+        UnderConstruction,
+        Initialized,
+        AuthorVrfRandomness,
+        EpochStart,
+        Lateness,
+        EpochConfig,
+        NextEpochConfig,
+        SkippedEpochs,
+    }
+    impl StorageInfo for BabeStorage {
+        const PALLET: &'static str = "Babe";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::EpochIndex => "EpochIndex",
+                Self::Authorities => "Authorities",
+                Self::GenesisSlot => "GenesisSlot",
+                Self::CurrentSlot => "CurrentSlot",
+                Self::Randomness => "Randomness",
+                Self::PendingEpochConfigChange => "PendingEpochConfigChange",
+                Self::NextRandomness => "NextRandomness",
+                Self::NextAuthorities => "NextAuthorities",
+                Self::SegmentIndex => "SegmentIndex",
+                Self::UnderConstruction => "UnderConstruction",
+                Self::Initialized => "Initialized",
+                Self::AuthorVrfRandomness => "AuthorVrfRandomness",
+                Self::EpochStart => "EpochStart",
+                Self::Lateness => "Lateness",
+                Self::EpochConfig => "EpochConfig",
+                Self::NextEpochConfig => "NextEpochConfig",
+                Self::SkippedEpochs => "SkippedEpochs",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `BagsList`."]
+    pub enum BagsListStorage {
+        ListNodes,
+        CounterForListNodes,
+        ListBags,
+    }
+    impl StorageInfo for BagsListStorage {
+        const PALLET: &'static str = "BagsList";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ListNodes => "ListNodes",
+                Self::CounterForListNodes => "CounterForListNodes",
+                Self::ListBags => "ListBags",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Balances`."]
+    pub enum BalancesStorage {
+        TotalIssuance,
+        InactiveIssuance,
+        Account,
+        Locks,
+        Reserves,
+    }
+    impl StorageInfo for BalancesStorage {
+        const PALLET: &'static str = "Balances";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TotalIssuance => "TotalIssuance",
+                Self::InactiveIssuance => "InactiveIssuance",
+                Self::Account => "Account",
+                Self::Locks => "Locks",
+                Self::Reserves => "Reserves",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ConvictionVoting`."]
+    pub enum ConvictionVotingStorage {
+        VotingFor,
+        ClassLocksFor,
+    }
+    impl StorageInfo for ConvictionVotingStorage {
+        const PALLET: &'static str = "ConvictionVoting";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::VotingFor => "VotingFor",
+                Self::ClassLocksFor => "ClassLocksFor",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `FellowshipCollective`."]
+    pub enum FellowshipCollectiveStorage {
+        MemberCount,
+        Members,
+        IdToIndex,
+        IndexToId,
+        Voting,
+        VotingCleanup,
+    }
+    impl StorageInfo for FellowshipCollectiveStorage {
+        const PALLET: &'static str = "FellowshipCollective";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::MemberCount => "MemberCount",
+                Self::Members => "Members",
+                Self::IdToIndex => "IdToIndex",
+                Self::IndexToId => "IndexToId",
+                Self::Voting => "Voting",
+                Self::VotingCleanup => "VotingCleanup",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `FellowshipReferenda`."]
+    pub enum FellowshipReferendaStorage {
+        ReferendumCount,
+        ReferendumInfoFor,
+        TrackQueue,
+        DecidingCount,
+        MetadataOf,
+    }
+    impl StorageInfo for FellowshipReferendaStorage {
+        const PALLET: &'static str = "FellowshipReferenda";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ReferendumCount => "ReferendumCount",
+                Self::ReferendumInfoFor => "ReferendumInfoFor",
+                Self::TrackQueue => "TrackQueue",
+                Self::DecidingCount => "DecidingCount",
+                Self::MetadataOf => "MetadataOf",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Gear`."]
+    pub enum GearStorage {
+        ExecuteInherent,
+        BlockNumber,
+        LastGearBlockNumber,
+    }
+    impl StorageInfo for GearStorage {
+        const PALLET: &'static str = "Gear";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ExecuteInherent => "ExecuteInherent",
+                Self::BlockNumber => "BlockNumber",
+                Self::LastGearBlockNumber => "LastGearBlockNumber",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearDebug`."]
+    pub enum GearDebugStorage {
+        DebugMode,
+        RemapId,
+        ProgramsMap,
+    }
+    impl StorageInfo for GearDebugStorage {
+        const PALLET: &'static str = "GearDebug";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::DebugMode => "DebugMode",
+                Self::RemapId => "RemapId",
+                Self::ProgramsMap => "ProgramsMap",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearGas`."]
+    pub enum GearGasStorage {
+        TotalIssuance,
+        GasNodes,
+        Allowance,
+    }
+    impl StorageInfo for GearGasStorage {
+        const PALLET: &'static str = "GearGas";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TotalIssuance => "TotalIssuance",
+                Self::GasNodes => "GasNodes",
+                Self::Allowance => "Allowance",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearMessenger`."]
+    pub enum GearMessengerStorage {
+        Dequeued,
+        Dispatches,
+        CounterForDispatches,
+        Head,
+        Mailbox,
+        QueueProcessing,
+        Sent,
+        Tail,
+        Waitlist,
+        DispatchStash,
+    }
+    impl StorageInfo for GearMessengerStorage {
+        const PALLET: &'static str = "GearMessenger";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Dequeued => "Dequeued",
+                Self::Dispatches => "Dispatches",
+                Self::CounterForDispatches => "CounterForDispatches",
+                Self::Head => "Head",
+                Self::Mailbox => "Mailbox",
+                Self::QueueProcessing => "QueueProcessing",
+                Self::Sent => "Sent",
+                Self::Tail => "Tail",
+                Self::Waitlist => "Waitlist",
+                Self::DispatchStash => "DispatchStash",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearProgram`."]
+    pub enum GearProgramStorage {
+        CodeStorage,
+        CodeLenStorage,
+        OriginalCodeStorage,
+        MetadataStorage,
+        ProgramStorage,
+        MemoryPageStorage,
+        WaitingInitStorage,
+        PausedProgramStorage,
+        ResumeSessionsNonce,
+        ResumeSessions,
+        SessionMemoryPages,
+    }
+    impl StorageInfo for GearProgramStorage {
+        const PALLET: &'static str = "GearProgram";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::CodeStorage => "CodeStorage",
+                Self::CodeLenStorage => "CodeLenStorage",
+                Self::OriginalCodeStorage => "OriginalCodeStorage",
+                Self::MetadataStorage => "MetadataStorage",
+                Self::ProgramStorage => "ProgramStorage",
+                Self::MemoryPageStorage => "MemoryPageStorage",
+                Self::WaitingInitStorage => "WaitingInitStorage",
+                Self::PausedProgramStorage => "PausedProgramStorage",
+                Self::ResumeSessionsNonce => "ResumeSessionsNonce",
+                Self::ResumeSessions => "ResumeSessions",
+                Self::SessionMemoryPages => "SessionMemoryPages",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearScheduler`."]
+    pub enum GearSchedulerStorage {
+        FirstIncompleteTasksBlock,
+        TaskPool,
+    }
+    impl StorageInfo for GearSchedulerStorage {
+        const PALLET: &'static str = "GearScheduler";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::FirstIncompleteTasksBlock => "FirstIncompleteTasksBlock",
+                Self::TaskPool => "TaskPool",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Grandpa`."]
+    pub enum GrandpaStorage {
+        State,
+        PendingChange,
+        NextForced,
+        Stalled,
+        CurrentSetId,
+        SetIdSession,
+    }
+    impl StorageInfo for GrandpaStorage {
+        const PALLET: &'static str = "Grandpa";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::State => "State",
+                Self::PendingChange => "PendingChange",
+                Self::NextForced => "NextForced",
+                Self::Stalled => "Stalled",
+                Self::CurrentSetId => "CurrentSetId",
+                Self::SetIdSession => "SetIdSession",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Historical`."]
+    pub enum HistoricalStorage {
+        HistoricalSessions,
+        StoredRange,
+    }
+    impl StorageInfo for HistoricalStorage {
+        const PALLET: &'static str = "Historical";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::HistoricalSessions => "HistoricalSessions",
+                Self::StoredRange => "StoredRange",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Identity`."]
+    pub enum IdentityStorage {
+        IdentityOf,
+        SuperOf,
+        SubsOf,
+        Registrars,
+    }
+    impl StorageInfo for IdentityStorage {
+        const PALLET: &'static str = "Identity";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::IdentityOf => "IdentityOf",
+                Self::SuperOf => "SuperOf",
+                Self::SubsOf => "SubsOf",
+                Self::Registrars => "Registrars",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ImOnline`."]
+    pub enum ImOnlineStorage {
+        HeartbeatAfter,
+        Keys,
+        ReceivedHeartbeats,
+        AuthoredBlocks,
+    }
+    impl StorageInfo for ImOnlineStorage {
+        const PALLET: &'static str = "ImOnline";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::HeartbeatAfter => "HeartbeatAfter",
+                Self::Keys => "Keys",
+                Self::ReceivedHeartbeats => "ReceivedHeartbeats",
+                Self::AuthoredBlocks => "AuthoredBlocks",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Multisig`."]
+    pub enum MultisigStorage {
+        Multisigs,
+    }
+    impl StorageInfo for MultisigStorage {
+        const PALLET: &'static str = "Multisig";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Multisigs => "Multisigs",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Preimage`."]
+    pub enum PreimageStorage {
+        StatusFor,
+        PreimageFor,
+    }
+    impl StorageInfo for PreimageStorage {
+        const PALLET: &'static str = "Preimage";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::StatusFor => "StatusFor",
+                Self::PreimageFor => "PreimageFor",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Proxy`."]
+    pub enum ProxyStorage {
+        Proxies,
+        Announcements,
+    }
+    impl StorageInfo for ProxyStorage {
+        const PALLET: &'static str = "Proxy";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Proxies => "Proxies",
+                Self::Announcements => "Announcements",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Referenda`."]
+    pub enum ReferendaStorage {
+        ReferendumCount,
+        ReferendumInfoFor,
+        TrackQueue,
+        DecidingCount,
+        MetadataOf,
+    }
+    impl StorageInfo for ReferendaStorage {
+        const PALLET: &'static str = "Referenda";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ReferendumCount => "ReferendumCount",
+                Self::ReferendumInfoFor => "ReferendumInfoFor",
+                Self::TrackQueue => "TrackQueue",
+                Self::DecidingCount => "DecidingCount",
+                Self::MetadataOf => "MetadataOf",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Scheduler`."]
+    pub enum SchedulerStorage {
+        IncompleteSince,
+        Agenda,
+        Lookup,
+    }
+    impl StorageInfo for SchedulerStorage {
+        const PALLET: &'static str = "Scheduler";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::IncompleteSince => "IncompleteSince",
+                Self::Agenda => "Agenda",
+                Self::Lookup => "Lookup",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Session`."]
+    pub enum SessionStorage {
+        Validators,
+        CurrentIndex,
+        QueuedChanged,
+        QueuedKeys,
+        DisabledValidators,
+        NextKeys,
+        KeyOwner,
+    }
+    impl StorageInfo for SessionStorage {
+        const PALLET: &'static str = "Session";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Validators => "Validators",
+                Self::CurrentIndex => "CurrentIndex",
+                Self::QueuedChanged => "QueuedChanged",
+                Self::QueuedKeys => "QueuedKeys",
+                Self::DisabledValidators => "DisabledValidators",
+                Self::NextKeys => "NextKeys",
+                Self::KeyOwner => "KeyOwner",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Staking`."]
+    pub enum StakingStorage {
+        ValidatorCount,
+        MinimumValidatorCount,
+        Invulnerables,
+        Bonded,
+        MinNominatorBond,
+        MinValidatorBond,
+        MinimumActiveStake,
+        MinCommission,
+        Ledger,
+        Payee,
+        Validators,
+        CounterForValidators,
+        MaxValidatorsCount,
+        Nominators,
+        CounterForNominators,
+        MaxNominatorsCount,
+        CurrentEra,
+        ActiveEra,
+        ErasStartSessionIndex,
+        ErasStakers,
+        ErasStakersClipped,
+        ErasValidatorPrefs,
+        ErasValidatorReward,
+        ErasRewardPoints,
+        ErasTotalStake,
+        ForceEra,
+        SlashRewardFraction,
+        CanceledSlashPayout,
+        UnappliedSlashes,
+        BondedEras,
+        ValidatorSlashInEra,
+        NominatorSlashInEra,
+        SlashingSpans,
+        SpanSlash,
+        CurrentPlannedSession,
+        OffendingValidators,
+        ChillThreshold,
+    }
+    impl StorageInfo for StakingStorage {
+        const PALLET: &'static str = "Staking";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ValidatorCount => "ValidatorCount",
+                Self::MinimumValidatorCount => "MinimumValidatorCount",
+                Self::Invulnerables => "Invulnerables",
+                Self::Bonded => "Bonded",
+                Self::MinNominatorBond => "MinNominatorBond",
+                Self::MinValidatorBond => "MinValidatorBond",
+                Self::MinimumActiveStake => "MinimumActiveStake",
+                Self::MinCommission => "MinCommission",
+                Self::Ledger => "Ledger",
+                Self::Payee => "Payee",
+                Self::Validators => "Validators",
+                Self::CounterForValidators => "CounterForValidators",
+                Self::MaxValidatorsCount => "MaxValidatorsCount",
+                Self::Nominators => "Nominators",
+                Self::CounterForNominators => "CounterForNominators",
+                Self::MaxNominatorsCount => "MaxNominatorsCount",
+                Self::CurrentEra => "CurrentEra",
+                Self::ActiveEra => "ActiveEra",
+                Self::ErasStartSessionIndex => "ErasStartSessionIndex",
+                Self::ErasStakers => "ErasStakers",
+                Self::ErasStakersClipped => "ErasStakersClipped",
+                Self::ErasValidatorPrefs => "ErasValidatorPrefs",
+                Self::ErasValidatorReward => "ErasValidatorReward",
+                Self::ErasRewardPoints => "ErasRewardPoints",
+                Self::ErasTotalStake => "ErasTotalStake",
+                Self::ForceEra => "ForceEra",
+                Self::SlashRewardFraction => "SlashRewardFraction",
+                Self::CanceledSlashPayout => "CanceledSlashPayout",
+                Self::UnappliedSlashes => "UnappliedSlashes",
+                Self::BondedEras => "BondedEras",
+                Self::ValidatorSlashInEra => "ValidatorSlashInEra",
+                Self::NominatorSlashInEra => "NominatorSlashInEra",
+                Self::SlashingSpans => "SlashingSpans",
+                Self::SpanSlash => "SpanSlash",
+                Self::CurrentPlannedSession => "CurrentPlannedSession",
+                Self::OffendingValidators => "OffendingValidators",
+                Self::ChillThreshold => "ChillThreshold",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `StakingRewards`."]
+    pub enum StakingRewardsStorage {
+        TargetInflation,
+        IdealStakingRatio,
+        NonStakeableShare,
+        FilteredAccounts,
+    }
+    impl StorageInfo for StakingRewardsStorage {
+        const PALLET: &'static str = "StakingRewards";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TargetInflation => "TargetInflation",
+                Self::IdealStakingRatio => "IdealStakingRatio",
+                Self::NonStakeableShare => "NonStakeableShare",
+                Self::FilteredAccounts => "FilteredAccounts",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Sudo`."]
+    pub enum SudoStorage {
+        Key,
+    }
+    impl StorageInfo for SudoStorage {
+        const PALLET: &'static str = "Sudo";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Key => "Key",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `System`."]
+    pub enum SystemStorage {
+        Account,
+        ExtrinsicCount,
+        BlockWeight,
+        AllExtrinsicsLen,
+        BlockHash,
+        ExtrinsicData,
+        Number,
+        ParentHash,
+        Digest,
+        Events,
+        EventCount,
+        EventTopics,
+        LastRuntimeUpgrade,
+        UpgradedToU32RefCount,
+        UpgradedToTripleRefCount,
+        ExecutionPhase,
+    }
+    impl StorageInfo for SystemStorage {
+        const PALLET: &'static str = "System";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Account => "Account",
+                Self::ExtrinsicCount => "ExtrinsicCount",
+                Self::BlockWeight => "BlockWeight",
+                Self::AllExtrinsicsLen => "AllExtrinsicsLen",
+                Self::BlockHash => "BlockHash",
+                Self::ExtrinsicData => "ExtrinsicData",
+                Self::Number => "Number",
+                Self::ParentHash => "ParentHash",
+                Self::Digest => "Digest",
+                Self::Events => "Events",
+                Self::EventCount => "EventCount",
+                Self::EventTopics => "EventTopics",
+                Self::LastRuntimeUpgrade => "LastRuntimeUpgrade",
+                Self::UpgradedToU32RefCount => "UpgradedToU32RefCount",
+                Self::UpgradedToTripleRefCount => "UpgradedToTripleRefCount",
+                Self::ExecutionPhase => "ExecutionPhase",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Timestamp`."]
+    pub enum TimestampStorage {
+        Now,
+        DidUpdate,
+    }
+    impl StorageInfo for TimestampStorage {
+        const PALLET: &'static str = "Timestamp";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Now => "Now",
+                Self::DidUpdate => "DidUpdate",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `TransactionPayment`."]
+    pub enum TransactionPaymentStorage {
+        NextFeeMultiplier,
+        StorageVersion,
+    }
+    impl StorageInfo for TransactionPaymentStorage {
+        const PALLET: &'static str = "TransactionPayment";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::NextFeeMultiplier => "NextFeeMultiplier",
+                Self::StorageVersion => "StorageVersion",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Treasury`."]
+    pub enum TreasuryStorage {
+        ProposalCount,
+        Proposals,
+        Deactivated,
+        Approvals,
+    }
+    impl StorageInfo for TreasuryStorage {
+        const PALLET: &'static str = "Treasury";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ProposalCount => "ProposalCount",
+                Self::Proposals => "Proposals",
+                Self::Deactivated => "Deactivated",
+                Self::Approvals => "Approvals",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ValidatorSet`."]
+    pub enum ValidatorSetStorage {
+        Validators,
+        ApprovedValidators,
+        OfflineValidators,
+    }
+    impl StorageInfo for ValidatorSetStorage {
+        const PALLET: &'static str = "ValidatorSet";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Validators => "Validators",
+                Self::ApprovedValidators => "ApprovedValidators",
+                Self::OfflineValidators => "OfflineValidators",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Vesting`."]
+    pub enum VestingStorage {
+        Vesting,
+        StorageVersion,
+    }
+    impl StorageInfo for VestingStorage {
+        const PALLET: &'static str = "Vesting";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Vesting => "Vesting",
+                Self::StorageVersion => "StorageVersion",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Whitelist`."]
+    pub enum WhitelistStorage {
+        WhitelistedCall,
+    }
+    impl StorageInfo for WhitelistStorage {
+        const PALLET: &'static str = "Whitelist";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::WhitelistedCall => "WhitelistedCall",
+            }
+        }
+    }
+}
 pub mod impls {
     use crate::metadata::Event;
     impl subxt::events::RootEvent for Event {
