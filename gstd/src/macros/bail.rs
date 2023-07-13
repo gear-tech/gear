@@ -87,8 +87,7 @@ macro_rules! bail {
     };
 }
 
-#[cfg(not(feature = "debug"))]
-#[cfg(not(debug_assertions))]
+#[cfg(not(any(feature = "debug", debug_assertions)))]
 #[allow(missing_docs)]
 #[macro_export]
 macro_rules! bail {
