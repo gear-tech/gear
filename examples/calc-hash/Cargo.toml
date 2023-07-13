@@ -4,7 +4,7 @@ version = "0.1.0"
 authors.workspace = true
 edition = "2021"
 license = "GPL-3.0"
-workspace = "../../../"
+workspace = "../../"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"]}

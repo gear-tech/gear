@@ -4,13 +4,13 @@ version = "0.1.0"
 authors.workspace = true
 license = "GPL-3.0"
 edition.workspace = true
-workspace = "../../../"
+workspace = "../../"
 
 [dependencies]
 gstd.workspace = true
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+gear-wasm-builder = { path = "../../utils/wasm-builder" }
 
 [features]
 std = []
