@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
@@ -12554,8 +12555,8 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 
         run_to_next_block(None);
 
-        // Make reservations exceeding calculation gas limit of 5 blocks.
-        for _i in 0..6 {
+        // Make reservations exceeding calculation gas limit of RUNTIME_API_BLOCK_LIMITS_COUNT (6) blocks.
+        for _ in 0..=RUNTIME_API_BLOCK_LIMITS_COUNT {
             Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,

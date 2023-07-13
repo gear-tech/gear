@@ -25,7 +25,7 @@ use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
 // security and abilities for calculations on-chain.
-const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
