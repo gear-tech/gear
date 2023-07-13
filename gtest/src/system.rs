@@ -42,11 +42,11 @@ impl System {
     }
 
     pub fn init_logger(&self) {
-        self.init_logger_with_default_filter("gwasm=debug")
+        self.init_logger_with_fallback_filter("gwasm=debug")
     }
 
-    pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
-        let _ = Builder::from_env(Env::default().default_filter_or(default_filter))
+    pub fn init_logger_with_fallback_filter<'a>(&self, fallback_filter: impl Into<Cow<'a, str>>) {
+        let _ = Builder::from_env(Env::default().default_filter_or(fallback_filter))
             .format(|buf, record| {
                 let lvl = record.level().to_string().to_uppercase();
                 let target = record.target().to_string();
