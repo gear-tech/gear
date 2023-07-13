@@ -53,7 +53,7 @@ pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-const MAX_BLOCK: u64 = 100_000_000_000;
+const MAX_BLOCK: u64 = 200_000_000_000;
 
 macro_rules! dry_run {
     (
@@ -210,7 +210,7 @@ impl pallet_gear::Config for Test {
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type WeightInfo = ();
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();

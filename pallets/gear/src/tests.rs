@@ -100,7 +100,7 @@ fn read_big_state() {
         run_to_next_block(None);
         assert!(Gear::is_active(pid));
 
-        let payload = Strings::new("gear's read state should work with big data".into(), 256);
+        let payload = Strings::new("gear's read state should work with big data".into(), 128);
         for _ in 0..40 {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
@@ -256,7 +256,7 @@ fn auto_reply_out_of_rent_waitlist() {
             WAITER_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
+            DEFAULT_GAS_LIMIT * 20,
             0,
         ));
         let waiter_id = get_last_program_id();
@@ -304,7 +304,7 @@ fn auto_reply_out_of_rent_waitlist() {
             RuntimeOrigin::signed(USER_1),
             proxy_id,
             Command::Wait(WaitSubcommand::Wait).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 100,
             0,
         ));
 
@@ -333,7 +333,7 @@ fn auto_reply_out_of_rent_mailbox() {
         let value = 1_000;
 
         assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -349,7 +349,7 @@ fn auto_reply_out_of_rent_mailbox() {
         let user1_balance = Balances::free_balance(USER_1);
         assert_balance(program_id, value, 0u128);
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -712,8 +712,8 @@ fn reply_deposit_gstd_async() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            (USER_2.into_origin().as_fixed_bytes(), 1_000_000_000u64).encode(),
-            10_000_000_000,
+            (USER_2.into_origin().as_fixed_bytes(), 10_000_000_000u64).encode(),
+            30_000_000_000,
             0,
         ));
 
@@ -724,7 +724,7 @@ fn reply_deposit_gstd_async() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             hello.to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -2527,7 +2527,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
         check_result(false);
@@ -2537,7 +2537,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
         let message_id = check_result(true);
@@ -2547,7 +2547,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             rent.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
         let message_id = check_result(true);
@@ -2557,7 +2557,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
         check_result(false);
@@ -4109,7 +4109,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            3_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -4119,7 +4119,7 @@ fn distributor_distribute() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -4923,7 +4923,7 @@ fn test_requeue_after_wait_for_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -5089,7 +5089,7 @@ fn test_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -5145,7 +5145,7 @@ fn test_join_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -5203,7 +5203,7 @@ fn test_select_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -5248,7 +5248,7 @@ fn test_wait_lost() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -5356,7 +5356,7 @@ fn exit_locking_funds() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             calls.encode(),
-            1_000_000_000,
+            10_000_000_000,
             value
         ));
         let message_1 = utils::get_last_message_id();
@@ -5366,7 +5366,7 @@ fn exit_locking_funds() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             calls.encode(),
-            1_000_000_000,
+            10_000_000_000,
             0
         ));
         let message_2 = utils::get_last_message_id();
@@ -6180,7 +6180,7 @@ fn resume_program_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             request,
-            1_000_000_000,
+            10_000_000_000,
             0
         ));
 
@@ -6342,7 +6342,7 @@ fn resume_program_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             request,
-            1_000_000_000,
+            10_000_000_000,
             0
         ));
 
@@ -7394,7 +7394,7 @@ fn gas_spent_vs_balance() {
             RuntimeOrigin::signed(USER_1),
             prog_id,
             request.clone(),
-            1_000_000_000,
+            10_000_000_000,
             0
         ));
 
@@ -7666,7 +7666,7 @@ fn test_two_contracts_composition_works() {
             RuntimeOrigin::signed(USER_1),
             compose_id,
             100_u64.to_le_bytes().to_vec(),
-            30_000_000_000,
+            60_000_000_000,
             0,
         ));
 
@@ -8242,7 +8242,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             50_u64.encode(),
-            5_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -8251,7 +8251,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             (<[u8; 32]>::from(contract_id), 0u64).encode(),
-            5_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -9103,7 +9103,7 @@ fn test_async_messages() {
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 kind.encode(),
-                10_000_000_000u64,
+                30_000_000_000u64,
                 0,
             ));
 
@@ -9718,7 +9718,7 @@ fn reply_from_reservation() {
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 HandleAction::ReplyToUser.encode(),
-                10_000_000_000,
+                30_000_000_000,
                 1_000,
             ));
 
@@ -9742,7 +9742,7 @@ fn reply_from_reservation() {
                     user: USER_1.into_origin().into()
                 }
                 .encode(),
-                10_000_000_000,
+                30_000_000_000,
                 1_000,
             ));
 
@@ -10154,7 +10154,7 @@ fn few_system_reservations_across_waits_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::AcrossWaits.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -10172,7 +10172,7 @@ fn few_system_reservations_across_waits_works() {
                 RuntimeOrigin::signed(USER_1),
                 reply_to_id,
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000_000,
+                30_000_000_000,
                 0
             ));
 
@@ -10424,7 +10424,7 @@ fn system_reservation_wait_and_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_reserve_with_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
+    use demo_signal_entry::{HandleAction, WASM_BINARY, WAIT_AND_RESERVE_WITH_PANIC_GAS};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10445,7 +10445,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::WaitAndReserveWithPanic.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -10455,7 +10455,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
 
         assert_eq!(
             GasHandlerOf::<Test>::get_system_reserve(mid),
-            Ok(2_000_000_000)
+            Ok(WAIT_AND_RESERVE_WITH_PANIC_GAS)
         );
 
         let reply_to_id = get_last_mail(USER_1).id();
@@ -10686,7 +10686,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Panic.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
 
@@ -10735,7 +10735,7 @@ fn gas_reservation_wait_wake_exit() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Exit.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
 
@@ -10849,7 +10849,7 @@ fn custom_async_entrypoint_works() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -10861,7 +10861,7 @@ fn custom_async_entrypoint_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -10874,7 +10874,7 @@ fn custom_async_entrypoint_works() {
             RuntimeOrigin::signed(USER_1),
             msg.id(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0
         ));
 
@@ -11682,7 +11682,7 @@ fn async_recursion() {
 
     new_test_ext().execute_with(|| {
         let demo = upload();
-        let arg = 100i32;
+        let arg = 40i32;
 
         let to_send = vec![arg.encode()];
         send_payloads(USER_1, demo, to_send);
@@ -12891,7 +12891,7 @@ fn reply_with_small_non_zero_gas() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             payload.to_vec(),
-            DEFAULT_GAS_LIMIT * 10,
+            DEFAULT_GAS_LIMIT * 50,
             0,
         ));
 
@@ -13003,7 +13003,7 @@ fn relay_messages() {
                     RuntimeOrigin::signed(source),
                     proxy,
                     payload.to_vec(),
-                    DEFAULT_GAS_LIMIT * 10,
+                    DEFAULT_GAS_LIMIT * 50,
                     0,
                 )
                 .is_ok(),
