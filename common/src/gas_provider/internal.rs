@@ -503,6 +503,27 @@ where
         Ok((v, maybe_key.unwrap_or(key)))
     }
 
+    fn get_limit_node_consumed(
+        key: impl Into<Self::NodeId>,
+    ) -> Result<(Self::Balance, Self::NodeId), Self::Error> {
+        let key = key.into();
+
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        if !node.is_consumed() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        let (node_with_value, maybe_key) = Self::node_with_value(node)?;
+
+        // The node here is external, specified or reserved hence has the inner value
+        let v = node_with_value
+            .value()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        Ok((v, maybe_key.unwrap_or(key)))
+    }
+
     /// Marks a node with `key` as consumed, if possible, and tries to return
     /// it's value and delete it. The function performs same procedure with all
     /// the nodes on the path from it to the root, if possible.
