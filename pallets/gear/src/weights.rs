@@ -56,6 +56,7 @@ pub trait WeightInfo {
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
+    fn alloc_per_page(p: u32, ) -> Weight;
     fn free(r: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
     fn gr_unreserve_gas(r: u32, ) -> Weight;
@@ -128,6 +129,7 @@ pub trait WeightInfo {
     fn lazy_pages_host_func_read(p: u32, ) -> Weight;
     fn lazy_pages_host_func_write(p: u32, ) -> Weight;
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight;
+    fn mem_grow(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i32load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
@@ -454,10 +456,20 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 287_913_000 picoseconds.
-        Weight::from_parts(357_675_053, 0)
-            // Standard Error: 1_207_849
-            .saturating_add(Weight::from_parts(437_414_043, 0).saturating_mul(r.into()))
+        // Minimum execution time: 88_275_000 picoseconds.
+        Weight::from_parts(89_733_000, 0)
+            // Standard Error: 3_987_023
+            .saturating_add(Weight::from_parts(669_872_725, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `p` is `[1, 512]`.
+    fn alloc_per_page(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 413_044_000 picoseconds.
+        Weight::from_parts(343_710_210, 0)
+            // Standard Error: 8_256
+            .saturating_add(Weight::from_parts(31_367_607, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -468,6 +480,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(762_267_570, 0)
             // Standard Error: 1_419_925
             .saturating_add(Weight::from_parts(431_837_336, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn mem_grow(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 3_265_000 picoseconds.
+        Weight::from_parts(3_465_198, 0)
+            // Standard Error: 8_582
+            .saturating_add(Weight::from_parts(22_066_748, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2305,10 +2327,20 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 287_913_000 picoseconds.
-        Weight::from_parts(357_675_053, 0)
-            // Standard Error: 1_207_849
-            .saturating_add(Weight::from_parts(437_414_043, 0).saturating_mul(r.into()))
+        // Minimum execution time: 88_275_000 picoseconds.
+        Weight::from_parts(89_733_000, 0)
+            // Standard Error: 3_987_023
+            .saturating_add(Weight::from_parts(669_872_725, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `p` is `[1, 512]`.
+    fn alloc_per_page(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 413_044_000 picoseconds.
+        Weight::from_parts(343_710_210, 0)
+            // Standard Error: 8_256
+            .saturating_add(Weight::from_parts(31_367_607, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -2319,6 +2351,16 @@ impl WeightInfo for () {
         Weight::from_parts(762_267_570, 0)
             // Standard Error: 1_419_925
             .saturating_add(Weight::from_parts(431_837_336, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn mem_grow(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 3_265_000 picoseconds.
+        Weight::from_parts(3_465_198, 0)
+            // Standard Error: 8_582
+            .saturating_add(Weight::from_parts(22_066_748, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
