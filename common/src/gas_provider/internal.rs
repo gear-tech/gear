@@ -489,6 +489,10 @@ where
 
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
         let (node_with_value, maybe_key) = Self::node_with_value(node)?;
 
         // The node here is external, specified or reserved hence has the inner value
