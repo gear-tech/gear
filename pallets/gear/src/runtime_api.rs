@@ -150,7 +150,15 @@ where
             };
             let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
-            let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
+            let get_main_limit = || {
+                GasHandlerOf::<T>::get_limit(main_message_id)
+                    .ok()
+                    .or_else(|| {
+                        GasHandlerOf::<T>::get_limit_consumed(main_message_id)
+                            .ok()
+                            .and_then(|limit| (!limit.is_zero()).then_some(limit))
+                    })
+            };
 
             let get_origin_msg_of = |msg_id| {
                 GasHandlerOf::<T>::get_origin_key(msg_id)
