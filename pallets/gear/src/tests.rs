@@ -10424,7 +10424,7 @@ fn system_reservation_wait_and_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_reserve_with_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY, WAIT_AND_RESERVE_WITH_PANIC_GAS};
+    use demo_signal_entry::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
