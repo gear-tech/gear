@@ -523,10 +523,10 @@ where
         let key = key.into();
 
         Self::get_limit_node_impl(key, |node| {
-            if !node.is_consumed() {
-                Err(InternalError::forbidden().into())
-            } else {
+            if node.is_consumed() {
                 Ok(())
+            } else {
+                Err(InternalError::forbidden().into())
             }
         })
     }
