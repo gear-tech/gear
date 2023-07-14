@@ -150,7 +150,25 @@ where
             };
             let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
-            let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
+            let get_main_limit = || {
+                // For case when node is not consumed and has any (even zero) balance
+                // it means that it burned/sent all the funds and we must return it.
+                //
+                // For case when node is consumed and has zero balance it means that
+                // node moved its funds upstream to its ancestor. So this shouldn't
+                // be returned.
+                //
+                // For case when node is consumed and has non zero balance it means
+                // that it has gasless child that will consume gas further. So we
+                // handle this value as well.
+                GasHandlerOf::<T>::get_limit(main_message_id)
+                    .ok()
+                    .or_else(|| {
+                        GasHandlerOf::<T>::get_limit_consumed(main_message_id)
+                            .ok()
+                            .filter(|limit| !limit.is_zero())
+                    })
+            };
 
             let get_origin_msg_of = |msg_id| {
                 GasHandlerOf::<T>::get_origin_key(msg_id)

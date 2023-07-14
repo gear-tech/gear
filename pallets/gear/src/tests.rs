@@ -73,12 +73,49 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gstd::errors::Error as GstdError;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_returns_not_block_limit() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(generator_id));
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(generator_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ne!(min_limit, BlockGasLimitOf::<Test>::get());
+    });
+}
 
 #[test]
 fn read_big_state() {
@@ -6618,8 +6655,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
@@ -6663,8 +6700,10 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(
+                    ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid).into()
+                )
             )
         } else {
             String::from("no info")
@@ -7779,8 +7818,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Message(MessageError::InsufficientValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
             )
         } else {
             String::from("no info")
@@ -7832,8 +7871,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
@@ -9176,7 +9215,7 @@ fn program_generator_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             generator_id,
-            vec![],
+            EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0
         ));
