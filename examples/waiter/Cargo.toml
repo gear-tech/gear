@@ -15,6 +15,9 @@ gstd.workspace = true
 gear-wasm-builder.workspace = true
 
 [dev-dependencies]
+gtest.workspace = true
+gear-core.workspace = true
+demo-waiter = { path = ".", features = ["debug"] }
 
 [lib]
 

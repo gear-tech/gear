@@ -26,7 +26,7 @@ use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
-use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -42,7 +42,11 @@ impl System {
     }
 
     pub fn init_logger(&self) {
-        let _ = Builder::from_env(Env::default().default_filter_or("gwasm=debug"))
+        self.init_logger_with_default_filter("gwasm=debug")
+    }
+
+    pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
+        let _ = Builder::from_env(Env::default().default_filter_or(default_filter))
             .format(|buf, record| {
                 let lvl = record.level().to_string().to_uppercase();
                 let target = record.target().to_string();
