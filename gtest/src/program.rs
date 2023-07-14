@@ -569,9 +569,10 @@ mod tests {
         sys.mint_to(user_id, 5000);
         assert_eq!(sys.balance_of(user_id), 5000);
 
-        let mut prog = Program::from_file(
+        let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+            137,
+            demo_ping::WASM_BINARY.to_vec(),
         );
 
         prog.mint(1000);
