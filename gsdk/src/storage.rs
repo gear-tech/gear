@@ -228,7 +228,21 @@ impl Api {
 
 // pallet-gear-program
 impl Api {
-    /// Get `InstrumentedCode` by its `CodeId` at specified block.
+    /// Get original code by its `CodeId` at specified block.
+    #[storage_fetch]
+    pub async fn original_code_storage_at(
+        &self,
+        code_id: CodeId,
+        block_hash: Option<H256>,
+    ) -> Result<Vec<u8>> {
+        let addr = Self::storage(
+            GearProgramStorage::OriginalCodeStorage,
+            vec![Value::from_bytes(code_id)],
+        );
+        self.fetch_storage_at(&addr, block_hash).await
+    }
+
+    /// Get `InstrumentedCode` by its `CodeId at specified block.
     #[storage_fetch]
     pub async fn code_storage_at(
         &self,
