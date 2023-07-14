@@ -17,9 +17,7 @@ build_usage() {
 
     gear           build gear workspace
     fuzz           build fuzzer crates
-    examples       build gear program examples,
-                   you can specify yaml list to build coresponding examples
-                   using yamls="path/to/yaml1 path/to/yaml2 ..." argument
+    examples       build gear examples
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
@@ -40,7 +38,7 @@ node_build() {
 }
 
 wasm_proc_build() {
-  cargo build -p wasm-proc --release "$@"
+  $CARGO build -p wasm-proc "$@"
 }
 
 gear_replay_build() {
@@ -54,36 +52,11 @@ examples_proc() {
   "$1"/release/wasm-proc $WASM_EXAMPLES_LIST
 }
 
-# $1 = ROOT DIR, $2 = TARGET DIR
+# $1 = ROOT DIR
 examples_build() {
   ROOT_DIR="$1"
-  TARGET_DIR="$2"
-  shift
   shift
 
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
-  fi
-
-  if [ -z "$YAMLS" ]
-  then
-    cd "$ROOT_DIR"
-    cargo build --release -p "demo-*" "$@"
-    cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release --workspace "$@"
-    cd "$ROOT_DIR"
-  else
-    # If there is specified yaml list, then parses yaml files and build
-    # all examples which is used as deps inside yamls.
-    for path in $(get_demo_list $ROOT_DIR $YAMLS)
-    do
-      cd $path
-      CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release "$@"
-      cd -
-    done
-  fi
+  cd "$ROOT_DIR"
+  $CARGO build -p "demo-*" -p test-syscalls "$@"
 }

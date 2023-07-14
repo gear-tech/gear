@@ -19,57 +19,57 @@ members = [
     "core-backend/wasmi",
     "core-processor",
     "core-errors",
-    "examples/binaries/async",
-    "examples/binaries/async-custom-entry",
-    "examples/binaries/async-init",
-    "examples/binaries/async-signal-entry",
-    "examples/binaries/async-tester",
-    "examples/binaries/backend-error",
-    "examples/binaries/btree",
-    "examples/binaries/calc-hash",
-    "examples/binaries/capacitor",
-    "examples/binaries/compose",
-    "examples/binaries/constructor",
-    "examples/binaries/delayed-sender",
-    "examples/binaries/distributor",
-    "examples/binaries/fungible-token",
-    "examples/binaries/stack-allocations",
-    "examples/binaries/futures-unordered",
-    "examples/binaries/gas-burned",
-    "examples/binaries/incomplete-async-payloads",
-    "examples/binaries/init-fail-sender",
-    "examples/binaries/init-wait",
-    "examples/binaries/init-wait-reply-exit",
-    "examples/binaries/messager",
-    "examples/binaries/mul-by-const",
-    "examples/binaries/ncompose",
-    "examples/binaries/new-meta",
-    "examples/binaries/node",
-    "examples/binaries/out-of-memory",
-    "examples/binaries/piggy-bank",
-    "examples/binaries/ping",
-    "examples/binaries/program-factory",
-    "examples/binaries/program-generator",
-    "examples/binaries/proxy",
-    "examples/binaries/proxy-relay",
-    "examples/binaries/proxy-reservation-with-gas",
-    "examples/binaries/read-big-state",
-    "examples/binaries/reservation-manager",
-    "examples/binaries/reserve-gas",
-    "examples/binaries/rwlock",
-    "examples/binaries/send-from-reservation",
-    "examples/binaries/signal-entry",
-    "examples/binaries/state-rollback",
-    "examples/binaries/sync-duplicate",
-    "examples/binaries/sys-calls",
-    "examples/binaries/syscall-error",
-    "examples/binaries/vec",
-    "examples/binaries/wait",
-    "examples/binaries/wait-timeout",
-    "examples/binaries/wait_wake",
-    "examples/binaries/waiter",
-    "examples/binaries/waiting-proxy",
-    "examples/binaries/wat",
+    "examples/async",
+    "examples/async-custom-entry",
+    "examples/async-init",
+    "examples/async-signal-entry",
+    "examples/async-tester",
+    "examples/backend-error",
+    "examples/btree",
+    "examples/calc-hash",
+    "examples/capacitor",
+    "examples/compose",
+    "examples/constructor",
+    "examples/delayed-sender",
+    "examples/distributor",
+    "examples/fungible-token",
+    "examples/stack-allocations",
+    "examples/futures-unordered",
+    "examples/gas-burned",
+    "examples/incomplete-async-payloads",
+    "examples/init-fail-sender",
+    "examples/init-wait",
+    "examples/init-wait-reply-exit",
+    "examples/messager",
+    "examples/mul-by-const",
+    "examples/ncompose",
+    "examples/new-meta",
+    "examples/node",
+    "examples/out-of-memory",
+    "examples/piggy-bank",
+    "examples/ping",
+    "examples/program-factory",
+    "examples/program-generator",
+    "examples/proxy",
+    "examples/proxy-relay",
+    "examples/proxy-reservation-with-gas",
+    "examples/read-big-state",
+    "examples/reservation-manager",
+    "examples/reserve-gas",
+    "examples/rwlock",
+    "examples/send-from-reservation",
+    "examples/signal-entry",
+    "examples/state-rollback",
+    "examples/sync-duplicate",
+    "examples/sys-calls",
+    "examples/syscall-error",
+    "examples/vec",
+    "examples/wait",
+    "examples/wait-timeout",
+    "examples/wait_wake",
+    "examples/waiter",
+    "examples/waiting-proxy",
+    "examples/wat",
     "galloc",
     "gcli",
     "gclient",
@@ -357,59 +357,59 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 
 # Examples
-test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
-demo-async = { path = "examples/binaries/async" }
-demo-async-custom-entry = { path = "examples/binaries/async-custom-entry" }
-demo-async-init = { path = "examples/binaries/async-init" }
-demo-async-recursion = { path = "examples/binaries/async-recursion" }
-demo-async-signal-entry = { path = "examples/binaries/async-signal-entry" }
-demo-async-tester = { path = "examples/binaries/async-tester" }
-demo-backend-error = { path = "examples/binaries/backend-error" }
-demo-btree = { path = "examples/binaries/btree" }
-demo-calc-hash = { path = "examples/binaries/calc-hash" }
-demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
-demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
-demo-capacitor = { path = "examples/binaries/capacitor" }
-demo-compose = { path = "examples/binaries/compose" }
-demo-constructor = { path = "examples/binaries/constructor" }
-demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
-demo-distributor = { path = "examples/binaries/distributor" }
-demo-futures-unordered = { path = "examples/binaries/futures-unordered", features = ["debug"] }
-demo-gas-burned = { path = "examples/binaries/gas-burned" }
-demo-fungible-token = { path = "examples/binaries/fungible-token" }
-demo-incomplete-async-payloads = { path = "examples/binaries/incomplete-async-payloads" }
-demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
-demo-init-wait = { path = "examples/binaries/init-wait" }
-demo-init-wait-reply-exit = { path = "examples/binaries/init-wait-reply-exit" }
-demo-messager = { path = "examples/binaries/messager" }
-demo-meta-io = { path = "examples/binaries/new-meta/io" }
-demo-mul-by-const = { path = "examples/binaries/mul-by-const" }
-demo-new-meta = { path = "examples/binaries/new-meta" }
-demo-node = { path = "examples/binaries/node" }
-demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
-demo-piggy-bank = { path = "examples/binaries/piggy-bank", features = ["debug"] }
-demo-ping = { path = "examples/binaries/ping" }
-demo-program-factory = { path = "examples/binaries/program-factory" }
-demo-program-generator = { path = "examples/binaries/program-generator" }
-demo-proxy = { path = "examples/binaries/proxy", default-features = false }
-demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
-demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
-demo-read-big-state = { path = "examples/binaries/read-big-state" }
-demo-reservation-manager = { path = "examples/binaries/reservation-manager" }
-demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
-demo-rwlock = { path = "examples/binaries/rwlock" }
-demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
-demo-signal-entry = { path = "examples/binaries/signal-entry" }
-demo-state-rollback = { path = "examples/binaries/state-rollback" }
-demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
-demo-vec = { path = "examples/binaries/vec" }
-demo-wait = { path = "examples/binaries/wait" }
-demo-waiter = { path = "examples/binaries/waiter" }
-demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
-demo-wait-wake = { path = "examples/binaries/wait_wake" }
-demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
-demo-stack-allocations = { path = "examples/binaries/stack-allocations" }
-demo-wat = { path = "examples/binaries/wat" }
+test-syscalls = { path = "examples/sys-calls", default-features = false }
+demo-async = { path = "examples/async" }
+demo-async-custom-entry = { path = "examples/async-custom-entry" }
+demo-async-init = { path = "examples/async-init" }
+demo-async-recursion = { path = "examples/async-recursion" }
+demo-async-signal-entry = { path = "examples/async-signal-entry" }
+demo-async-tester = { path = "examples/async-tester" }
+demo-backend-error = { path = "examples/backend-error" }
+demo-btree = { path = "examples/btree" }
+demo-calc-hash = { path = "examples/calc-hash" }
+demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
+demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
+demo-capacitor = { path = "examples/capacitor" }
+demo-compose = { path = "examples/compose" }
+demo-constructor = { path = "examples/constructor" }
+demo-delayed-sender = { path = "examples/delayed-sender" }
+demo-distributor = { path = "examples/distributor" }
+demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
+demo-gas-burned = { path = "examples/gas-burned" }
+demo-fungible-token = { path = "examples/fungible-token" }
+demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
+demo-init-fail-sender = { path = "examples/init-fail-sender" }
+demo-init-wait = { path = "examples/init-wait" }
+demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
+demo-messager = { path = "examples/messager" }
+demo-meta-io = { path = "examples/new-meta/io" }
+demo-mul-by-const = { path = "examples/mul-by-const" }
+demo-new-meta = { path = "examples/new-meta" }
+demo-node = { path = "examples/node" }
+demo-out-of-memory = { path = "examples/out-of-memory" }
+demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }
+demo-ping = { path = "examples/ping" }
+demo-program-factory = { path = "examples/program-factory" }
+demo-program-generator = { path = "examples/program-generator" }
+demo-proxy = { path = "examples/proxy", default-features = false }
+demo-proxy-relay = { path = "examples/proxy-relay" }
+demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
+demo-read-big-state = { path = "examples/read-big-state" }
+demo-reservation-manager = { path = "examples/reservation-manager" }
+demo-reserve-gas = { path = "examples/reserve-gas" }
+demo-rwlock = { path = "examples/rwlock" }
+demo-send-from-reservation = { path = "examples/send-from-reservation" }
+demo-signal-entry = { path = "examples/signal-entry" }
+demo-state-rollback = { path = "examples/state-rollback" }
+demo-sync-duplicate = { path = "examples/sync-duplicate" }
+demo-vec = { path = "examples/vec" }
+demo-wait = { path = "examples/wait" }
+demo-waiter = { path = "examples/waiter" }
+demo-wait-timeout = { path = "examples/wait-timeout" }
+demo-wait-wake = { path = "examples/wait_wake" }
+demo-waiting-proxy = { path = "examples/waiting-proxy" }
+demo-stack-allocations = { path = "examples/stack-allocations" }
+demo-wat = { path = "examples/wat" }
 
 # Dependencies that only used in one package
 #

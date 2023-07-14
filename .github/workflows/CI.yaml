@@ -77,9 +77,6 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Examples"
-        run: ./scripts/gear.sh format examples --check
-
       - name: "Check formatting: Doc"
         run: ./scripts/gear.sh format doc --check
 
@@ -87,7 +84,7 @@ jobs:
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
       - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples
+        run: ./scripts/gear.sh clippy examples --all-targets --locked
 
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
@@ -159,9 +156,6 @@ jobs:
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
 
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
       - name: "ACTIONS: Setup environment variable"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
@@ -177,9 +171,6 @@ jobs:
 
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: Gear pallet tests with lazy pages"
         run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
@@ -367,15 +358,6 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
 
@@ -466,15 +448,6 @@ jobs:
         run: ./scripts/gear.sh build node --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
 
       # These tests randomly stops responding
 
