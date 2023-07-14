@@ -289,8 +289,8 @@ async fn test_original_code_storage() -> Result<()> {
 
     let program = signer.api().gprog(pid).await?;
     let rpc = signer.api().rpc();
-    let last_block = rpc.block(None).await??.block.header.number();
-    let block_hash = rpc.block_hash(Some(last_block.into())).await??;
+    let last_block = rpc.block(None).await?.unwrap().block.header.number();
+    let block_hash = rpc.block_hash(Some(last_block.into())).await?.unwrap();
     let code = signer
         .api()
         .original_code_storage_at(program.code_hash.0.into(), block_hash)
