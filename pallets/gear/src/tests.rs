@@ -203,7 +203,7 @@ fn auto_reply_from_user_no_mailbox() {
 
         let calls = Calls::builder().send_wgas(<[u8; 32]>::from(USER_1.into_origin()), [], 0);
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             constructor_id,
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -227,7 +227,7 @@ fn auto_reply_from_user_no_mailbox() {
             1u32.into(),
         ));
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             constructor_id,
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -257,7 +257,7 @@ fn auto_reply_out_of_rent_waitlist() {
             WAITER_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 20,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         let waiter_id = get_last_program_id();
@@ -305,7 +305,7 @@ fn auto_reply_out_of_rent_waitlist() {
             RuntimeOrigin::signed(USER_1),
             proxy_id,
             Command::Wait(WaitSubcommand::Wait).encode(),
-            DEFAULT_GAS_LIMIT * 100,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
 
@@ -2528,7 +2528,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         check_result(false);
@@ -2538,7 +2538,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent).encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         let message_id = check_result(true);
@@ -2548,7 +2548,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             rent.encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         let message_id = check_result(true);
@@ -2558,7 +2558,7 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         check_result(false);
@@ -8535,7 +8535,7 @@ fn execution_over_blocks() {
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 8_192);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 16_384);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
@@ -10697,7 +10697,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Panic.encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
 
@@ -10746,7 +10746,7 @@ fn gas_reservation_wait_wake_exit() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Exit.encode(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
 
@@ -11693,7 +11693,7 @@ fn async_recursion() {
 
     new_test_ext().execute_with(|| {
         let demo = upload();
-        let arg = 40i32;
+        let arg = 100i32;
 
         let to_send = vec![arg.encode()];
         send_payloads(USER_1, demo, to_send);
@@ -11720,7 +11720,7 @@ fn async_init() {
 
     let upload = || {
         assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             PING_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Default::default(),
@@ -12902,7 +12902,7 @@ fn reply_with_small_non_zero_gas() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             payload.to_vec(),
-            DEFAULT_GAS_LIMIT * 50,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
 
@@ -13014,7 +13014,7 @@ fn relay_messages() {
                     RuntimeOrigin::signed(source),
                     proxy,
                     payload.to_vec(),
-                    DEFAULT_GAS_LIMIT * 50,
+                    BlockGasLimitOf::<Test>::get(),
                     0,
                 )
                 .is_ok(),
