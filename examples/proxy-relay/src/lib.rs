@@ -50,21 +50,10 @@ pub enum RelayCall {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    #![allow(deprecated)]
-
     use super::*;
-    use gstd::{
-        msg::{self, MessageHandle},
-        ToString,
-    };
+    use gstd::msg::{self, MessageHandle};
 
     static mut RELAY_CALL: Option<RelayCall> = None;
-
-    gstd::metadata! {
-        title: "tests-proxy-relay",
-        handle:
-            input: RelayCall,
-    }
 
     fn resend_push(resend_pushes: &[ResendPushData]) {
         for data in resend_pushes {
