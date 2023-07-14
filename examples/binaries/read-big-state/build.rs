@@ -16,15 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide sp-sandbox support.
-
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-pub mod env;
-pub mod memory;
-pub mod runtime;
-
-pub use env::SandboxEnvironment;
-pub use memory::{DefaultExecutorMemory, MemoryWrap};
+fn main() {
+    gear_wasm_builder::build();
+}

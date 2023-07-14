@@ -601,6 +601,11 @@ where
         .into_ext_info(&memory)
         .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
+    log::debug!(
+        "[execute_for_reply] Gas burned: {}",
+        info.gas_amount.burned()
+    );
+
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
             return Ok(dispatch.payload_bytes().to_vec());
