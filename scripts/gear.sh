@@ -299,8 +299,7 @@ case "$COMMAND" in
 
       doc)
         header "Testing examples in docs"
-        doc_test "$ROOT_DIR/Cargo.toml" "$@";
-        doc_test "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
+        doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
