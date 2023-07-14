@@ -73,7 +73,7 @@ async fn get_state() -> anyhow::Result<()> {
         .read_state_using_wasm(
             program_id,
             "first_wallet",
-            demo_new_meta::META_WASM_V1,
+            demo_new_meta::META_WASM_V1.to_vec(),
             <Option<()>>::None,
         )
         .await?;

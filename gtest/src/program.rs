@@ -573,6 +573,7 @@ mod tests {
             &sys,
             137,
             demo_ping::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.mint(1000);
