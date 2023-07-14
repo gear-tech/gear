@@ -40,8 +40,8 @@ wasm-proc:
 wasm-proc-release:
 	@ ./scripts/gear.sh build wasm-proc --release
 
-.PHONY: proc-examples
-proc-examples: wasm-proc-release
+.PHONY: examples-proc
+examples-proc: wasm-proc-release
 	@ ./scripts/gear.sh build examples-proc
 
 .PHONY: node
