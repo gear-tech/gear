@@ -54,5 +54,5 @@ examples_build() {
   shift
 
   cd "$ROOT_DIR"
-  $CARGO build -p "demo-*" "$@"
+  $CARGO build -p "demo-*" -p test-syscalls "$@"
 }
