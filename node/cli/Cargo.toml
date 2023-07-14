@@ -77,7 +77,7 @@ lazy-pages = [
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
-    "frame-benchmarking",
+	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [

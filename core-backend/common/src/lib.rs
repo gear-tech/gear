@@ -58,7 +58,7 @@ use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
 
 use crate::runtime::RunFallibleError;
-pub use crate::utils::{LimitedStr, TrimmedString};
+pub use crate::utils::LimitedStr;
 use gear_core::memory::MemoryError;
 pub use log;
 
@@ -231,7 +231,7 @@ pub enum TrapExplanation {
     #[display(fmt = "Sys-call unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "{_0}")]
-    Panic(TrimmedString),
+    Panic(LimitedStr<'static>),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }

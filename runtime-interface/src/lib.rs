@@ -25,6 +25,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
     memory::ProcessAccessError,
+    LimitedStr,
 };
 use gear_core::{
     gas::GasLeft,
@@ -77,8 +78,7 @@ impl PassBy for LazyPagesProgramContext {
 #[codec(crate = codec)]
 pub struct LazyPagesRuntimeContext {
     pub page_sizes: Vec<u32>,
-    // TODO: considering change global name types to `TrimmedString` (issue #2098)
-    pub global_names: Vec<String>,
+    pub global_names: Vec<LimitedStr<'static>>,
     pub pages_storage_prefix: Vec<u8>,
 }
 

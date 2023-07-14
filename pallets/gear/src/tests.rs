@@ -62,7 +62,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{
-    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
+    LimitedStr, TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError,
+    UnrecoverableWaitError,
 };
 use gear_core::{
     code::{self, Code},
@@ -8613,7 +8614,9 @@ fn call_forbidden_function() {
 
 #[test]
 fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
-    use demo_waiter::{Command as WaiterCommand, MxLockContinuation, WASM_BINARY as WAITER_WASM};
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
+    };
 
     let execution = || {
         System::reset_events();
@@ -8646,16 +8649,19 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
             (msg_id, msg_block_number)
         };
 
-        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::SleepFor(4)));
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
+            WaiterCommand::MxLock(MxLockContinuation::General(LockContinuation::SleepFor(4))),
+        );
 
-        let (lock_rival_1_msg_id, _) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+        let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            MxLockContinuation::General(LockContinuation::Nothing),
+        ));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
-        let (lock_rival_2_msg_id, _) =
-            send_command_to_waiter(WaiterCommand::MxLock(MxLockContinuation::Nothing));
+        let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            MxLockContinuation::General(LockContinuation::Nothing),
+        ));
 
         assert!(WaitlistOf::<Test>::contains(
             &waiter_prog_id,
@@ -8687,7 +8693,8 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
 #[test]
 fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
     use demo_waiter::{
-        Command as WaiterCommand, RwLockContinuation, RwLockType, WASM_BINARY as WAITER_WASM,
+        Command as WaiterCommand, LockContinuation, RwLockContinuation, RwLockType,
+        WASM_BINARY as WAITER_WASM,
     };
 
     let execution = || {
@@ -8723,20 +8730,22 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
 
         // For write lock
         {
-            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
-                WaiterCommand::RwLock(RwLockType::Read, RwLockContinuation::SleepFor(4)),
-            );
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+                send_command_to_waiter(WaiterCommand::RwLock(
+                    RwLockType::Read,
+                    RwLockContinuation::General(LockContinuation::SleepFor(4)),
+                ));
 
             let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
                 RwLockType::Write,
-                RwLockContinuation::Nothing,
+                RwLockContinuation::General(LockContinuation::Nothing),
             ));
 
             send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
             let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
                 RwLockType::Write,
-                RwLockContinuation::Nothing,
+                RwLockContinuation::General(LockContinuation::Nothing),
             ));
 
             assert!(WaitlistOf::<Test>::contains(
@@ -8764,20 +8773,22 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
 
         // For read lock
         {
-            let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
-                WaiterCommand::RwLock(RwLockType::Write, RwLockContinuation::SleepFor(4)),
-            );
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+                send_command_to_waiter(WaiterCommand::RwLock(
+                    RwLockType::Write,
+                    RwLockContinuation::General(LockContinuation::SleepFor(4)),
+                ));
 
             let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
                 RwLockType::Read,
-                RwLockContinuation::Nothing,
+                RwLockContinuation::General(LockContinuation::Nothing),
             ));
 
             send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
             let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
                 RwLockType::Write,
-                RwLockContinuation::Nothing,
+                RwLockContinuation::General(LockContinuation::Nothing),
             ));
 
             assert!(WaitlistOf::<Test>::contains(
@@ -13191,9 +13202,10 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
-        );
+        assert!(err.starts_with(
+            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
+                .to_string()
+        ));
     });
 }
 
@@ -13225,9 +13237,10 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
-        );
+        assert!(err.starts_with(
+            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
+                .to_string()
+        ));
     });
 }
 
