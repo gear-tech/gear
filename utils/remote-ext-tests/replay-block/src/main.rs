@@ -37,7 +37,7 @@ use std::fmt::Debug;
 use substrate_rpc_client::{ws_client, ChainApi};
 use util::*;
 
-pub(crate) const LOG_TARGET: &str = "remote-ext::cli";
+pub(crate) const LOG_TARGET: &str = "gear_replay";
 
 mod parse;
 mod util;
@@ -91,7 +91,7 @@ struct Opt {
     ///
     /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
     /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
-    #[arg(short = 'l', long, value_name = "LOG_PATTERN", num_args = 1..)]
+    #[arg(short = 'l', long, value_name = "NODE_LOG", num_args = 0..)]
     pub log: Vec<String>,
 }
 

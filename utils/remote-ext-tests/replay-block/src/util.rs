@@ -23,11 +23,11 @@ use crate::{HashFor, NumberFor, LOG_TARGET};
 use frame_remote_externalities::{
     Builder, Mode, OnlineConfig, RemoteExternalities, TestExternalities,
 };
+use sc_executor::WasmExecutor;
 #[cfg(feature = "always-wasm")]
-use sc_executor::sp_wasm_interface::HostFunctions;
+use sc_executor::{sp_wasm_interface::HostFunctions, WasmtimeInstantiationStrategy};
 #[cfg(not(feature = "always-wasm"))]
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
-use sc_executor::{WasmExecutor, WasmtimeInstantiationStrategy};
 use sp_core::{
     offchain::{
         testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -82,17 +82,6 @@ pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
         None,
         runtime_cache_size,
     )
-}
-
-#[allow(dead_code)]
-pub(crate) fn hash_of<Block: BlockT>(hash_str: &str) -> sc_cli::Result<Block::Hash>
-where
-    Block::Hash: FromStr,
-    <Block::Hash as FromStr>::Err: Debug,
-{
-    hash_str
-        .parse::<<Block as BlockT>::Hash>()
-        .map_err(|e| format!("Could not parse block hash: {:?}", e).into())
 }
 
 pub(crate) async fn build_externalities<Block: BlockT + DeserializeOwned>(
@@ -215,7 +204,7 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
         CallContext::Offchain,
     )
     .execute(strategy)
-    .map_err(|e| format!("failed to execute '{}': {}", method, e))
+    .map_err(|e| format!("failed to execute '{method}': {e}"))
     .map_err::<sc_cli::Error, _>(Into::into)?;
 
     Ok((changes, encoded_results))

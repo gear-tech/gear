@@ -36,7 +36,6 @@ pub(crate) fn hash(block_hash: &str) -> Result<String, usize> {
 
 pub(crate) fn url(s: &str) -> Result<String, &'static str> {
     if s.starts_with("ws://") || s.starts_with("wss://") {
-        // could use Url crate as well, but lets keep it simple for now.
         Ok(s.to_string())
     } else {
         Err("not a valid WS(S) url: must start with 'ws://' or 'wss://'")
@@ -48,10 +47,7 @@ pub(crate) fn block(block_hash_or_number: &str) -> Result<BlockHashOrNumber<Bloc
         Ok(BlockHashOrNumber::Number(block_number))
     } else {
         let block_hash = hash(block_hash_or_number).map_err(|e| {
-            format!(
-                "Expected block hash or number, found illegal hex character at position {}",
-                e,
-            )
+            format!("Expected block hash or number, found illegal hex character at position {e}")
         })?;
         if block_hash.len() != 64 {
             return Err(format!(
@@ -62,6 +58,6 @@ pub(crate) fn block(block_hash_or_number: &str) -> Result<BlockHashOrNumber<Bloc
         block_hash
             .parse::<HashFor<Block>>()
             .map(BlockHashOrNumber::Hash)
-            .map_err(|e| format!("Failed to parse block hash: {}", e,))
+            .map_err(|e| format!("Failed to parse block hash: {e}"))
     }
 }
