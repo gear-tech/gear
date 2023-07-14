@@ -25,6 +25,7 @@ use gsdk::{
     Api, Result,
 };
 use parity_scale_codec::Encode;
+use subxt::config::Header;
 use std::{borrow::Cow, process::Command, str::FromStr};
 
 fn dev_node() -> Node {
@@ -261,6 +262,37 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
             "Rpc error: RPC error: RPC call failed: ErrorObject { code: MethodNotFound"
         ));
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_original_code_storage() -> Result<()> {
+    let node = dev_node();
+
+    let salt = vec![];
+    let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
+
+    signer
+        .upload_program(
+            demo_messager::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    let program = signer.api().gprog(pid).await?;
+    let last_block = signer.api().rpc().block(None).await?.unwrap().block.header.number();
+    let block_hash = signer.api().rpc().block_hash(Some(last_block.into())).await?.unwrap();
+    let code = signer.api().original_code_storage_at(program.code_hash.0.into(), block_hash).await?;
+
+    assert_eq!(code, demo_messager::WASM_BINARY.to_vec());
 
     Ok(())
 }
