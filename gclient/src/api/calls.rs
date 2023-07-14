@@ -60,7 +60,8 @@ use std::{
 use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
-    /// Returns original wasm code for the given `code_id` at specified `at_block_hash`.
+    /// Returns original wasm code for the given `code_id` at specified
+    /// `at_block_hash`.
     pub async fn original_code_at(
         &self,
         code_id: CodeId,
@@ -73,7 +74,8 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// Returns `ActiveProgram` for the given `program_id` at specified `at_block_hash`.
+    /// Returns `ActiveProgram` for the given `program_id` at specified
+    /// `at_block_hash`.
     pub async fn program_at(
         &self,
         program_id: ProgramId,
