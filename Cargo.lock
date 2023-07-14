@@ -4018,6 +4018,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-replay-cli"
+version = "1.0.0"
+dependencies = [
+ "clap 4.3.11",
+ "frame-remote-externalities",
+ "frame-system",
+ "gear-runtime",
+ "gear-runtime-interface",
+ "gear-runtime-primitives",
+ "gear-service",
+ "log",
+ "parity-scale-codec",
+ "sc-cli",
+ "sc-executor",
+ "sc-tracing",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-externalities 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-keystore 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-rpc",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-state-machine 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "substrate-rpc-client",
+ "tokio",
+ "vara-runtime",
+]
+
+[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [

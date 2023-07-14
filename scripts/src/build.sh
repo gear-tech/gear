@@ -43,6 +43,10 @@ wasm_proc_build() {
   cargo build -p wasm-proc --release "$@"
 }
 
+gear_replay_build() {
+  cargo build -p gear-replay-cli "$@"
+}
+
 # $1 = TARGET DIR
 examples_proc() {
   WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release

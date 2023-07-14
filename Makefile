@@ -67,6 +67,18 @@ vara:
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
+.PHONY: gear-replay
+gear-replay:
+	@ ./scripts/gear.sh build gear-replay --release
+
+.PHONY: gear-replay-vara-native
+gear-replay-vara-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,vara-native
+
+.PHONY: gear-replay-gear-native
+gear-replay-gear-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,gear-native
+
 # Check section
 .PHONY: check
 check: check-gear check-examples

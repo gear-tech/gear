@@ -126,6 +126,10 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
+      gear-replay)
+        header "Building gear-replay CLI"
+        gear_replay_build "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         build_usage
