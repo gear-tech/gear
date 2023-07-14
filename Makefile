@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test-gear # check-spec
+pre-commit: fmt clippy test-gear
 
 .PHONY: check-spec
 check-spec:
@@ -12,14 +12,8 @@ check-spec:
 
 .PHONY: clean
 clean:
-	@ cargo clean --manifest-path=./Cargo.toml
-	@ cargo clean --manifest-path=./examples/Cargo.toml
-
-.PHONY: clean-examples
-clean-examples:
-	@ rm -rf ./target/wasm32-unknown-unknown
-	@ rm -rvf target/release/build/demo-*
-	@ cargo clean --manifest-path=./examples/Cargo.toml
+	@ cargo clean
+	@ git clean -fdx
 
 # Build section
 .PHONY: all
