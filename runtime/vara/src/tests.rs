@@ -33,7 +33,7 @@ fn instruction_weights_heuristics_test() {
 
         i64const: 150,
         i64load: 7_000,
-        i32load: 7_000,
+        i32load: 8_000,
         i64store: 29_000,
         i32store: 20_000,
         select: 7_100,
