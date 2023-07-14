@@ -17,7 +17,7 @@ extern "C" fn handle() {
 
         unsafe { DONE = true; }
 
-        exec::wake_delayed(message_id, delay);
+        exec::wake_delayed(message_id, delay).expect("Failed to wake message");
     } else if unsafe { !DONE } {
         unsafe { MID = Some(msg::id()); }
 

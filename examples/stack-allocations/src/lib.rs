@@ -104,7 +104,7 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use super::{Action, HandleData, InitConfig, ReplyData, HANDLE_DATA_SIZE};
+    use super::*;
     use gtest::{Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};

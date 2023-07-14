@@ -54,6 +54,6 @@ extern "C" fn handle_reply() {
         for k in 20..40 {
             unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
         }
-        exec::wake(unsafe { INIT_MESSAGE });
+        exec::wake(unsafe { INIT_MESSAGE }).expect("Failed to wake message");
     }
 }

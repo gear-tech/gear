@@ -163,13 +163,8 @@ mod wasm {
             }
             InitAction::FreshReserveUnreserve => {
                 let id = ReservationId::reserve(10_000, 10).unwrap();
-                gstd::msg::send_from_reservation(
-                    id.clone(),
-                    msg::source(),
-                    b"fresh_reserve_unreserve",
-                    0,
-                )
-                .unwrap();
+                gstd::msg::send_from_reservation(id, msg::source(), b"fresh_reserve_unreserve", 0)
+                    .unwrap();
                 assert_eq!(
                     id.unreserve(),
                     Err(Error::Core(
@@ -228,7 +223,7 @@ mod wasm {
             HandleAction::SendFromReservationAndUnreserve => {
                 let id = unsafe { RESERVATION_ID.take().unwrap() };
                 gstd::msg::send_from_reservation(
-                    id.clone(),
+                    id,
                     msg::source(),
                     b"existing_reserve_unreserve",
                     0,
@@ -260,9 +255,8 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    extern crate std;
-
     use crate::InitAction;
+    use alloc::vec;
     use gtest::{Program, System};
 
     #[test]

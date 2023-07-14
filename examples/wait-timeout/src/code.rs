@@ -1,8 +1,7 @@
 use crate::Command;
 
-use codec::Encode;
 use futures::future;
-use gstd::{errors::Error, exec, msg, MessageId};
+use gstd::{exec, msg, MessageId};
 
 static mut TIMEOUT_MESSAGE_ID: Option<MessageId> = None;
 
@@ -78,7 +77,7 @@ async fn main() {
                 )
                 .await;
 
-                a.and_then(|ra| b.and_then(|rb| Ok((ra, rb))))
+                a.and_then(|ra| b.map(|rb| (ra, rb)))
             };
 
             if let Err(e) = reply {

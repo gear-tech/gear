@@ -18,7 +18,7 @@ pub fn reply_duration() -> u32 {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{exec, msg, ActorId};
+    use gstd::{msg, ActorId};
 
     #[gstd::async_init]
     async fn init() {
@@ -29,7 +29,8 @@ mod wasm {
             .unwrap()
             .exactly(Some(super::reply_duration()))
             .unwrap()
-            .await;
+            .await
+            .expect("Failed to send message");
         panic!();
     }
 }

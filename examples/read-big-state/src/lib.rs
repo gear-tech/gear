@@ -62,7 +62,7 @@ impl State {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{debug, msg, prelude::*};
+    use gstd::{msg, prelude::*};
 
     static mut STATE: Option<State> = None;
 

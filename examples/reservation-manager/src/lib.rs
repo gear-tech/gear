@@ -38,7 +38,6 @@ pub enum Action {
 mod wasm {
     use super::*;
     use gstd::{msg, prelude::*, Reservations};
-    use parity_scale_codec::{Decode, Encode};
 
     static mut RESERVATIONS: Reservations = Reservations::new();
 

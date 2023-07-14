@@ -18,36 +18,48 @@
 
 #![no_std]
 
-// Reexport of types
+// Reexport of types.
 pub use demo_meta_io::*;
 
-// For wasm compilation
+// For wasm compilation.
 #[cfg(not(feature = "std"))]
 mod wasm;
 
-// Exports for native usage as dependency in other crates
+// Empty exports for native usage as dependency in other crates for running clippy.
+#[cfg(not(feature = "std"))]
+mod exports {
+    pub const WASM_BINARY: &[u8] = &[];
+    pub const WASM_METADATA: &[u8] = &[];
+    pub const META_EXPORTS_V1: &[&str] = &[];
+    pub const META_WASM_V1: &[u8] = &[];
+    pub const META_EXPORTS_V2: &[&str] = &[];
+    pub const META_WASM_V2: &[u8] = &[];
+    pub const META_EXPORTS_V3: &[&str] = &[];
+    pub const META_WASM_V3: &[u8] = &[];
+}
+
+// Exports for native usage as dependency in other crates.
 #[cfg(feature = "std")]
 mod exports {
     mod code {
         include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
     }
 
-    // Binary itself
+    // Binary itself.
     pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-    // Metadata of the binary, defining types and registry for JS
+    // Metadata of the binary, defining types and registry for JS.
     pub use code::WASM_METADATA;
 
-    // First reading state functions implementation
+    // First reading state functions implementation.
     pub use demo_meta_state_v1::{META_EXPORTS_V1, META_WASM_V1};
 
-    // Second reading state functions implementation
+    // Second reading state functions implementation.
     pub use demo_meta_state_v2::{META_EXPORTS_V2, META_WASM_V2};
 
-    // Third reading state functions implementation
+    // Third reading state functions implementation.
     pub use demo_meta_state_v3::{META_EXPORTS_V3, META_WASM_V3};
 }
 
-// Public exports
-#[cfg(feature = "std")]
+// Public exports.
 pub use exports::*;

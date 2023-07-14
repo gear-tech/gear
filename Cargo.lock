@@ -1961,6 +1961,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+ "log",
 ]
 
 [[package]]

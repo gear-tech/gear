@@ -1,6 +1,5 @@
 use crate::Method;
-use gstd::{exec, msg, ActorId, BTreeMap, Decode, Encode, MessageId, Vec};
-use shared::PackageId;
+use gstd::{exec, msg};
 use types::Package;
 
 #[no_mangle]
@@ -16,9 +15,7 @@ extern "C" fn handle() {
 
     match method {
         Method::Start { expected, id, src } => {
-            if !registry.contains_key(&id) {
-                registry.insert(id, Package::new(expected, src));
-            }
+            registry.entry(id).or_insert_with(|| Package::new(expected, src));
 
             let pkg = registry.get(&id).expect("Calculation not found.");
 
@@ -61,7 +58,7 @@ extern "C" fn handle() {
 
 mod state {
     use super::types::Package;
-    use gstd::{ActorId, BTreeMap, Vec};
+    use gstd::BTreeMap;
     use shared::PackageId;
 
     pub static mut THRESHOLD: Option<u64> = None;
@@ -105,7 +102,7 @@ mod types {
 
         /// Wake the start message.
         pub fn wake(&self) {
-            exec::wake(self.message_id);
+            exec::wake(self.message_id).expect("Failed to wake message");
         }
 
         /// The result of calculation.
