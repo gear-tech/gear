@@ -37,7 +37,10 @@ use gsdk::{
         gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::{event::{CodeChangeKind, MessageEntry}, ActiveProgram},
+            gear_common::{
+                event::{CodeChangeKind, MessageEntry},
+                ActiveProgram,
+            },
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
@@ -66,7 +69,8 @@ impl GearApi {
         self.0
             .api()
             .original_code_storage_at(code_id, at_block_hash)
-            .await.map_err(Into::into)
+            .await
+            .map_err(Into::into)
     }
 
     /// Returns `ActiveProgram` for the given `program_id` at specified `at_block_hash`.
@@ -75,10 +79,11 @@ impl GearApi {
         program_id: ProgramId,
         at_block_hash: Option<H256>,
     ) -> Result<ActiveProgram<u32>> {
-        let res = self.0
+        self.0
             .api()
             .gprog_at(program_id, at_block_hash)
-            .await.map_err(Into::into)
+            .await
+            .map_err(Into::into)
     }
 
     /// Transfer `value` to `destination`'s account.

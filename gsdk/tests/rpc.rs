@@ -25,8 +25,8 @@ use gsdk::{
     Api, Result,
 };
 use parity_scale_codec::Encode;
-use subxt::config::Header;
 use std::{borrow::Cow, process::Command, str::FromStr};
+use subxt::config::Header;
 
 fn dev_node() -> Node {
     // Use release build because of performance reasons.
@@ -288,9 +288,25 @@ async fn test_original_code_storage() -> Result<()> {
         .await?;
 
     let program = signer.api().gprog(pid).await?;
-    let last_block = signer.api().rpc().block(None).await?.unwrap().block.header.number();
-    let block_hash = signer.api().rpc().block_hash(Some(last_block.into())).await?.unwrap();
-    let code = signer.api().original_code_storage_at(program.code_hash.0.into(), block_hash).await?;
+    let last_block = signer
+        .api()
+        .rpc()
+        .block(None)
+        .await?
+        .unwrap()
+        .block
+        .header
+        .number();
+    let block_hash = signer
+        .api()
+        .rpc()
+        .block_hash(Some(last_block.into()))
+        .await?
+        .unwrap();
+    let code = signer
+        .api()
+        .original_code_storage_at(program.code_hash.0.into(), block_hash)
+        .await?;
 
     assert_eq!(code, demo_messager::WASM_BINARY.to_vec());
 
