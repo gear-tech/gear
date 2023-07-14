@@ -34,6 +34,8 @@ mod wasm {
 
     #[gstd::async_init(handle_reply = my_handle_reply, handle_signal = my_handle_signal)]
     async fn init() {
+        gstd::Config::set_system_reserve(10_000_000_000);
+
         unsafe {
             USER = msg::source();
         }

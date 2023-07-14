@@ -46,6 +46,8 @@ pub enum HandleAction {
     ForbiddenCallInSignal([u8; 32]),
 }
 
+pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
@@ -110,7 +112,7 @@ mod wasm {
 
                 *do_panic = !*do_panic;
 
-                exec::system_reserve_gas(2_000_000_000).unwrap();
+                exec::system_reserve_gas(WAIT_AND_RESERVE_WITH_PANIC_GAS).unwrap();
                 // used to found message id in test
                 msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
