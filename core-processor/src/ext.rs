@@ -1033,13 +1033,12 @@ impl Ext {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
     use super::*;
+    use alloc::vec;
     use gear_core::{
-        message::{ContextSettings, IncomingDispatch},
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         pages::PageNumber,
     };
-    use gear_core::message::{MAX_PAYLOAD_SIZE, Payload};
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1220,10 +1219,10 @@ mod tests {
     #[test]
     fn test_send_limit() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(
-                ContextSettings::new(0, 0, 0, 0, 0, 2)
-            )
-            .build()
+            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
+                0, 0, 0, 0, 0, 2,
+            ))
+            .build(),
         );
 
         let handle = ext.send_init().unwrap();
@@ -1246,10 +1245,15 @@ mod tests {
     #[test]
     fn test_handle_validity() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(
-                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
-            )
-            .build()
+            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
+                0,
+                0,
+                0,
+                0,
+                0,
+                u32::MAX,
+            ))
+            .build(),
         );
 
         let fake_handle = 0;
@@ -1272,10 +1276,15 @@ mod tests {
     #[test]
     fn test_send_push() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(
-                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
-            )
-            .build()
+            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
+                0,
+                0,
+                0,
+                0,
+                0,
+                u32::MAX,
+            ))
+            .build(),
         );
 
         let data = HandlePacket::default();
@@ -1290,7 +1299,9 @@ mod tests {
             Ok(_) => {}
             //If it is a "late access", it can be ignored, since it means the message was already
             // sent and cannot be changed, but the handle was valid
-            Err(FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))) => {}
+            Err(FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::LateAccess,
+            ))) => {}
             Err(e) => {
                 panic!("{:?}", e);
             }
@@ -1300,10 +1311,15 @@ mod tests {
     #[test]
     fn test_payload_size() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(
-                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
-            )
-                .build()
+            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
+                0,
+                0,
+                0,
+                0,
+                0,
+                u32::MAX,
+            ))
+            .build(),
         );
 
         let data = HandlePacket::new(ProgramId::default(), Payload::filled_with(0), 0);
@@ -1319,9 +1335,13 @@ mod tests {
         let data = vec![0u8; MAX_PAYLOAD_SIZE + 1];
 
         let msg = ext.send_push(handle, &data);
-        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::MaxMessageSizeExceed)));
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
     }
-
 
     mod property_tests {
         use super::*;
