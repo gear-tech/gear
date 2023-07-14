@@ -25,6 +25,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
     memory::ProcessAccessError,
+    LimitedStr,
 };
 use gear_core::{
     gas::GasLeft,
@@ -42,6 +43,11 @@ use alloc::string::String;
 use gear_lazy_pages as lazy_pages;
 
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
+
+mod gear_sandbox;
+#[cfg(feature = "std")]
+pub use gear_sandbox::init as sandbox_init;
+pub use gear_sandbox::sandbox;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
@@ -72,8 +78,7 @@ impl PassBy for LazyPagesProgramContext {
 #[codec(crate = codec)]
 pub struct LazyPagesRuntimeContext {
     pub page_sizes: Vec<u32>,
-    // TODO: considering change global name types to `TrimmedString` (issue #2098)
-    pub global_names: Vec<String>,
+    pub global_names: Vec<LimitedStr<'static>>,
     pub pages_storage_prefix: Vec<u8>,
 }
 

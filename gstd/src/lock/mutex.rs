@@ -119,16 +119,38 @@ impl<T> Mutex<T> {
 /// [`lock`](Mutex::lock) method on [`Mutex`].
 pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
+    holder_msg_id: MessageId,
+}
+
+impl<'a, T> MutexGuard<'a, T> {
+    fn ensure_access_by_holder(&self) {
+        let current_msg_id = msg::id();
+        if self.holder_msg_id != current_msg_id {
+            panic!(
+                "Mutex guard held by message 0x{} is being accessed by message 0x{}",
+                hex::encode(self.holder_msg_id),
+                hex::encode(current_msg_id)
+            );
+        }
+    }
 }
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
+        self.ensure_access_by_holder();
         unsafe {
             let locked_by = &mut *self.mutex.locked.get();
             // If 'locked_by' is None, it means the locked was seized by some other message,
             // and the next rival message was awoken by the ousting mechanism in
             // the MutexLockFuture::poll.
-            if let Some((_owner_msg_id, _)) = *locked_by {
+            if let Some((owner_msg_id, _)) = *locked_by {
+                if owner_msg_id != self.holder_msg_id {
+                    panic!(
+                        "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
+                        hex::encode(self.holder_msg_id),
+                        hex::encode(owner_msg_id),
+                    );
+                }
                 *locked_by = None;
                 if let Some(message_id) = self.mutex.queue.dequeue() {
                     exec::wake(message_id).expect("Failed to wake the message");
@@ -140,12 +162,14 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
 
 impl<'a, T> AsRef<T> for MutexGuard<'a, T> {
     fn as_ref(&self) -> &'a T {
+        self.ensure_access_by_holder();
         unsafe { &*self.mutex.value.get() }
     }
 }
 
 impl<'a, T> AsMut<T> for MutexGuard<'a, T> {
     fn as_mut(&mut self) -> &'a mut T {
+        self.ensure_access_by_holder();
         unsafe { &mut *self.mutex.value.get() }
     }
 }
@@ -154,12 +178,14 @@ impl<T> Deref for MutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
+        self.ensure_access_by_holder();
         unsafe { &*self.mutex.value.get() }
     }
 }
 
 impl<T> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
+        self.ensure_access_by_holder();
         unsafe { &mut *self.mutex.value.get() }
     }
 }
@@ -245,7 +271,10 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
                     self.own_up_for_block_count
                         .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
                 ));
-                return Poll::Ready(MutexGuard { mutex: self.mutex });
+                return Poll::Ready(MutexGuard {
+                    mutex: self.mutex,
+                    holder_msg_id: current_msg_id,
+                });
             }
         }
         if locked_by.is_none() {
@@ -254,7 +283,10 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
                 self.own_up_for_block_count
                     .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
             ));
-            Poll::Ready(MutexGuard { mutex: self.mutex })
+            Poll::Ready(MutexGuard {
+                mutex: self.mutex,
+                holder_msg_id: current_msg_id,
+            })
         } else {
             // If the message is already in the access queue, and we come here,
             // it means the message has just been woken up from the waitlist.

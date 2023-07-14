@@ -31,11 +31,11 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, MemoryInterval},
+    memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{GearPage, PageU32Size, WasmPage},
 };
-use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 

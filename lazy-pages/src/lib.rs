@@ -29,7 +29,10 @@
 #![allow(clippy::items_after_test_module)]
 
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_backend_common::lazy_pages::{GlobalsAccessConfig, Status};
+use gear_backend_common::{
+    lazy_pages::{GlobalsAccessConfig, Status},
+    LimitedStr,
+};
 use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
@@ -385,7 +388,7 @@ pub(crate) fn reset_init_flag() {
 fn init_with_handler<H: UserSignalHandler>(
     _version: LazyPagesVersion,
     page_sizes: Vec<u32>,
-    global_names: Vec<String>,
+    global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
 ) -> Result<(), InitError> {
     use InitError::*;
@@ -445,7 +448,7 @@ fn init_with_handler<H: UserSignalHandler>(
 pub fn init(
     version: LazyPagesVersion,
     page_sizes: Vec<u32>,
-    global_names: Vec<String>,
+    global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
 ) -> Result<(), InitError> {
     init_with_handler::<DefaultUserSignalHandler>(

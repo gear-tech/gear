@@ -27,4 +27,4 @@ pub mod memory;
 pub mod runtime;
 
 pub use env::SandboxEnvironment;
-pub use memory::MemoryWrap;
+pub use memory::{DefaultExecutorMemory, MemoryWrap};

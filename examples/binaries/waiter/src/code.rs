@@ -1,11 +1,16 @@
 use crate::{
-    Command, MxLockContinuation, RwLockContinuation, RwLockType, SleepForWaitType, WaitSubcommand,
+    Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation, RwLockContinuation,
+    RwLockType, SleepForWaitType, WaitSubcommand,
 };
+use core::ops::{Deref, DerefMut};
 use futures::future;
 use gstd::{errors::Error, exec, format, lock, msg, MessageId};
 
 static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
+static mut MUTEX_LOCK_GUARD: Option<lock::MutexGuard<()>> = None;
 static mut RW_LOCK: lock::RwLock<()> = lock::RwLock::new(());
+static mut R_LOCK_GUARD: Option<lock::RwLockReadGuard<()>> = None;
+static mut W_LOCK_GUARD: Option<lock::RwLockWriteGuard<()>> = None;
 
 #[gstd::async_main]
 async fn main() {
@@ -77,20 +82,46 @@ async fn main() {
         }
         Command::MxLock(lock_duration, continuation) => {
             let lock_guard = unsafe { MUTEX.lock().own_up_for(lock_duration).await };
-            process_mx_lock_continuation(lock_guard, continuation).await;
+            process_mx_lock_continuation(
+                unsafe { &mut MUTEX_LOCK_GUARD },
+                lock_guard,
+                continuation,
+            )
+            .await;
+        }
+        Command::MxLockStaticAccess(subcommand) => {
+            process_lock_static_access_subcommand_mut(unsafe { &mut MUTEX_LOCK_GUARD }, subcommand);
         }
         Command::RwLock(lock_type, continuation) => {
             match lock_type {
                 RwLockType::Read => {
-                    let _lock_guard = unsafe { RW_LOCK.read().await };
-                    process_rw_lock_continuation(continuation).await;
+                    let lock_guard = unsafe { RW_LOCK.read().await };
+                    process_rw_lock_continuation(
+                        unsafe { &mut R_LOCK_GUARD },
+                        lock_guard,
+                        continuation,
+                    )
+                    .await;
                 }
                 RwLockType::Write => {
-                    let _lock_guard = unsafe { RW_LOCK.write().await };
-                    process_rw_lock_continuation(continuation).await;
+                    let lock_guard = unsafe { RW_LOCK.write().await };
+                    process_rw_lock_continuation(
+                        unsafe { &mut W_LOCK_GUARD },
+                        lock_guard,
+                        continuation,
+                    )
+                    .await;
                 }
             };
         }
+        Command::RwLockStaticAccess(lock_type, subcommand) => match lock_type {
+            RwLockType::Read => {
+                process_lock_static_access_subcommand(unsafe { &mut R_LOCK_GUARD }, subcommand);
+            }
+            RwLockType::Write => {
+                process_lock_static_access_subcommand_mut(unsafe { &mut W_LOCK_GUARD }, subcommand);
+            }
+        },
     }
 }
 
@@ -102,26 +133,84 @@ fn process_wait_subcommand(subcommand: WaitSubcommand) {
     }
 }
 
-async fn process_mx_lock_continuation<'a>(
-    lock_guard: lock::MutexGuard<'a, ()>,
+async fn process_mx_lock_continuation(
+    static_lock_guard: &'static mut Option<lock::MutexGuard<'static, ()>>,
+    lock_guard: lock::MutexGuard<'static, ()>,
     continuation: MxLockContinuation,
 ) {
     match continuation {
-        MxLockContinuation::Nothing => {}
-        MxLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
-        MxLockContinuation::Wait => exec::wait(),
         MxLockContinuation::Lock => unsafe {
             MUTEX.lock().await;
         },
-        MxLockContinuation::Forget => {
+        MxLockContinuation::General(continuation) => {
+            process_lock_continuation(static_lock_guard, lock_guard, continuation).await
+        }
+    }
+}
+
+async fn process_rw_lock_continuation<G>(
+    static_lock_guard: &'static mut Option<G>,
+    lock_guard: G,
+    continuation: RwLockContinuation,
+) {
+    match continuation {
+        RwLockContinuation::General(continuation) => {
+            process_lock_continuation(static_lock_guard, lock_guard, continuation).await
+        }
+    }
+}
+
+async fn process_lock_continuation<G>(
+    static_lock_guard: &'static mut Option<G>,
+    lock_guard: G,
+    continuation: LockContinuation,
+) {
+    match continuation {
+        LockContinuation::Nothing => {}
+        LockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
+        LockContinuation::MoveToStatic => unsafe {
+            *static_lock_guard = Some(lock_guard);
+        },
+        LockContinuation::Wait => exec::wait(),
+        LockContinuation::Forget => {
             gstd::mem::forget(lock_guard);
         }
     }
 }
 
-async fn process_rw_lock_continuation(continuation: RwLockContinuation) {
-    match continuation {
-        RwLockContinuation::Nothing => {}
-        RwLockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
+fn process_lock_static_access_subcommand<G, V>(
+    lock_guard: &mut Option<G>,
+    subcommand: LockStaticAccessSubcommand,
+) where
+    G: Deref + AsRef<V>,
+{
+    match subcommand {
+        LockStaticAccessSubcommand::Drop => {
+            *lock_guard = None;
+        }
+        LockStaticAccessSubcommand::AsRef => {
+            let _ = lock_guard.as_ref().unwrap().as_ref();
+        }
+        LockStaticAccessSubcommand::Deref => {
+            let _ = lock_guard.as_ref().unwrap().deref();
+        }
+        _ => unreachable!("Invalid lock static access subcommand {:?}", subcommand),
+    }
+}
+
+fn process_lock_static_access_subcommand_mut<G, V>(
+    lock_guard: &mut Option<G>,
+    subcommand: LockStaticAccessSubcommand,
+) where
+    G: Deref + DerefMut + AsRef<V> + AsMut<V>,
+{
+    match subcommand {
+        LockStaticAccessSubcommand::AsMut => {
+            let _ = lock_guard.as_mut().unwrap().as_mut();
+        }
+        LockStaticAccessSubcommand::DerefMut => {
+            let _ = lock_guard.as_mut().unwrap().deref_mut();
+        }
+        _ => process_lock_static_access_subcommand(lock_guard, subcommand),
     }
 }

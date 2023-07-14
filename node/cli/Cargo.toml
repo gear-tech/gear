@@ -24,6 +24,7 @@ futures.workspace = true
 
 # Gear
 runtime-primitives.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
 service.workspace = true
 pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
@@ -76,7 +77,7 @@ lazy-pages = [
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
-    "frame-benchmarking",
+	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [

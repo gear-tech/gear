@@ -32,6 +32,10 @@ use gear_core::{
     ids::CodeId,
     pages::{PageNumber, PageU32Size, WasmPage},
 };
+use gear_sandbox::{
+    default_executor::{EnvironmentDefinitionBuilder, Memory},
+    SandboxEnvironmentBuilder, SandboxMemory,
+};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -41,10 +45,6 @@ use gear_wasm_instrument::{
     },
     syscalls::SysCallName,
     STACK_END_EXPORT_NAME,
-};
-use sp_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Memory},
-    SandboxEnvironmentBuilder, SandboxMemory,
 };
 use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
 

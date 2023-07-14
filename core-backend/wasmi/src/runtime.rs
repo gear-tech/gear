@@ -26,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    runtime::Runtime,
+    runtime::{RunFallibleError, Runtime},
     ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
@@ -97,7 +97,7 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         f: F,
     ) -> Result<(), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
         self.run_any(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {

@@ -42,10 +42,10 @@ echo "Test: `gcli`"
     ./scripts/gear.sh test gcli --release --locked --retries 3
 
 echo "Test: Client tests"
-    ./scripts/gear.sh test client
+    ./scripts/gear.sh test client --release
 
 echo "Test: gsdk tests"
-    ./scripts/gear.sh test gsdk
+    ./scripts/gear.sh test gsdk --release
 
 echo "Test: Runtime benchmarks and benchmark tests work"
     cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers

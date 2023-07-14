@@ -145,7 +145,7 @@ fn page_costs_heuristic_test() {
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 100.into(),
+        mem_grow: 277_000.into(),
         parachain_load_heuristic: 0.into(),
     };
 

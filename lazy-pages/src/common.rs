@@ -20,7 +20,10 @@
 
 use std::{collections::BTreeSet, mem::size_of, num::NonZeroU32};
 
-use gear_backend_common::lazy_pages::{GlobalsAccessError, Status};
+use gear_backend_common::{
+    lazy_pages::{GlobalsAccessError, Status},
+    LimitedStr,
+};
 use gear_core::gas::GasLeft;
 
 use crate::{
@@ -106,7 +109,7 @@ impl LazyPagesContext {
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
 pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
-pub(crate) type GlobalNames = [String; GlobalNo::Amount as usize];
+pub(crate) type GlobalNames = [LimitedStr<'static>; GlobalNo::Amount as usize];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
