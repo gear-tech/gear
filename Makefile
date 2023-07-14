@@ -73,6 +73,9 @@ check-release:
 .PHONY: clippy
 clippy: clippy-gear clippy-examples
 
+.PHONY: clippy-release
+clippy-release: clippy-gear-release clippy-examples-release
+
 .PHONY: clippy-gear
 clippy-gear:
 	@ ./scripts/gear.sh clippy gear --all-targets --all-features
