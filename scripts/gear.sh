@@ -157,6 +157,10 @@ case "$COMMAND" in
         header "Invoking clippy on gear workspace"
         gear_clippy "$@"; ;;
 
+      examples)
+        header "Invoking clippy on gear examples only"
+        examples_clippy "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         clippy_usage

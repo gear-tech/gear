@@ -71,12 +71,23 @@ check-release:
 
 # Clippy section
 .PHONY: clippy
-clippy:
+clippy: clippy-gear clippy-examples
+
+.PHONY: clippy-gear
+clippy-gear:
 	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
-.PHONY: clippy-release
-clippy-release:
+.PHONY: clippy-examples
+clippy-examples:
+	@ ./scripts/gear.sh clippy examples --all-targets
+
+.PHONY: clippy-gear-release
+clippy-gear-release:
 	@ ./scripts/gear.sh clippy gear --release
+
+.PHONY: clippy-examples-release
+clippy-examples-release:
+	@ ./scripts/gear.sh clippy examples --all-targets --release
 
 # Docker section
 .PHONY: docker-run

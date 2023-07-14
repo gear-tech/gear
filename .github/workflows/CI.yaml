@@ -83,6 +83,9 @@ jobs:
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
+      - name: "Check clippy: Examples"
+        run: ./scripts/gear.sh clippy examples --all-targets --locked
+
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
 
