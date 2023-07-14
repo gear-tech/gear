@@ -12,9 +12,6 @@ cd "$ROOT_DIR"
 echo "Show: Versioning"
     ./scripts/gear.sh show
 
-echo "Build: Examples (WASM)"
-    ./scripts/gear.sh build examples --locked
-
 echo "Build: Gear"
     ./scripts/gear.sh build gear --locked --release
 
@@ -26,9 +23,6 @@ echo "Check: Gear runtime imports"
 
 echo "Check: Vara runtime imports"
     ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
-
-echo "Build: Split examples by .opt and .meta"
-    ./scripts/gear.sh build examples-proc
 
 echo "Test: Gear pallet tests with lazy pages"
     cargo test -p pallet-gear --features=lazy-pages --release --locked

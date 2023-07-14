@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test-gear
+pre-commit: fmt clippy test
 
 .PHONY: check-spec
 check-spec:
@@ -16,12 +16,6 @@ clean:
 	@ git clean -fdx
 
 # Build section
-.PHONY: all
-all: gear examples
-
-.PHONY: all-release
-all-release: gear-release examples
-
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -31,18 +25,23 @@ gear-release:
 	@ ./scripts/gear.sh build gear --release
 
 .PHONY: examples
-examples: build-examples proc-examples
+examples:
+	@ ./scripts/gear.sh build examples
 
-.PHONY: build-examples
-build-examples:
-	@ ./scripts/gear.sh build examples yamls="$(yamls)"
+.PHONY: examples-release
+examples-release:
+	@ ./scripts/gear.sh build examples --release
 
 .PHONY: wasm-proc
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
 
+.PHONY: wasm-proc-release
+wasm-proc-release:
+	@ ./scripts/gear.sh build wasm-proc --release
+
 .PHONY: proc-examples
-proc-examples: wasm-proc
+proc-examples: wasm-proc-release
 	@ ./scripts/gear.sh build examples-proc
 
 .PHONY: node
@@ -63,41 +62,21 @@ vara-release:
 
 # Check section
 .PHONY: check
-check: check-gear check-examples
-
-.PHONY: check-release
-check-release: check-gear-release check-examples
-
-.PHONY: check-gear
-check-gear:
+check:
 	@ ./scripts/gear.sh check gear
 
-.PHONY: check-gear-release
-check-gear-release:
+.PHONY: check-release
+check-release:
 	@ ./scripts/gear.sh check gear --release
-
-.PHONY: check-examples
-check-examples:
-	@ ./scripts/gear.sh check examples
 
 # Clippy section
 .PHONY: clippy
-clippy: clippy-gear clippy-examples
-
-.PHONY: clippy-release
-clippy-release: clippy-gear-release clippy-examples
-
-.PHONY: clippy-gear
-clippy-gear:
+clippy:
 	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
-.PHONY: clippy-gear-release
-clippy-gear-release:
+.PHONY: clippy-release
+clippy-release:
 	@ ./scripts/gear.sh clippy gear --release
-
-.PHONY: clippy-examples
-clippy-examples:
-	@ ./scripts/gear.sh clippy examples
 
 # Docker section
 .PHONY: docker-run
@@ -106,10 +85,10 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-examples fmt-doc
+fmt: fmt-gear fmt-doc
 
 .PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-examples-check fmt-doc-check
+fmt-check: fmt-gear-check fmt-doc-check
 
 .PHONY: fmt-gear
 fmt-gear:
@@ -118,14 +97,6 @@ fmt-gear:
 .PHONY: fmt-gear-check
 fmt-gear-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-examples
-fmt-examples:
-	@ ./scripts/gear.sh format examples
-
-.PHONY: fmt-examples-check
-fmt-examples-check:
-	@ ./scripts/gear.sh format examples --check
 
 .PHONY: fmt-doc
 fmt-doc:
@@ -185,21 +156,21 @@ purge-dev-chain-release:
 	There should be no release builds to keep checks fast.
 test: test-gear
 
+.PHONY: test-release
+test-release: test-gear-release
+
 .PHONY: test-doc
 test-doc:
 	@ ./scripts/gear.sh test doc
 
-.PHONY: test-release
-test-release: test-gear-release
-
 .PHONY: test-gear
-test-gear: examples # \
+test-gear: #\
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: examples # \
+test-gear-release: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
@@ -229,11 +200,11 @@ test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
 .PHONY: test-client
-test-client: node-release examples
+test-client: node-release
 	@ ./scripts/gear.sh test client
 
 .PHONY: test-client-release
-test-client-release: node-release examples
+test-client-release: node-release
 	@ ./scripts/gear.sh test client --release
 
 .PHONY: test-syscalls-integrity
@@ -263,7 +234,7 @@ fuzz:
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
 
-.PHONY: kill
+.PHONY: kill-gear
 kill:
 	@ pkill -f 'gear |gear$' -9
 

@@ -110,13 +110,12 @@ case "$COMMAND" in
         fuzzer_build "$@"; ;;
 
       examples)
-        check_extensions
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+        examples_build "$ROOT_DIR" "$@"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
-        wasm_proc_build; ;;
+        wasm_proc_build "$@"; ;;
 
       examples-proc)
         header "Processing examples via wasm-proc"
@@ -142,11 +141,6 @@ case "$COMMAND" in
         header "Checking gear workspace"
         gear_check "$@"; ;;
 
-      examples)
-        check_extensions
-        header "Checking gear examples"
-        examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
-
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         check_usage
@@ -162,11 +156,6 @@ case "$COMMAND" in
       gear)
         header "Invoking clippy on gear workspace"
         gear_clippy "$@"; ;;
-
-      examples)
-        check_extensions
-        header "Invoking clippy on gear examples"
-        examples_clippy "$ROOT_DIR"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -207,13 +196,6 @@ case "$COMMAND" in
           else header "Formatting gear workspace"
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
-
-      examples)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear examples formatting"
-          else header "Formatting gear examples"
-        fi
-        format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       doc)
         if [ "$CHECK" = "true" ]
