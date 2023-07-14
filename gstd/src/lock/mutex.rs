@@ -231,6 +231,34 @@ impl<'a, T> MutexLockFuture<'a, T> {
             own_up_for_block_count: Some(block_count),
         }
     }
+
+    fn acquire_lock_ownership(
+        &mut self,
+        owner_msg_id: MessageId,
+        current_block_number: u32,
+    ) -> Poll<MutexGuard<'a, T>> {
+        let locked_by = unsafe { &mut *self.mutex.locked.get() };
+        *locked_by = Some((
+            owner_msg_id,
+            self.own_up_for_block_count
+                .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
+        ));
+        return Poll::Ready(MutexGuard {
+            mutex: self.mutex,
+            holder_msg_id: owner_msg_id,
+        });
+    }
+
+    fn queue_for_lock_ownership(&mut self, rival_msg_id: MessageId) -> Poll<MutexGuard<'a, T>> {
+        // If the message is already in the access queue, and we come here,
+        // it means the message has just been woken up from the waitlist.
+        // In that case we do not want to register yet another access attempt
+        // and just go back to the waitlist.
+        if !self.mutex.queue.contains(&rival_msg_id) {
+            self.mutex.queue.enqueue(rival_msg_id);
+        }
+        return Poll::Pending;
+    }
 }
 
 impl<'a, T> Future for MutexLockFuture<'a, T> {
@@ -256,46 +284,17 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
                     }
                     *locked_by = None;
                     exec::wake(next_msg_id).expect("Failed to wake the message");
-                    // If the message is already in the access queue, and we come here,
-                    // it means the message has just been woken up from the waitlist.
-                    // In that case we do not want to register yet another access attempt
-                    // and just go back to the waitlist.
-                    if !self.mutex.queue.contains(&current_msg_id) {
-                        self.mutex.queue.enqueue(current_msg_id);
-                    }
-                    return Poll::Pending;
+                    return self.get_mut().queue_for_lock_ownership(current_msg_id);
                 }
 
-                *locked_by = Some((
-                    current_msg_id,
-                    self.own_up_for_block_count
-                        .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
-                ));
-                return Poll::Ready(MutexGuard {
-                    mutex: self.mutex,
-                    holder_msg_id: current_msg_id,
-                });
+                return self
+                    .get_mut()
+                    .acquire_lock_ownership(current_msg_id, current_block_number);
             }
+            return self.get_mut().queue_for_lock_ownership(current_msg_id);
         }
-        if locked_by.is_none() {
-            *locked_by = Some((
-                current_msg_id,
-                self.own_up_for_block_count
-                    .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
-            ));
-            Poll::Ready(MutexGuard {
-                mutex: self.mutex,
-                holder_msg_id: current_msg_id,
-            })
-        } else {
-            // If the message is already in the access queue, and we come here,
-            // it means the message has just been woken up from the waitlist.
-            // In that case we do not want to register yet another access attempt
-            // and just go back to the waitlist.
-            if !self.mutex.queue.contains(&current_msg_id) {
-                self.mutex.queue.enqueue(current_msg_id);
-            }
-            Poll::Pending
-        }
+
+        self.get_mut()
+            .acquire_lock_ownership(current_msg_id, current_block_number)
     }
 }
