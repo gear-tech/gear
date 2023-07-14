@@ -1033,45 +1033,22 @@ impl Ext {
 
 #[cfg(test)]
 mod tests {
-    use gear_backend_common::TrapExplanation::FallibleExt;
+    use alloc::vec;
     use super::*;
     use gear_core::{
         message::{ContextSettings, IncomingDispatch},
         pages::PageNumber,
     };
+    use gear_core::message::{MAX_PAYLOAD_SIZE, Payload};
 
     struct ProcessorContextBuilder(ProcessorContext);
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            Self::new_with_max_outgoing_messages(0)
+            Self::new_with_context_settings(ContextSettings::new(0, 0, 0, 0, 0, 0))
         }
 
-        fn with_gas(mut self, gas_counter: GasCounter) -> Self {
-            self.0.gas_counter = gas_counter;
-
-            self
-        }
-
-        fn with_allowance(mut self, gas_allowance_counter: GasAllowanceCounter) -> Self {
-            self.0.gas_allowance_counter = gas_allowance_counter;
-
-            self
-        }
-
-        fn with_weighs(mut self, weights: HostFnWeights) -> Self {
-            self.0.host_fn_weights = weights;
-
-            self
-        }
-
-        fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
-            self.0.allocations_context = ctx;
-
-            self
-        }
-
-        fn new_with_max_outgoing_messages(limit: u32) -> Self {
+        fn new_with_context_settings(settings: ContextSettings) -> Self {
             let default_pc = ProcessorContext {
                 gas_counter: GasCounter::new(0),
                 gas_allowance_counter: GasAllowanceCounter::new(0),
@@ -1090,7 +1067,7 @@ mod tests {
                 message_context: MessageContext::new(
                     Default::default(),
                     Default::default(),
-                    ContextSettings::new(0, 0, 0, 0, 0, limit),
+                    settings,
                 ),
                 block_info: Default::default(),
                 max_pages: 512.into(),
@@ -1115,6 +1092,30 @@ mod tests {
 
         fn build(self) -> ProcessorContext {
             self.0
+        }
+
+        fn with_gas(mut self, gas_counter: GasCounter) -> Self {
+            self.0.gas_counter = gas_counter;
+
+            self
+        }
+
+        fn with_allowance(mut self, gas_allowance_counter: GasAllowanceCounter) -> Self {
+            self.0.gas_allowance_counter = gas_allowance_counter;
+
+            self
+        }
+
+        fn with_weighs(mut self, weights: HostFnWeights) -> Self {
+            self.0.host_fn_weights = weights;
+
+            self
+        }
+
+        fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
+            self.0.allocations_context = ctx;
+
+            self
         }
     }
 
@@ -1219,7 +1220,9 @@ mod tests {
     #[test]
     fn test_send_limit() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_max_outgoing_messages(2)
+            ProcessorContextBuilder::new_with_context_settings(
+                ContextSettings::new(0, 0, 0, 0, 0, 2)
+            )
             .build()
         );
 
@@ -1243,7 +1246,9 @@ mod tests {
     #[test]
     fn test_handle_validity() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_max_outgoing_messages(u32::MAX)
+            ProcessorContextBuilder::new_with_context_settings(
+                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
+            )
             .build()
         );
 
@@ -1267,8 +1272,10 @@ mod tests {
     #[test]
     fn test_send_push() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_max_outgoing_messages(u32::MAX)
-                .build()
+            ProcessorContextBuilder::new_with_context_settings(
+                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
+            )
+            .build()
         );
 
         let data = HandlePacket::default();
@@ -1281,11 +1288,38 @@ mod tests {
         let extra = ext.send_push(handle, &[]);
         match extra {
             Ok(_) => {}
+            //If it is a "late access", it can be ignored, since it means the message was already
+            // sent and cannot be changed, but the handle was valid
             Err(FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))) => {}
             Err(e) => {
                 panic!("{:?}", e);
             }
         }
+    }
+
+    #[test]
+    fn test_payload_size() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new_with_context_settings(
+                ContextSettings::new(0, 0, 0, 0, 0, u32::MAX)
+            )
+                .build()
+        );
+
+        let data = HandlePacket::new(ProgramId::default(), Payload::filled_with(0), 0);
+
+        let handle = ext.send_init().unwrap();
+
+        let msg = ext.send_commit(handle, data, 0);
+        msg.unwrap();
+
+        //Avoid any late accesses by making new handle
+        let handle = ext.send_init().unwrap();
+
+        let data = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+
+        let msg = ext.send_push(handle, &data);
+        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::MaxMessageSizeExceed)));
     }
 
 
