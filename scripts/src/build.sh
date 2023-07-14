@@ -43,8 +43,8 @@ wasm_proc_build() {
   cargo build -p wasm-proc --release "$@"
 }
 
-remote_ext_tests_build() {
-  cargo build -p remote-ext-tests-replay-block "$@"
+gear_replay_build() {
+  cargo build -p gear-replay-cli "$@"
 }
 
 # $1 = TARGET DIR

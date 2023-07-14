@@ -94,13 +94,13 @@ Other than that it's a good tool.
 
 <br/>
 
-## Replaying block with `remote-ext-tests-replay-block` custom CLI
+## Replaying block with `gear-replay-cli` tool
 
-The `remote-ext-tests-replay-block` CLI hides away the complexity of the generic `try-runtime`. The execution strategy used to apply a block is `ExecutionStrategy::NativeElseWasm`, which in case of the correct `RuntimeVersion` will allow using the native implementation of the `Core` runtime api.
+The `gear-replay-cli` tool hides away the complexity of the generic `try-runtime`. The execution strategy used to apply a block is `ExecutionStrategy::NativeElseWasm`, which in case of the correct `RuntimeVersion` will allow using the native implementation of the `Core` runtime api.
 
 Only live chain state (via remote externalities) is currently supported.
 
-Another difference from the `try-runtime` API is that in `remote-ext-tests-replay-block` CLI the block (hash or number) provided as the `--block` argument is the one whose extrinsics we want to apply. It means the blockchain state we scrape from the live chain would correspond to the previous block with respect to the one provided. If the `--block` argument is omitted the last finalized block from the live chain is used.
+Another difference from the `try-runtime` API is that in `gear-replay-cli` the block (hash or number) provided as the `--block` argument is the one whose extrinsics we want to apply. It means the blockchain state we scrape from the live chain would correspond to the previous block with respect to the one provided. If the `--block` argument is omitted the last finalized block from the live chain is used.
 
 <br/>
 
@@ -113,7 +113,7 @@ In order to use the native runtime build make sure the node is built with the Ru
     * current latest finalized block on Vara chain
 
         ```bash
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime=debug -lpallet_gear,gear_common,pallet_gear_scheduler=debug
+        gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime=debug -lpallet_gear,gear_common,pallet_gear_scheduler=debug
         ```
 
     * block with `$HASH` or `$BLOCK_NUM`
@@ -122,38 +122,38 @@ In order to use the native runtime build make sure the node is built with the Ru
         export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
         export BLOCK_NUM=2000000
 
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$HASH" -lgear::runtime=debug -lpallet_gear,gear_common=debug
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM" -lgear::runtime=debug -lpallet_gear,gear_common=debug
+        gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 --block "$HASH" -lgear::runtime=debug -lpallet_gear,gear_common=debug
+        gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM" -lgear::runtime=debug -lpallet_gear,gear_common=debug
         ```
 
 <br/>
 
 ### Native vs. WASM execution of a block
 
-The `remote-ext-tests-replay-block` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
+The `gear-replay-cli` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
 
 The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
 This is the default way of building the tool:
 ```bash
-./scripts/gear.sh build remote-ext-tests --release
+./scripts/gear.sh build gear-replay --release
 ```
 or simply
 
 ```bash
-make remote-ext-tests
+make gear-replay
 ```
 
 In order to enable native runtime, use one of the following:
 ```bash
-make remote-ext-tests-vara-native
-make remote-ext-tests-gear-native
+make gear-replay-vara-native
+make gear-replay-gear-native
 ```
 
 or
 
 ```bash
-./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=vara-native
-./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=gear-native
+./scripts/gear.sh build gear-replay --release --no-default-features --features=vara-native
+./scripts/gear.sh build gear-replay --release --no-default-features --features=gear-native
 ```
 
 The `--uri` parameter must match the native runtime you've built the tool with, while the Runtime version should be the same as the on-chain one. If it does not, the Wasm executor will be used as a fallback.

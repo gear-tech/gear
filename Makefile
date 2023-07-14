@@ -67,17 +67,17 @@ vara:
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
-.PHONY: remote-ext-tests
-remote-ext-tests:
-	@ ./scripts/gear.sh build remote-ext-tests --release
+.PHONY: gear-replay
+gear-replay:
+	@ ./scripts/gear.sh build gear-replay --release
 
-.PHONY: remote-ext-tests-vara-native
-remote-ext-tests-vara-native:
-	@ ./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=std,vara-native
+.PHONY: gear-replay-vara-native
+gear-replay-vara-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,vara-native
 
-.PHONY: remote-ext-tests-gear-native
-remote-ext-tests-gear-native:
-	@ ./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=std,gear-native
+.PHONY: gear-replay-gear-native
+gear-replay-gear-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,gear-native
 
 # Check section
 .PHONY: check

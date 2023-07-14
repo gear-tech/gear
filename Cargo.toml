@@ -94,7 +94,7 @@ members = [
     "utils/junit-common",
     "utils/node-loader/",
     "utils/regression-analysis",
-    "utils/remote-ext-tests/replay-block",
+    "utils/gear-replay-cli",
     "utils/utils",
     "utils/validator-checks",
     "utils/wasm-builder",
