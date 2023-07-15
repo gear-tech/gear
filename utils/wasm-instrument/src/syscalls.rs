@@ -27,6 +27,7 @@ use enum_iterator::{self, Sequence};
 /// The type is mainly used to prevent from skipping sys-call integration test for
 /// a newly introduced sys-call or from typo in sys-call name.
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence)]
+// TODO (breathx): single syscall for ran out of gas.
 pub enum SysCallName {
     // Message sending related
     // --

@@ -36,7 +36,9 @@ use gear_core::{
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+// TODO(breathx): deal with it.
+const GLOBAL_NAME_ALLOWANCE: &str = "";
+const GLOBAL_NAME_GAS: &str = "";
 use sp_std::{vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {

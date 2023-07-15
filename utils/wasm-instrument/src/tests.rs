@@ -174,7 +174,7 @@ fn duplicate_export() {
         (global (;0;) i32 (i32.const 42))
         (memory 0 1)
         (global (;1;) (mut i32) (i32.const 0))
-        (export "{GLOBAL_NAME_ALLOWANCE}" (global 0))
+        (export "{GLOBAL_NAME_GASCNT}" (global 0))
         )"#
     );
     let module = parse_wat(&wat);
