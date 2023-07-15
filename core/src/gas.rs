@@ -293,29 +293,76 @@ pub trait CountersOwner {
     fn gas_left(&self) -> GasLeft;
     /// Set gas limit and gas allowance left.
     fn set_gas_left(&mut self, gas_left: GasLeft);
+    /// Decreases gas left by fetched single numeric of actual counter.
+    fn decrease(&mut self, amount: u64) {
+        let GasLeft {
+            gas,
+            allowance,
+            actual_counter,
+        } = self.gas_left();
+
+        let diff = match actual_counter {
+            CounterType::GasLimit => gas - amount,
+            CounterType::GasAllowance => allowance - amount,
+        };
+
+        self.set_gas_left((gas - diff, allowance - diff).into())
+    }
+    /// Returns minimal amount of gas counters and its type.
+    fn minimal(&self) -> (u64, CounterType) {
+        let GasLeft {
+            gas,
+            allowance,
+            actual_counter,
+        } = self.gas_left();
+        (gas.min(allowance), actual_counter)
+    }
+}
+
+/// Enum representing current type of gas counter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum CounterType {
+    /// Gas limit counter.
+    GasLimit,
+    /// Gas allowance counter.
+    GasAllowance,
+}
+
+impl CounterType {
+    fn new(gas: u64, allowance: u64) -> Self {
+        if gas <= allowance {
+            Self::GasLimit
+        } else {
+            Self::GasAllowance
+        }
+    }
 }
 
 /// Gas limit and gas allowance left.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,
     /// Left gas from allowance counter.
     pub allowance: u64,
+    /// Current type of counter being used within the program.
+    pub actual_counter: CounterType,
 }
 
 impl From<(u64, u64)> for GasLeft {
     fn from((gas, allowance): (u64, u64)) -> Self {
-        Self { gas, allowance }
+        let actual_counter = CounterType::new(gas, allowance);
+        Self {
+            gas,
+            allowance,
+            actual_counter,
+        }
     }
 }
 
 impl From<(i64, i64)> for GasLeft {
     fn from((gas, allowance): (i64, i64)) -> Self {
-        Self {
-            gas: gas as u64,
-            allowance: allowance as u64,
-        }
+        (gas as u64, allowance as u64).into()
     }
 }
 

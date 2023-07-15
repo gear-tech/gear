@@ -233,7 +233,7 @@ where
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<u32>());
 
-        let GasLeft { gas, allowance } = store
+        let GasLeft { gas, allowance, .. } = store
             .state()
             .as_ref()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))

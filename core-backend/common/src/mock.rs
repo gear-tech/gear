@@ -84,10 +84,7 @@ impl CountersOwner for MockExt {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: 0,
-            allowance: 0,
-        }
+        (0u64, 0u64).into()
     }
 
     fn set_gas_left(&mut self, _gas_left: GasLeft) {}

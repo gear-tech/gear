@@ -471,14 +471,15 @@ impl CountersOwner for Ext {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: self.context.gas_counter.left(),
-            allowance: self.context.gas_allowance_counter.left(),
-        }
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+            .into()
     }
 
     fn set_gas_left(&mut self, gas_left: GasLeft) {
-        let GasLeft { gas, allowance } = gas_left;
+        let GasLeft { gas, allowance, .. } = gas_left;
 
         let gas_left = self.context.gas_counter.left();
         if gas_left > gas {
@@ -1127,10 +1128,7 @@ mod tests {
         let initial_gas = 100;
         let initial_allowance = 10000;
 
-        let gas_left = GasLeft {
-            gas: initial_gas,
-            allowance: initial_allowance,
-        };
+        let gas_left = (initial_gas, initial_allowance).into();
 
         let existing_page = 99.into();
         let non_existing_page = 100.into();

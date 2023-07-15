@@ -89,7 +89,7 @@ unsafe fn user_signal_handler_internal(
             write_after_read_cost: ctx.weight(WeightNo::SignalWriteAfterRead),
             load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
-        Some((GasLeft { gas, allowance }, gas_left_charger))
+        Some(((gas, allowance).into(), gas_left_charger))
     } else {
         None
     };

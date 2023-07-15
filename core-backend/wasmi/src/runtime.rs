@@ -179,7 +179,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     fn update_globals(&mut self) {
-        let GasLeft { gas, allowance } = self.host_state_mut().ext.gas_left();
+        let GasLeft { gas, allowance, .. } = self.host_state_mut().ext.gas_left();
 
         let mut f = || {
             let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;

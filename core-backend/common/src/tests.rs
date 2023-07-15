@@ -5,12 +5,17 @@ use crate::{
 };
 
 use core::{fmt::Debug, marker::PhantomData};
-use gear_core::{gas::GasLeft, memory::Memory, pages::WASM_PAGE_SIZE};
+use gear_core::{
+    gas::{CounterType, GasLeft},
+    memory::Memory,
+    pages::WASM_PAGE_SIZE,
+};
 use scale_info::scale::{self, Decode, Encode, MaxEncodedLen};
 
 const GAS_LEFT: GasLeft = GasLeft {
     gas: core::u64::MAX,
     allowance: core::u64::MAX,
+    actual_counter: CounterType::GasLimit,
 };
 
 #[derive(Encode, Decode, MaxEncodedLen)]

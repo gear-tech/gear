@@ -120,7 +120,7 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
-        let GasLeft { gas, allowance } = self.ext.gas_left();
+        let GasLeft { gas, allowance, .. } = self.ext.gas_left();
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))

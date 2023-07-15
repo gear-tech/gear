@@ -375,7 +375,7 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let GasLeft { gas, allowance } = runtime.ext.gas_left();
+        let GasLeft { gas, allowance, .. } = runtime.ext.gas_left();
 
         runtime
             .globals
