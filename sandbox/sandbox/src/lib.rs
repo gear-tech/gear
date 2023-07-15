@@ -247,9 +247,13 @@ pub trait InstanceGlobals: Sized + Clone {
     /// Returns `Some(_)` if the global could be found.
     fn get_global_i64(&self, name: &str) -> Option<i64>;
 
+    fn get_global_gas_and_allowance(&self) -> Option<(i64, i64)>;
+
     /// Set the value of a global with the given `name`.
     fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
 
     /// Set the `i64` value of a global with the given `name`.
     fn set_global_i64(&self, name: &str, value: i64) -> Result<(), GlobalsSetError>;
+    fn set_global_gas_and_allowance(&self, gas: i64, allowance: i64)
+        -> Result<(), GlobalsSetError>;
 }

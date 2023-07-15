@@ -127,6 +127,23 @@ pub trait Sandbox {
         detail::get_global_i64(*self, instance_idx, name)
     }
 
+    /// Get the value from a global with the given `name`. The sandbox is determined by the given
+    /// `instance_idx`.
+    ///
+    /// Returns `Some(_)` when the requested global variable could be found.
+    fn get_global_gas_and_allowance(&mut self, instance_idx: u32) -> i128 {
+        if let (Some(gas), Some(allowance)) =
+            detail::get_global_gas_and_allowance(*self, instance_idx)
+        {
+            // let (h, l) = ((gas >> 64) as i64, allowance as i64);
+            (gas as i128) << 64 | (allowance as i128)
+        } else {
+            i128::MAX
+        }
+        // let gas = detail::get_global_i64(*self, instance_idx, "gear_gas");
+        // let allowance = detail::get_global_i64(*self, instance_idx, "gear_allowance");
+    }
+
     /// Set the value of a global with the given `name`. The sandbox is determined by the given
     /// `instance_idx`.
     fn set_global_val(
@@ -141,6 +158,12 @@ pub trait Sandbox {
     fn set_global_i64(&mut self, instance_idx: u32, name: &str, value: i64) -> u32 {
         detail::set_global_i64(*self, instance_idx, name, value)
     }
+
+    fn set_global_gas_and_allowance(&mut self, instance_idx: u32, val: i128) -> u32 {
+        let (gas, allowance) = (((val >> 64) as i64, val as i64));
+        detail::set_global_gas_and_allowance(*self, instance_idx, gas, allowance)
+    }
+
     fn memory_grow(&mut self, memory_idx: u32, size: u32) -> u32 {
         detail::memory_grow(*self, memory_idx, size)
     }

@@ -239,6 +239,35 @@ pub fn get_global_i64(
     method_result
 }
 
+pub fn get_global_gas_and_allowance(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+) -> (Option<i64>, Option<i64>) {
+    let mut method_result = (None::<i64>, None::<i64>);
+
+    sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("get_global_val", caller);
+
+        let data_ptr: *const _ = caller.data();
+        method_result = SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as usize)
+                .instance(instance_idx)
+                .map(|i| {
+                    (
+                        i.get_global_i64("gear_gas"),
+                        i.get_global_i64("gear_allowance"),
+                    )
+                })
+                .map_err(|e| e.to_string())
+                .expect("Failed to get global from sandbox")
+        });
+    });
+
+    method_result
+}
+
 pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> HostPointer {
     let mut method_result: HostPointer = u32::MAX.into();
 
@@ -650,6 +679,45 @@ pub fn set_global_i64(
         });
 
         log::trace!("set_global_val, name={name}, value={value:?}, result={result:?}",);
+
+        method_result = match result {
+            Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,
+            Ok(Some(_)) => sandbox_env::env::ERROR_GLOBALS_OK,
+            Err(_) => sandbox_env::env::ERROR_GLOBALS_OTHER,
+        };
+    });
+
+    method_result
+}
+
+pub fn set_global_gas_and_allowance(
+    context: &mut dyn FunctionContext,
+    instance_idx: u32,
+    gas: i64,
+    allowance: i64,
+) -> u32 {
+    let mut method_result = u32::MAX;
+
+    sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("set_global_val", caller);
+
+        log::trace!("set_global_val, instance_idx={instance_idx}");
+
+        let data_ptr: *const _ = caller.data();
+        let result = SANDBOXES.with(|sandboxes| {
+            let instance = sandboxes
+                .borrow_mut()
+                .get(data_ptr as usize)
+                .instance(instance_idx)
+                .map_err(|e| e.to_string())
+                .expect("Failed to set global in sandbox");
+
+            instance.set_global_i64("gear_gas", gas);
+            instance.set_global_i64("gear_allowance", allowance)
+        });
+
+        log::trace!("set_global_val, name=gear_gas, value={gas:?}, result={result:?}",);
+        log::trace!("set_global_val, name=gear_allowance, value={allowance:?}, result={result:?}",);
 
         method_result = match result {
             Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,

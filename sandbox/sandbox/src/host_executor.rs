@@ -211,6 +211,13 @@ impl super::InstanceGlobals for InstanceGlobals {
             .and_then(|i| sandbox::get_global_i64(i, name))
     }
 
+    fn get_global_gas_and_allowance(&self) -> Option<(i64, i64)> {
+        self.instance_idx.and_then(|i| {
+            let val = sandbox::get_global_gas_and_allowance(i);
+            Some(((val >> 64) as i64, val as i64))
+        })
+    }
+
     fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
         match self.instance_idx {
             None => Err(super::GlobalsSetError::Other),
@@ -226,6 +233,22 @@ impl super::InstanceGlobals for InstanceGlobals {
         match self.instance_idx {
             None => Err(super::GlobalsSetError::Other),
             Some(i) => match sandbox::set_global_i64(i, name, value) {
+                env::ERROR_GLOBALS_OK => Ok(()),
+                env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
+                _ => Err(super::GlobalsSetError::Other),
+            },
+        }
+    }
+
+    fn set_global_gas_and_allowance(
+        &self,
+        gas: i64,
+        allowance: i64,
+    ) -> Result<(), super::GlobalsSetError> {
+        let val = (gas as i128) << 64 | (allowance as i128);
+        match self.instance_idx {
+            None => Err(super::GlobalsSetError::Other),
+            Some(i) => match sandbox::set_global_gas_and_allowance(i, val) {
                 env::ERROR_GLOBALS_OK => Ok(()),
                 env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
                 _ => Err(super::GlobalsSetError::Other),

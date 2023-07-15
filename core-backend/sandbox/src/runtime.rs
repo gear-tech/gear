@@ -96,16 +96,19 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
-        let gas = self
-            .globals
-            .get_global_i64(GLOBAL_NAME_GAS)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
+        // let gas = self
+        //     .globals
+        //     .get_global_i64(GLOBAL_NAME_GAS)
+        //     .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        let allowance = self
+        // let allowance = self
+        //     .globals
+        //     .get_global_i64(GLOBAL_NAME_ALLOWANCE)
+        //     .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
+        let (gas, allowance) = self
             .globals
-            .get_global_i64(GLOBAL_NAME_ALLOWANCE)
+            .get_global_gas_and_allowance()
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
         self.ext.set_gas_left((gas, allowance).into());
     }
 
@@ -113,14 +116,19 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
     fn update_globals(&mut self) {
         let GasLeft { gas, allowance } = self.ext.gas_left();
 
-        self.globals
-            .set_global_i64(GLOBAL_NAME_GAS, gas as i64)
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
+        // self.globals
+        //     .set_global_i64(GLOBAL_NAME_GAS, gas as i64)
+        //     .unwrap_or_else(|e| {
+        //         unreachable!("Globals must be checked during env creation: {:?}", e)
+        //     });
 
+        // self.globals
+        //     .set_global_i64(GLOBAL_NAME_ALLOWANCE, allowance as i64)
+        //     .unwrap_or_else(|e| {
+        //         unreachable!("Globals must be checked during env creation: {:?}", e)
+        //     });
         self.globals
-            .set_global_i64(GLOBAL_NAME_ALLOWANCE, allowance as i64)
+            .set_global_gas_and_allowance(gas as i64, allowance as i64)
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });

@@ -298,12 +298,23 @@ impl super::InstanceGlobals for InstanceGlobals {
     fn get_global_i64(&self, _name: &str) -> Option<i64> {
         None
     }
+    fn get_global_gas_and_allowance(&self) -> Option<(i64, i64)> {
+        None
+    }
 
     fn set_global_val(&self, _name: &str, _value: Value) -> Result<(), super::GlobalsSetError> {
         Err(super::GlobalsSetError::NotFound)
     }
 
     fn set_global_i64(&self, _name: &str, _value: i64) -> Result<(), super::GlobalsSetError> {
+        Err(super::GlobalsSetError::NotFound)
+    }
+
+    fn set_global_gas_and_allowance(
+        &self,
+        gas: i64,
+        allowance: i64,
+    ) -> Result<(), super::GlobalsSetError> {
         Err(super::GlobalsSetError::NotFound)
     }
 }

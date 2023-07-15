@@ -374,14 +374,18 @@ where
             .get_global_i32(STACK_END_EXPORT_NAME)
             .map(|global| global as u32);
 
-        runtime
-            .globals
-            .set_global_i64(GLOBAL_NAME_GAS, gas as i64)
-            .map_err(|_| System(WrongInjectedGas))?;
+        // runtime
+        //     .globals
+        //     .set_global_i64(GLOBAL_NAME_GAS, gas as i64)
+        //     .map_err(|_| System(WrongInjectedGas))?;
 
+        // runtime
+        //     .globals
+        //     .set_global_i64(GLOBAL_NAME_ALLOWANCE, allowance as i64)
+        //     .map_err(|_| System(WrongInjectedAllowance))?;
         runtime
             .globals
-            .set_global_i64(GLOBAL_NAME_ALLOWANCE, allowance as i64)
+            .set_global_gas_and_allowance(gas as i64, allowance as i64)
             .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
@@ -409,15 +413,19 @@ where
             .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
             .unwrap_or(Ok(ReturnValue::Unit));
 
-        let gas = runtime
+        let (gas, allowance) = runtime
             .globals
-            .get_global_i64(GLOBAL_NAME_GAS)
-            .ok_or(System(WrongInjectedGas))?;
-
-        let allowance = runtime
-            .globals
-            .get_global_i64(GLOBAL_NAME_ALLOWANCE)
+            .get_global_gas_and_allowance()
             .ok_or(System(WrongInjectedAllowance))?;
+        // let gas = runtime
+        //     .globals
+        //     .get_global_i64(GLOBAL_NAME_GAS)
+        //     .ok_or(System(WrongInjectedGas))?;
+
+        // let allowance = runtime
+        //     .globals
+        //     .get_global_i64(GLOBAL_NAME_ALLOWANCE)
+        //     .ok_or(System(WrongInjectedAllowance))?;
 
         let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
 
