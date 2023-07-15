@@ -44,7 +44,7 @@ use gear_sandbox::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -377,6 +377,16 @@ where
 
         let GasLeft { gas, allowance, .. } = runtime.ext.gas_left();
 
+        // Setting initial value of global.
+        runtime
+            .globals
+            .set_global_val(
+                GLOBAL_NAME_GASCNT,
+                Value::I64(runtime.ext.minimal().0 as i64),
+            )
+            .map_err(|_| System(WrongInjectedGas))?;
+
+        // TODO (breathx): remove two below.
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
@@ -412,6 +422,14 @@ where
             .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
             .unwrap_or(Ok(ReturnValue::Unit));
 
+        // Fetching global value.
+        let _gascnt = runtime
+            .globals
+            .get_global_val(GLOBAL_NAME_GASCNT)
+            .and_then(runtime::as_u64)
+            .ok_or(System(WrongInjectedGas))?;
+
+        // TODO (breathx): remove two below.
         let gas = runtime
             .globals
             .get_global_val(GLOBAL_NAME_GAS)

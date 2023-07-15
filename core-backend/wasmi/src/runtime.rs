@@ -141,7 +141,11 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
             return Err(TrapCode::Unreachable.into());
         }
 
+        // TODO (breathx): update here.
         let f = || {
+            // let gascnt_global = wrapper.caller.get_export(GLOBAL_NAME_GASCNT)?.into_global()?;
+            // gas_global.get(&wrapper.caller).try_into::<i64>()? as u64
+
             let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
             let gas = gas_global.get(&wrapper.caller).try_into::<i64>()?;
 
@@ -158,6 +162,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
             f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         wrapper.host_state_mut().ext.set_gas_left(gas_left);
+        // wrapper.host_state_mut().ext.decrease(gas_left);
 
         Ok(wrapper)
     }
@@ -181,7 +186,13 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     fn update_globals(&mut self) {
         let GasLeft { gas, allowance, .. } = self.host_state_mut().ext.gas_left();
 
+        // TODO (breathx): update here.
         let mut f = || {
+            // let gascnt_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
+            // gascnt_global
+            //     .set(&mut self.caller, Value::I64(gas as i64))
+            //     .ok()?;
+
             let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
             gas_global
                 .set(&mut self.caller, Value::I64(gas as i64))

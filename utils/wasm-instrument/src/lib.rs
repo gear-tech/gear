@@ -40,6 +40,8 @@ mod tests;
 pub mod rules;
 pub mod syscalls;
 
+pub const GLOBAL_NAME_GASCNT: &str = "gear_gascnt";
+// TODO (breathx): remove two below.
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
@@ -71,7 +73,9 @@ pub fn inject<R: Rules>(
         .export_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.field() == GLOBAL_NAME_ALLOWANCE || entry.field() == GLOBAL_NAME_GAS
+                entry.field() == GLOBAL_NAME_ALLOWANCE
+                    || entry.field() == GLOBAL_NAME_GAS
+                    || entry.field() == GLOBAL_NAME_GASCNT
             })
         })
         .unwrap_or(false)
@@ -112,6 +116,7 @@ pub fn inject<R: Rules>(
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
     let allowance_index = gas_index + 1;
+    let gascnt_index = allowance_index + 1;
 
     let mut mbuilder = builder::from_module(module);
 
@@ -146,6 +151,23 @@ pub fn inject<R: Rules>(
             .field(GLOBAL_NAME_ALLOWANCE)
             .internal()
             .global(allowance_index)
+            .build(),
+    );
+
+    mbuilder.push_global(
+        builder::global()
+            .value_type()
+            .i64()
+            .init_expr(Instruction::I64Const(0))
+            .mutable()
+            .build(),
+    );
+
+    mbuilder.push_export(
+        builder::export()
+            .field(GLOBAL_NAME_GASCNT)
+            .internal()
+            .global(gascnt_index)
             .build(),
     );
 
@@ -272,5 +294,5 @@ pub fn inject<R: Rules>(
     // back to plain module
     let module = mbuilder.build();
 
-    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 2)
+    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 3)
 }

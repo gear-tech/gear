@@ -31,13 +31,17 @@ use gear_backend_common::{
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_GASCNT};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
         Value::I64(i) => Some(i),
         _ => None,
     }
+}
+
+pub(crate) fn as_u64(v: Value) -> Option<u64> {
+    as_i64(v).map(|v| v as u64)
 }
 
 pub(crate) struct Runtime<Ext> {
@@ -103,6 +107,15 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
+        // let gascnt = self
+        //     .globals
+        //     .get_global_val(GLOBAL_NAME_GASCNT)
+        //     .and_then(as_u64)
+        //     .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
+
+        // self.ext.decrease(gascnt);
+
+        // TODO (breathx): remove two below.
         let gas = self
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
@@ -120,8 +133,17 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
+        // TODO (breathx): decide what counter is actual here.
         let GasLeft { gas, allowance, .. } = self.ext.gas_left();
 
+        let (gascnt, _) = self.ext.minimal();
+        self.globals
+            .set_global_val(GLOBAL_NAME_GASCNT, Value::I64(gascnt as i64))
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
+
+        // TODO (breathx): remove two below.
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .unwrap_or_else(|e| {

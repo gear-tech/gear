@@ -39,7 +39,9 @@ use gear_core::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME,
+};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -240,6 +242,13 @@ where
             .ext
             .gas_left();
 
+        let gear_gascnt = instance
+            .get_export(&store, GLOBAL_NAME_GASCNT)
+            .and_then(Extern::into_global)
+            .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
+            .ok_or(System(WrongInjectedGas))?;
+
+        // TODO (breathx): remove two below.
         let gear_gas = instance
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
@@ -324,6 +333,11 @@ where
             Ok(())
         };
 
+        let _gascnt = gear_gascnt
+            .get(&store)
+            .try_into::<i64>()
+            .ok_or(System(WrongInjectedGas))?;
+        // TODO (breathx): remove two below.
         let gas = gear_gas
             .get(&store)
             .try_into::<i64>()

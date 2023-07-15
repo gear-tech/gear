@@ -457,6 +457,7 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
 
         let (mut ext, memory, termination_reason) = self.into_parts();
 
+        // TODO (breathx): decrease ext here!.
         ext.set_gas_left((gas, allowance).into());
 
         let termination_reason = if res.is_err() {
