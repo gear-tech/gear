@@ -1778,6 +1778,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "debug-cell"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35ee4fc02f25a0400fb57135bcdde6d58a3025718749375f2f97abc3deb3a4ef"
+dependencies = [
+ "backtrace",
+]
+
+[[package]]
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
@@ -4186,6 +4195,7 @@ dependencies = [
 name = "gear-sandbox-host"
 version = "0.1.0"
 dependencies = [
+ "debug-cell",
  "environmental",
  "gear-sandbox-env",
  "log",

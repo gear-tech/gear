@@ -18,14 +18,15 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::{cell::RefCell, rc::Rc};
+use std::{fmt, rc::Rc};
 
 use codec::{Decode, Encode};
+use debug_cell::RefCell;
 use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     core::{Pages, Trap},
-    Engine, ExternType, Func, Linker, Module, Store,
+    AsContext, AsContextMut, Engine, ExternType, Func, Linker, Module, Store,
 };
 
 use crate::{
@@ -39,7 +40,94 @@ use crate::{
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
-/// Wasmer specific context
+thread_local! {
+    static WASMI_CALLER: RefCell<Option<wasmi::Caller<'static, ()>>> = RefCell::new(None);
+}
+
+struct WasmiCallerSetter(());
+
+impl WasmiCallerSetter {
+    fn new(caller: wasmi::Caller<'_, ()>) -> Self {
+        log::error!("WasmiCallerSetter::new");
+        unsafe {
+            WASMI_CALLER.with(|ref_| {
+                let static_caller = std::mem::transmute::<
+                    wasmi::Caller<'_, ()>,
+                    wasmi::Caller<'static, ()>,
+                >(caller);
+
+                let old_caller = ref_.borrow_mut().replace(static_caller);
+                assert!(old_caller.is_none());
+            });
+        }
+
+        Self(())
+    }
+}
+
+impl Drop for WasmiCallerSetter {
+    fn drop(&mut self) {
+        log::error!("WasmiCallerSetter::drop");
+        unsafe {
+            WASMI_CALLER.with(|caller| {
+                let caller = caller
+                    .borrow_mut()
+                    .take()
+                    .expect("caller set in `WasmiCallerSetter::new`");
+
+                let _caller = std::mem::transmute::<
+                    wasmi::Caller<'static, ()>,
+                    wasmi::Caller<'_, ()>,
+                >(caller);
+            });
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct WasmiContext {
+    store: Rc<RefCell<Store<()>>>,
+}
+
+impl WasmiContext {
+    pub fn store(&self) -> Rc<RefCell<Store<()>>> {
+        self.store.clone()
+    }
+
+    pub fn with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&dyn AsContext<UserState = ()>) -> R,
+    {
+        log::error!("WasmiContext::with IN");
+        let r = WASMI_CALLER.with(|caller| match caller.borrow().as_ref() {
+            Some(store) => f(store),
+            None => {
+                let store = self.store.borrow();
+                f(&*store)
+            }
+        });
+        log::error!("WasmiContext::with OUT");
+        r
+    }
+
+    pub fn with_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut dyn AsContextMut<UserState = ()>) -> R,
+    {
+        log::error!("WasmiContext::with_mut IN");
+        let r = WASMI_CALLER.with(|caller| match caller.borrow_mut().as_mut() {
+            Some(store) => f(store),
+            None => {
+                let mut store = self.store.borrow_mut();
+                f(&mut *store)
+            }
+        });
+        log::error!("WasmiContext::with_mut OUT");
+        r
+    }
+}
+
+/// Wasmi specific context
 pub struct Backend {
     engine: Engine,
     store: Rc<RefCell<Store<()>>>,
@@ -51,6 +139,12 @@ impl Backend {
         let store = Store::new(&engine, ());
         let store = Rc::new(RefCell::new(store));
         Backend { engine, store }
+    }
+
+    fn create_context(&self) -> WasmiContext {
+        WasmiContext {
+            store: self.store.clone(),
+        }
     }
 }
 
@@ -72,10 +166,18 @@ pub fn new_memory(
 /// Wasmi provides direct access to its memory using slices.
 ///
 /// This wrapper limits the scope where the slice can be taken to
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MemoryWrapper {
     memory: wasmi::Memory,
-    store: Rc<RefCell<Store<()>>>,
+    context: WasmiContext,
+}
+
+impl fmt::Debug for MemoryWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("MemoryWrapper")
+            .field("memory", &self.memory)
+            .finish()
+    }
 }
 
 impl MemoryWrapper {
@@ -83,61 +185,79 @@ impl MemoryWrapper {
     fn new(context: &Backend, memory: wasmi::Memory) -> Self {
         Self {
             memory,
-            store: context.store.clone(),
+            context: context.create_context(),
         }
     }
 }
 
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
-        let store = self.store.borrow();
-        let source = self.memory.data(&*store);
+        self.context.with(|context| {
+            log::error!("MemoryTransfer::read");
 
-        let range = util::checked_range(source_addr.into(), size, source.len())
-            .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+            let source = self.memory.data(context.as_context());
 
-        Ok(Vec::from(&source[range]))
+            let range = util::checked_range(source_addr.into(), size, source.len())
+                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+
+            Ok(Vec::from(&source[range]))
+        })
     }
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
-        let store = self.store.borrow();
-        let source = self.memory.data(&*store);
-        let range = util::checked_range(source_addr.into(), destination.len(), source.len())
-            .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+        self.context.with(|context| {
+            log::error!("MemoryTransfer::read_into");
 
-        destination.copy_from_slice(&source[range]);
-        Ok(())
+            let source = self.memory.data(context.as_context());
+            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
+                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+
+            destination.copy_from_slice(&source[range]);
+            Ok(())
+        })
     }
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
-        let mut store = self.store.borrow_mut();
-        let destination = self.memory.data_mut(&mut *store);
-        let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
-            .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
+        self.context.with_mut(|context| {
+            log::error!("MemoryTransfer::write_from");
 
-        destination[range].copy_from_slice(source);
-        Ok(())
+            let destination = self.memory.data_mut(context.as_context_mut());
+            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
+                .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
+
+            destination[range].copy_from_slice(source);
+            Ok(())
+        })
     }
 
     fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
-        self.memory
-            .grow(&mut *self.store.borrow_mut(), Pages::from(pages as u16))
-            .map_err(|e| {
-                Error::Sandbox(format!(
-                    "Cannot grow memory in masmi sandbox executor: {}",
-                    e
-                ))
-            })
-            .map(Into::into)
+        self.context.with_mut(|context| {
+            log::error!("MemoryTransfer::grow");
+
+            self.memory
+                .grow(context.as_context_mut(), Pages::from(pages as u16))
+                .map_err(|e| {
+                    Error::Sandbox(format!(
+                        "Cannot grow memory in masmi sandbox executor: {}",
+                        e
+                    ))
+                })
+                .map(Into::into)
+        })
     }
 
     fn memory_size(&mut self) -> u32 {
-        self.memory.current_pages(&*self.store.borrow()).into()
+        self.context.with(|context| {
+            log::error!("MemoryTransfer::memory_size");
+            self.memory.current_pages(context.as_context()).into()
+        })
     }
 
     fn get_buff(&mut self) -> *mut u8 {
-        let mut store = self.store.borrow_mut();
-        self.memory.data_mut(&mut *store).as_mut_ptr()
+        self.context.with_mut(|context| {
+            log::error!("MemoryTransfer::get_buff");
+            self.memory.data_mut(context.as_context_mut()).as_mut_ptr()
+        })
     }
 }
 
@@ -148,7 +268,7 @@ pub fn instantiate(
     guest_env: GuestEnvironment,
     sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
-    let mut store = context.store.borrow_mut();
+    let store = &mut context.store;
     let module =
         Module::new(&context.engine, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
 
@@ -167,7 +287,11 @@ pub fn instantiate(
                     .func_by_guest_index(guest_func_index)
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
-                let func = dispatch_function(supervisor_func_index, &mut store, func_type.clone());
+                let func = dispatch_function(
+                    supervisor_func_index,
+                    &mut store.borrow_mut(),
+                    func_type.clone(),
+                );
                 linker
                     .define(import.module(), import.name(), func)
                     .map_err(|_| InstantiationError::Instantiation)?;
@@ -195,14 +319,14 @@ pub fn instantiate(
 
     let instance = SandboxContextStore::using(sandbox_context, move || {
         linker
-            .instantiate(&mut *store, &module)
+            .instantiate(&mut *store.borrow_mut(), &module)
             .map_err(|_| InstantiationError::Instantiation)?
-            .start(&mut *store)
+            .start(&mut *store.borrow_mut())
             .map_err(|_| InstantiationError::StartTrapped)
     })?;
 
     Ok(SandboxInstance {
-        backend_instance: BackendInstance::Wasmi(instance, context.store.clone()),
+        backend_instance: BackendInstance::Wasmi(instance, context.create_context()),
     })
 }
 
@@ -211,8 +335,9 @@ fn dispatch_function(
     store: &mut Store<()>,
     func_ty: wasmi::FuncType,
 ) -> Func {
-    Func::new(store, func_ty, move |_caller, params, results| {
-        SandboxContextStore::with(|sandbox_context| {
+    Func::new(store, func_ty, move |caller, params, results| {
+        let _wasmi_caller_guard = WasmiCallerSetter::new(caller);
+        let r = SandboxContextStore::with(|sandbox_context| {
             // Serialize arguments into a byte vector.
             let invoke_args_data = params
                 .iter()
@@ -295,7 +420,9 @@ fn dispatch_function(
 
             Ok(())
         })
-        .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
+        .expect("SandboxContextStore is set when invoking sandboxed functions; qed");
+        log::error!("dispatch_function done");
+        r
     })
 }
 
@@ -307,20 +434,21 @@ pub fn invoke(
     args: &[Value],
     sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<Option<Value>, error::Error> {
-    let mut store = store.borrow_mut();
     let function = instance
-        .get_func(&*store, export_name)
+        .get_func(&*store.borrow(), export_name)
         .ok_or_else(|| Error::MethodNotFound(export_name.to_string()))?;
 
     let args: Vec<wasmi::Value> = args.iter().cloned().map(ri_to_wasmi).collect();
 
-    let results = function.ty(&*store).results().len();
+    let results = function.ty(&*store.borrow()).results().len();
     let mut results = vec![wasmi::Value::I32(0); results];
     SandboxContextStore::using(sandbox_context, || {
+        log::error!("invoke in SandboxContextStore::using");
         function
-            .call(&mut *store, &args, &mut results)
+            .call(&mut *store.borrow_mut(), &args, &mut results)
             .map_err(|error| Error::Sandbox(error.to_string()))
     })?;
+    log::error!("invoking done");
 
     let results: &[wasmi::Value] = results.as_ref();
     match results {
@@ -337,28 +465,34 @@ pub fn invoke(
 }
 
 /// Get global value by name
-pub fn get_global(instance: &wasmi::Instance, store: &Store<()>, name: &str) -> Option<Value> {
+pub fn get_global(
+    instance: &wasmi::Instance,
+    context: &dyn AsContext<UserState = ()>,
+    name: &str,
+) -> Option<Value> {
+    log::error!("get_global");
     instance
-        .get_global(store, name)
-        .map(|global| global.get(store))
+        .get_global(context.as_context(), name)
+        .map(|global| global.get(context.as_context()))
         .and_then(|value| wasmi_to_ri(value).ok())
 }
 
 /// Set global value by name
 pub fn set_global(
     instance: &wasmi::Instance,
-    store: Rc<RefCell<Store<()>>>,
+    context: &mut dyn AsContextMut<UserState = ()>,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
-    let mut store = store.borrow_mut();
-    let Some(global) = instance.get_global(&*store, name) else {
+    log::error!("set_global");
+
+    let Some(global) = instance.get_global(context.as_context(), name) else {
         return Ok(None);
     };
 
     let value = ri_to_wasmi(value);
     global
-        .set(&mut *store, value)
+        .set(context.as_context_mut(), value)
         .map_err(|err| Error::Sandbox(err.to_string()))?;
     Ok(Some(()))
 }

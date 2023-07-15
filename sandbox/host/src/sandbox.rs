@@ -24,7 +24,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{cell::RefCell, collections::HashMap, pin::Pin, rc::Rc};
+use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
 use gear_sandbox_env as sandbox_env;
@@ -47,6 +47,7 @@ use self::wasmi_backend::{
     MemoryWrapper as WasmiMemoryWrapper,
 };
 
+use crate::sandbox::wasmi_backend::WasmiContext;
 pub use gear_sandbox_env as env;
 
 /// Index of a function inside the supervisor.
@@ -174,7 +175,7 @@ pub trait SandboxContext {
 /// Module instance in terms of selected backend
 enum BackendInstance {
     /// Wasmi module instance
-    Wasmi(wasmi::Instance, Rc<RefCell<wasmi::Store<()>>>),
+    Wasmi(wasmi::Instance, WasmiContext),
 
     /// Wasmer module instance
     #[cfg(feature = "host-sandbox")]
@@ -211,9 +212,9 @@ impl SandboxInstance {
         sandbox_context: &mut dyn SandboxContext,
     ) -> std::result::Result<Option<sp_wasm_interface::Value>, error::Error> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance, store) => wasmi_invoke(
+            BackendInstance::Wasmi(wasmi_instance, context) => wasmi_invoke(
                 wasmi_instance,
-                store.clone(),
+                context.store(),
                 export_name,
                 args,
                 sandbox_context,
@@ -231,8 +232,8 @@ impl SandboxInstance {
     /// Returns `Some(_)` if the global could be found.
     pub fn get_global_val(&self, name: &str) -> Option<sp_wasm_interface::Value> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance, store) => {
-                wasmi_get_global(wasmi_instance, &store.borrow(), name)
+            BackendInstance::Wasmi(wasmi_instance, context) => {
+                context.with(|context| wasmi_get_global(wasmi_instance, context, name))
             }
 
             #[cfg(feature = "host-sandbox")]
@@ -249,8 +250,8 @@ impl SandboxInstance {
         value: sp_wasm_interface::Value,
     ) -> std::result::Result<Option<()>, error::Error> {
         match &self.backend_instance {
-            BackendInstance::Wasmi(wasmi_instance, store) => {
-                wasmi_set_global(wasmi_instance, store.clone(), name, value)
+            BackendInstance::Wasmi(wasmi_instance, context) => {
+                context.with_mut(|context| wasmi_set_global(wasmi_instance, context, name, value))
             }
 
             #[cfg(feature = "host-sandbox")]
