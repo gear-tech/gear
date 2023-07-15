@@ -268,32 +268,12 @@ pub trait CountersOwner {
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
-    /// Set gas limit and gas allowance left.
-    fn set_gas_left(&mut self, gas_left: GasLeft);
+    /// Actual gas counter type.
+    fn actual_counter(&self) -> CounterType;
     /// Decreases gas left by fetched single numeric of actual counter.
-    fn decrease(&mut self, amount: u64) {
-        let GasLeft {
-            gas,
-            allowance,
-            actual_counter,
-        } = self.gas_left();
-
-        let diff = match actual_counter {
-            CounterType::GasLimit => gas - amount,
-            CounterType::GasAllowance => allowance - amount,
-        };
-
-        self.set_gas_left((gas - diff, allowance - diff).into())
-    }
-    /// Returns minimal amount of gas counters and its type.
-    fn minimal(&self) -> (u64, CounterType) {
-        let GasLeft {
-            gas,
-            allowance,
-            actual_counter,
-        } = self.gas_left();
-        (gas.min(allowance), actual_counter)
-    }
+    fn decrease_to(&mut self, amount: u64);
+    /// Returns minimal amount of gas counters and set the type of actual counter.
+    fn define_actual(&mut self) -> u64;
 }
 
 /// Enum representing current type of gas counter.
@@ -305,16 +285,6 @@ pub enum CounterType {
     GasAllowance,
 }
 
-impl CounterType {
-    fn new(gas: u64, allowance: u64) -> Self {
-        if gas <= allowance {
-            Self::GasLimit
-        } else {
-            Self::GasAllowance
-        }
-    }
-}
-
 /// Gas limit and gas allowance left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
@@ -322,18 +292,11 @@ pub struct GasLeft {
     pub gas: u64,
     /// Left gas from allowance counter.
     pub allowance: u64,
-    /// Current type of counter being used within the program.
-    pub actual_counter: CounterType,
 }
 
 impl From<(u64, u64)> for GasLeft {
     fn from((gas, allowance): (u64, u64)) -> Self {
-        let actual_counter = CounterType::new(gas, allowance);
-        Self {
-            gas,
-            allowance,
-            actual_counter,
-        }
+        Self { gas, allowance }
     }
 }
 

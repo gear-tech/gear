@@ -34,8 +34,8 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{
-        ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter,
+        ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
+        GasCounter, GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -244,6 +244,8 @@ impl BackendAllocSyscallError for AllocExtError {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
+    /// Actual gas counter type within wasm module's global.
+    pub actual_counter: CounterType,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -255,8 +257,15 @@ impl ProcessorExternalities for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
+        let actual_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left() {
+            CounterType::GasLimit
+        } else {
+            CounterType::GasAllowance
+        };
+
         Self {
             context,
+            actual_counter,
             outgoing_gasless: 0,
         }
     }
@@ -477,27 +486,43 @@ impl CountersOwner for Ext {
             .into()
     }
 
-    fn set_gas_left(&mut self, new_gas_left: GasLeft) {
-        let GasLeft {
-            gas: new_gas,
-            allowance: new_allowance,
-            ..
-        } = new_gas_left;
+    fn actual_counter(&self) -> CounterType {
+        self.actual_counter
+    }
 
-        let old_gas = self.context.gas_counter.left();
-        let gas_diff = old_gas.checked_sub(new_gas).unwrap_or_else(|| {
-            unreachable!("Tried to set gas limit left bigger than before: {new_gas} > {old_gas}")
-        });
-        let _ = self.context.gas_counter.charge(gas_diff);
+    fn decrease_to(&mut self, amount: u64) {
+        let GasLeft { gas, allowance } = self.gas_left();
 
-        let old_allowance = self.context.gas_allowance_counter.left();
-        let gas_allowance_diff = old_allowance.checked_sub(new_allowance).unwrap_or_else(|| {
-            unreachable!("Tried to set gas allowance left bigger than before: {new_allowance} > {old_allowance}")
-        });
-        let _ = self
-            .context
-            .gas_allowance_counter
-            .charge(gas_allowance_diff);
+        let diff = match self.actual_counter() {
+            CounterType::GasLimit => gas - amount,
+            CounterType::GasAllowance => allowance - amount,
+        };
+
+        if matches!(
+            self.context.gas_counter.charge(diff),
+            ChargeResult::NotEnough
+        ) {
+            unreachable!("Tried to set gas limit left bigger than before")
+        }
+
+        if matches!(
+            self.context.gas_allowance_counter.charge(diff),
+            ChargeResult::NotEnough
+        ) {
+            unreachable!("Tried to set gas limit left bigger than before")
+        }
+    }
+
+    fn define_actual(&mut self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
+
+        if gas <= allowance {
+            self.actual_counter = CounterType::GasLimit;
+            gas
+        } else {
+            self.actual_counter = CounterType::GasAllowance;
+            allowance
+        }
     }
 }
 

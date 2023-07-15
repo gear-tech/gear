@@ -29,7 +29,7 @@ use gear_backend_common::{
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
@@ -151,8 +151,16 @@ impl CountersOwner for LazyPagesExt {
         self.inner.gas_left()
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        self.inner.set_gas_left(gas_left)
+    fn actual_counter(&self) -> CounterType {
+        self.inner.actual_counter()
+    }
+
+    fn decrease_to(&mut self, amount: u64) {
+        self.inner.decrease_to(amount)
+    }
+
+    fn define_actual(&mut self) -> u64 {
+        self.inner.define_actual()
     }
 }
 

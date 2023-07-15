@@ -31,7 +31,7 @@ use gear_backend_common::{
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_GASCNT};
+use gear_wasm_instrument::GLOBAL_NAME_GASCNT;
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -107,51 +107,21 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
-        // let gascnt = self
-        //     .globals
-        //     .get_global_val(GLOBAL_NAME_GASCNT)
-        //     .and_then(as_u64)
-        //     .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        // self.ext.decrease(gascnt);
-
-        // TODO (breathx): remove two below.
-        let gas = self
+        let gascnt = self
             .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(as_i64)
+            .get_global_val(GLOBAL_NAME_GASCNT)
+            .and_then(as_u64)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        let allowance = self
-            .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(as_i64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        self.ext.set_gas_left((gas, allowance).into());
+        self.ext.decrease_to(gascnt);
     }
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
-        // TODO (breathx): decide what counter is actual here.
-        let GasLeft { gas, allowance, .. } = self.ext.gas_left();
+        let gascnt = self.ext.define_actual();
 
-        let (gascnt, _) = self.ext.minimal();
         self.globals
             .set_global_val(GLOBAL_NAME_GASCNT, Value::I64(gascnt as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-
-        // TODO (breathx): remove two below.
-        self.globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });
@@ -180,8 +150,13 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
         ) -> Result<R, MemoryAccessError>,
     {
         let mut gas_left = self.ext.gas_left();
+        let _ = self.ext.define_actual();
+
+        // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
-        self.ext.set_gas_left(gas_left);
+
+        let min = gas_left.gas.min(gas_left.allowance);
+        self.ext.decrease_to(min);
         res
     }
 }

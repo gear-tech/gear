@@ -450,15 +450,13 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
     fn terminate<T: Debug, WasmCallErr: Debug>(
         self,
         res: Result<T, WasmCallErr>,
-        gas: i64,
-        allowance: i64,
+        gascnt: u64,
     ) -> (Ext, EnvMem, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();
 
-        // TODO (breathx): decrease ext here!.
-        ext.set_gas_left((gas, allowance).into());
+        ext.decrease_to(gascnt);
 
         let termination_reason = if res.is_err() {
             if matches!(

@@ -26,7 +26,7 @@ use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
@@ -87,7 +87,15 @@ impl CountersOwner for MockExt {
         (0u64, 0u64).into()
     }
 
-    fn set_gas_left(&mut self, _gas_left: GasLeft) {}
+    fn actual_counter(&self) -> CounterType {
+        CounterType::GasLimit
+    }
+
+    fn decrease_to(&mut self, _amount: u64) {}
+
+    fn define_actual(&mut self) -> u64 {
+        0
+    }
 }
 
 impl Externalities for MockExt {

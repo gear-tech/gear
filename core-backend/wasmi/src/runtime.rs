@@ -30,7 +30,7 @@ use gear_backend_common::{
     ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::GLOBAL_NAME_GASCNT;
 use wasmi::{
     core::{Trap, TrapCode, Value},
     AsContextMut, Caller, Memory as WasmiMemory,
@@ -141,28 +141,19 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
             return Err(TrapCode::Unreachable.into());
         }
 
-        // TODO (breathx): update here.
         let f = || {
-            // let gascnt_global = wrapper.caller.get_export(GLOBAL_NAME_GASCNT)?.into_global()?;
-            // gas_global.get(&wrapper.caller).try_into::<i64>()? as u64
-
-            let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()?;
-
-            let allowance_global = wrapper
+            let gascnt_global = wrapper
                 .caller
-                .get_export(GLOBAL_NAME_ALLOWANCE)?
+                .get_export(GLOBAL_NAME_GASCNT)?
                 .into_global()?;
-            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()?;
 
-            Some((gas, allowance).into())
+            Some(gascnt_global.get(&wrapper.caller).try_into::<i64>()? as u64)
         };
 
         let gas_left =
             f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        wrapper.host_state_mut().ext.set_gas_left(gas_left);
-        // wrapper.host_state_mut().ext.decrease(gas_left);
+        wrapper.host_state_mut().ext.decrease_to(gas_left);
 
         Ok(wrapper)
     }
@@ -184,28 +175,13 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     fn update_globals(&mut self) {
-        let GasLeft { gas, allowance, .. } = self.host_state_mut().ext.gas_left();
+        let gascnt = self.host_state_mut().ext.define_actual();
 
-        // TODO (breathx): update here.
         let mut f = || {
-            // let gascnt_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            // gascnt_global
-            //     .set(&mut self.caller, Value::I64(gas as i64))
-            //     .ok()?;
-
-            let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            gas_global
-                .set(&mut self.caller, Value::I64(gas as i64))
+            let gascnt_global = self.caller.get_export(GLOBAL_NAME_GASCNT)?.into_global()?;
+            gascnt_global
+                .set(&mut self.caller, Value::I64(gascnt as i64))
                 .ok()?;
-
-            let allowance_global = self
-                .caller
-                .get_export(GLOBAL_NAME_ALLOWANCE)?
-                .into_global()?;
-            allowance_global
-                .set(&mut self.caller, Value::I64(allowance as i64))
-                .ok()?;
-
             Some(())
         };
 
@@ -221,13 +197,15 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         ) -> Result<R, MemoryAccessError>,
     {
         let mut gas_left = self.host_state_mut().ext.gas_left();
+        let _ = self.host_state_mut().ext.define_actual();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 
+        // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.manager, &mut memory, &mut gas_left);
 
-        self.host_state_mut().ext.set_gas_left(gas_left);
-
+        let min = self.host_state_mut().ext.define_actual();
+        self.host_state_mut().ext.decrease_to(min);
         res
     }
 

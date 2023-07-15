@@ -33,7 +33,6 @@ use gear_backend_common::{
     EnvironmentExecutionResult,
 };
 use gear_core::{
-    gas::GasLeft,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
@@ -44,7 +43,7 @@ use gear_sandbox::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -138,8 +137,6 @@ pub enum SandboxEnvironmentError {
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
-    #[display(fmt = "Allowance counter not found or has wrong type")]
-    WrongInjectedAllowance,
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -375,27 +372,13 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let GasLeft { gas, allowance, .. } = runtime.ext.gas_left();
+        let gascnt = runtime.ext.define_actual();
 
         // Setting initial value of global.
         runtime
             .globals
-            .set_global_val(
-                GLOBAL_NAME_GASCNT,
-                Value::I64(runtime.ext.minimal().0 as i64),
-            )
+            .set_global_val(GLOBAL_NAME_GASCNT, Value::I64(gascnt as i64))
             .map_err(|_| System(WrongInjectedGas))?;
-
-        // TODO (breathx): remove two below.
-        runtime
-            .globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| System(WrongInjectedGas))?;
-
-        runtime
-            .globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsAccessConfig {
@@ -423,26 +406,14 @@ where
             .unwrap_or(Ok(ReturnValue::Unit));
 
         // Fetching global value.
-        let _gascnt = runtime
+        let gascnt = runtime
             .globals
             .get_global_val(GLOBAL_NAME_GASCNT)
             .and_then(runtime::as_u64)
+            // TODO (breathx): consider error
             .ok_or(System(WrongInjectedGas))?;
 
-        // TODO (breathx): remove two below.
-        let gas = runtime
-            .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(runtime::as_i64)
-            .ok_or(System(WrongInjectedGas))?;
-
-        let allowance = runtime
-            .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(runtime::as_i64)
-            .ok_or(System(WrongInjectedAllowance))?;
-
-        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gascnt);
 
         Ok(BackendReport {
             termination_reason,
