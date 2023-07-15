@@ -81,7 +81,7 @@ fn read_write_flag_works() {
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str(""); 2],
+        vec![LimitedStr::from_small_str(""); 1],
         Default::default(),
     )
     .unwrap();
@@ -139,7 +139,7 @@ fn test_mprotect_pages() {
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str(""); 2],
+        vec![LimitedStr::from_small_str(""); 1],
         Default::default(),
     )
     .unwrap();

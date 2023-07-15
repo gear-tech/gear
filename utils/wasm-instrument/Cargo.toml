@@ -19,6 +19,7 @@ gear-core.workspace = true
 [features]
 default = ["std"]
 std = [
+    "gear-backend-wasmi/std",
     "wasm-instrument/std",
     "wasm-instrument/sign_ext",
 ]

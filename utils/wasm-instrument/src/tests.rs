@@ -81,10 +81,10 @@ fn simple_grow() {
 
     let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
 
-    // two new imports (indexes 0 & 1), the original func (i = 2), so
+    // two new imports (index 0), the original func (i = 1), so
     // gas charge will occupy the next index.
-    let gas_charge_index = 3;
-    let grow_index = 4;
+    let gas_charge_index = 2;
+    let grow_index = 3;
 
     assert_eq!(
         get_function_body(&injected_module, 0).unwrap(),
@@ -127,7 +127,7 @@ fn grow_no_gas_no_track() {
 
     let injected_module = inject(module, &ConstantCostRules::default(), "env").unwrap();
 
-    let gas_charge_index = 3;
+    let gas_charge_index = 2;
 
     assert_eq!(
         get_function_body(&injected_module, 0).unwrap(),
@@ -140,7 +140,7 @@ fn grow_no_gas_no_track() {
         ][..]
     );
 
-    assert_eq!(injected_module.functions_space(), 4);
+    assert_eq!(injected_module.functions_space(), 3);
 
     let binary = serialize(injected_module).expect("serialization failed");
     wasmparser::validate(&binary).unwrap();
@@ -207,7 +207,7 @@ fn call_index() {
     )
     .unwrap();
 
-    let empty_func_index = 2;
+    let empty_func_index = 1;
     let func_index = empty_func_index + 1;
     let gas_charge_index = func_index + 1;
 
@@ -245,7 +245,7 @@ fn cost_overflow() {
     )
     .unwrap();
 
-    let empty_func_index = 2;
+    let empty_func_index = 1;
     let func_index = empty_func_index + 1;
     let gas_charge_index = func_index + 1;
 
@@ -317,7 +317,7 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 1))
+            (call 2 (i32.const 1))
             (get_global 0)))
     "#
 }
@@ -337,7 +337,7 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 6))
+            (call 2 (i32.const 6))
             (get_global 0)
             (block
                 (get_global 0)
@@ -366,16 +366,16 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 3))
+            (call 2 (i32.const 3))
             (get_global 0)
             (if
                 (then
-                    (call 3 (i32.const 3))
+                    (call 2 (i32.const 3))
                     (get_global 0)
                     (get_global 0)
                     (get_global 0))
                 (else
-                    (call 3 (i32.const 2))
+                    (call 2 (i32.const 2))
                     (get_global 0)
                     (get_global 0)))
             (get_global 0)))
@@ -399,13 +399,13 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 6))
+            (call 2 (i32.const 6))
             (get_global 0)
             (block
                 (get_global 0)
                 (drop)
                 (br 0)
-                (call 3 (i32.const 2))
+                (call 2 (i32.const 2))
                 (get_global 0)
                 (drop))
             (get_global 0)))
@@ -433,18 +433,18 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 5))
+            (call 2 (i32.const 5))
             (get_global 0)
             (block
                 (get_global 0)
                 (if
                     (then
-                        (call 3 (i32.const 4))
+                        (call 2 (i32.const 4))
                         (get_global 0)
                         (get_global 0)
                         (drop)
                         (br_if 1)))
-                (call 3 (i32.const 2))
+                (call 2 (i32.const 2))
                 (get_global 0)
                 (drop))
             (get_global 0)))
@@ -475,18 +475,18 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 3))
+            (call 2 (i32.const 3))
             (get_global 0)
             (loop
-                (call 3 (i32.const 4))
+                (call 2 (i32.const 4))
                 (get_global 0)
                 (if
                     (then
-                        (call 3 (i32.const 2))
+                        (call 2 (i32.const 2))
                         (get_global 0)
                         (br_if 0))
                     (else
-                        (call 3 (i32.const 4))
+                        (call 2 (i32.const 4))
                         (get_global 0)
                         (get_global 0)
                         (drop)
@@ -511,13 +511,13 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 2))
+            (call 2 (i32.const 2))
             (get_global 0)
             (if
                 (then
-                    (call 3 (i32.const 1))
+                    (call 2 (i32.const 1))
                     (return)))
-            (call 3 (i32.const 1))
+            (call 2 (i32.const 1))
             (get_global 0)))
     "#
 }
@@ -540,18 +540,18 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func (result i32)
-            (call 3 (i32.const 5))
+            (call 2 (i32.const 5))
             (get_global 0)
             (block
                 (get_global 0)
                 (if
                     (then
-                        (call 3 (i32.const 1))
+                        (call 2 (i32.const 1))
                         (br 1))
                     (else
-                        (call 3 (i32.const 1))
+                        (call 2 (i32.const 1))
                         (br 0)))
-                (call 3 (i32.const 2))
+                (call 2 (i32.const 2))
                 (get_global 0)
                 (drop))
             (get_global 0)))
@@ -573,9 +573,9 @@ test_gas_counter_injection! {
     expected = r#"
     (module
         (func
-            (call 3 (i32.const 2))
+            (call 2 (i32.const 2))
             (loop
-                (call 3 (i32.const 1))
+                (call 2 (i32.const 1))
                 (br 0)
             )
             unreachable
@@ -602,10 +602,10 @@ test_gas_counter_injection! {
     (module
         (func)
         (func
-            (call 4 (i32.const 3))
-            (call 2)
+            (call 3 (i32.const 3))
+            (call 1)
             (loop
-                (call 4 (i32.const 1))
+                (call 3 (i32.const 1))
                 (br 0)
             )
             unreachable
