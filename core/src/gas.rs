@@ -132,22 +132,6 @@ impl GasCounter {
         }
     }
 
-    /// Refund `amount` of gas.
-    pub fn refund(&mut self, amount: u64) -> ChargeResult {
-        if amount > self.burned {
-            return ChargeResult::NotEnough;
-        }
-        match self.left.checked_add(amount) {
-            None => ChargeResult::NotEnough,
-            Some(new_left) => {
-                self.left = new_left;
-                self.burned -= amount;
-
-                ChargeResult::Enough
-            }
-        }
-    }
-
     /// Report how much gas is left.
     pub fn left(&self) -> u64 {
         self.left
@@ -260,13 +244,6 @@ impl GasAllowanceCounter {
         } else {
             ChargeResult::NotEnough
         }
-    }
-
-    /// Refund `amount` of gas.
-    pub fn refund(&mut self, amount: u64) {
-        let new_value = self.0.checked_add(amount as u128);
-
-        self.0 = new_value.unwrap_or(u128::MAX);
     }
 }
 
@@ -407,13 +384,6 @@ mod tests {
 
         let mut counter = GasCounter::new(10);
         assert_eq!(counter.charge(token), ChargeResult::NotEnough);
-    }
-
-    #[test]
-    fn refund_fails() {
-        let mut counter = GasCounter::new(200);
-        assert_eq!(counter.charge_if_enough(100u64), ChargeResult::Enough);
-        assert_eq!(counter.refund(500), ChargeResult::NotEnough);
     }
 
     #[test]

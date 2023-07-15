@@ -433,10 +433,9 @@ impl Ext {
             return Err(ChargeError::GasLimitExceeded);
         }
         if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            if gas_counter.refund(amount) != ChargeResult::Enough {
-                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
-                unreachable!("Cannot refund {amount} for `gas_counter`");
-            }
+            // Here might be refunds for gas counter, but it's meaningless since
+            // on gas allowance exceed we totally roll up the message and give
+            // it another try in next block with the same initial resources.
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -478,35 +477,27 @@ impl CountersOwner for Ext {
             .into()
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        let GasLeft { gas, allowance, .. } = gas_left;
+    fn set_gas_left(&mut self, new_gas_left: GasLeft) {
+        let GasLeft {
+            gas: new_gas,
+            allowance: new_allowance,
+            ..
+        } = new_gas_left;
 
-        let gas_left = self.context.gas_counter.left();
-        if gas_left > gas {
-            if self.context.gas_counter.charge_if_enough(gas_left - gas) != ChargeResult::Enough {
-                // We checked above that `gas_left` is bigger than `gas`
-                unreachable!("Cannot charge {gas} from `gas_counter`");
-            }
-        } else {
-            self.context.gas_counter.refund(gas - gas_left);
-        }
+        let old_gas = self.context.gas_counter.left();
+        let gas_diff = old_gas.checked_sub(new_gas).unwrap_or_else(|| {
+            unreachable!("Tried to set gas limit left bigger than before: {new_gas} > {old_gas}")
+        });
+        let _ = self.context.gas_counter.charge(gas_diff);
 
-        let allowance_left = self.context.gas_allowance_counter.left();
-        if allowance_left > allowance {
-            if self
-                .context
-                .gas_allowance_counter
-                .charge_if_enough(allowance_left - allowance)
-                != ChargeResult::Enough
-            {
-                // We checked above that `allowance_left` is bigger than `allowance`
-                unreachable!("Cannot charge {allowance} from `gas_allowance_counter`");
-            }
-        } else {
-            self.context
-                .gas_allowance_counter
-                .refund(allowance - allowance_left);
-        }
+        let old_allowance = self.context.gas_allowance_counter.left();
+        let gas_allowance_diff = old_allowance.checked_sub(new_allowance).unwrap_or_else(|| {
+            unreachable!("Tried to set gas allowance left bigger than before: {new_allowance} > {old_allowance}")
+        });
+        let _ = self
+            .context
+            .gas_allowance_counter
+            .charge(gas_allowance_diff);
     }
 }
 
