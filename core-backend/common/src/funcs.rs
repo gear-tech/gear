@@ -33,6 +33,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
+    gas::CounterType,
     message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -643,21 +644,19 @@ where
         })
     }
 
-    pub fn out_of_gas(ctx: &mut R) -> Result<(), R::Error> {
-        syscall_trace!("out_of_gas");
+    pub fn out_of_resources(ctx: &mut R) -> Result<(), R::Error> {
+        let actual_counter_type = ctx.ext_mut().actual_counter();
 
-        ctx.set_termination_reason(
-            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
-        );
+        syscall_trace!("out_of_resources", actual_counter_type);
 
-        Err(R::unreachable_error())
-    }
+        let termination_reason = match actual_counter_type {
+            CounterType::GasLimit => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
+            }
+            CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded,
+        };
 
-    pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
-        syscall_trace!("out_of_allowance");
-
-        ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
-
+        ctx.set_termination_reason(termination_reason.into());
         Err(R::unreachable_error())
     }
 }

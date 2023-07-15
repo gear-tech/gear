@@ -27,7 +27,6 @@ use enum_iterator::{self, Sequence};
 /// The type is mainly used to prevent from skipping sys-call integration test for
 /// a newly introduced sys-call or from typo in sys-call name.
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence)]
-// TODO (breathx): single syscall for ran out of gas.
 pub enum SysCallName {
     // Message sending related
     // --
@@ -93,8 +92,7 @@ pub enum SysCallName {
     // Hard under the hood calls, serving proper program execution
     Alloc,
     Free,
-    OutOfGas,
-    OutOfAllowance,
+    OutOfResources,
 
     // Miscellaneous
     ReplyDeposit,
@@ -123,8 +121,7 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::OutOfAllowance => "gr_out_of_allowance",
-            SysCallName::OutOfGas => "gr_out_of_gas",
+            SysCallName::OutOfResources => "gr_out_of_resources",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",

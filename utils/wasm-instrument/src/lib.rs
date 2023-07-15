@@ -56,7 +56,8 @@ pub fn inject<R: Rules>(
         .import_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.module() == gas_module_name && entry.field() == SysCallName::OutOfGas.to_str()
+                entry.module() == gas_module_name
+                    && entry.field() == SysCallName::OutOfResources.to_str()
             })
         })
         .unwrap_or(false)
@@ -79,13 +80,13 @@ pub fn inject<R: Rules>(
 
     let mut mbuilder = builder::from_module(module);
 
-    // fn out_of_gas() -> ();
+    // fn out_of_resources() -> ();
     let import_sig = mbuilder.push_signature(builder::signature().build_sig());
 
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field(SysCallName::OutOfGas.to_str())
+            .field(SysCallName::OutOfResources.to_str())
             .external()
             .func(import_sig)
             .build(),
@@ -95,7 +96,7 @@ pub fn inject<R: Rules>(
     let module = mbuilder.build();
 
     let import_count = module.import_count(ImportCountType::Function);
-    let out_of_gas_index = import_count as u32 - 1;
+    let out_of_resources_index = import_count as u32 - 1;
 
     let gas_charge_index = module.functions_space();
     let gascnt_index = module.globals_space() as u32;
@@ -135,10 +136,10 @@ pub fn inject<R: Rules>(
         // III. Validating left amount of gas.
         //
         // In case of requested value is bigger than actual gas counter value,
-        // than we call `out_of_gas()` that will terminate execution.
+        // than we call `out_of_resources()` that will terminate execution.
         Instruction::I64LtU,
         Instruction::If(BlockType::NoResult),
-        Instruction::Call(out_of_gas_index),
+        Instruction::Call(out_of_resources_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.
         //
@@ -221,5 +222,5 @@ pub fn inject<R: Rules>(
     // back to plain module
     let module = mbuilder.build();
 
-    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 1)
+    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_resources_index, 1)
 }

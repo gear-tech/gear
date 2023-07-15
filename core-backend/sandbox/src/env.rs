@@ -255,8 +255,7 @@ where
         builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (2) -> ()));
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
-        builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
-        builder.add_func(OutOfAllowance, wrap_common_func!(FuncsHandler::out_of_allowance, () -> ()));
+        builder.add_func(OutOfResources, wrap_common_func!(FuncsHandler::out_of_resources, () -> ()));
 
         builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (1) -> (1)));
         builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (1) -> (1)));
