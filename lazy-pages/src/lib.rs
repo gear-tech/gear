@@ -50,8 +50,9 @@ mod utils;
 use crate::{
     common::{
         ContextError, GlobalNames, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights,
+        GLOBALS_COUNT,
     },
-    globals::{GlobalNo, GlobalsContext},
+    globals::GlobalsContext,
     init_flag::InitializationFlag,
 };
 
@@ -420,12 +421,7 @@ fn init_with_handler<H: UserSignalHandler>(
 
     let global_names: GlobalNames = match global_names.try_into() {
         Ok(names) => names,
-        Err(names) => {
-            return Err(WrongGlobalNamesAmount(
-                names.len(),
-                GlobalNo::Amount as usize,
-            ))
-        }
+        Err(names) => return Err(WrongGlobalNamesAmount(names.len(), GLOBALS_COUNT)),
     };
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.

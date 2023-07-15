@@ -26,10 +26,7 @@ use gear_backend_common::{
 };
 use gear_core::gas::GasLeft;
 
-use crate::{
-    globals::{GlobalNo, GlobalsContext},
-    mprotect::MprotectError,
-};
+use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage};
 
 // TODO: investigate error allocations #2441
@@ -109,7 +106,10 @@ impl LazyPagesContext {
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
 pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
-pub(crate) type GlobalNames = [LimitedStr<'static>; GlobalNo::Amount as usize];
+// Used to be const instead of enum variant to keep it more obvious
+// that changes of it may cause incompatibility.
+pub(crate) const GLOBALS_COUNT: usize = 1;
+pub(crate) type GlobalNames = [LimitedStr<'static>; GLOBALS_COUNT];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
@@ -148,6 +148,7 @@ pub(crate) struct LazyPagesExecutionContext {
 
 #[derive(Clone, Copy, Debug)]
 pub enum LazyPagesVersion {
+    // TODO (breathx): should we bump it?
     Version1,
 }
 

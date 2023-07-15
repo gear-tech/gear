@@ -80,16 +80,15 @@ unsafe fn user_signal_handler_internal(
     let page = GearPage::from_offset(ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
-        let gas = globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| Ok(None))?;
-        let allowance =
-            globals::apply_for_global(globals_config, GlobalNo::AllowanceLimit, |_| Ok(None))?;
+        let gas = globals::apply_for_global(globals_config, GlobalNo::GasCounter, |_| Ok(None))?;
         let gas_left_charger = GasLeftCharger {
             read_cost: ctx.weight(WeightNo::SignalRead),
             write_cost: ctx.weight(WeightNo::SignalWrite),
             write_after_read_cost: ctx.weight(WeightNo::SignalWriteAfterRead),
             load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
-        Some(((gas, allowance).into(), gas_left_charger))
+        // TODO (breathx): consider throwing here proper initial GasLeft.
+        Some(((gas, gas).into(), gas_left_charger))
     } else {
         None
     };
@@ -180,11 +179,8 @@ impl AccessHandler for SignalAccessHandler {
             (self.gas_ctx, ctx.globals_context.as_ref())
         {
             unsafe {
-                globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| {
-                    Ok(Some(gas_left.gas))
-                })?;
-                globals::apply_for_global(globals_config, GlobalNo::AllowanceLimit, |_| {
-                    Ok(Some(gas_left.allowance))
+                globals::apply_for_global(globals_config, GlobalNo::GasCounter, |_| {
+                    Ok(Some(gas_left.gas.min(gas_left.allowance)))
                 })?;
             }
         }
