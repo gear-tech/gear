@@ -50,7 +50,10 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
-    const GLOBAL_NAMES: &[LimitedStr<'static>] = &[LimitedStr::from_small_str(GLOBAL_NAME_GASCNT)];
+    const GLOBAL_NAMES: &[LimitedStr<'static>] = &[
+        LimitedStr::from_small_str(GLOBAL_NAME_GASCNT),
+        LimitedStr::from_small_str(""),
+    ];
 
     let ctx = LazyPagesRuntimeContext {
         page_sizes: vec![WasmPage::size(), GearPage::size()],

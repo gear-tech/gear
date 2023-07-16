@@ -155,6 +155,7 @@ pub fn initialize_for_program(
         })?;
 
         let execution_ctx = LazyPagesExecutionContext {
+            version: runtime_ctx.version,
             page_sizes: runtime_ctx.page_sizes,
             weights,
             wasm_mem_addr,
@@ -387,7 +388,7 @@ pub(crate) fn reset_init_flag() {
 
 /// Initialize lazy-pages for current thread.
 fn init_with_handler<H: UserSignalHandler>(
-    _version: LazyPagesVersion,
+    version: LazyPagesVersion,
     page_sizes: Vec<u32>,
     global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
@@ -428,6 +429,7 @@ fn init_with_handler<H: UserSignalHandler>(
     LAZY_PAGES_CONTEXT.with(|ctx| {
         ctx.borrow_mut()
             .set_runtime_context(LazyPagesRuntimeContext {
+                version,
                 page_sizes,
                 global_names,
                 pages_storage_prefix,

@@ -28,11 +28,6 @@ use gear_core::memory::HostPointer;
 use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum GlobalNo {
-    GasCounter = 0,
-}
-
 #[derive(Debug)]
 pub(crate) struct GlobalsContext {
     /// Global names
@@ -108,10 +103,10 @@ fn apply_for_global_internal(
 
 pub(crate) unsafe fn apply_for_global(
     globals_ctx: &GlobalsContext,
-    global_no: GlobalNo,
+    global_no: usize,
     f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = globals_ctx.names[global_no as usize].as_str();
+    let name = globals_ctx.names[global_no].as_str();
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_ctx.access_ptr as *mut SandboxInstance)

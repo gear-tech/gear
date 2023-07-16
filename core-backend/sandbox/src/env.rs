@@ -409,7 +409,6 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GASCNT)
             .and_then(runtime::as_u64)
-            // TODO (breathx): consider error
             .ok_or(System(WrongInjectedGas))?;
 
         let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gascnt);
