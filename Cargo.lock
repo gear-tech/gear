@@ -4112,6 +4112,7 @@ dependencies = [
  "parity-scale-codec",
  "sc-cli",
  "sc-executor",
+ "sc-executor-common",
  "sc-tracing",
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.42-canary-no-sandbox)",
  "sp-externalities 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.42-canary-no-sandbox)",

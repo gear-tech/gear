@@ -34,12 +34,11 @@ use sp_core::{
         OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
     },
     storage::well_known_keys,
-    testing::TaskExecutor,
-    traits::{CallContext, CodeExecutor, TaskExecutorExt},
+    traits::{CallContext, CodeExecutor},
     twox_128,
 };
 use sp_externalities::Extensions;
-use sp_keystore::{testing::KeyStore, KeystoreExt};
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
 use sp_rpc::{list::ListOrValue, number::NumberOrHex};
 use sp_runtime::{
     generic::SignedBlock,
@@ -69,19 +68,21 @@ pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExec
 
 #[cfg(feature = "always-wasm")]
 pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
-    let heap_pages = Some(2048);
+    let execution_method = sc_executor::WasmExecutionMethod::Compiled {
+        instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
+    };
+    let heap_pages =
+        sc_executor_common::wasm_runtime::HeapAllocStrategy::Static { extra_pages: 2048 };
     let max_runtime_instances = 8;
     let runtime_cache_size = 2;
 
-    WasmExecutor::new(
-        sc_executor::WasmExecutionMethod::Compiled {
-            instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
-        },
-        heap_pages,
-        max_runtime_instances,
-        None,
-        runtime_cache_size,
-    )
+    WasmExecutor::<H>::builder()
+        .with_execution_method(execution_method)
+        .with_onchain_heap_alloc_strategy(heap_pages)
+        .with_offchain_heap_alloc_strategy(heap_pages)
+        .with_max_runtime_instances(max_runtime_instances)
+        .with_runtime_cache_size(runtime_cache_size)
+        .build()
 }
 
 pub(crate) async fn build_externalities<Block: BlockT + DeserializeOwned>(
@@ -200,7 +201,6 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
         data,
         extensions,
         &BackendRuntimeCode::new(&ext.backend).runtime_code()?,
-        TaskExecutor::new(),
         CallContext::Offchain,
     )
     .execute(strategy)
@@ -213,12 +213,11 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
 /// Build all extensions that are typically used
 pub(crate) fn full_extensions() -> Extensions {
     let mut extensions = Extensions::default();
-    extensions.register(TaskExecutorExt::new(TaskExecutor::new()));
     let (offchain, _offchain_state) = TestOffchainExt::new();
     let (pool, _pool_state) = TestTransactionPoolExt::new();
     extensions.register(OffchainDbExt::new(offchain.clone()));
     extensions.register(OffchainWorkerExt::new(offchain));
-    extensions.register(KeystoreExt(Arc::new(KeyStore::new())));
+    extensions.register(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
     extensions.register(TransactionPoolExt::new(pool));
 
     extensions

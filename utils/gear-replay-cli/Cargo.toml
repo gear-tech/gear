@@ -24,6 +24,7 @@ sp-state-machine.workspace = true
 
 # Substrate client
 sc-executor.workspace = true
+sc-executor-common.workspace = true
 sc-cli.workspace = true
 sc-tracing.workspace = true
 
