@@ -74,6 +74,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
+use scale_info::TypeInfo;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -82,7 +83,7 @@ use sp_std::{
     prelude::*,
 };
 
-#[derive(Clone, Decode, Encode)]
+#[derive(Clone, Decode, Encode, TypeInfo)]
 pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
