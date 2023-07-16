@@ -20,7 +20,7 @@
 
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::NativeExecutionDispatch;
 use sc_network::NetworkService;
 use sc_network_common::sync::warp::WarpSyncParams;
 use sc_network_sync::SyncingService;
@@ -179,12 +179,6 @@ where
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-    if config.keystore_remote.is_some() {
-        return Err(ServiceError::Other(
-            "Remote Keystores are not supported.".into(),
-        ));
-    }
-
     let telemetry = config
         .telemetry_endpoints
         .clone()
@@ -196,12 +190,7 @@ where
         })
         .transpose()?;
 
-    let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
-        config.wasm_method,
-        config.default_heap_pages,
-        config.max_runtime_instances,
-        config.runtime_cache_size,
-    );
+    let executor = sc_service::new_native_or_wasm_executor::<ExecutorDispatch>(config);
 
     let (client, backend, keystore_container, task_manager) =
         sc_service::new_full_parts::<Block, RuntimeApi, _>(
@@ -243,7 +232,7 @@ where
     )?;
 
     let slot_duration = babe_link.config().slot_duration();
-    let import_queue = sc_consensus_babe::import_queue(
+    let (import_queue, babe_worker_handle) = sc_consensus_babe::import_queue(
         babe_link.clone(),
         block_import.clone(),
         Some(Box::new(justification_import)),
@@ -253,10 +242,10 @@ where
             let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
             let slot =
-                sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-                    *timestamp,
-                    slot_duration,
-                );
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					*timestamp,
+					slot_duration,
+				);
 
             Ok((slot, timestamp))
         },
@@ -268,7 +257,7 @@ where
     let import_setup = (block_import, grandpa_link, babe_link);
 
     let (rpc_extensions_builder, rpc_setup) = {
-        let (_, grandpa_link, babe_link) = &import_setup;
+        let (_, grandpa_link, _) = &import_setup;
 
         let justification_stream = grandpa_link.justification_stream();
         let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -280,13 +269,10 @@ where
             Some(shared_authority_set.clone()),
         );
 
-        let babe_config = babe_link.config().clone();
-        let shared_epoch_changes = babe_link.epoch_changes().clone();
-
         let client = client.clone();
         let pool = transaction_pool.clone();
         let select_chain = select_chain.clone();
-        let keystore = keystore_container.sync_keystore();
+        let keystore = keystore_container.keystore();
         let chain_spec = config.chain_spec.cloned_box();
 
         let rpc_backend = backend.clone();
@@ -298,9 +284,8 @@ where
                 chain_spec: chain_spec.cloned_box(),
                 deny_unsafe,
                 babe: crate::rpc::BabeDeps {
-                    babe_config: babe_config.clone(),
-                    shared_epoch_changes: shared_epoch_changes.clone(),
                     keystore: keystore.clone(),
+                    babe_worker_handle: babe_worker_handle.clone(),
                 },
                 grandpa: crate::rpc::GrandpaDeps {
                     shared_voter_state: shared_voter_state.clone(),
@@ -397,6 +382,7 @@ where
     } = new_partial(&config)?;
 
     let shared_voter_state = rpc_setup;
+    let _auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
         &client
             .block_hash(0)
@@ -450,7 +436,7 @@ where
         config,
         backend,
         client: client.clone(),
-        keystore: keystore_container.sync_keystore(),
+        keystore: keystore_container.keystore(),
         network: network.clone(),
         rpc_builder: Box::new(rpc_builder),
         transaction_pool: transaction_pool.clone(),
@@ -495,7 +481,7 @@ where
         let client_clone = client.clone();
         let slot_duration = babe_link.config().slot_duration();
         let babe_config = sc_consensus_babe::BabeParams {
-            keystore: keystore_container.sync_keystore(),
+            keystore: keystore_container.keystore(),
             client: client.clone(),
             select_chain,
             env: proposer,
@@ -508,10 +494,10 @@ where
                     let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
                     let slot =
-                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-                            *timestamp,
-                            slot_duration,
-                        );
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							*timestamp,
+							slot_duration,
+						);
 
                     let storage_proof =
                         sp_transaction_storage_proof::registration::new_data_provider(
@@ -541,14 +527,14 @@ where
     // if the node isn't actively participating in consensus then it doesn't
     // need a keystore, regardless of which protocol we use below.
     let keystore = if role.is_authority() {
-        Some(keystore_container.sync_keystore())
+        Some(keystore_container.keystore())
     } else {
         None
     };
 
     let config = sc_consensus_grandpa::Config {
-        // FIXME substrate#1578 make this available through chainspec
-        gossip_duration: std::time::Duration::from_millis(1000),
+        // FIXME #1578 make this available through chainspec
+        gossip_duration: std::time::Duration::from_millis(333),
         justification_period: 512,
         name: Some(name),
         observer_enabled: false,
