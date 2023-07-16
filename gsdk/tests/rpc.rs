@@ -122,7 +122,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.api().gprog(pid).await.is_ok());
+    signer.api().gprog(pid).await.unwrap();
 
     // 2. calculate handle gas and send message.
     let gas_info = signer

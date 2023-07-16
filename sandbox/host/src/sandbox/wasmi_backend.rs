@@ -26,7 +26,7 @@ use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     core::{Pages, Trap},
-    AsContext, AsContextMut, Engine, ExternType, Func, Linker, Module, Store,
+    AsContext, AsContextMut, Engine, Exports, ExternType, Func, Globals, Linker, Module, Store,
 };
 
 use crate::{
@@ -85,16 +85,12 @@ impl Drop for WasmiCallerSetter {
 }
 
 #[derive(Clone)]
-pub struct WasmiContext {
+struct WasmiContext {
     store: Rc<RefCell<Store<()>>>,
 }
 
 impl WasmiContext {
-    pub fn store(&self) -> Rc<RefCell<Store<()>>> {
-        self.store.clone()
-    }
-
-    pub fn with<F, R>(&self, f: F) -> R
+    fn with<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&dyn AsContext<UserState = ()>) -> R,
     {
@@ -110,7 +106,7 @@ impl WasmiContext {
         r
     }
 
-    pub fn with_mut<F, R>(&self, f: F) -> R
+    fn with_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut dyn AsContextMut<UserState = ()>) -> R,
     {
@@ -263,16 +259,16 @@ impl MemoryTransfer for MemoryWrapper {
 
 /// Instantiate a module within a sandbox context
 pub fn instantiate(
-    context: &mut Backend,
+    backend: &mut Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
     sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
-    let store = &mut context.store;
+    let store = &mut backend.store;
     let module =
-        Module::new(&context.engine, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
+        Module::new(&backend.engine, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
 
-    let mut linker = Linker::new(&context.engine);
+    let mut linker = Linker::new(&backend.engine);
     for import in module.imports() {
         match import.ty() {
             ExternType::Func(func_type) => {
@@ -317,16 +313,26 @@ pub fn instantiate(
         }
     }
 
-    let instance = SandboxContextStore::using(sandbox_context, move || {
-        linker
+    let instance = SandboxContextStore::using(sandbox_context, || {
+        let instance_pre = linker
             .instantiate(&mut *store.borrow_mut(), &module)
-            .map_err(|_| InstantiationError::Instantiation)?
+            .map_err(|_| InstantiationError::Instantiation)?;
+        instance_pre
             .start(&mut *store.borrow_mut())
             .map_err(|_| InstantiationError::StartTrapped)
     })?;
 
+    let exports = instance.exports_ref(&mut *store.borrow_mut());
+    let globals = store.borrow_mut().globals();
+    let store = store.clone();
+
     Ok(SandboxInstance {
-        backend_instance: BackendInstance::Wasmi(instance, context.create_context()),
+        backend_instance: BackendInstance::Wasmi {
+            instance,
+            store,
+            exports,
+            globals,
+        },
     })
 }
 
@@ -465,35 +471,31 @@ pub fn invoke(
 }
 
 /// Get global value by name
-pub fn get_global(
-    instance: &wasmi::Instance,
-    context: &dyn AsContext<UserState = ()>,
-    name: &str,
-) -> Option<Value> {
+pub fn get_global(exports: &Exports, globals: &Globals, name: &str) -> Option<Value> {
     log::error!("get_global");
-    instance
-        .get_global(context.as_context(), name)
-        .map(|global| global.get(context.as_context()))
-        .and_then(|value| wasmi_to_ri(value).ok())
+    let global = exports.get_global(name)?;
+    let value = globals.resolve(&global).get();
+    wasmi_to_ri(value).ok()
 }
 
 /// Set global value by name
 pub fn set_global(
-    instance: &wasmi::Instance,
-    context: &mut dyn AsContextMut<UserState = ()>,
+    exports: &Exports,
+    mut globals: Globals,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
     log::error!("set_global");
 
-    let Some(global) = instance.get_global(context.as_context(), name) else {
+    let Some(global) = exports.get_global(name) else {
         return Ok(None);
     };
 
     let value = ri_to_wasmi(value);
-    global
-        .set(context.as_context_mut(), value)
+    globals
+        .resolve_mut_with(&global, |entity| entity.set(value))
         .map_err(|err| Error::Sandbox(err.to_string()))?;
+
     Ok(Some(()))
 }
 
