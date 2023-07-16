@@ -27,7 +27,7 @@ use rand::Rng;
 use statrs::statistics::Statistics;
 
 /// Path to the gear node binary.
-const GEAR_PATH: &str = "../../../target/release/gear";
+const GEAR_PATH: &str = "../../target/release/gear";
 
 /// This constant defines the number of messages in the batch.
 /// It is calculated empirically, and 25 is considered the optimal value for
