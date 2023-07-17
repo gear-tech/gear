@@ -7,7 +7,7 @@ license = "GPL-3.0"
 workspace = "../../"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"]}
+parity-scale-codec = { workspace = true, features = ["derive"]}
 sha2 = { version = "0.10.6", default-features = false }
 
 [build-dependencies]
