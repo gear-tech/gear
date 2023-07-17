@@ -1036,7 +1036,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        message::{ContextSettings, IncomingDispatch, MAX_PAYLOAD_SIZE},
         pages::PageNumber,
     };
 
@@ -1279,6 +1279,8 @@ mod tests {
                 .build(),
         );
 
+        let data = HandlePacket::default();
+
         let fake_handle = 0;
 
         let msg = ext.send_commit(fake_handle, data, 0);
@@ -1286,8 +1288,6 @@ mod tests {
             msg.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
         );
-
-        let data = HandlePacket::default();
 
         let handle = ext.send_init().unwrap();
 
