@@ -3658,7 +3658,6 @@ dependencies = [
 name = "gcore"
 version = "0.2.2"
 dependencies = [
- "galloc",
  "gear-core-errors",
  "gsys",
  "hex-literal 0.3.4",
@@ -4457,6 +4456,13 @@ dependencies = [
  "libgit2-sys",
  "log",
  "url",
+]
+
+[[package]]
+name = "glib-dlmalloc"
+version = "0.0.1"
+dependencies = [
+ "dlmalloc",
 ]
 
 [[package]]

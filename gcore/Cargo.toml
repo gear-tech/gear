@@ -13,7 +13,6 @@ static_assertions.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true
-galloc.workspace = true
 
 [features]
 codec = ["dep:codec", "gear-core-errors/codec"]

@@ -32,8 +32,6 @@
 //! ```
 //! #![no_std]
 //!
-//! extern crate galloc;
-//!
 //! use gcore::msg;
 //!
 //! #[no_mangle]
