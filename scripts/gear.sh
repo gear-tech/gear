@@ -25,7 +25,6 @@ fi
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
@@ -34,12 +33,6 @@ fi
 
 show() {
   rustup show
-
-  bold && printf "node.js\n-------\n\n" && normal
-  node -v
-
-  bold && printf "\nnpm\n---\n\n" && normal
-  npm -v
 }
 
 check_extensions() {
@@ -71,7 +64,6 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear node
     test           test tool
-    coverage       coverage utilities
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
@@ -117,18 +109,13 @@ case "$COMMAND" in
         header "Builder fuzzer crates"
         fuzzer_build "$@"; ;;
 
-      gear-test)
-        header "Building gear test"
-        gear_test_build "$@"; ;;
-
       examples)
-        check_extensions
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+        examples_build "$ROOT_DIR" "$@"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
-        wasm_proc_build; ;;
+        wasm_proc_build "$@"; ;;
 
       examples-proc)
         header "Processing examples via wasm-proc"
@@ -137,6 +124,10 @@ case "$COMMAND" in
       node)
         header "Building gear node"
         node_build "$@"; ;;
+
+      gear-replay)
+        header "Building gear-replay CLI"
+        gear_replay_build "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -153,11 +144,6 @@ case "$COMMAND" in
       gear)
         header "Checking gear workspace"
         gear_check "$@"; ;;
-
-      examples)
-        check_extensions
-        header "Checking gear examples"
-        examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -176,9 +162,8 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
-        check_extensions
-        header "Invoking clippy on gear examples"
-        examples_clippy "$ROOT_DIR"; ;;
+        header "Invoking clippy on gear examples only"
+        examples_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -220,13 +205,6 @@ case "$COMMAND" in
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
-      examples)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear examples formatting"
-          else header "Formatting gear examples"
-        fi
-        format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
-
       doc)
         if [ "$CHECK" = "true" ]
           then header "Checking gear doc formatting"
@@ -249,14 +227,6 @@ case "$COMMAND" in
       wasm)
         header "Initializing WASM environment"
         wasm_init; ;;
-
-      js)
-        header "Syncing JS packages"
-        js_init "$ROOT_DIR"; ;;
-
-      update-js)
-        header "Updating JS packages"
-        js_update "$ROOT_DIR"; ;;
 
       cargo)
         header "Installing cargo extensions '$CARGO_HACK' and(/or) '$CARGO_NEXTEST'"
@@ -311,21 +281,9 @@ case "$COMMAND" in
         header "Running gcli tests"
         gcli_test "$@"; ;;
 
-      js)
-        header "Running js tests"
-        js_test "$ROOT_DIR"; ;;
-
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest "$ROOT_DIR" "$@"; ;;
-
       validators)
         header "Checking validators"
         validators "$ROOT_DIR" "$@"; ;;
-
-      rtest)
-        header "Running node runtime testsuite"
-        rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
       pallet)
         header "Running pallet-gear tests"
@@ -345,32 +303,11 @@ case "$COMMAND" in
 
       doc)
         header "Testing examples in docs"
-        doc_test "$ROOT_DIR/Cargo.toml" "$@";
-        doc_test "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
+        doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
-        exit 1; ;;
-    esac;;
-
-  coverage)
-    case "$SUBCOMMAND" in
-      -h | --help | help)
-        coverage_usage
-        exit; ;;
-
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest_debug "$ROOT_DIR" "$@"; ;;
-
-      rtest)
-        header "Running node runtime testsuite"
-        rtest_debug "$ROOT_DIR"; ;;
-
-      *)
-        header  "Unknown option: '$SUBCOMMAND'"
-        coverage_usage
         exit 1; ;;
     esac;;
 

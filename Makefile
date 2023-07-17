@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test-gear # check-spec
+pre-commit: fmt clippy test
 
 .PHONY: check-spec
 check-spec:
@@ -12,22 +12,10 @@ check-spec:
 
 .PHONY: clean
 clean:
-	@ cargo clean --manifest-path=./Cargo.toml
-	@ cargo clean --manifest-path=./examples/Cargo.toml
-
-.PHONY: clean-examples
-clean-examples:
-	@ rm -rf ./target/wasm32-unknown-unknown
-	@ rm -rvf target/release/build/demo-*
-	@ cargo clean --manifest-path=./examples/Cargo.toml
+	@ cargo clean
+	@ git clean -fdx
 
 # Build section
-.PHONY: all
-all: gear examples
-
-.PHONY: all-release
-all-release: gear-release examples
-
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -36,27 +24,24 @@ gear:
 gear-release:
 	@ ./scripts/gear.sh build gear --release
 
-.PHONY: gear-test
-gear-test:
-	@ ./scripts/gear.sh build gear-test
-
-.PHONY: gear-test-release
-gear-test-release:
-	@ ./scripts/gear.sh build gear-test --release
-
 .PHONY: examples
-examples: build-examples proc-examples
+examples:
+	@ ./scripts/gear.sh build examples
 
-.PHONY: build-examples
-build-examples:
-	@ ./scripts/gear.sh build examples yamls="$(yamls)"
+.PHONY: examples-release
+examples-release:
+	@ ./scripts/gear.sh build examples --release
 
 .PHONY: wasm-proc
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
 
-.PHONY: proc-examples
-proc-examples: wasm-proc
+.PHONY: wasm-proc-release
+wasm-proc-release:
+	@ ./scripts/gear.sh build wasm-proc --release
+
+.PHONY: examples-proc
+examples-proc: wasm-proc-release
 	@ ./scripts/gear.sh build examples-proc
 
 .PHONY: node
@@ -67,10 +52,6 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
-.PHONY: node-release-rtest
-node-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
-
 .PHONY: vara
 vara:
 	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
@@ -79,47 +60,49 @@ vara:
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
-.PHONY: vara-release-rtest
-vara-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
+.PHONY: gear-replay
+gear-replay:
+	@ ./scripts/gear.sh build gear-replay --release
+
+.PHONY: gear-replay-vara-native
+gear-replay-vara-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,vara-native
+
+.PHONY: gear-replay-gear-native
+gear-replay-gear-native:
+	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,gear-native
 
 # Check section
 .PHONY: check
-check: check-gear check-examples
-
-.PHONY: check-release
-check-release: check-gear-release check-examples
-
-.PHONY: check-gear
-check-gear:
+check:
 	@ ./scripts/gear.sh check gear
 
-.PHONY: check-gear-release
-check-gear-release:
+.PHONY: check-release
+check-release:
 	@ ./scripts/gear.sh check gear --release
-
-.PHONY: check-examples
-check-examples:
-	@ ./scripts/gear.sh check examples
 
 # Clippy section
 .PHONY: clippy
 clippy: clippy-gear clippy-examples
 
 .PHONY: clippy-release
-clippy-release: clippy-gear-release clippy-examples
+clippy-release: clippy-gear-release clippy-examples-release
 
 .PHONY: clippy-gear
 clippy-gear:
 	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
+.PHONY: clippy-examples
+clippy-examples:
+	@ ./scripts/gear.sh clippy examples --all-targets
+
 .PHONY: clippy-gear-release
 clippy-gear-release:
 	@ ./scripts/gear.sh clippy gear --release
 
-.PHONY: clippy-examples
-clippy-examples:
-	@ ./scripts/gear.sh clippy examples
+.PHONY: clippy-examples-release
+clippy-examples-release:
+	@ ./scripts/gear.sh clippy examples --all-targets --release
 
 # Docker section
 .PHONY: docker-run
@@ -128,10 +111,10 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-examples fmt-doc
+fmt: fmt-gear fmt-doc
 
 .PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-examples-check fmt-doc-check
+fmt-check: fmt-gear-check fmt-doc-check
 
 .PHONY: fmt-gear
 fmt-gear:
@@ -140,14 +123,6 @@ fmt-gear:
 .PHONY: fmt-gear-check
 fmt-gear-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-examples
-fmt-examples:
-	@ ./scripts/gear.sh format examples
-
-.PHONY: fmt-examples-check
-fmt-examples-check:
-	@ ./scripts/gear.sh format examples --check
 
 .PHONY: fmt-doc
 fmt-doc:
@@ -159,19 +134,11 @@ fmt-doc-check:
 
 # Init section
 .PHONY: init
-init: init-wasm init-cargo init-js
+init: init-wasm init-cargo
 
 .PHONY: init-wasm
 init-wasm:
 	@ ./scripts/gear.sh init wasm
-
-.PHONY: init-js
-init-js:
-	@ ./scripts/gear.sh init js
-
-.PHONY: update-js
-update-js:
-	@ ./scripts/gear.sh init update-js
 
 .PHONY: init-cargo
 init-cargo:
@@ -212,24 +179,24 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test # \
-	There should be no release builds (e.g. `rtest`) for fast checking.
-test: test-gear test-js gtest
+	There should be no release builds to keep checks fast.
+test: test-gear
+
+.PHONY: test-release
+test-release: test-gear-release
 
 .PHONY: test-doc
 test-doc:
 	@ ./scripts/gear.sh test doc
 
-.PHONY: test-release
-test-release: test-gear-release test-js gtest rtest
-
 .PHONY: test-gear
-test-gear: init-js examples # \
+test-gear: #\
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples # \
+test-gear-release: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
@@ -238,6 +205,10 @@ test-gear-release: init-js examples # \
 test-gsdk: node-release
 	@ ./scripts/gear.sh test gsdk
 
+.PHONY: test-gsdk-release
+test-gsdk-release: node-release
+	@ ./scripts/gear.sh test gsdk --release
+
 .PHONY: test-gcli
 test-gcli: node
 	@ ./scripts/gear.sh test gcli
@@ -245,22 +216,6 @@ test-gcli: node
 .PHONY: test-gcli-release
 test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
-
-.PHONY: test-js
-test-js: init-js
-	@ ./scripts/gear.sh test js
-
-.PHONY: gtest
-gtest: init-js gear-test-release examples
-	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
-
-.PHONY: rtest
-rtest: init-js node-release-rtest examples
-	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
-
-.PHONY: rtest-vara
-rtest-vara: init-js vara-release-rtest examples
-	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:
@@ -271,8 +226,12 @@ test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
 .PHONY: test-client
-test-client: node-release examples
-	@ ./scripts/gear.sh test client --run-node
+test-client: node-release
+	@ ./scripts/gear.sh test client
+
+.PHONY: test-client-release
+test-client-release: node-release
+	@ ./scripts/gear.sh test client --release
 
 .PHONY: test-syscalls-integrity
 test-syscalls-integrity:
@@ -301,7 +260,7 @@ fuzz:
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
 
-.PHONY: kill
+.PHONY: kill-gear
 kill:
 	@ pkill -f 'gear |gear$' -9
 

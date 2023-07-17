@@ -325,10 +325,12 @@ mod tests {
         // Setting up variables for test
         let system = System::new();
         let restricted_user_id = 42;
-        Program::from_file_with_id(
+
+        Program::from_opt_and_meta_code_with_id(
             &system,
             restricted_user_id,
-            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+            demo_futures_unordered::WASM_BINARY.to_vec(),
+            None,
         );
 
         // Getting user id that is already registered as a program

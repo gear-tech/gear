@@ -1,0 +1,24 @@
+[package]
+name = "demo-btree"
+version = "0.1.0"
+authors.workspace = true
+edition = "2021"
+license = "GPL-3.0"
+workspace = "../../"
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[lib]
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]

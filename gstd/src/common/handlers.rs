@@ -28,8 +28,7 @@
 #[cfg(target_arch = "wasm32")]
 use {crate::ext, alloc::alloc::AllocErrorPanicPayload, core::panic::PanicInfo};
 
-#[cfg(not(feature = "debug"))]
-#[cfg(not(debug_assertions))]
+#[cfg(not(any(feature = "debug", debug_assertions)))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {

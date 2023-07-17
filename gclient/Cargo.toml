@@ -41,6 +41,7 @@ demo-capacitor.workspace = true
 demo-constructor.workspace = true
 demo-distributor.workspace = true
 demo-meta-io.workspace = true
+demo-new-meta.workspace = true
 demo-mul-by-const.workspace = true
 demo-node.workspace = true
 demo-program-factory.workspace = true

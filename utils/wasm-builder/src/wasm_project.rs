@@ -402,7 +402,11 @@ extern "C" fn metahash() {{
             self.postprocess_opt(&original_wasm_path, file_base_name)?;
         }
 
-        self.force_rerun_on_next_run(&original_wasm_path)
+        if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {
+            self.force_rerun_on_next_run(&original_wasm_path)?;
+        }
+
+        Ok(())
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {

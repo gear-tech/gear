@@ -77,9 +77,6 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Examples"
-        run: ./scripts/gear.sh format examples --check
-
       - name: "Check formatting: Doc"
         run: ./scripts/gear.sh format doc --check
 
@@ -87,7 +84,7 @@ jobs:
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
       - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples
+        run: ./scripts/gear.sh clippy examples --all-targets --locked
 
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test doc
@@ -132,16 +129,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |
@@ -167,9 +156,6 @@ jobs:
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
 
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
       - name: "ACTIONS: Setup environment variable"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
@@ -186,44 +172,22 @@ jobs:
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
       - name: "Test: Gear pallet tests with lazy pages"
-        run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+        run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
+        run: ./scripts/gear.sh test gsdk --release
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
-
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
-
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
+        run: ./scripts/gear.sh test client --release
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
@@ -257,7 +221,6 @@ jobs:
           --ignore "examples/*"
           --ignore "utils/*"
           --ignore "target/*"
-          --ignore "gear-test/*"
           --ignore "node/*"
           --ignore "program/*"
           --ignore "pallets/gear/src/migration.rs"
@@ -311,10 +274,8 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
           strip artifact/gear || true
-          strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
@@ -394,43 +355,19 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
+        run: ./scripts/gear.sh test gsdk --release
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
+        run: ./scripts/gear.sh test client --release
 
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages
@@ -467,16 +404,8 @@ jobs:
       - name: "Install: cargo config"
         run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
 
       - name: "Install: Build deps"
         run: |
@@ -493,16 +422,6 @@ jobs:
           sudo apt install --install-recommends -y winehq-stable winetricks
           wineboot
           winetricks win10
-
-      - name: "Install: Node.js in Wine"
-        run: |
-          wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
-          wget https://nodejs.org/download/release/v16.19.1/node-v16.19.1-win-x64.zip
-          unzip node-v16.19.1-win-x64.zip
-          node_js=$(winepath -w $(pwd)/node-v16.19.1-win-x64)
-          wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
-        env:
-          WINEDEBUG: "-all"
 
       - name: "Install: LLVM"
         run: |
@@ -530,15 +449,6 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
       # These tests randomly stops responding
 
       #- name: "Test: Client tests"
@@ -548,19 +458,10 @@ jobs:
       #  env:
       #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo xwin build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
       - name: "Test: Lazy pages"
         run: >-
           cargo xwin test
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages
@@ -621,9 +522,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run
-          -p pallet-gear
-          -p pallet-gear-debug
-          -p pallet-gear-payment
+          -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           --features=lazy-pages

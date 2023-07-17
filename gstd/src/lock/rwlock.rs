@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::access::AccessQueue;
-use crate::MessageId;
+use crate::{exec, msg, MessageId};
 use core::{
     cell::{Cell, UnsafeCell},
     future::Future,
@@ -167,10 +167,25 @@ unsafe impl<T> Sync for RwLock<T> {}
 /// [`read`](RwLock::read) method on [`RwLock`].
 pub struct RwLockReadGuard<'a, T> {
     lock: &'a RwLock<T>,
+    holder_msg_id: MessageId,
+}
+
+impl<'a, T> RwLockReadGuard<'a, T> {
+    fn ensure_access_by_holder(&self) {
+        let current_msg_id = msg::id();
+        if self.holder_msg_id != current_msg_id {
+            panic!(
+                "Read lock guard held by message 0x{} is being accessed by message 0x{}",
+                hex::encode(self.holder_msg_id),
+                hex::encode(current_msg_id)
+            );
+        }
+    }
 }
 
 impl<'a, T> Drop for RwLockReadGuard<'a, T> {
     fn drop(&mut self) {
+        self.ensure_access_by_holder();
         unsafe {
             let readers = &self.lock.readers;
             let readers_count = readers.get().saturating_sub(1);
@@ -181,7 +196,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
                 *self.lock.locked.get() = None;
 
                 if let Some(message_id) = self.lock.queue.dequeue() {
-                    crate::exec::wake(message_id).expect("Failed to wake the message");
+                    exec::wake(message_id).expect("Failed to wake the message");
                 }
             }
         }
@@ -190,6 +205,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
 
 impl<'a, T> AsRef<T> for RwLockReadGuard<'a, T> {
     fn as_ref(&self) -> &'a T {
+        self.ensure_access_by_holder();
         unsafe { &*self.lock.value.get() }
     }
 }
@@ -198,21 +214,8 @@ impl<T> Deref for RwLockReadGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
+        self.ensure_access_by_holder();
         unsafe { &*self.lock.value.get() }
-    }
-}
-
-impl<T> Deref for RwLockWriteGuard<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        unsafe { &*self.lock.value.get() }
-    }
-}
-
-impl<T> DerefMut for RwLockWriteGuard<'_, T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.lock.value.get() }
     }
 }
 
@@ -223,14 +226,43 @@ impl<T> DerefMut for RwLockWriteGuard<'_, T> {
 /// [`write`](RwLock::write) method on [`RwLock`].
 pub struct RwLockWriteGuard<'a, T> {
     lock: &'a RwLock<T>,
+    holder_msg_id: MessageId,
+}
+
+impl<'a, T> RwLockWriteGuard<'a, T> {
+    fn ensure_access_by_holder(&self) {
+        let current_msg_id = msg::id();
+        if self.holder_msg_id != current_msg_id {
+            panic!(
+                "Write lock guard held by message 0x{} is being accessed by message 0x{}",
+                hex::encode(self.holder_msg_id),
+                hex::encode(current_msg_id)
+            );
+        }
+    }
 }
 
 impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
     fn drop(&mut self) {
+        self.ensure_access_by_holder();
         unsafe {
-            *self.lock.locked.get() = None;
+            let locked_by = &mut *self.lock.locked.get();
+            let owner_msg_id = locked_by.unwrap_or_else(|| {
+                panic!(
+                    "Write lock guard held by message 0x{} is being dropped for non-existing lock",
+                    hex::encode(self.holder_msg_id),
+                );
+            });
+            if owner_msg_id != self.holder_msg_id {
+                panic!(
+                    "Write lock guard held by message 0x{} does not match lock owner message 0x{}",
+                    hex::encode(self.holder_msg_id),
+                    hex::encode(owner_msg_id),
+                );
+            }
+            *locked_by = None;
             if let Some(message_id) = self.lock.queue.dequeue() {
-                crate::exec::wake(message_id).expect("Failed to wake the message");
+                exec::wake(message_id).expect("Failed to wake the message");
             }
         }
     }
@@ -238,12 +270,30 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
 
 impl<'a, T> AsRef<T> for RwLockWriteGuard<'a, T> {
     fn as_ref(&self) -> &'a T {
+        self.ensure_access_by_holder();
         unsafe { &*self.lock.value.get() }
     }
 }
 
 impl<'a, T> AsMut<T> for RwLockWriteGuard<'a, T> {
     fn as_mut(&mut self) -> &'a mut T {
+        self.ensure_access_by_holder();
+        unsafe { &mut *self.lock.value.get() }
+    }
+}
+
+impl<T> Deref for RwLockWriteGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.ensure_access_by_holder();
+        unsafe { &*self.lock.value.get() }
+    }
+}
+
+impl<T> DerefMut for RwLockWriteGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.ensure_access_by_holder();
         unsafe { &mut *self.lock.value.get() }
     }
 }
@@ -309,12 +359,22 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
         let readers = &self.lock.readers;
         let readers_count = readers.get().saturating_add(1);
 
+        let current_msg_id = msg::id();
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && readers_count <= READERS_LIMIT {
             readers.replace(readers_count);
-            Poll::Ready(RwLockReadGuard { lock: self.lock })
+            Poll::Ready(RwLockReadGuard {
+                lock: self.lock,
+                holder_msg_id: current_msg_id,
+            })
         } else {
-            self.lock.queue.enqueue(crate::msg::id());
+            // If the message is already in the access queue, and we come here,
+            // it means the message has just been woken up from the waitlist.
+            // In that case we do not want to register yet another access attempt
+            // and just go back to the waitlist.
+            if !self.lock.queue.contains(&current_msg_id) {
+                self.lock.queue.enqueue(current_msg_id);
+            }
             Poll::Pending
         }
     }
@@ -324,12 +384,22 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let current_msg_id = msg::id();
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && self.lock.readers.get() == 0 {
-            *lock = Some(crate::msg::id());
-            Poll::Ready(RwLockWriteGuard { lock: self.lock })
+            *lock = Some(current_msg_id);
+            Poll::Ready(RwLockWriteGuard {
+                lock: self.lock,
+                holder_msg_id: current_msg_id,
+            })
         } else {
-            self.lock.queue.enqueue(crate::msg::id());
+            // If the message is already in the access queue, and we come here,
+            // it means the message has just been woken up from the waitlist.
+            // In that case we do not want to register yet another access attempt
+            // and just go back to the waitlist.
+            if !self.lock.queue.contains(&current_msg_id) {
+                self.lock.queue.enqueue(current_msg_id);
+            }
             Poll::Pending
         }
     }

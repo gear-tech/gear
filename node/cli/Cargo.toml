@@ -24,7 +24,7 @@ futures.workspace = true
 
 # Gear
 runtime-primitives.workspace = true
-gear-runtime-test-cli = { workspace = true, optional = true }
+gear-runtime-interface = { workspace = true, features = ["std"] }
 service.workspace = true
 pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
@@ -63,24 +63,21 @@ substrate-build-script-utils.workspace = true
 default = ["gear-native", "vara-native", "lazy-pages"]
 gear-native = [
 	"service/gear-native",
-	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
 ]
 vara-native = [
 	"service/vara-native",
-	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
 	"pallet-gear-staking-rewards",
 ]
 lazy-pages = [
 	"service/lazy-pages",
-	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
-    "frame-benchmarking",
+	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
@@ -95,5 +92,4 @@ try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
 ]
-runtime-test = ["gear-runtime-test-cli"]
 cli = [ "gcli" ]

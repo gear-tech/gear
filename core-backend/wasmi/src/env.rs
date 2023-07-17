@@ -27,8 +27,9 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
+    runtime::RunFallibleError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
+    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
@@ -96,7 +97,7 @@ impl<Ext: Externalities> GlobalsAccessProvider<Ext> {
 }
 
 impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
-    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_ref()?;
@@ -109,7 +110,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_mut()?;
@@ -126,9 +127,9 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::UnrecoverableError: BackendExternalitiesError,
-    EnvExt::FallibleError: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
+    EnvExt::UnrecoverableError: BackendSyscallError,
+    RunFallibleError: From<EnvExt::FallibleError>,
+    EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;

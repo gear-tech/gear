@@ -18,10 +18,6 @@ test_usage() {
     gear           run workspace tests
     gsdk           run gsdk package tests
     gcli           run gcli package tests
-    js             run metadata js tests
-    gtest          run gear-test testing tool,
-                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
-    rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -32,84 +28,48 @@ test_usage() {
 EOF
 }
 
-test_run_node() {
-  $EXE_RUNNER "$TARGET_DIR/release/gear$EXE_EXTENSION" "$@"
-}
-
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --no-fail-fast
+    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --no-fail-fast "$@"
   else
-    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
+    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --profile ci --no-fail-fast "$@"
   fi
 }
 
 gsdk_test() {
-  $CARGO test -p gsdk
-  $CARGO test -p gsdk --features vara-testing
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gsdk --no-fail-fast "$@"
+    $CARGO test -p gsdk --no-fail-fast --features vara-testing "$@"
+  else
+    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
+  fi
 }
 
 gcli_test() {
-  cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
-  cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
-}
-
-# $1 - ROOT DIR
-js_test() {
-  node "$1"/utils/wasm-proc/metadata-js/test.js
-}
-
-# $1 - ROOT DIR
-# $2 - yamls list (optional)
-gtest() {
-  ROOT_DIR="$1"
-  shift
-
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gcli --no-fail-fast "$@"
+    $CARGO test -p gcli --features vara-testing --no-fail-fast "$@"
+  else
+    cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
   fi
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  $ROOT_DIR/target/release/gear-test $YAMLS "$@"
-}
-
-# $1 - ROOT DIR
-# $2 - TARGET DIR
-# $3 - runtime str (gear / vara)
-# $4 - yamls list (optional)
-rtest() {
-  ROOT_DIR="$1"
-  TARGET_DIR="$2"
-  RUNTIME_STR="$3"
-
-  YAMLS=$(parse_yamls_list "$4")
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
-  fi
-
-  test_run_node runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
-  cargo test -p pallet-gear "$@"
-  cargo test -p pallet-gear-debug "$@"
-  cargo test -p pallet-gear-payment "$@"
-  cargo test -p pallet-gear-messenger "$@"
-  cargo test -p pallet-gear-gas "$@"
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p "pallet-*" --no-fail-fast "$@"
+  else
+    cargo nextest run -p "pallet-*" --profile ci --no-fail-fast "$@"
+  fi
 }
 
 client_tests() {
-  RUST_TEST_THREADS=1 $CARGO test -p gclient
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gclient --no-fail-fast "$@"
+  else
+    cargo nextest run -p gclient --no-fail-fast "$@"
+  fi
 }
 
 validators() {
@@ -131,12 +91,12 @@ run_fuzzer() {
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
+  $CARGO test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks --no-fail-fast "$@"
 }
 
 doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
 }
