@@ -1282,7 +1282,10 @@ mod tests {
         let fake_handle = 0;
 
         let msg = ext.send_commit(fake_handle, data, 0);
-        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds)));
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
 
         let data = HandlePacket::default();
 
@@ -1292,10 +1295,18 @@ mod tests {
         assert!(msg.is_ok());
 
         let msg = ext.send_commit(handle, data.clone(), 0);
-        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess)));
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
 
         let handle = ext.send_init();
-        assert_eq!(handle.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutgoingMessagesAmountLimitExceeded)));
+        assert_eq!(
+            handle.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutgoingMessagesAmountLimitExceeded
+            ))
+        );
     }
 
     #[test]
@@ -1323,7 +1334,10 @@ mod tests {
         let fake_handle = 0;
 
         let res = ext.send_push(fake_handle, &[0, 0, 0]);
-        assert_eq!(res.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds)));
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
 
         let handle = ext.send_init().unwrap();
 
@@ -1347,11 +1361,20 @@ mod tests {
         assert!(msg.is_ok());
 
         let res = ext.send_push(handle, &[7, 8, 9]);
-        assert_eq!(res.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess)));
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
 
         let (outcome, _) = ext.context.message_context.drain();
-        let ContextOutcomeDrain { mut outgoing_dispatches, .. } = outcome.drain();
-        let dispatch = outgoing_dispatches.pop().map(|(dispatch, _, _)| dispatch).expect("Send commit was ok");
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
 
         assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
     }
