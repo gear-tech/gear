@@ -20,7 +20,6 @@
 //!
 //! Sandboxing is backed by wasmi and wasmer, depending on the configuration.
 
-#[cfg(feature = "host-sandbox")]
 mod wasmer_backend;
 mod wasmi_backend;
 
@@ -35,7 +34,6 @@ use crate::{
     util,
 };
 
-#[cfg(feature = "host-sandbox")]
 use self::wasmer_backend::{
     get_global as wasmer_get_global, instantiate as wasmer_instantiate, invoke as wasmer_invoke,
     new_memory as wasmer_new_memory, set_global as wasmer_set_global, Backend as WasmerBackend,
@@ -186,7 +184,6 @@ enum BackendInstance {
     Wasmi(wasmi::ModuleRef),
 
     /// Wasmer module instance
-    #[cfg(feature = "host-sandbox")]
     Wasmer(wasmer::Instance),
 }
 
@@ -225,7 +222,6 @@ impl SandboxInstance {
                 wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
             }
 
-            #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {
                 wasmer_invoke(wasmer_instance, export_name, args, sandbox_context)
             }
@@ -239,7 +235,6 @@ impl SandboxInstance {
         match &self.backend_instance {
             BackendInstance::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
 
-            #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => wasmer_get_global(wasmer_instance, name),
         }
     }
@@ -255,7 +250,6 @@ impl SandboxInstance {
         match &self.backend_instance {
             BackendInstance::Wasmi(wasmi_instance) => wasmi_set_global(wasmi_instance, name, value),
 
-            #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {
                 wasmer_set_global(wasmer_instance, name, value)
             }
@@ -369,11 +363,7 @@ pub enum SandboxBackend {
     Wasmi,
 
     /// Wasmer environment
-    #[cfg(feature = "host-sandbox")]
     Wasmer,
-
-    /// Use wasmer backend if available. Fall back to wasmi otherwise.
-    TryWasmer,
 }
 
 /// Memory reference in terms of a selected backend
@@ -383,7 +373,6 @@ pub enum Memory {
     Wasmi(WasmiMemoryWrapper),
 
     /// Wasmer memory refernce
-    #[cfg(feature = "host-sandbox")]
     Wasmer(WasmerMemoryWrapper),
 }
 
@@ -393,13 +382,11 @@ impl Memory {
         match self {
             Memory::Wasmi(memory) => Some(memory.clone()),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(_) => None,
         }
     }
 
     /// View as wasmer memory
-    #[cfg(feature = "host-sandbox")]
     pub fn as_wasmer(&self) -> Option<WasmerMemoryWrapper> {
         match self {
             Memory::Wasmer(memory) => Some(memory.clone()),
@@ -413,7 +400,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
         }
     }
@@ -422,7 +408,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read_into(source_addr, destination),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => {
                 sandboxed_memory.read_into(source_addr, destination)
             }
@@ -433,7 +418,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
         }
     }
@@ -442,7 +426,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
         }
     }
@@ -451,7 +434,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_size(),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_size(),
         }
     }
@@ -460,7 +442,6 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.get_buff(),
 
-            #[cfg(feature = "host-sandbox")]
             Memory::Wasmer(sandboxed_memory) => sandboxed_memory.get_buff(),
         }
     }
@@ -472,7 +453,6 @@ enum BackendContext {
     Wasmi,
 
     /// Wasmer specific context
-    #[cfg(feature = "host-sandbox")]
     Wasmer(WasmerBackend),
 }
 
@@ -481,11 +461,7 @@ impl BackendContext {
         match backend {
             SandboxBackend::Wasmi => BackendContext::Wasmi,
 
-            #[cfg(not(feature = "host-sandbox"))]
-            SandboxBackend::TryWasmer => BackendContext::Wasmi,
-
-            #[cfg(feature = "host-sandbox")]
-            SandboxBackend::Wasmer | SandboxBackend::TryWasmer => {
+            SandboxBackend::Wasmer => {
                 BackendContext::Wasmer(WasmerBackend::new())
             }
         }
@@ -554,7 +530,6 @@ impl<DT: Clone> Store<DT> {
         let memory = match &backend_context {
             BackendContext::Wasmi => wasmi_new_memory(initial, maximum)?,
 
-            #[cfg(feature = "host-sandbox")]
             BackendContext::Wasmer(context) => wasmer_new_memory(context, initial, maximum)?,
         };
 
@@ -661,7 +636,6 @@ impl<DT: Clone> Store<DT> {
         let sandbox_instance = match self.backend_context {
             BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
 
-            #[cfg(feature = "host-sandbox")]
             BackendContext::Wasmer(ref context) => {
                 wasmer_instantiate(context, wasm, guest_env, sandbox_context)?
             }

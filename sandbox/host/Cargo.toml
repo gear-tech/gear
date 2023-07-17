@@ -17,7 +17,7 @@ codec = { workspace = true, features = ["std"] }
 environmental = "1.1.3"
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmer = { version = "2.2", features = ["singlepass"], optional = true }
+wasmer = { version = "2.2", features = ["singlepass"] }
 wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
@@ -27,8 +27,4 @@ once_cell = "1.17.1"
 tempfile = "3.5.0"
 
 [features]
-default = ["host-sandbox"]
-host-sandbox = [
-	"wasmer",
-	"wasmer-cache",
-]
+default = ["wasmer-cache"]
