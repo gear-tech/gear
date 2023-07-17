@@ -1040,14 +1040,56 @@ mod tests {
         pages::PageNumber,
     };
 
+    struct MessageContextBuilder {
+        incoming_dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        sending_fee: u64,
+        scheduled_sending_fee: u64,
+        waiting_fee: u64,
+        waking_fee: u64,
+        reservation_fee: u64,
+        outgoing_limit: u32,
+    }
+
+    impl MessageContextBuilder {
+        fn new() -> Self {
+            Self {
+                incoming_dispatch: Default::default(),
+                program_id: Default::default(),
+                sending_fee: 0,
+                scheduled_sending_fee: 0,
+                waiting_fee: 0,
+                waking_fee: 0,
+                reservation_fee: 0,
+                outgoing_limit: 0,
+            }
+        }
+
+        fn build(self) -> MessageContext {
+            MessageContext::new(
+                self.incoming_dispatch,
+                self.program_id,
+                ContextSettings::new(
+                    self.sending_fee,
+                    self.scheduled_sending_fee,
+                    self.waiting_fee,
+                    self.waking_fee,
+                    self.reservation_fee,
+                    self.outgoing_limit,
+                ),
+            )
+        }
+
+        fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {
+            self.outgoing_limit = outgoing_limit;
+            self
+        }
+    }
+
     struct ProcessorContextBuilder(ProcessorContext);
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            Self::new_with_context_settings(ContextSettings::new(0, 0, 0, 0, 0, 0))
-        }
-
-        fn new_with_context_settings(settings: ContextSettings) -> Self {
             let default_pc = ProcessorContext {
                 gas_counter: GasCounter::new(0),
                 gas_allowance_counter: GasAllowanceCounter::new(0),
@@ -1066,7 +1108,7 @@ mod tests {
                 message_context: MessageContext::new(
                     Default::default(),
                     Default::default(),
-                    settings,
+                    ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),
                 max_pages: 512.into(),
@@ -1091,6 +1133,12 @@ mod tests {
 
         fn build(self) -> ProcessorContext {
             self.0
+        }
+
+        fn with_message_context(mut self, context: MessageContext) -> Self {
+            self.0.message_context = context;
+
+            self
         }
 
         fn with_gas(mut self, gas_counter: GasCounter) -> Self {
@@ -1217,130 +1265,95 @@ mod tests {
     }
 
     #[test]
-    fn test_send_limit() {
+    /// This function tests:
+    ///
+    /// - `send_commit` on valid handle
+    /// - `send_commit` on invalid handle
+    /// - `send_commit` on used handle
+    /// - `send_init` after limit is exceeded
+    ///
+    fn test_send_commit() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
-                0, 0, 0, 0, 0, 2,
-            ))
-            .build(),
-        );
-
-        let handle = ext.send_init().unwrap();
-
-        let data = HandlePacket::default();
-
-        let msg = ext.send_commit(handle, data.clone(), 0);
-        msg.unwrap();
-
-        let handle = ext.send_init().unwrap();
-
-        let msg = ext.send_commit(handle, data, 0);
-        msg.unwrap();
-
-        // The last handle should not be created since we set a limit of 2
-        let handle = ext.send_init();
-        handle.unwrap_err();
-    }
-
-    #[test]
-    fn test_handle_validity() {
-        let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
-                0,
-                0,
-                0,
-                0,
-                0,
-                u32::MAX,
-            ))
-            .build(),
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().with_outgoing_limit(1).build())
+                .build(),
         );
 
         let fake_handle = 0;
 
-        let data = HandlePacket::default();
+        let msg = ext.send_commit(fake_handle, data, 0);
+        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds)));
 
-        let msg = ext.send_commit(fake_handle, data.clone(), 0);
-        msg.unwrap_err();
+        let data = HandlePacket::default();
 
         let handle = ext.send_init().unwrap();
 
         let msg = ext.send_commit(handle, data.clone(), 0);
-        msg.unwrap();
+        assert!(msg.is_ok());
 
-        //Using handle twice should fail
-        let msg = ext.send_commit(handle, data, 0);
-        msg.unwrap_err();
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert_eq!(msg.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess)));
+
+        let handle = ext.send_init();
+        assert_eq!(handle.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutgoingMessagesAmountLimitExceeded)));
     }
 
     #[test]
+    /// This function tests:
+    ///
+    /// - `send_push` on non-existent handle
+    /// - `send_push` on valid handle
+    /// - `send_push` on used handle
+    /// - `send_push` with too large payload
+    /// - `send_push` data is added to buffer
+    ///
     fn test_send_push() {
         let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
-                0,
-                0,
-                0,
-                0,
-                0,
-                u32::MAX,
-            ))
-            .build(),
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
         );
 
         let data = HandlePacket::default();
 
-        let handle = ext.send_init().unwrap();
+        let fake_handle = 0;
 
-        let msg = ext.send_commit(handle, data, 0);
-        msg.unwrap();
-
-        let extra = ext.send_push(handle, &[]);
-        match extra {
-            Ok(_) => {}
-            //If it is a "late access", it can be ignored, since it means the message was already
-            // sent and cannot be changed, but the handle was valid
-            Err(FallibleExtError::Core(FallibleExtErrorCore::Message(
-                MessageError::LateAccess,
-            ))) => {}
-            Err(e) => {
-                panic!("{:?}", e);
-            }
-        }
-    }
-
-    #[test]
-    fn test_payload_size() {
-        let mut ext = Ext::new(
-            ProcessorContextBuilder::new_with_context_settings(ContextSettings::new(
-                0,
-                0,
-                0,
-                0,
-                0,
-                u32::MAX,
-            ))
-            .build(),
-        );
-
-        let data = HandlePacket::new(ProgramId::default(), Payload::filled_with(0), 0);
+        let res = ext.send_push(fake_handle, &[0, 0, 0]);
+        assert_eq!(res.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds)));
 
         let handle = ext.send_init().unwrap();
 
-        let msg = ext.send_commit(handle, data, 0);
-        msg.unwrap();
+        let res = ext.send_push(handle, &[1, 2, 3]);
+        assert!(res.is_ok());
 
-        //Avoid any late accesses by making new handle
-        let handle = ext.send_init().unwrap();
+        let res = ext.send_push(handle, &[4, 5, 6]);
+        assert!(res.is_ok());
 
-        let data = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
 
-        let msg = ext.send_push(handle, &data);
+        let res = ext.send_push(handle, &large_payload);
         assert_eq!(
-            msg.unwrap_err(),
+            res.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(
                 MessageError::MaxMessageSizeExceed
             ))
         );
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push(handle, &[7, 8, 9]);
+        assert_eq!(res.unwrap_err(), FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess)));
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain { mut outgoing_dispatches, .. } = outcome.drain();
+        let dispatch = outgoing_dispatches.pop().map(|(dispatch, _, _)| dispatch).expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
     }
 
     mod property_tests {
