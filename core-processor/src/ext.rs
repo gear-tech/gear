@@ -1283,7 +1283,7 @@ mod tests {
 
         let fake_handle = 0;
 
-        let msg = ext.send_commit(fake_handle, data, 0);
+        let msg = ext.send_commit(fake_handle, data.clone(), 0);
         assert_eq!(
             msg.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
@@ -1294,7 +1294,7 @@ mod tests {
         let msg = ext.send_commit(handle, data.clone(), 0);
         assert!(msg.is_ok());
 
-        let msg = ext.send_commit(handle, data.clone(), 0);
+        let msg = ext.send_commit(handle, data, 0);
         assert_eq!(
             msg.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
