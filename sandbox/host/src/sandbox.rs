@@ -34,15 +34,17 @@ use crate::{
     util,
 };
 
-use self::wasmer_backend::{
-    get_global as wasmer_get_global, instantiate as wasmer_instantiate, invoke as wasmer_invoke,
-    new_memory as wasmer_new_memory, set_global as wasmer_set_global, Backend as WasmerBackend,
-    MemoryWrapper as WasmerMemoryWrapper,
-};
-use self::wasmi_backend::{
-    get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
-    new_memory as wasmi_new_memory, set_global as wasmi_set_global,
-    MemoryWrapper as WasmiMemoryWrapper,
+use self::{
+    wasmer_backend::{
+        get_global as wasmer_get_global, instantiate as wasmer_instantiate,
+        invoke as wasmer_invoke, new_memory as wasmer_new_memory, set_global as wasmer_set_global,
+        Backend as WasmerBackend, MemoryWrapper as WasmerMemoryWrapper,
+    },
+    wasmi_backend::{
+        get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
+        new_memory as wasmi_new_memory, set_global as wasmi_set_global,
+        MemoryWrapper as WasmiMemoryWrapper,
+    },
 };
 
 pub use gear_sandbox_env as env;
@@ -461,9 +463,7 @@ impl BackendContext {
         match backend {
             SandboxBackend::Wasmi => BackendContext::Wasmi,
 
-            SandboxBackend::Wasmer => {
-                BackendContext::Wasmer(WasmerBackend::new())
-            }
+            SandboxBackend::Wasmer => BackendContext::Wasmer(WasmerBackend::new()),
         }
     }
 }
