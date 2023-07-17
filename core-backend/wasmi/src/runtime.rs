@@ -204,7 +204,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.manager, &mut memory, &mut gas_left);
 
-        let min = self.host_state_mut().ext.define_actual();
+        let min = gas_left.gas.min(gas_left.allowance);
         self.host_state_mut().ext.decrease_to(min);
         res
     }
