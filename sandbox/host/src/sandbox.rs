@@ -253,7 +253,7 @@ impl SandboxInstance {
         match &self.backend_instance {
             BackendInstance::Wasmi {
                 exports, globals, ..
-            } => wasmi_set_global(exports, globals.clone(), name, value),
+            } => wasmi_set_global(exports, globals, name, value),
 
             #[cfg(feature = "host-sandbox")]
             BackendInstance::Wasmer(wasmer_instance) => {

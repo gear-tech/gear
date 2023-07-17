@@ -44,6 +44,7 @@ thread_local! {
     static WASMI_CALLER: RefCell<Option<wasmi::Caller<'static, ()>>> = RefCell::new(None);
 }
 
+#[must_use]
 struct WasmiCallerSetter(());
 
 impl WasmiCallerSetter {
@@ -481,7 +482,7 @@ pub fn get_global(exports: &Exports, globals: &Globals, name: &str) -> Option<Va
 /// Set global value by name
 pub fn set_global(
     exports: &Exports,
-    mut globals: Globals,
+    globals: &Globals,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {

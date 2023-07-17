@@ -13910,7 +13910,7 @@ dependencies = [
 [[package]]
 name = "wasmi"
 version = "0.30.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#15274281b5ddcf555c1ad82af7f8f16fbc5d0a2c"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#b9fa6e0cbb0e9af46c601d4b7e74a8791f9f18a1"
 dependencies = [
  "intx",
  "smallvec",
@@ -13931,7 +13931,7 @@ dependencies = [
 [[package]]
 name = "wasmi_arena"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#15274281b5ddcf555c1ad82af7f8f16fbc5d0a2c"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#b9fa6e0cbb0e9af46c601d4b7e74a8791f9f18a1"
 
 [[package]]
 name = "wasmi_core"
@@ -13963,7 +13963,7 @@ dependencies = [
 [[package]]
 name = "wasmi_core"
 version = "0.12.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#15274281b5ddcf555c1ad82af7f8f16fbc5d0a2c"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-modify-globals#b9fa6e0cbb0e9af46c601d4b7e74a8791f9f18a1"
 dependencies = [
  "downcast-rs",
  "libm 0.2.6",
