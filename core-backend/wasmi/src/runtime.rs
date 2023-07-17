@@ -197,7 +197,10 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         ) -> Result<R, MemoryAccessError>,
     {
         let min = self.host_state_mut().ext.define_actual();
-        let mut gas_left = GasLeft { gas: min, allowance: min };
+        let mut gas_left = GasLeft {
+            gas: min,
+            allowance: min,
+        };
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 

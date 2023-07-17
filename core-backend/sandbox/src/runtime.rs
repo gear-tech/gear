@@ -150,7 +150,10 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
         ) -> Result<R, MemoryAccessError>,
     {
         let min = self.ext.define_actual();
-        let mut gas_left = GasLeft { gas: min, allowance: min };
+        let mut gas_left = GasLeft {
+            gas: min,
+            allowance: min,
+        };
 
         // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
