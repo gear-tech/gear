@@ -20,8 +20,8 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
 use gstd::{prelude::*, ActorId};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
