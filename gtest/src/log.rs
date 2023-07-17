@@ -161,6 +161,10 @@ impl Log {
             panic!("Payload was already set for this log");
         }
 
+        if let Some(ReplyCode::Success(SuccessReplyReason::Auto)) = self.reply_code {
+            panic!("Cannot set payload for auto reply");
+        }
+
         self.payload = Some(payload.as_ref().to_vec().try_into().unwrap());
 
         self
