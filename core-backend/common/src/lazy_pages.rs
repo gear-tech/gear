@@ -100,6 +100,8 @@ pub trait GlobalsAccessor {
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
 #[codec(crate = scale)]
 #[repr(i64)]
+// TODO: consider removal of two exceed options in favor of one global.
+// Will require bump of many RI func's versions.
 pub enum Status {
     /// Lazy-pages works in normal mode.
     Normal = 0_i64,

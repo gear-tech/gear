@@ -38,7 +38,7 @@ use gear_backend_common::{
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{CounterType, CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, MemoryError, PageBuf},
     message::{
@@ -369,15 +369,18 @@ where
             if E::Ext::LAZY_PAGES_ENABLED {
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                match E::Ext::lazy_pages_status() {
-                    Status::Normal => (),
-                    Status::GasLimitExceeded => {
-                        termination =
-                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
-                    }
-                    Status::GasAllowanceExceeded => {
-                        termination = ActorTerminationReason::GasAllowanceExceeded;
-                    }
+                if matches!(
+                    E::Ext::lazy_pages_status(),
+                    Status::GasLimitExceeded | Status::GasAllowanceExceeded
+                ) {
+                    let reason = match ext.actual_counter() {
+                        CounterType::GasLimit => {
+                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
+                        }
+                        CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded,
+                    };
+
+                    termination = reason
                 }
             }
 
