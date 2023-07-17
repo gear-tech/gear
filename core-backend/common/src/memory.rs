@@ -19,8 +19,8 @@
 //! Work with WASM program memory in backends.
 
 use crate::{
-    runtime::RunFallibleError, ActorTerminationReason, BackendExternalities, BackendSyscallError,
-    TerminationReason, TrapExplanation, UnrecoverableMemoryError,
+    runtime::RunFallibleError, BackendExternalities, BackendSyscallError, TerminationReason,
+    TrapExplanation, UnrecoverableMemoryError,
 };
 use alloc::vec::Vec;
 use core::{
@@ -73,15 +73,11 @@ impl BackendSyscallError for MemoryAccessError {
                 )
                 .into()
             }
-            MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
-                TrapExplanation::GasLimitExceeded.into()
-            }
-            MemoryAccessError::ProcessAccess(ProcessAccessError::GasAllowanceExceeded) => {
-                ActorTerminationReason::GasAllowanceExceeded
-            }
+            MemoryAccessError::ProcessAccess(
+                ProcessAccessError::GasLimitExceeded | ProcessAccessError::GasAllowanceExceeded,
+            ) => TerminationReason::ProcessAccessErrorResourcesExceed,
             MemoryAccessError::Decode => unreachable!(),
         }
-        .into()
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {

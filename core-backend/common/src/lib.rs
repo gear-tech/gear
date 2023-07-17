@@ -68,6 +68,8 @@ pub const PTR_SPECIAL: u32 = u32::MAX;
 pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
+    /// Undefined reason because we need access to counters owner trait for RI.
+    ProcessAccessErrorResourcesExceed,
 }
 
 impl From<ChargeError> for TerminationReason {
