@@ -104,7 +104,6 @@ members = [
     "utils/wasm-gen",
     "utils/wasm-info",
     "utils/wasm-instrument",
-    "utils/wasm-linker",
     "utils/wasm-proc",
     "utils/weight-diff",
 ]
