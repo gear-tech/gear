@@ -86,11 +86,9 @@ pub fn new_test_ext() -> TestExternalities {
 }
 
 pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
-    let new_reserved = BalancesPallet::<Runtime>::reserved_balance(&who);
-    BalancesPallet::<Runtime>::set_balance(
+    BalancesPallet::<Runtime>::force_set_balance(
         RuntimeOrigin::root(),
         who.into(),
         <Runtime as GearConfig>::GasPrice::gas_price(account::acc_max_balance() as u64),
-        new_reserved,
     )
 }
