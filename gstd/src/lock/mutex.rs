@@ -154,7 +154,7 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
                 panic!(
                     "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
                     hex::encode(self.holder_msg_id),
-                    owner_msg_id.map_or("None".into(), |v| hex::encode(v))
+                    owner_msg_id.map_or("None".into(), hex::encode)
                 );
             }
 
