@@ -123,6 +123,7 @@ pub struct MutexGuard<'a, T> {
 }
 
 impl<'a, T> MutexGuard<'a, T> {
+    #[track_caller]
     fn ensure_access_by_holder(&self) {
         let current_msg_id = msg::id();
         if self.holder_msg_id != current_msg_id {
@@ -137,20 +138,27 @@ impl<'a, T> MutexGuard<'a, T> {
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
-        self.ensure_access_by_holder();
+        let is_holder_msg_signal_handler = msg::signal_from() == Ok(self.holder_msg_id);
+        if !is_holder_msg_signal_handler {
+            self.ensure_access_by_holder();
+        }
         unsafe {
             let locked_by = &mut *self.mutex.locked.get();
-            // If 'locked_by' is None, it means the locked was seized by some other message,
-            // and the next rival message was awoken by the ousting mechanism in
-            // the MutexLockFuture::poll.
-            if let Some((owner_msg_id, _)) = *locked_by {
-                if owner_msg_id != self.holder_msg_id {
-                    panic!(
-                        "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
-                        hex::encode(self.holder_msg_id),
-                        hex::encode(owner_msg_id),
-                    );
-                }
+            let owner_msg_id = locked_by.map(|v| v.0);
+
+            if owner_msg_id != Some(self.holder_msg_id) && !is_holder_msg_signal_handler {
+                // If owner_msg_id is None or not equal to the holder_msg_id, firstly, it means
+                // we are in the message signal handler and, secondly, the lock was seized by some
+                // other message. In this case the next rival message was awoken by the ousting
+                // mechanism in the MutexLockFuture::poll
+                panic!(
+                    "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
+                    hex::encode(self.holder_msg_id),
+                    owner_msg_id.map_or("None".into(), |v| hex::encode(v))
+                );
+            }
+
+            if owner_msg_id == Some(self.holder_msg_id) {
                 *locked_by = None;
                 if let Some(message_id) = self.mutex.queue.dequeue() {
                     exec::wake(message_id).expect("Failed to wake the message");
@@ -281,6 +289,9 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
                 while let Some(next_msg_id) = self.mutex.queue.dequeue() {
                     if next_msg_id == lock_owner_msg_id {
                         continue;
+                    }
+                    if next_msg_id == current_msg_id {
+                        break;
                     }
                     *locked_by = None;
                     exec::wake(next_msg_id).expect("Failed to wake the message");

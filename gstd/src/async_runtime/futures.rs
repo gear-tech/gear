@@ -74,8 +74,8 @@ where
     });
 
     if task.lock_exceeded {
-        super::futures().remove(&msg_id);
-        super::locks().remove_message_entry(msg_id);
+        // Futures and locks for the message will be cleaned up by
+        // the async_runtime::handle_signal function
         panic!(
             "Message 0x{} has exceeded lock ownership time",
             hex::encode(msg_id)
