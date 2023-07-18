@@ -74,7 +74,8 @@ members = [
     "gcli",
     "gclient",
     "gcore",
-    "glib/*",
+    "gwasm",
+    "gwasm/*",
     "gmeta",
     "gsdk",
     "gsdk/codegen",
@@ -443,9 +444,10 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
-heck = "0.4.1"                                                           # gsdk-api-gen
+heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
+rustc-demangle = "0.1.23"                                                 # gwasm/builder
 
 [profile.release]
 panic = "unwind"

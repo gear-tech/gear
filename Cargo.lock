@@ -4459,13 +4459,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glib-dlmalloc"
-version = "0.0.1"
-dependencies = [
- "dlmalloc",
-]
-
-[[package]]
 name = "glob"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4643,6 +4636,26 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "gwasm"
+version = "0.0.0"
+dependencies = [
+ "pwasm-utils",
+ "rustc-demangle",
+ "wasmparser-nostd 0.100.1",
+]
+
+[[package]]
+name = "gwasm-builder"
+version = "0.1.0"
+
+[[package]]
+name = "gwasm-dlmalloc"
+version = "0.0.1"
+dependencies = [
+ "dlmalloc",
 ]
 
 [[package]]
