@@ -28,4 +28,5 @@ log.workspace = true
 [dev-dependencies]
 demo-capacitor.workspace = true
 demo-piggy-bank.workspace = true
+demo-ping.workspace = true
 demo-futures-unordered.workspace = true

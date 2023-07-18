@@ -11,7 +11,6 @@ env:
   TERM: xterm-256color
   COUNT: 100
   BINARYEN_VERSION: version_111
-  __GEAR_WASM_BUILDER_NO_PATH_REMAP: 1
 
 jobs:
   build:
@@ -44,12 +43,6 @@ jobs:
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks,lazy-pages
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
 
       - name: "Collect: Gear workspace tests"
         run: |

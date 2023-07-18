@@ -75,7 +75,7 @@ fn test_consume_procedure_with_subnodes() {
         // total supply mustn't be affected, because root sponsored all it's balance
         assert_eq!(Gas::total_supply(), 300);
         // Consumed still exists, but has no balance.
-        assert_ok!(Gas::get_limit_node(root), (0, root.into()));
+        assert_ok!(Gas::get_limit_node_consumed(root), (0, root.into()));
 
         // Consume node_1
         let consume_node_1 = Gas::consume(node_1);
@@ -83,11 +83,11 @@ fn test_consume_procedure_with_subnodes() {
         // Consumed node without unspec refs returns value,
         assert_eq!(consume_node_1.unwrap().unwrap().0.peek(), 100);
         // So it has no balance, but exists due to having children
-        assert_ok!(Gas::get_limit_node(node_1), (0, node_1.into()));
+        assert_ok!(Gas::get_limit_node_consumed(node_1), (0, node_1.into()));
         // total supply is affected
         assert_eq!(Gas::total_supply(), 200);
         // Check value wasn't moved up to the root
-        assert_ok!(Gas::get_limit_node(root), (0, root.into()));
+        assert_ok!(Gas::get_limit_node_consumed(root), (0, root.into()));
 
         // Consume node_2 independently
         let consume_node_2 = Gas::consume(node_2);
@@ -101,10 +101,10 @@ fn test_consume_procedure_with_subnodes() {
         // Consume node_3
         assert_ok!(Gas::consume(node_3), None);
         // Consumed node with unspec refs doesn't moves value up
-        assert_ok!(Gas::get_limit_node(node_3), (100, node_3.into()));
+        assert_ok!(Gas::get_limit_node_consumed(node_3), (100, node_3.into()));
         // Check that spending from unspec `node_4` actually decreases balance from the ancestor with value - `node_3`.
         assert_eq!(Gas::spend(node_4, 100).unwrap().peek(), 100);
-        assert_ok!(Gas::get_limit_node(node_3), (0, node_3.into()));
+        assert_ok!(Gas::get_limit_node_consumed(node_3), (0, node_3.into()));
         // total supply is affected after spending all of the blockage `node_3`
         assert!(Gas::total_supply().is_zero());
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
@@ -571,15 +571,15 @@ fn subtree_gas_limit_remains_intact() {
         // node_5 was removed
         assert_noop!(Gas::get_limit_node(node_5), Error::<Test>::NodeNotFound);
         // Expect gas limit from node_5 sent to upstream node with a value (node_2, which is consumed)
-        assert_ok!(Gas::get_limit(node_2), 500);
+        assert_ok!(Gas::get_limit_consumed(node_2), 500);
 
         // Spend from unspecified node_4, which actually spends gas from node_2 (ancestor with value)
         assert_ok!(Gas::spend(node_4, 200));
         // Expect gas limit of consumed node_2 to decrease by 200 (thus checking we can spend from consumed node)
-        assert_ok!(Gas::get_limit(node_2), 300);
+        assert_ok!(Gas::get_limit_consumed(node_2), 300);
         // Or explicitly spend from consumed node_2 by calling "spend"
         assert_ok!(Gas::spend(node_2, 200));
-        assert_ok!(Gas::get_limit(node_2), 100);
+        assert_ok!(Gas::get_limit_consumed(node_2), 100);
     });
 }
 
@@ -774,7 +774,7 @@ fn lock_works() {
 
         assert_eq!(Gas::total_supply(), 9_000);
         assert_ok!(Gas::get_lock(specified, LockId::Mailbox), 0);
-        assert_ok!(Gas::get_limit(specified), 2_400);
+        assert_ok!(Gas::get_limit_consumed(specified), 2_400);
         assert_ok!(Gas::get_lock(unspecified, LockId::Waitlist), 600);
         assert_ok!(Gas::get_limit(unspecified), 2_400);
 

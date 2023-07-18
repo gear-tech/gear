@@ -22,11 +22,11 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
 use core::fmt;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
+    LimitedStr,
 };
 use gear_common::Origin;
 use gear_core::{
@@ -50,12 +50,14 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
+    const GLOBAL_NAMES: &[LimitedStr<'static>] = &[
+        LimitedStr::from_small_str(GLOBAL_NAME_GAS),
+        LimitedStr::from_small_str(GLOBAL_NAME_ALLOWANCE),
+    ];
+
     let ctx = LazyPagesRuntimeContext {
         page_sizes: vec![WasmPage::size(), GearPage::size()],
-        global_names: vec![
-            GLOBAL_NAME_GAS.to_string(),
-            GLOBAL_NAME_ALLOWANCE.to_string(),
-        ],
+        global_names: GLOBAL_NAMES.to_vec(),
         pages_storage_prefix: prefix.to_vec(),
     };
 
