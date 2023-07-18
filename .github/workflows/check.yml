@@ -2,6 +2,10 @@ name: Check
 
 on:
   workflow_call:
+    inputs:
+      cache:
+        type: boolean
+        default: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -39,7 +43,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        # if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' && !inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /

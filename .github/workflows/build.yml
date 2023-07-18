@@ -2,6 +2,13 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      cache:
+        type: boolean
+        default: true
+      macos:
+        type: boolean
+        default: false
 
 env:
   CARGO_INCREMENTAL: 0
@@ -54,7 +61,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        # if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
+        if: ${{ inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -255,7 +262,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        # if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
+        if: ${{ inputs.cache }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -293,7 +300,7 @@ jobs:
           mv /tmp/*.tar /cache/
 
   macos-x86:
-    if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
+    if: ${{ always() && inputs.macos }}
     needs: linux
     runs-on: macos-latest
     env:

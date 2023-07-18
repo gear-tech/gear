@@ -1,0 +1,50 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  TERM: xterm-256color
+  BINARYEN_VERSION: version_111
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    outputs:
+      cache: ${{ steps.check-commit-message.outputs.cache }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check Commit Message
+        id: check-commit-message
+        run: |
+          MESSAGE=$(git show -s --format=%s)
+          CACHE=true
+          if [[ $MESSAGE == *"[skip-cache]"* ]]; then
+            CACHE=false
+          fi
+
+          echo "cache: ${CACHE}"
+          echo "cache=${CACHE}" >> $GITHUB_OUTPUT
+
+  check:
+    needs: status
+    uses: ./.github/workflows/check.yml
+    with:
+      cache: ${{ needs.status.outputs.cache == 'true' }}
+
+  build:
+    needs: status
+    uses: ./.github/workflows/build.yml
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+    with:
+      cache: ${{ needs.status.outputs.cache == 'true' }}
+      macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
