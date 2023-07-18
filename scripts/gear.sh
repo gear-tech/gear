@@ -110,13 +110,12 @@ case "$COMMAND" in
         fuzzer_build "$@"; ;;
 
       examples)
-        check_extensions
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+        examples_build "$ROOT_DIR" "$@"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
-        wasm_proc_build; ;;
+        wasm_proc_build "$@"; ;;
 
       examples-proc)
         header "Processing examples via wasm-proc"
@@ -125,6 +124,10 @@ case "$COMMAND" in
       node)
         header "Building gear node"
         node_build "$@"; ;;
+
+      gear-replay)
+        header "Building gear-replay CLI"
+        gear_replay_build "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -141,11 +144,6 @@ case "$COMMAND" in
       gear)
         header "Checking gear workspace"
         gear_check "$@"; ;;
-
-      examples)
-        check_extensions
-        header "Checking gear examples"
-        examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -164,9 +162,8 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
-        check_extensions
-        header "Invoking clippy on gear examples"
-        examples_clippy "$ROOT_DIR"; ;;
+        header "Invoking clippy on gear examples only"
+        examples_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -207,13 +204,6 @@ case "$COMMAND" in
           else header "Formatting gear workspace"
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
-
-      examples)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear examples formatting"
-          else header "Formatting gear examples"
-        fi
-        format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       doc)
         if [ "$CHECK" = "true" ]
@@ -313,8 +303,7 @@ case "$COMMAND" in
 
       doc)
         header "Testing examples in docs"
-        doc_test "$ROOT_DIR/Cargo.toml" "$@";
-        doc_test "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
+        doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

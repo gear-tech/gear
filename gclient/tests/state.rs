@@ -22,10 +22,8 @@ use gmeta::MetadataRepr;
 use parity_scale_codec::Decode;
 use tokio::fs;
 
-const WASM_PATH: &str = "../target/wasm32-unknown-unknown/release/demo_new_meta.opt.wasm";
-const META_PATH: &str = "../examples/binaries/new-meta/demo_new_meta.meta.txt";
-const META_WASM_PATH: &str =
-    "../target/wasm32-unknown-unknown/release/demo_meta_state_v1.meta.wasm";
+// TODO: remove in order to directly import metadata (issue #2945).
+const META_PATH: &str = "../examples/new-meta/demo_new_meta.meta.txt";
 
 #[tokio::test]
 async fn get_state() -> anyhow::Result<()> {
@@ -39,13 +37,13 @@ async fn get_state() -> anyhow::Result<()> {
 
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(None, gclient::code_from_os(WASM_PATH)?, vec![], 0, true)
+        .calculate_upload_gas(None, demo_new_meta::WASM_BINARY.to_vec(), vec![], 0, true)
         .await?;
 
     // Upload and init the program
     let (message_id, program_id, _hash) = api
-        .upload_program_bytes_by_path(
-            WASM_PATH,
+        .upload_program_bytes(
+            demo_new_meta::WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
             vec![],
             gas_info.min_limit,
@@ -72,10 +70,10 @@ async fn get_state() -> anyhow::Result<()> {
 
     // Read state using Wasm
     let wallet: Option<Wallet> = api
-        .read_state_using_wasm_by_path(
+        .read_state_using_wasm(
             program_id,
             "first_wallet",
-            META_WASM_PATH,
+            demo_new_meta::META_WASM_V1.to_vec(),
             <Option<()>>::None,
         )
         .await?;

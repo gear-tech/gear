@@ -1961,6 +1961,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+ "log",
 ]
 
 [[package]]
@@ -3631,6 +3632,7 @@ dependencies = [
  "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",
+ "demo-new-meta",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
@@ -4014,6 +4016,34 @@ dependencies = [
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "substrate-test-client",
+ "vara-runtime",
+]
+
+[[package]]
+name = "gear-replay-cli"
+version = "1.0.0"
+dependencies = [
+ "clap 4.3.11",
+ "frame-remote-externalities",
+ "frame-system",
+ "gear-runtime",
+ "gear-runtime-interface",
+ "gear-runtime-primitives",
+ "gear-service",
+ "log",
+ "parity-scale-codec",
+ "sc-cli",
+ "sc-executor",
+ "sc-tracing",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-externalities 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-keystore 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-rpc",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-state-machine 0.13.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "substrate-rpc-client",
+ "tokio",
  "vara-runtime",
 ]
 
@@ -4631,6 +4661,7 @@ dependencies = [
  "demo-capacitor",
  "demo-futures-unordered",
  "demo-piggy-bank",
+ "demo-ping",
  "derive_more",
  "env_logger",
  "gear-backend-common",

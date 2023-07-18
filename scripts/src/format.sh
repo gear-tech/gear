@@ -14,7 +14,6 @@ format_usage() {
     help           show help message and exit
 
     gear           format gear workspace or check via --check
-    examples       format gear program examples or check via --check
     doc            format gear doc or check via --check
 
 EOF
