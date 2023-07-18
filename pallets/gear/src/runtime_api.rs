@@ -48,10 +48,16 @@ where
     ) -> Result<GasInfo, Vec<u8>> {
         let account = <T::AccountId as Origin>::from_origin(source);
 
-        let balance = CurrencyOf::<T>::free_balance(&account);
-        let max_balance: BalanceOf<T> =
-            T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
-        CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
+        let balance = CurrencyOf::<T>::balance(&account);
+        // log::info!(target: "gear::pallet", "{:?}",
+        // CurrencyOf::<T>::balance(&account));
+        let max_balance: BalanceOf<T> = (T::GasPrice::gas_price(initial_gas)
+            + value.unique_saturated_into())
+            + T::Currency::minimum_balance();
+
+        log::info!(target: "gear::pallet", "max balance {:?}, balance {:?}", max_balance, balance);
+        CurrencyOf::<T>::set_balance(&account, max_balance);
+        log::info!(target: "gear::pallet", "{:?}", CurrencyOf::<T>::balance(&account));
 
         let who = frame_support::dispatch::RawOrigin::Signed(account);
         let value: BalanceOf<T> = value.unique_saturated_into();

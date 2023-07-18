@@ -31,7 +31,11 @@ use common::{
     storage::*,
     Origin, PausedProgramStorage, Program, ProgramStorage,
 };
-use frame_support::traits::{Currency, ExistenceRequirement};
+use frame_support::traits::{
+    fungible::{Inspect, Mutate, MutateHold},
+    tokens::Preservation,
+    Currency, ExistenceRequirement,
+};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
@@ -126,18 +130,13 @@ where
         // transfer program's balance to the origin
         let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
-        let balance = CurrencyOf::<T>::free_balance(&program_id);
+        let balance = CurrencyOf::<T>::balance(&program_id);
         let destination = Pallet::<T>::inheritor_for(origin);
         let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
 
         if !balance.is_zero() {
-            CurrencyOf::<T>::transfer(
-                &program_id,
-                &destination,
-                balance,
-                ExistenceRequirement::AllowDeath,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            CurrencyOf::<T>::transfer(&program_id, &destination, balance, Preservation::Expendable)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         }
 
         Pallet::<T>::deposit_event(event);

@@ -65,6 +65,8 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
+        fungible::{Inspect, InspectHold, Mutate, MutateHold},
+        tokens::Preservation,
         ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
         ReservableCurrency, StorageVersion,
     },
@@ -107,7 +109,7 @@ type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvi
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
-    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+    <<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
@@ -194,7 +196,12 @@ pub mod pallet {
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
         /// Balances management trait for gas/value migrations.
-        type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
+        type Currency: Inspect<Self::AccountId>
+            + Mutate<Self::AccountId>
+            + MutateHold<Self::AccountId, Reason = Self::RuntimeHoldReason>;
+
+        /// Overarching hold reason.
+        type RuntimeHoldReason: From<HoldReason>;
 
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
@@ -479,6 +486,13 @@ pub mod pallet {
         FailureRedeemingVoucher,
     }
 
+    /// A reason for the pallet contracts placing a hold on funds.
+    #[pallet::composite_enum]
+    pub enum HoldReason {
+        /// The Pallet has reserved it for storage deposit.
+        StorageDepositReserve,
+    }
+
     #[cfg(feature = "runtime-benchmarks")]
     #[pallet::storage]
     pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
@@ -626,10 +640,14 @@ pub mod pallet {
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
-            // First we reserve enough funds on the account to pay for `gas_limit`
+            // First we hold enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::hold(
+                &HoldReason::StorageDepositReserve.into(),
+                &who,
+                reserve_fee + value,
+            )
+            .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             let origin = who.clone().into_origin();
 
@@ -1215,8 +1233,12 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::hold(
+                &HoldReason::StorageDepositReserve.into(),
+                &who,
+                reserve_fee + value,
+            )
+            .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             Ok(packet)
         }
@@ -1508,14 +1530,22 @@ pub mod pallet {
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
-                CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::InsufficientBalance)?;
+                CurrencyOf::<T>::hold(
+                    &HoldReason::StorageDepositReserve.into(),
+                    &who,
+                    value.unique_saturated_into(),
+                )
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
-                CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::InsufficientBalance)?;
+                CurrencyOf::<T>::hold(
+                    &HoldReason::StorageDepositReserve.into(),
+                    &who,
+                    gas_limit_reserve,
+                )
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 Self::create(who.clone(), message.id(), gas_limit, false);
 
@@ -1541,7 +1571,7 @@ pub mod pallet {
                         message.destination().into_origin(),
                     ),
                     value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
+                    Preservation::Expendable,
                 )
                 .map_err(|_| Error::<T>::InsufficientBalance)?;
 
@@ -1610,12 +1640,16 @@ pub mod pallet {
             // Converting applied gas limit into value to reserve.
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
-            // Reserving funds for gas limit and value sending.
+            // Hold funds for gas limit and value sending.
             //
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
-            CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::hold(
+                &HoldReason::StorageDepositReserve.into(),
+                &origin,
+                gas_limit_reserve + value,
+            )
+            .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1864,7 +1898,7 @@ pub mod pallet {
 
             let rent_fee = Self::rent_fee_for(block_count);
             ensure!(
-                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
+                CurrencyOf::<T>::balance(&who) >= rent_fee,
                 Error::<T>::InsufficientBalance
             );
 
@@ -1885,13 +1919,8 @@ pub mod pallet {
                 TaskPoolOf::<T>::add(expiration_block, task)
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-                CurrencyOf::<T>::transfer(
-                    &who,
-                    &block_author,
-                    rent_fee,
-                    ExistenceRequirement::AllowDeath,
-                )
-                .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
+                CurrencyOf::<T>::transfer(&who, &block_author, rent_fee, Preservation::Expendable)
+                    .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
 
                 Self::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -1955,10 +1984,14 @@ pub mod pallet {
             // transferred. That's because destination can fail to be initialized by the time
             // this dispatch message is next in the queue.
             //
-            // Note: reservaton is made from the user's account as voucher can only be used
+            // Note: hold is made from the user's account as voucher can only be used
             // to pay for gas or settle transaction fees, but not as source for value transfer.
-            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::hold(
+                &HoldReason::StorageDepositReserve.into(),
+                &who,
+                value.unique_saturated_into(),
+            )
+            .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
@@ -2035,12 +2068,12 @@ pub mod pallet {
             // Checking that program, origin replies to, is not terminated.
             ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
-            // Reserving funds for sending `value`. The funds are reserved on the
+            // Hold funds for sending `value`. The funds are hold on the
             // account of the reply sender.
             //
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
-            CurrencyOf::<T>::reserve(&origin, value)
+            CurrencyOf::<T>::hold(&HoldReason::StorageDepositReserve.into(), &origin, value)
                 .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             let reply_id = MessageId::generate_reply(mailboxed.id());

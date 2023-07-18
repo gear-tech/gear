@@ -22,7 +22,7 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor, Get},
+    traits::{ConstU32, ConstU64, FindAuthor, Get},
     weights::RuntimeDbWeight,
     PalletId,
 };
@@ -100,6 +100,10 @@ impl pallet_balances::Config for Test {
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
+    type FreezeIdentifier = ();
+    type HoldIdentifier = RuntimeHoldReason;
+    type MaxFreezes = ConstU32<100>;
+    type MaxHolds = ConstU32<100>;
 }
 
 parameter_types! {
@@ -209,6 +213,7 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
     type GasPrice = GasConverter;
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;

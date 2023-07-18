@@ -63,7 +63,10 @@ use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::{
     codec::{Decode, Encode},
-    traits::Currency,
+    traits::{
+        fungible::{Inspect, Mutate, MutateHold},
+        Currency,
+    },
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -223,7 +226,7 @@ where
         let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
-            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
+            CurrencyOf::<T>::balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
                 .unique_saturated_into();
 
         Some(Actor {

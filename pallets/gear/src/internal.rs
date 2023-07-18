@@ -20,8 +20,8 @@
 
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, QueueOf, SchedulingCostOf,
-    TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, HoldReason, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -37,7 +37,11 @@ use common::{
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReplyReason;
-use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::traits::{
+    fungible::{Inspect, InspectHold, Mutate, MutateHold},
+    tokens::{Fortitude, Precision, Preservation, Restriction},
+    BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency,
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
@@ -223,35 +227,67 @@ where
             return;
         }
 
+        let ed = CurrencyOf::<T>::minimum_balance();
+
         // If destination account can reserve minimum balance, it means that
         // account exists and can receive repatriation of reserved funds.
         //
         // Otherwise need to transfer them directly.
 
         // Checking balance existence of destination address.
-        if CurrencyOf::<T>::can_reserve(to, CurrencyOf::<T>::minimum_balance()) {
+        if CurrencyOf::<T>::can_hold(
+            &HoldReason::StorageDepositReserve.into(),
+            to,
+            CurrencyOf::<T>::minimum_balance(),
+        ) {
             // Repatriating reserved to existent account.
-            let unrevealed =
-                CurrencyOf::<T>::repatriate_reserved(from, to, value, BalanceStatus::Free)
-                    .unwrap_or_else(|e| {
-                        unreachable!("Failed to repatriate reserved funds: {:?}", e)
-                    });
+            let unrevealed = CurrencyOf::<T>::transfer_on_hold(
+                &HoldReason::StorageDepositReserve.into(),
+                from,
+                to,
+                value,
+                Precision::BestEffort,
+                Restriction::Free,
+                Fortitude::Polite,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer on hold funds: {:?}", e));
 
             // Validating unrevealed funds after repatriation.
-            if !unrevealed.is_zero() {
-                unreachable!("Reserved funds wasn't fully repatriated: {:?}", unrevealed)
+            if unrevealed < value {
+                // CurrencyOf::<T>::transfer(
+                //     from,
+                //     to,
+                //     value.saturating_sub(unrevealed),
+                //     Preservation::Expendable,
+                // )
+                // .unwrap_or_else(|e| {
+                //     unreachable!(
+                //         "Reserved funds wasn't fully repatriated: {:?} {:?}, {:?}",
+                //         unrevealed, value, e
+                //     )
+                // });
+                unreachable!(
+                    "Reserved funds wasn't fully repatriated: {:?} {:?}",
+                    unrevealed, value
+                )
             }
         } else {
             // Unreserving funds from sender to transfer them directly.
-            let unrevealed = CurrencyOf::<T>::unreserve(from, value);
+            let unrevealed = CurrencyOf::<T>::release(
+                &HoldReason::StorageDepositReserve.into(),
+                from,
+                value,
+                Precision::BestEffort,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to release hold funds: {:?}", e));
 
             // Validating unrevealed funds after unreserve.
-            if !unrevealed.is_zero() {
+            if unrevealed < value {
                 unreachable!("Not all requested value was unreserved");
             }
 
             // Transfer to inexistent account.
-            CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
+            CurrencyOf::<T>::transfer(from, to, value, Preservation::Expendable)
                 .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         }
     }
@@ -312,10 +348,16 @@ where
                 let value = T::GasPrice::gas_price(gas_left);
 
                 // Unreserving funds.
-                let unrevealed = CurrencyOf::<T>::unreserve(&external, value);
+                let unrevealed = CurrencyOf::<T>::release(
+                    &HoldReason::StorageDepositReserve.into(),
+                    &external,
+                    value,
+                    Precision::BestEffort,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to release hold funds: {:?}", e));
 
                 // Validating unrevealed funds after unreserve.
-                if !unrevealed.is_zero() {
+                if unrevealed < value {
                     unreachable!("Not all requested value was unreserved");
                 }
             }
@@ -587,7 +629,7 @@ where
 
         // Taking data for funds manipulations.
         let from = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
-        let value = dispatch.value().unique_saturated_into();
+        let value: BalanceOf<T> = dispatch.value().unique_saturated_into();
 
         // `HoldBound` builder.
         let hold_builder = HoldBoundBuilder::<T>::new(StorageType::DispatchStash);
@@ -709,9 +751,11 @@ where
         };
 
         if !dispatch.value().is_zero() {
-            // Reserving value from source for future transfer or unreserve.
-            CurrencyOf::<T>::reserve(&from, value)
-                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            let ed = CurrencyOf::<T>::minimum_balance();
+            // Hold value from source for future transfer or release.
+            log::info!(target: "gear::internal", "balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::balance(&from), value, &from);
+            CurrencyOf::<T>::hold(&HoldReason::StorageDepositReserve.into(), &from, value)
+                .unwrap_or_else(|e| unreachable!("Failed to hold funds: {:?}", e));
         }
 
         // Saving id to allow moving dispatch further.
@@ -799,7 +843,7 @@ where
         // Taking data for funds manipulations.
         let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
         let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
-        let value = message.value().unique_saturated_into();
+        let value: BalanceOf<T> = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
@@ -816,9 +860,19 @@ where
             GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            // Reserving value from source for future transfer or unreserve.
-            CurrencyOf::<T>::reserve(&from, value)
-                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            if !value.is_zero() {
+                let ed = CurrencyOf::<T>::minimum_balance();
+                // log::info!(target: "gear::internal", "balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::total_balance(&from), value, &from);
+                log::info!(target: "gear::internal", "hold balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::balance(&from), value, &from);
+                // Hold value from source for future transfer or release.
+                CurrencyOf::<T>::hold(
+                    &HoldReason::StorageDepositReserve.into(),
+                    &from,
+                    value.saturating_sub(ed),
+                    // value,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to hold funds: {:?}", e));
+            }
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
             GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
@@ -844,7 +898,7 @@ where
             Some(hold.expected())
         } else {
             // Permanently transferring funds.
-            CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
+            CurrencyOf::<T>::transfer(&from, &to, value, Preservation::Expendable)
                 .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
             if message.details().is_none() {
@@ -1041,7 +1095,7 @@ where
             from,
             &block_author,
             Self::rent_fee_for(blocks_to_pay),
-            ExistenceRequirement::AllowDeath,
+            Preservation::Expendable,
         )?;
 
         let task = ScheduledTask::PauseProgram(program_id);
