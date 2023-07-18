@@ -75,7 +75,7 @@ members = [
     "gclient",
     "gcore",
     "gwasm",
-    "gwasm/*",
+    "gwasm/[!.cargo]*",
     "gmeta",
     "gsdk",
     "gsdk/codegen",

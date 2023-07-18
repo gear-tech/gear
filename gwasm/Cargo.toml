@@ -3,11 +3,3 @@ name = "gwasm"
 version = "0.0.0"
 edition = "2021"
 description = "Gear WASM libraries"
-
-[lib]
-path = "gwasm.rs"
-
-[dependencies]
-rustc-demangle = "0.1.23"
-pwasm-utils.workspace = true
-wasmparser.workspace = true

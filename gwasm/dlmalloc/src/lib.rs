@@ -1,29 +1,39 @@
-//! Dummy library for exporting dlmalloc-rs
-//!
-//! This library contains dummy exports of all public methods of Dlmalloc of dlmalloc-rs
-//! (including the `core::*` functions used by them).
-//!
-//! Public methods list:
-//! - `malloc`
-//! - `calloc`
-//! - `free`
-//! - `realloc`
+//! Dummy library for exporting dlmalloc-rs as wasm module.
 #![no_std]
 
-use dlmalloc::{Dlmalloc, GlobalDlmalloc};
+use dlmalloc::Dlmalloc;
 
-#[global_allocator]
-static ALLOCATOR: GlobalDlmalloc = GlobalDlmalloc;
+static mut DLMALLOC: Dlmalloc = Dlmalloc::new();
 
-/// `calloc` contains the usages of:
-///  - `malloc`
-///  - `free`
-///  - `realloc`
-///
-/// so here we just export `calloc` and let the linker do the rest.
+/// Allocate memory as described by the given `layout`.
 #[no_mangle]
-pub unsafe extern "C" fn _calloc(size: usize, align: usize) -> *mut u8 {
-    Dlmalloc::new().calloc(size, align)
+pub unsafe extern "C" fn alloc(size: usize, align: usize) -> *mut u8 {
+    DLMALLOC.malloc(size, align)
+}
+
+/// Deallocate the block of memory at the given `ptr` pointer with the given `layout`.
+#[no_mangle]
+pub unsafe extern "C" fn dealloc(ptr: *mut u8, size: usize, align: usize) {
+    DLMALLOC.free(ptr, size, align)
+}
+
+/// Behaves like `alloc`, but also ensures that the contents
+/// are set to zero before being returned.
+#[no_mangle]
+pub unsafe extern "C" fn alloc_zeroed(size: usize, align: usize) -> *mut u8 {
+    DLMALLOC.calloc(size, align)
+}
+
+/// Shrink or grow a block of memory to the given `new_size` in bytes.
+/// The block is described by the given `ptr` pointer and `layout`.
+#[no_mangle]
+pub unsafe extern "C" fn realloc(
+    ptr: *mut u8,
+    size: usize,
+    align: usize,
+    new_size: usize,
+) -> *mut u8 {
+    DLMALLOC.realloc(ptr, size, align, new_size)
 }
 
 #[panic_handler]

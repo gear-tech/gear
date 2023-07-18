@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = [ "cdylib" ]
 
 [dependencies]
-dlmalloc = { workspace = true, features = [ "global" ] }
+dlmalloc = "0.2.4"
