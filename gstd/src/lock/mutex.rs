@@ -243,10 +243,10 @@ impl<'a, T> MutexLockFuture<'a, T> {
             self.own_up_for_block_count
                 .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
         ));
-        return Poll::Ready(MutexGuard {
+        Poll::Ready(MutexGuard {
             mutex: self.mutex,
             holder_msg_id: owner_msg_id,
-        });
+        })
     }
 
     fn queue_for_lock_ownership(&mut self, rival_msg_id: MessageId) -> Poll<MutexGuard<'a, T>> {
@@ -257,7 +257,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
         if !self.mutex.queue.contains(&rival_msg_id) {
             self.mutex.queue.enqueue(rival_msg_id);
         }
-        return Poll::Pending;
+        Poll::Pending
     }
 }
 
