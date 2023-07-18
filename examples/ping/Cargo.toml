@@ -13,6 +13,7 @@ gstd.workspace = true
 gear-wasm-builder.workspace = true
 
 [features]
+gwasm = ["gstd/gwasm"]
 debug = ["gstd/debug"]
 default = ["std"]
 std = []

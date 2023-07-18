@@ -24,3 +24,4 @@ static_assertions.workspace = true
 default = ["panic-handler"]
 panic-handler = []
 debug = ["galloc/debug", "gcore/debug"]
+gwasm = ["galloc/gwasm"]

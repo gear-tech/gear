@@ -21,8 +21,12 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 // until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
-#[cfg(not(windows))]
+#[cfg(not(any(windows, feature = "gwasm")))]
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+
+#[cfg(all(not(windows), feature = "gwasm"))]
+#[global_allocator]
+pub static ALLOC: gwasm::Allocator = gwasm::Allocator;
 
 pub mod prelude;

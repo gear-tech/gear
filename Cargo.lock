@@ -3584,6 +3584,7 @@ name = "galloc"
 version = "0.2.2"
 dependencies = [
  "dlmalloc 0.1.4",
+ "gwasm",
 ]
 
 [[package]]

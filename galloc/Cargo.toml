@@ -8,6 +8,8 @@ license.workspace = true
 [dependencies]
 # add "checks" feature to enable hard checks in allocator
 dlmalloc = { workspace = true, features = ["global"] }
+gwasm = { workspace = true, optional = true  }
 
 [features]
 debug = ["dlmalloc/debug"]
+gwasm = ["dep:gwasm"]
