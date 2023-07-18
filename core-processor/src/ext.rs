@@ -26,7 +26,7 @@ use gear_backend_common::{
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
@@ -153,7 +153,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
 }
 
 impl BackendSyscallError for UnrecoverableExtError {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::UnrecoverableExt(err)).into()
@@ -163,7 +163,7 @@ impl BackendSyscallError for UnrecoverableExtError {
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {
-        RunFallibleError::TerminationReason(self.into_termination_reason())
+        RunFallibleError::UndefinedTerminationReason(self.into_termination_reason())
     }
 }
 
@@ -207,12 +207,12 @@ impl From<FallibleExtError> for RunFallibleError {
         match err {
             FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
             FallibleExtError::ForbiddenFunction => {
-                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::Actor(
                     ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
                 ))
             }
             FallibleExtError::Charge(err) => {
-                RunFallibleError::TerminationReason(TerminationReason::from(err))
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::from(err))
             }
         }
     }

@@ -27,7 +27,8 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime},
-    ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendState, TrapExplanation,
+    UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_wasm_instrument::GLOBAL_NAME_GASCNT;
@@ -81,7 +82,7 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
     #[track_caller]
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
@@ -100,15 +101,18 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
-            let res = f(ctx);
-            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+        self.run_any(
+            cost,
+            |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
+                let res = f(ctx);
+                let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.register_write_as::<R>(res_ptr);
+                // TODO: move above or make normal process memory access.
+                let write_res = ctx.register_write_as::<R>(res_ptr);
 
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
+                ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+            },
+        )
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
@@ -214,7 +218,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
 
     fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         let result = f(self).map_err(|err| {
             self.host_state_mut().set_termination_reason(err);
@@ -253,7 +257,7 @@ impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
 }
 
 impl<Ext> BackendState for CallerWrap<'_, Ext> {
-    fn set_termination_reason(&mut self, reason: TerminationReason) {
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         caller_host_state_mut(&mut self.caller).set_termination_reason(reason);
     }
 }

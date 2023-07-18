@@ -22,7 +22,7 @@ use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::{RunFallibleError, Runtime},
     syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
-    BackendSyscallError, MessageWaitedType, TerminationReason, TrapExplanation,
+    BackendSyscallError, MessageWaitedType, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -254,7 +254,9 @@ where
     #[host(cost = RuntimeCosts::Free)]
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
         let page = WasmPage::new(page_no).map_err(|_| {
-            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
+            UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                TrapExplanation::Unknown,
+            ))
         })?;
 
         let res = ctx.ext_mut().free(page);

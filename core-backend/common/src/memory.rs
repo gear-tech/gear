@@ -19,8 +19,8 @@
 //! Work with WASM program memory in backends.
 
 use crate::{
-    runtime::RunFallibleError, BackendExternalities, BackendSyscallError, TerminationReason,
-    TrapExplanation, UnrecoverableMemoryError,
+    runtime::RunFallibleError, BackendExternalities, BackendSyscallError, TrapExplanation,
+    UndefinedTerminationReason, UnrecoverableMemoryError,
 };
 use alloc::vec::Vec;
 use core::{
@@ -58,7 +58,7 @@ pub enum MemoryAccessError {
 }
 
 impl BackendSyscallError for MemoryAccessError {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         match self {
             MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds)
             | MemoryAccessError::Memory(MemoryError::AccessOutOfBounds) => {
@@ -75,7 +75,7 @@ impl BackendSyscallError for MemoryAccessError {
             }
             MemoryAccessError::ProcessAccess(
                 ProcessAccessError::GasLimitExceeded | ProcessAccessError::GasAllowanceExceeded,
-            ) => TerminationReason::ProcessAccessErrorResourcesExceed,
+            ) => UndefinedTerminationReason::ProcessAccessErrorResourcesExceed,
             MemoryAccessError::Decode => unreachable!(),
         }
     }
@@ -89,7 +89,7 @@ impl BackendSyscallError for MemoryAccessError {
             MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
             }
-            e => RunFallibleError::TerminationReason(e.into_termination_reason()),
+            e => RunFallibleError::UndefinedTerminationReason(e.into_termination_reason()),
         }
     }
 }

@@ -19,7 +19,7 @@
 use crate::{
     memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
     BackendExternalities, BackendSyscallError, ExtInfo, SystemReservationContext,
-    TerminationReason,
+    UndefinedTerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
@@ -49,7 +49,7 @@ impl fmt::Display for Error {
 }
 
 impl BackendSyscallError for Error {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         unimplemented!()
     }
 

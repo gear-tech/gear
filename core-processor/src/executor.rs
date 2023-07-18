@@ -363,14 +363,6 @@ where
                 TerminationReason::System(reason) => {
                     return Err(ExecutionError::System(reason.into()))
                 }
-                TerminationReason::ProcessAccessErrorResourcesExceed => {
-                    match ext.actual_counter() {
-                        CounterType::GasLimit => {
-                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
-                        }
-                        CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded,
-                    }
-                }
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
@@ -585,14 +577,6 @@ where
                 TerminationReason::Actor(reason) => reason,
                 TerminationReason::System(reason) => {
                     return Err(format!("Backend error: {reason}"))
-                }
-                TerminationReason::ProcessAccessErrorResourcesExceed => {
-                    match ext.actual_counter() {
-                        CounterType::GasLimit => {
-                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
-                        }
-                        CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded,
-                    }
                 }
             };
 

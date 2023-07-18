@@ -27,7 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime as CommonRuntime},
-    BackendExternalities, BackendState, BackendTermination, TerminationReason,
+    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_sandbox::{HostError, InstanceGlobals, Value};
@@ -47,7 +47,7 @@ pub(crate) fn as_u64(v: Value) -> Option<u64> {
 pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
-    pub termination_reason: TerminationReason,
+    pub termination_reason: UndefinedTerminationReason,
     pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<Ext>,
@@ -66,7 +66,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.prepare_run();
@@ -129,7 +129,7 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
 
     fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         let result = f(self).map_err(|err| {
             self.set_termination_reason(err);
@@ -225,13 +225,13 @@ impl<Ext: BackendExternalities> MemoryOwner for Runtime<Ext> {
 }
 
 impl<Ext> BackendState for Runtime<Ext> {
-    fn set_termination_reason(&mut self, reason: TerminationReason) {
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.termination_reason = reason;
     }
 }
 
 impl<Ext: BackendExternalities> BackendTermination<Ext, MemoryWrap> for Runtime<Ext> {
-    fn into_parts(self) -> (Ext, MemoryWrap, TerminationReason) {
+    fn into_parts(self) -> (Ext, MemoryWrap, UndefinedTerminationReason) {
         let Self {
             ext,
             memory,
