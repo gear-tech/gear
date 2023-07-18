@@ -320,7 +320,7 @@ fn tokens_locking_works() {
             // Free balance of vested accounts is still 100_000 TOKENS
             assert_eq!(acc_data.free, 100_000 * UNITS);
             // Locked balance is 90 TOKENS
-            assert_eq!(acc_data.misc_frozen, 90_000 * UNITS);
+            assert_eq!(acc_data.frozen, 90 * UNITS);
 
             // Locked  funds can't be reserved to pay for gas and/or value
             // Transaction should be invalidated when attempting to `reserve` currency:
