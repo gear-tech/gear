@@ -148,9 +148,9 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
 
             if owner_msg_id != Some(self.holder_msg_id) && !is_holder_msg_signal_handler {
                 // If owner_msg_id is None or not equal to the holder_msg_id, firstly, it means
-                // we are in the message signal handler and, secondly, the lock was seized by some
-                // other message. In this case the next rival message was awoken by the ousting
-                // mechanism in the MutexLockFuture::poll
+                // we are in the message signal handler and, secondly, the lock was seized by
+                // some other message. In this case, the next rival message was
+                // awoken by the ousting mechanism in the MutexLockFuture::poll
                 panic!(
                     "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
                     hex::encode(self.holder_msg_id),
