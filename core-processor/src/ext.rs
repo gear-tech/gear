@@ -491,24 +491,26 @@ impl CountersOwner for Ext {
     }
 
     fn decrease_to(&mut self, amount: u64) {
+        // For possible cases of non-atomic charges on backend side when global
+        // value is less than appropriate at the backend.
+        if self.actual() <= amount {
+            log::trace!("Skipped decrease to global value");
+            return;
+        }
+
         let GasLeft { gas, allowance } = self.gas_left();
 
         let diff = match self.actual_counter() {
-            CounterType::GasLimit => gas - amount,
-            CounterType::GasAllowance => allowance - amount,
-        };
+            CounterType::GasLimit => gas.checked_sub(amount),
+            CounterType::GasAllowance => allowance.checked_sub(amount),
+        }
+        .unwrap_or_else(|| unreachable!("Checked above"));
 
-        if matches!(
-            self.context.gas_counter.charge(diff),
-            ChargeResult::NotEnough
-        ) {
+        if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
             unreachable!("Tried to set gas limit left bigger than before")
         }
 
-        if matches!(
-            self.context.gas_allowance_counter.charge(diff),
-            ChargeResult::NotEnough
-        ) {
+        if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
             unreachable!("Tried to set gas limit left bigger than before")
         }
     }

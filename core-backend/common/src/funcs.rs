@@ -647,15 +647,22 @@ where
     }
 
     pub fn out_of_resources(ctx: &mut R) -> Result<(), R::Error> {
-        let actual_counter_type = ctx.ext_mut().actual_counter();
+        syscall_trace!("out_of_resources");
 
-        syscall_trace!("out_of_resources", actual_counter_type);
+        let ext = ctx.ext_mut();
+        let actual_counter = ext.actual_counter();
+        log::trace!(target: "syscalls", "[out_of_resources] Current counter in global represents {actual_counter:?}");
 
-        let termination_reason = match actual_counter_type {
+        let termination_reason = match actual_counter {
             CounterType::GasLimit => {
                 ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
             }
-            CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded,
+            CounterType::GasAllowance => {
+                // We manually decrease it to 0 because global won't be affected
+                // since it didn't pass comparison to argument of `gas_charge()`
+                ext.decrease_to(0);
+                ActorTerminationReason::GasAllowanceExceeded
+            }
         };
 
         ctx.set_termination_reason(termination_reason.into());

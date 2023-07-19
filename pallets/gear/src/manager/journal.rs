@@ -489,8 +489,7 @@ where
             gas_burned,
         );
 
-        // TODO (breathx): consider if/why its okay.
-        GasAllowanceOf::<T>::decrease(u64::MAX);
+        GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }

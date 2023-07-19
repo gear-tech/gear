@@ -274,6 +274,14 @@ pub trait CountersOwner {
     fn decrease_to(&mut self, amount: u64);
     /// Returns minimal amount of gas counters and set the type of actual counter.
     fn define_actual(&mut self) -> u64;
+    /// Returns minimal amount of gas counter currently set type.
+    fn actual(&self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
+        match self.actual_counter() {
+            CounterType::GasLimit => gas,
+            CounterType::GasAllowance => allowance,
+        }
+    }
 }
 
 /// Enum representing current type of gas counter.
