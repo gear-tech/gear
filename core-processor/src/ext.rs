@@ -1338,7 +1338,7 @@ mod tests {
         );
 
         let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
-        
+
         let res = ext.send_push(handle, &[1, 2, 3]);
         assert!(res.is_ok());
 
