@@ -30,7 +30,7 @@ use gear_backend_common::{
     ActorTerminationReason, BackendExternalities, BackendState, TrapExplanation,
     UndefinedTerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
+use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
 use wasmi::{
     core::{Trap, TrapCode, Value},
@@ -194,22 +194,17 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         F: FnOnce(
             &mut MemoryAccessManager<Ext>,
             &mut MemoryWrapRef<Ext>,
-            &mut GasLeft,
+            &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let min = self.host_state_mut().ext.define_current();
-        let mut gas_left = GasLeft {
-            gas: min,
-            allowance: min,
-        };
+        let mut gas_counter = self.host_state_mut().ext.define_current();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 
         // With memory ops do similar subtractions for both counters.
-        let res = f(&mut self.manager, &mut memory, &mut gas_left);
+        let res = f(&mut self.manager, &mut memory, &mut gas_counter);
 
-        let min = gas_left.gas.min(gas_left.allowance);
-        self.host_state_mut().ext.decrease_to(min);
+        self.host_state_mut().ext.decrease_to(gas_counter);
         res
     }
 

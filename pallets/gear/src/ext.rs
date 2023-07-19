@@ -67,9 +67,9 @@ impl BackendExternalities for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 

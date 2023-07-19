@@ -44,7 +44,7 @@ use core::{
 };
 use gear_core::{
     env::Externalities,
-    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageBuf},
     message::{
@@ -308,7 +308,7 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError>;
 }
 

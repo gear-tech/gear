@@ -164,9 +164,14 @@ pub fn get_status() -> Status {
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-    gas_left: &mut GasLeft,
+    gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
-    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(reads, writes, (*gas_left,));
-    *gas_left = gas_left_new;
+    let gas_left = GasLeft {
+        gas: *gas_counter,
+        allowance: *gas_counter,
+    };
+    let (GasLeft { gas, allowance }, res) =
+        gear_ri::pre_process_memory_accesses(reads, writes, (gas_left,));
+    *gas_counter = gas.min(allowance);
     res
 }

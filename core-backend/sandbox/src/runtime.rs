@@ -29,7 +29,7 @@ use gear_backend_common::{
     runtime::{RunFallibleError, Runtime as CommonRuntime},
     BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
+use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_sandbox::{HostError, InstanceGlobals, Value};
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
@@ -146,20 +146,15 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
         F: FnOnce(
             &mut MemoryAccessManager<Ext>,
             &mut MemoryWrap,
-            &mut GasLeft,
+            &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let min = self.ext.define_current();
-        let mut gas_left = GasLeft {
-            gas: min,
-            allowance: min,
-        };
+        let mut gas_counter = self.ext.define_current();
 
         // With memory ops do similar subtractions for both counters.
-        let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
+        let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_counter);
 
-        let min = gas_left.gas.min(gas_left.allowance);
-        self.ext.decrease_to(min);
+        self.ext.decrease_to(gas_counter);
         res
     }
 }

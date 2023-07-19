@@ -304,7 +304,7 @@ impl BackendExternalities for MockExt {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
