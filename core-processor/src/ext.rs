@@ -1265,12 +1265,12 @@ mod tests {
     }
 
     #[test]
-    /// This function tests:
-    ///
-    /// - `send_commit` on valid handle
-    /// - `send_commit` on invalid handle
-    /// - `send_commit` on used handle
-    /// - `send_init` after limit is exceeded
+    // This function tests:
+    //
+    // - `send_commit` on valid handle
+    // - `send_commit` on invalid handle
+    // - `send_commit` on used handle
+    // - `send_init` after limit is exceeded
     fn test_send_commit() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
@@ -1309,13 +1309,13 @@ mod tests {
     }
 
     #[test]
-    /// This function tests:
-    ///
-    /// - `send_push` on non-existent handle
-    /// - `send_push` on valid handle
-    /// - `send_push` on used handle
-    /// - `send_push` with too large payload
-    /// - `send_push` data is added to buffer
+    // This function tests:
+    //
+    // - `send_push` on non-existent handle
+    // - `send_push` on valid handle
+    // - `send_push` on used handle
+    // - `send_push` with too large payload
+    // - `send_push` data is added to buffer
     fn test_send_push() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
@@ -1378,12 +1378,12 @@ mod tests {
     }
 
     #[test]
-    /// This function tests:
-    ///
-    /// - `send_push_input` on non-existent handle
-    /// - `send_push_input` on valid handle
-    /// - `send_push_input` on used handle
-    /// - `send_push_input` data is added to buffer
+    // This function tests:
+    //
+    // - `send_push_input` on non-existent handle
+    // - `send_push_input` on valid handle
+    // - `send_push_input` on used handle
+    // - `send_push_input` data is added to buffer
     fn test_send_push_input() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
