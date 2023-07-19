@@ -373,7 +373,7 @@ where
                     E::Ext::lazy_pages_status(),
                     Status::GasLimitExceeded | Status::GasAllowanceExceeded
                 ) {
-                    let reason = match ext.actual_counter() {
+                    let reason = match ext.current_counter() {
                         CounterType::GasLimit => {
                             ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
                         }

@@ -31,7 +31,7 @@ use gear_backend_common::{
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
 use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::GLOBAL_NAME_GASCNT;
+use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -107,21 +107,21 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
-        let gascnt = self
+        let gas = self
             .globals
-            .get_global_val(GLOBAL_NAME_GASCNT)
+            .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_u64)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        self.ext.decrease_to(gascnt);
+        self.ext.decrease_to(gas);
     }
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
-        let gascnt = self.ext.define_actual();
+        let gas = self.ext.define_current();
 
         self.globals
-            .set_global_val(GLOBAL_NAME_GASCNT, Value::I64(gascnt as i64))
+            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });
@@ -149,7 +149,7 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
     {
-        let min = self.ext.define_actual();
+        let min = self.ext.define_current();
         let mut gas_left = GasLeft {
             gas: min,
             allowance: min,

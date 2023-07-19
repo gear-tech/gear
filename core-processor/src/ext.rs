@@ -245,7 +245,7 @@ pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
     /// Actual gas counter type within wasm module's global.
-    pub actual_counter: CounterType,
+    pub current_counter: CounterType,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -257,7 +257,8 @@ impl ProcessorExternalities for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
-        let actual_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left() {
+        let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
+        {
             CounterType::GasLimit
         } else {
             CounterType::GasAllowance
@@ -265,7 +266,7 @@ impl ProcessorExternalities for Ext {
 
         Self {
             context,
-            actual_counter,
+            current_counter,
             outgoing_gasless: 0,
         }
     }
@@ -486,21 +487,21 @@ impl CountersOwner for Ext {
             .into()
     }
 
-    fn actual_counter(&self) -> CounterType {
-        self.actual_counter
+    fn current_counter(&self) -> CounterType {
+        self.current_counter
     }
 
     fn decrease_to(&mut self, amount: u64) {
         // For possible cases of non-atomic charges on backend side when global
         // value is less than appropriate at the backend.
-        if self.actual() <= amount {
+        if self.current_val() <= amount {
             log::trace!("Skipped decrease to global value");
             return;
         }
 
         let GasLeft { gas, allowance } = self.gas_left();
 
-        let diff = match self.actual_counter() {
+        let diff = match self.current_counter() {
             CounterType::GasLimit => gas.checked_sub(amount),
             CounterType::GasAllowance => allowance.checked_sub(amount),
         }
@@ -515,14 +516,14 @@ impl CountersOwner for Ext {
         }
     }
 
-    fn define_actual(&mut self) -> u64 {
+    fn define_current(&mut self) -> u64 {
         let GasLeft { gas, allowance } = self.gas_left();
 
         if gas <= allowance {
-            self.actual_counter = CounterType::GasLimit;
+            self.current_counter = CounterType::GasLimit;
             gas
         } else {
-            self.actual_counter = CounterType::GasAllowance;
+            self.current_counter = CounterType::GasAllowance;
             allowance
         }
     }

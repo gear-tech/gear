@@ -38,7 +38,7 @@ use gear_core::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -230,17 +230,17 @@ where
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<u32>());
 
-        let gascnt = store
+        let gas = store
             .state_mut()
             .as_mut()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
-            .define_actual();
+            .define_current();
 
-        let gear_gascnt = instance
-            .get_export(&store, GLOBAL_NAME_GASCNT)
+        let gear_gas = instance
+            .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
-            .and_then(|g| g.set(&mut store, Value::I64(gascnt as i64)).map(|_| g).ok())
+            .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
             .ok_or(System(WrongInjectedGas))?;
 
         let mut globals_provider = GlobalsAccessProvider {
@@ -311,7 +311,7 @@ where
             Ok(())
         };
 
-        let gascnt = gear_gascnt
+        let gas = gear_gas
             .get(&store)
             .try_into::<i64>()
             .ok_or(System(WrongInjectedGas))?;
@@ -321,7 +321,7 @@ where
             .take()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
-        let (ext, _, termination_reason) = state.terminate(res, gascnt as u64);
+        let (ext, _, termination_reason) = state.terminate(res, gas as u64);
 
         Ok(BackendReport {
             termination_reason,

@@ -150,14 +150,14 @@ fn grow_no_gas_no_track() {
 fn duplicate_import() {
     let wat = format!(
         r#"(module
-            (import "env" "{out_of_resources}" (func))
+            (import "env" "{out_of_gas}" (func))
             (func (result i32)
                 global.get 0
                 memory.grow)
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_resources = SysCallName::OutOfResources.to_str()
+        out_of_gas = SysCallName::OutOfGas.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -174,7 +174,7 @@ fn duplicate_export() {
         (global (;0;) i32 (i32.const 42))
         (memory 0 1)
         (global (;1;) (mut i32) (i32.const 0))
-        (export "{GLOBAL_NAME_GASCNT}" (global 0))
+        (export "{GLOBAL_NAME_GAS}" (global 0))
         )"#
     );
     let module = parse_wat(&wat);

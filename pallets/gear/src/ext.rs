@@ -151,16 +151,16 @@ impl CountersOwner for LazyPagesExt {
         self.inner.gas_left()
     }
 
-    fn actual_counter(&self) -> CounterType {
-        self.inner.actual_counter()
+    fn current_counter(&self) -> CounterType {
+        self.inner.current_counter()
     }
 
     fn decrease_to(&mut self, amount: u64) {
         self.inner.decrease_to(amount)
     }
 
-    fn define_actual(&mut self) -> u64 {
-        self.inner.define_actual()
+    fn define_current(&mut self) -> u64 {
+        self.inner.define_current()
     }
 }
 

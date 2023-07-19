@@ -79,11 +79,11 @@ pub enum UndefinedTerminationReason {
 }
 
 impl UndefinedTerminationReason {
-    pub fn define(self, actual_counter: CounterType) -> TerminationReason {
+    pub fn define(self, current_counter: CounterType) -> TerminationReason {
         match self {
             Self::Actor(r) => r.into(),
             Self::System(r) => r.into(),
-            Self::ProcessAccessErrorResourcesExceed => match actual_counter {
+            Self::ProcessAccessErrorResourcesExceed => match current_counter {
                 CounterType::GasLimit => {
                     ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
                 }
@@ -473,14 +473,14 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
     fn terminate<T: Debug, WasmCallErr: Debug>(
         self,
         res: Result<T, WasmCallErr>,
-        gascnt: u64,
+        gas: u64,
     ) -> (Ext, EnvMem, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();
-        let termination_reason = termination_reason.define(ext.actual_counter());
+        let termination_reason = termination_reason.define(ext.current_counter());
 
-        ext.decrease_to(gascnt);
+        ext.decrease_to(gas);
 
         let termination_reason = if res.is_err() {
             if matches!(

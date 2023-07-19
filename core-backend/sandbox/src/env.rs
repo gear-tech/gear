@@ -43,7 +43,7 @@ use gear_sandbox::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_GASCNT, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -255,7 +255,7 @@ where
         builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (2) -> ()));
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
-        builder.add_func(OutOfResources, wrap_common_func!(FuncsHandler::out_of_resources, () -> ()));
+        builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
 
         builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (1) -> (1)));
         builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (1) -> (1)));
@@ -371,12 +371,12 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let gascnt = runtime.ext.define_actual();
+        let gas = runtime.ext.define_current();
 
         // Setting initial value of global.
         runtime
             .globals
-            .set_global_val(GLOBAL_NAME_GASCNT, Value::I64(gascnt as i64))
+            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
@@ -405,13 +405,13 @@ where
             .unwrap_or(Ok(ReturnValue::Unit));
 
         // Fetching global value.
-        let gascnt = runtime
+        let gas = runtime
             .globals
-            .get_global_val(GLOBAL_NAME_GASCNT)
+            .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_u64)
             .ok_or(System(WrongInjectedGas))?;
 
-        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gascnt);
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas);
 
         Ok(BackendReport {
             termination_reason,
