@@ -20,7 +20,7 @@
 
 use crate::{
     common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
-    globals,
+    globals::{self, GlobalNo},
     process::{self, AccessHandler},
     LazyPagesVersion, LAZY_PAGES_CONTEXT,
 };
@@ -89,13 +89,24 @@ unsafe fn user_signal_handler_internal(
 
         let gas_left = match ctx.version {
             LazyPagesVersion::Version1 => {
-                let gas = globals::apply_for_global(globals_config, 0, |_| Ok(None))?;
-                let allowance = globals::apply_for_global(globals_config, 1, |_| Ok(None))?;
+                let gas =
+                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
+                        Ok(None)
+                    })?;
+                let allowance = globals::apply_for_global(
+                    ctx.version,
+                    globals_config,
+                    GlobalNo::GasAllowance,
+                    |_| Ok(None),
+                )?;
 
                 (gas, allowance).into()
             }
             LazyPagesVersion::Version2 => {
-                let gas = globals::apply_for_global(globals_config, 0, |_| Ok(None))?;
+                let gas =
+                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
+                        Ok(None)
+                    })?;
                 (gas, gas).into()
             }
         };
@@ -192,11 +203,18 @@ impl AccessHandler for SignalAccessHandler {
         {
             match ctx.version {
                 LazyPagesVersion::Version1 => unsafe {
-                    globals::apply_for_global(globals_config, 0, |_| Ok(Some(gas_left.gas)))?;
-                    globals::apply_for_global(globals_config, 1, |_| Ok(Some(gas_left.allowance)))?;
+                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
+                        Ok(Some(gas_left.gas))
+                    })?;
+                    globals::apply_for_global(
+                        ctx.version,
+                        globals_config,
+                        GlobalNo::GasAllowance,
+                        |_| Ok(Some(gas_left.allowance)),
+                    )?;
                 },
                 LazyPagesVersion::Version2 => unsafe {
-                    globals::apply_for_global(globals_config, 0, |_| {
+                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
                         Ok(Some(gas_left.gas.min(gas_left.allowance)))
                     })?;
                 },

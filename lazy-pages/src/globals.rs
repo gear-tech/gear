@@ -18,7 +18,10 @@
 
 //! `GlobalsAccessor` realizations for native and wasm runtimes.
 
-use crate::common::{Error, GlobalNames};
+use crate::{
+    common::{Error, GlobalNames},
+    LazyPagesVersion,
+};
 use core::any::Any;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
@@ -27,6 +30,29 @@ use gear_backend_common::{
 use gear_core::memory::HostPointer;
 use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum GlobalNo {
+    Gas,
+    GasAllowance,
+}
+
+impl GlobalNo {
+    pub(crate) fn into_idx(self, version: LazyPagesVersion) -> usize {
+        let two_globals = version == LazyPagesVersion::Version1;
+
+        match self {
+            GlobalNo::Gas => 0,
+            GlobalNo::GasAllowance => {
+                if two_globals {
+                    1
+                } else {
+                    unreachable!("AllowanceLimit global is deprecated since lazy-pages v2")
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct GlobalsContext {
@@ -102,11 +128,12 @@ fn apply_for_global_internal(
 }
 
 pub(crate) unsafe fn apply_for_global(
+    version: LazyPagesVersion,
     globals_ctx: &GlobalsContext,
-    global_no: usize,
+    global_no: GlobalNo,
     f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = globals_ctx.names[global_no].as_str();
+    let name = globals_ctx.names[global_no.into_idx(version)].as_str();
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_ctx.access_ptr as *mut SandboxInstance)

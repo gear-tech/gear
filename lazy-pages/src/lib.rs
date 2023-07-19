@@ -48,10 +48,7 @@ mod sys;
 mod utils;
 
 use crate::{
-    common::{
-        ContextError, GlobalNames, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights,
-        GLOBALS_COUNT,
-    },
+    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
     globals::GlobalsContext,
     init_flag::InitializationFlag,
 };
@@ -420,10 +417,12 @@ fn init_with_handler<H: UserSignalHandler>(
         return Err(NotSuitablePageSizes);
     }
 
-    let global_names: GlobalNames = match global_names.try_into() {
-        Ok(names) => names,
-        Err(names) => return Err(WrongGlobalNamesAmount(names.len(), GLOBALS_COUNT)),
-    };
+    if global_names.len() != version.globals_count() {
+        return Err(WrongGlobalNamesAmount(
+            global_names.len(),
+            version.globals_count(),
+        ));
+    }
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_CONTEXT.with(|ctx| {

@@ -106,13 +106,7 @@ impl LazyPagesContext {
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
 pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
-// Used to be const instead of enum variant to keep it more obvious
-// that changes of it may cause incompatibility.
-//
-// Still used to be 2 instead of 1 just for avoiding bump of
-// other versions of runtime interface.
-pub(crate) const GLOBALS_COUNT: usize = 2;
-pub(crate) type GlobalNames = [LimitedStr<'static>; GLOBALS_COUNT];
+pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
@@ -154,10 +148,19 @@ pub(crate) struct LazyPagesExecutionContext {
 }
 
 /// Lazy-pages version.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LazyPagesVersion {
     Version1,
     Version2,
+}
+
+impl LazyPagesVersion {
+    pub const fn globals_count(&self) -> usize {
+        match self {
+            Self::Version1 => 2,
+            Self::Version2 => 1,
+        }
+    }
 }
 
 impl SizeManager for LazyPagesExecutionContext {
