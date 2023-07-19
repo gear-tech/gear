@@ -119,6 +119,8 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
+    let specific_num = 1248163264128;
+
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
         Instruction::GetGlobal(gas_index),
@@ -129,7 +131,7 @@ pub fn inject<R: Rules>(
         // Setting the sum into local with index 1 with keeping it on stack.
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
-        Instruction::I64Const(0),
+        Instruction::I64Const(specific_num),
         Instruction::I64Add,
         Instruction::TeeLocal(1),
         // III. Validating left amount of gas.
@@ -198,12 +200,11 @@ pub fn inject<R: Rules>(
     }
 
     // update cost for 'gas_charge' function itself
-    for instruction in elements
+    let cost_instr = elements
         .iter_mut()
-        .filter(|i| matches!(i, Instruction::I64Const(0)))
-    {
-        *instruction = Instruction::I64Const(cost as i64);
-    }
+        .find(|i| **i == Instruction::I64Const(specific_num))
+        .expect("Const for cost of the fn not found");
+    *cost_instr = Instruction::I64Const(cost as i64);
 
     // gas_charge function
     mbuilder.push_function(
