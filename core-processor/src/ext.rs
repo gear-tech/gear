@@ -1379,6 +1379,69 @@ mod tests {
         assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
     }
 
+    #[test]
+    /// This function tests:
+    ///
+    /// - `send_push_input` on non-existent handle
+    /// - `send_push_input` on valid handle
+    /// - `send_push_input` on used handle
+    /// - `send_push_input` data is added to buffer
+    ///
+    fn test_send_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let data = HandlePacket::default();
+
+        let fake_handle = 0;
+
+        let res = ext.send_push_input(fake_handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().unwrap();
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 2, 3);
+        assert!(res.is_ok());
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push_input(handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+    }
+
     mod property_tests {
         use super::*;
         use gear_core::{
