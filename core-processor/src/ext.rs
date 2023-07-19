@@ -1271,7 +1271,6 @@ mod tests {
     /// - `send_commit` on invalid handle
     /// - `send_commit` on used handle
     /// - `send_init` after limit is exceeded
-    ///
     fn test_send_commit() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
@@ -1289,7 +1288,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
         );
 
-        let handle = ext.send_init().unwrap();
+        let handle = ext.send_init().expect("Outgoing limit is 1");
 
         let msg = ext.send_commit(handle, data.clone(), 0);
         assert!(msg.is_ok());
@@ -1317,7 +1316,6 @@ mod tests {
     /// - `send_push` on used handle
     /// - `send_push` with too large payload
     /// - `send_push` data is added to buffer
-    ///
     fn test_send_push() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
@@ -1339,8 +1337,8 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
         );
 
-        let handle = ext.send_init().unwrap();
-
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
+        
         let res = ext.send_push(handle, &[1, 2, 3]);
         assert!(res.is_ok());
 
@@ -1386,7 +1384,6 @@ mod tests {
     /// - `send_push_input` on valid handle
     /// - `send_push_input` on used handle
     /// - `send_push_input` data is added to buffer
-    ///
     fn test_send_push_input() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
@@ -1408,7 +1405,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
         );
 
-        let handle = ext.send_init().unwrap();
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
 
         let res = ext
             .context
@@ -1418,6 +1415,9 @@ mod tests {
         assert!(res.is_ok());
 
         let res = ext.send_push_input(handle, 2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 8, 10);
         assert!(res.is_ok());
 
         let msg = ext.send_commit(handle, data, 0);
