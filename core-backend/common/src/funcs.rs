@@ -653,17 +653,13 @@ where
         let current_counter = ext.current_counter();
         log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
 
-        let termination_reason = match current_counter {
-            CounterType::GasLimit => {
-                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded)
-            }
-            CounterType::GasAllowance => {
-                // We manually decrease it to 0 because global won't be affected
-                // since it didn't pass comparison to argument of `gas_charge()`
-                ext.decrease_to(0);
-                ActorTerminationReason::GasAllowanceExceeded
-            }
-        };
+        if current_counter == CounterType::GasAllowance {
+            // We manually decrease it to 0 because global won't be affected
+            // since it didn't pass comparison to argument of `gas_charge()`
+            ext.decrease_to(0);
+        }
+
+        let termination_reason: ActorTerminationReason = current_counter.into();
 
         ctx.set_termination_reason(termination_reason.into());
         Err(R::unreachable_error())

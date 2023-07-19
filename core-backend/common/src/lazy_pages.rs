@@ -110,3 +110,10 @@ pub enum Status {
     /// Skips signals processing until the end of execution, set termination reason as `gas allowance exceeded`.
     GasAllowanceExceeded,
 }
+
+impl Status {
+    /// Returns bool defining if status is `Normal`.
+    pub fn is_normal(&self) -> bool {
+        *self == Self::Normal
+    }
+}

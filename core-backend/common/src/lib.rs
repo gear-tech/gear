@@ -83,12 +83,9 @@ impl UndefinedTerminationReason {
         match self {
             Self::Actor(r) => r.into(),
             Self::System(r) => r.into(),
-            Self::ProcessAccessErrorResourcesExceed => match current_counter {
-                CounterType::GasLimit => {
-                    ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
-                }
-                CounterType::GasAllowance => ActorTerminationReason::GasAllowanceExceeded.into(),
-            },
+            Self::ProcessAccessErrorResourcesExceed => {
+                ActorTerminationReason::from(current_counter).into()
+            }
         }
     }
 }
@@ -128,6 +125,15 @@ pub enum ActorTerminationReason {
     GasAllowanceExceeded,
     #[from]
     Trap(TrapExplanation),
+}
+
+impl From<CounterType> for ActorTerminationReason {
+    fn from(counter_type: CounterType) -> Self {
+        match counter_type {
+            CounterType::GasLimit => Self::Trap(TrapExplanation::GasLimitExceeded),
+            CounterType::GasAllowance => Self::GasAllowanceExceeded,
+        }
+    }
 }
 
 /// Non-actor related termination reason.
