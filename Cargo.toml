@@ -58,6 +58,7 @@ members = [
     "examples/reserve-gas",
     "examples/rwlock",
     "examples/send-from-reservation",
+    "examples/signal-assert",
     "examples/signal-entry",
     "examples/state-rollback",
     "examples/sync-duplicate",
@@ -296,7 +297,9 @@ sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-te
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
+sc-client-db = { version = "0.10.0-dev", features = [
+    "rocksdb",
+], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
 sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
@@ -374,7 +377,9 @@ demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor" }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
-demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
+demo-futures-unordered = { path = "examples/futures-unordered", features = [
+    "debug",
+] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
@@ -414,41 +419,41 @@ demo-wat = { path = "examples/wat" }
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
-cfg-if = "1.0.0"                                                          # gear-lazy-pages
+cfg-if = "1.0.0" # gear-lazy-pages
 # TODO: upgrade this package ( issue #2694 )
-cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
-errno = "0.3"                                                             # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "1.9.3"                                                        # utils/weight-diff
-indicatif = "*"                                                           # utils/wasm-gen
-keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.34", default-features = false }               # node/cli
-nacl = "0.5.3"                                                            # gcli
-nix = "0.26.2"                                                            # gear-lazy-pages
-nonempty = "0.8.1"                                                        # utils/utils
-libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
-pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
-page_size = { version = "0.5", default-features = false }                 # pallets/gear
-pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
-rand_pcg = "0.3.1"                                                        # pallets/gear
-schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
-tabled = "0.10.0"                                                         # utils/regression-analysis
-thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.3"                                                            # utils/wasm-builder
-tracing = "0.1.37"                                                        # utils/node-loder
-tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.16"                                             # utils/node-loder
-trybuild = "1"                                                            # gstd/codegen
-wasm-opt = "0.111.0"                                                      # utils/wasm-builder
-wasmprinter = "0.2"                                                       # utils/wasm-gen
-whoami = "1.4.0"                                                          # gcli
-fail = "0.5"                                                              # gear-common
-scale-value = "^0.10"                                                     # gsdk
-heck = "0.4.1"                                                            # gsdk-api-gen
-etc = "0.1.16"                                                            # gcli
-scale-decode = "0.7.0"                                                    # gsdk
+cargo_metadata = "=0.15.3"                                   # utils/wasm-builder
+errno = "0.3"                                                # gear-lazy-pages
+impl-trait-for-tuples = "0.2.2"                              # pallets/staking-rewards
+indexmap = "1.9.3"                                           # utils/weight-diff
+indicatif = "*"                                              # utils/wasm-gen
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.50.1"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.34", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+nix = "0.26.2"                                               # gear-lazy-pages
+nonempty = "0.8.1"                                           # utils/utils
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+pwasm-utils = "0.19.0"                                       # utils/wasm-builder
+page_size = { version = "0.5", default-features = false }    # pallets/gear
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_pcg = "0.3.1"                                           # pallets/gear
+schnorrkel = "0.9.1"                                         # gcli
+scopeguard = { version = "1.1.0", default-features = false } # pallets/gear
+tabled = "0.10.0"                                            # utils/regression-analysis
+thousands = "0.2.0"                                          # utils/regression-analysis
+toml = "0.7.3"                                               # utils/wasm-builder
+tracing = "0.1.37"                                           # utils/node-loder
+tracing-appender = "0.2"                                     # utils/node-loder
+tracing-subscriber = "0.3.16"                                # utils/node-loder
+trybuild = "1"                                               # gstd/codegen
+wasm-opt = "0.111.0"                                         # utils/wasm-builder
+wasmprinter = "0.2"                                          # utils/wasm-gen
+whoami = "1.4.0"                                             # gcli
+fail = "0.5"                                                 # gear-common
+scale-value = "^0.10"                                        # gsdk
+heck = "0.4.1"                                               # gsdk-api-gen
+etc = "0.1.16"                                               # gcli
+scale-decode = "0.7.0"                                       # gsdk
 
 [profile.release]
 panic = "unwind"
