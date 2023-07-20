@@ -3870,6 +3870,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "enum-iterator 1.4.1",
  "env_logger",
  "gear-core-errors",
  "gear-wasm-instrument",
