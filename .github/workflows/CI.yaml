@@ -159,6 +159,9 @@ jobs:
       - name: "ACTIONS: Setup environment variable"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
+        
+      - name: "Buid: Init"
+        run: ./scripts/gear.sh init cargo
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release

@@ -24,9 +24,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
 #[cfg(not(feature = "std"))]
 use gstd::prelude::*;
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {

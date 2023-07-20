@@ -40,4 +40,3 @@ std = [
 	"region",
 	"gear-sandbox-host",
 ]
-host-sandbox = ["gear-sandbox-host?/host-sandbox"]

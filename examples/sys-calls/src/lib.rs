@@ -20,7 +20,7 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "wasm-wrapper")]
 mod code {
@@ -108,13 +108,13 @@ pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::Kind;
-    use codec::Encode;
     use gstd::{
         errors::{ReplyCode, SignalCode, SimpleExecutionError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId, Vec,
     };
+    use parity_scale_codec::Encode;
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
     static mut SIGNAL_DETAILS: (MessageId, SignalCode, ActorId) = (

@@ -20,10 +20,6 @@ use demo_meta_io::Wallet;
 use gclient::{EventProcessor, GearApi};
 use gmeta::MetadataRepr;
 use parity_scale_codec::Decode;
-use tokio::fs;
-
-// TODO: remove in order to directly import metadata (issue #2945).
-const META_PATH: &str = "../examples/new-meta/demo_new_meta.meta.txt";
 
 #[tokio::test]
 async fn get_state() -> anyhow::Result<()> {
@@ -56,9 +52,8 @@ async fn get_state() -> anyhow::Result<()> {
     // Read and check `metahash`
     let actual_metahash = api.read_metahash(program_id).await?.0;
 
-    let meta = fs::read_to_string(META_PATH).await?;
-    let expected_metahash = MetadataRepr::from_hex(meta)
-        .expect("Failed to read meta from hex")
+    let expected_metahash = MetadataRepr::from_bytes(demo_new_meta::WASM_METADATA)
+        .expect("Failed to read meta from bytes")
         .hash();
 
     assert_eq!(actual_metahash, expected_metahash);

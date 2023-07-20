@@ -28,8 +28,8 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
 use gstd::prelude::*;
+use parity_scale_codec::{Decode, Encode};
 
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
