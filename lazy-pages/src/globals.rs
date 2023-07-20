@@ -51,7 +51,6 @@ struct GlobalsAccessWasmRuntime<'a> {
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        log::error!("GlobalsAccessor::get_i64");
         self.instance
             .get_global_val(name.as_str())
             .and_then(|value| match value {
@@ -62,7 +61,6 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     }
 
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
-        log::error!("GlobalsAccessor::set_i64");
         self.instance
             .set_global_val(name.as_str(), Value::I64(value))
             .ok()

@@ -430,12 +430,10 @@ pub fn invoke(
     let results = function.ty(&*store.borrow()).results().len();
     let mut results = vec![wasmi::Value::I32(0); results];
     SandboxContextStore::using(sandbox_context, || {
-        log::error!("invoke in SandboxContextStore::using");
         function
             .call(&mut *store.borrow_mut(), &args, &mut results)
             .map_err(|error| Error::Sandbox(error.to_string()))
     })?;
-    log::error!("invoking done");
 
     let results: &[wasmi::Value] = results.as_ref();
     match results {
@@ -457,7 +455,6 @@ pub fn get_global(
     globals: &Globals,
     name: &str,
 ) -> Option<Value> {
-    log::error!("get_global");
     let global = exports.get(name).copied()?.into_global()?;
     let value = globals.resolve(&global).get();
     wasmi_to_ri(value).ok()
@@ -470,8 +467,6 @@ pub fn set_global(
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
-    log::error!("set_global");
-
     let Some(Extern::Global(global)) = exports.get(name) else {
         return Ok(None);
     };

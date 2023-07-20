@@ -80,12 +80,9 @@ unsafe fn user_signal_handler_internal(
     let page = GearPage::from_offset(ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
-        log::error!("gas global");
         let gas = globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| Ok(None))?;
-        log::error!("allowance global");
         let allowance =
             globals::apply_for_global(globals_config, GlobalNo::AllowanceLimit, |_| Ok(None))?;
-
         let gas_left_charger = GasLeftCharger {
             read_cost: ctx.weight(WeightNo::SignalRead),
             write_cost: ctx.weight(WeightNo::SignalWrite),
