@@ -75,6 +75,8 @@ pub use general::*;
 mod utils;
 pub use utils::ext;
 
+pub use gsys::{BlockCount, BlockNumber};
+
 use core::mem::size_of;
 use static_assertions::const_assert;
 

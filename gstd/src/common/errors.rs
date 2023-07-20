@@ -51,6 +51,8 @@ pub enum Error {
     /// function (see
     /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
     ZeroSystemReservationAmount,
+    /// This error occurs when providing zero duration to mutex lock function
+    ZeroMxLockDuration,
 }
 
 impl Error {
@@ -74,6 +76,7 @@ impl fmt::Display for Error {
             Error::ZeroSystemReservationAmount => {
                 write!(f, "System reservation amount can not be zero in config.")
             }
+            Error::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero."),
         }
     }
 }

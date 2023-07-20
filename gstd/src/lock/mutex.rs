@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::access::AccessQueue;
-use crate::{async_runtime, exec, msg, MessageId};
+use crate::{async_runtime, exec, msg, BlockCount, BlockNumber, Config, MessageId};
 use core::{
     cell::UnsafeCell,
     future::Future,
@@ -77,7 +77,7 @@ use core::{
 /// # fn main() {}
 /// ```
 pub struct Mutex<T> {
-    locked: UnsafeCell<Option<(MessageId, u32)>>,
+    locked: UnsafeCell<Option<(MessageId, BlockNumber)>>,
     value: UnsafeCell<T>,
     queue: AccessQueue,
 }
@@ -104,7 +104,7 @@ impl<T> Mutex<T> {
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
         MutexLockFuture {
             mutex: self,
-            own_up_for_block_count: None,
+            own_up_for: Config::mx_lock_duration(),
         }
     }
 }
@@ -227,30 +227,26 @@ unsafe impl<T> Sync for Mutex<T> {}
 /// ```
 pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
-    own_up_for_block_count: Option<u32>,
+    own_up_for: BlockCount,
 }
 
 impl<'a, T> MutexLockFuture<'a, T> {
     /// Sets the maximum number of blocks the mutex lock can be owned by
     /// some message before the ownership can be seized by another rival
-    pub fn own_up_for(self, block_count: u32) -> Self {
+    pub fn own_up_for(self, block_count: BlockCount) -> Self {
         MutexLockFuture {
             mutex: self.mutex,
-            own_up_for_block_count: Some(block_count),
+            own_up_for: block_count,
         }
     }
 
     fn acquire_lock_ownership(
         &mut self,
         owner_msg_id: MessageId,
-        current_block_number: u32,
+        current_block: BlockNumber,
     ) -> Poll<MutexGuard<'a, T>> {
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
-        *locked_by = Some((
-            owner_msg_id,
-            self.own_up_for_block_count
-                .map_or(u32::MAX, |v| current_block_number.saturating_add(v)),
-        ));
+        *locked_by = Some((owner_msg_id, current_block.saturating_add(self.own_up_for)));
         Poll::Ready(MutexGuard {
             mutex: self.mutex,
             holder_msg_id: owner_msg_id,
@@ -276,10 +272,10 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
     // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let current_msg_id = msg::id();
-        let current_block_number = exec::block_height();
+        let current_block = exec::block_height();
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
-        if let Some((lock_owner_msg_id, deadline_block_number)) = *locked_by {
-            if current_block_number > deadline_block_number {
+        if let Some((lock_owner_msg_id, deadline_block)) = *locked_by {
+            if current_block > deadline_block {
                 if let Some(msg_future_task) = async_runtime::futures().get_mut(&lock_owner_msg_id)
                 {
                     msg_future_task.set_lock_exceeded();
@@ -300,12 +296,12 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
 
                 return self
                     .get_mut()
-                    .acquire_lock_ownership(current_msg_id, current_block_number);
+                    .acquire_lock_ownership(current_msg_id, current_block);
             }
             return self.get_mut().queue_for_lock_ownership(current_msg_id);
         }
 
         self.get_mut()
-            .acquire_lock_ownership(current_msg_id, current_block_number)
+            .acquire_lock_ownership(current_msg_id, current_block)
     }
 }
