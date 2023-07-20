@@ -344,15 +344,15 @@ impl Signer {
                 b.extrinsic_hash()
             ),
             TxStatus::Retracted(h) => log::warn!("	Status: Retracted( {h} )"),
-            TxStatus::FinalityTimeout(h) => log::warn!("	Status: FinalityTimeout( {h} )"),
+            TxStatus::FinalityTimeout(h) => log::error!("	Status: FinalityTimeout( {h} )"),
             TxStatus::Finalized(b) => log::info!(
                 "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Usurped(h) => log::warn!("	Status: Usurped( {h} )"),
-            TxStatus::Dropped => log::warn!("	Status: Dropped"),
-            TxStatus::Invalid => log::warn!("	Status: Invalid"),
+            TxStatus::Usurped(h) => log::error!("	Status: Usurped( {h} )"),
+            TxStatus::Dropped => log::error!("	Status: Dropped"),
+            TxStatus::Invalid => log::error!("	Status: Invalid"),
         }
     }
 
