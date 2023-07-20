@@ -18,7 +18,7 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::{fmt, rc::Rc};
+use std::{collections::BTreeMap, fmt, rc::Rc};
 
 use codec::{Decode, Encode};
 use debug_cell::RefCell;
@@ -26,7 +26,7 @@ use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     core::{Pages, Trap},
-    AsContext, AsContextMut, Engine, Exports, ExternType, Func, Globals, Linker, Module, Store,
+    AsContext, AsContextMut, Engine, Extern, ExternType, Func, Globals, Linker, Module, Store,
 };
 
 use crate::{
@@ -49,7 +49,6 @@ struct WasmiCallerSetter(());
 
 impl WasmiCallerSetter {
     fn new(caller: wasmi::Caller<'_, ()>) -> Self {
-        log::error!("WasmiCallerSetter::new");
         unsafe {
             WASMI_CALLER.with(|ref_| {
                 let static_caller = std::mem::transmute::<
@@ -68,7 +67,6 @@ impl WasmiCallerSetter {
 
 impl Drop for WasmiCallerSetter {
     fn drop(&mut self) {
-        log::error!("WasmiCallerSetter::drop");
         unsafe {
             WASMI_CALLER.with(|caller| {
                 let caller = caller
@@ -95,32 +93,26 @@ impl WasmiContext {
     where
         F: FnOnce(&dyn AsContext<UserState = ()>) -> R,
     {
-        log::error!("WasmiContext::with IN");
-        let r = WASMI_CALLER.with(|caller| match caller.borrow().as_ref() {
+        WASMI_CALLER.with(|caller| match caller.borrow().as_ref() {
             Some(store) => f(store),
             None => {
                 let store = self.store.borrow();
                 f(&*store)
             }
-        });
-        log::error!("WasmiContext::with OUT");
-        r
+        })
     }
 
     fn with_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut dyn AsContextMut<UserState = ()>) -> R,
     {
-        log::error!("WasmiContext::with_mut IN");
-        let r = WASMI_CALLER.with(|caller| match caller.borrow_mut().as_mut() {
+        WASMI_CALLER.with(|caller| match caller.borrow_mut().as_mut() {
             Some(store) => f(store),
             None => {
                 let mut store = self.store.borrow_mut();
                 f(&mut *store)
             }
-        });
-        log::error!("WasmiContext::with_mut OUT");
-        r
+        })
     }
 }
 
@@ -190,8 +182,6 @@ impl MemoryWrapper {
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
         self.context.with(|context| {
-            log::error!("MemoryTransfer::read");
-
             let source = self.memory.data(context.as_context());
 
             let range = util::checked_range(source_addr.into(), size, source.len())
@@ -203,8 +193,6 @@ impl MemoryTransfer for MemoryWrapper {
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
         self.context.with(|context| {
-            log::error!("MemoryTransfer::read_into");
-
             let source = self.memory.data(context.as_context());
             let range = util::checked_range(source_addr.into(), destination.len(), source.len())
                 .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
@@ -216,8 +204,6 @@ impl MemoryTransfer for MemoryWrapper {
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
         self.context.with_mut(|context| {
-            log::error!("MemoryTransfer::write_from");
-
             let destination = self.memory.data_mut(context.as_context_mut());
             let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
                 .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
@@ -229,8 +215,6 @@ impl MemoryTransfer for MemoryWrapper {
 
     fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
         self.context.with_mut(|context| {
-            log::error!("MemoryTransfer::grow");
-
             self.memory
                 .grow(context.as_context_mut(), Pages::from(pages as u16))
                 .map_err(|e| {
@@ -244,17 +228,13 @@ impl MemoryTransfer for MemoryWrapper {
     }
 
     fn memory_size(&mut self) -> u32 {
-        self.context.with(|context| {
-            log::error!("MemoryTransfer::memory_size");
-            self.memory.current_pages(context.as_context()).into()
-        })
+        self.context
+            .with(|context| self.memory.current_pages(context.as_context()).into())
     }
 
     fn get_buff(&mut self) -> *mut u8 {
-        self.context.with_mut(|context| {
-            log::error!("MemoryTransfer::get_buff");
-            self.memory.data_mut(context.as_context_mut()).as_mut_ptr()
-        })
+        self.context
+            .with_mut(|context| self.memory.data_mut(context.as_context_mut()).as_mut_ptr())
     }
 }
 
@@ -323,7 +303,10 @@ pub fn instantiate(
             .map_err(|_| InstantiationError::StartTrapped)
     })?;
 
-    let exports = instance.exports_ref(&mut *store.borrow_mut());
+    let exports = instance
+        .exports(&*store.borrow())
+        .map(|export| (export.name().to_string(), export.into_extern()))
+        .collect();
     let globals = store.borrow_mut().globals();
     let store = store.clone();
 
@@ -344,7 +327,7 @@ fn dispatch_function(
 ) -> Func {
     Func::new(store, func_ty, move |caller, params, results| {
         let _wasmi_caller_guard = WasmiCallerSetter::new(caller);
-        let r = SandboxContextStore::with(|sandbox_context| {
+        SandboxContextStore::with(|sandbox_context| {
             // Serialize arguments into a byte vector.
             let invoke_args_data = params
                 .iter()
@@ -427,9 +410,7 @@ fn dispatch_function(
 
             Ok(())
         })
-        .expect("SandboxContextStore is set when invoking sandboxed functions; qed");
-        log::error!("dispatch_function done");
-        r
+        .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
     })
 }
 
@@ -472,23 +453,27 @@ pub fn invoke(
 }
 
 /// Get global value by name
-pub fn get_global(exports: &Exports, globals: &Globals, name: &str) -> Option<Value> {
+pub fn get_global(
+    exports: &BTreeMap<String, Extern>,
+    globals: &Globals,
+    name: &str,
+) -> Option<Value> {
     log::error!("get_global");
-    let global = exports.get_global(name)?;
+    let global = exports.get(name).copied()?.into_global()?;
     let value = globals.resolve(&global).get();
     wasmi_to_ri(value).ok()
 }
 
 /// Set global value by name
 pub fn set_global(
-    exports: &Exports,
+    exports: &BTreeMap<String, Extern>,
     globals: &Globals,
     name: &str,
     value: Value,
 ) -> std::result::Result<Option<()>, error::Error> {
     log::error!("set_global");
 
-    let Some(global) = exports.get_global(name) else {
+    let Some(Extern::Global(global)) = exports.get(name) else {
         return Ok(None);
     };
 

@@ -24,7 +24,11 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{collections::HashMap, pin::Pin, rc::Rc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    pin::Pin,
+    rc::Rc,
+};
 
 use codec::Decode;
 use debug_cell::RefCell;
@@ -178,7 +182,7 @@ enum BackendInstance {
     Wasmi {
         instance: wasmi::Instance,
         store: Rc<RefCell<wasmi::Store<()>>>,
-        exports: wasmi::Exports,
+        exports: BTreeMap<String, wasmi::Extern>,
         globals: wasmi::Globals,
     },
 
