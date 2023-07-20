@@ -3642,7 +3642,6 @@ dependencies = [
  "env_logger",
  "futures",
  "futures-timer",
- "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
