@@ -35,7 +35,7 @@ impl Store {
     pub fn new() -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::Store::new(sandbox_env::SandboxBackend::Wasmi),
+            store: sandbox_env::Store::new(sandbox_env::SandboxBackend::TryWasmer),
         }
     }
 
