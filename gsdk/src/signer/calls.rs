@@ -343,16 +343,16 @@ impl Signer {
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Retracted(h) => log::info!("	Status: Retracted( {h} )"),
-            TxStatus::FinalityTimeout(h) => log::info!("	Status: FinalityTimeout( {h} )"),
+            TxStatus::Retracted(h) => log::warn!("	Status: Retracted( {h} )"),
+            TxStatus::FinalityTimeout(h) => log::warn!("	Status: FinalityTimeout( {h} )"),
             TxStatus::Finalized(b) => log::info!(
                 "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Usurped(h) => log::info!("	Status: Usurped( {h} )"),
-            TxStatus::Dropped => log::info!("	Status: Dropped"),
-            TxStatus::Invalid => log::info!("	Status: Invalid"),
+            TxStatus::Usurped(h) => log::warn!("	Status: Usurped( {h} )"),
+            TxStatus::Dropped => log::warn!("	Status: Dropped"),
+            TxStatus::Invalid => log::warn!("	Status: Invalid"),
         }
     }
 
@@ -389,7 +389,7 @@ impl Signer {
             let status = status?;
             self.log_status(&status);
             match status {
-                Future | Ready | Broadcast(_) | InBlock(_) => (),
+                Future | Ready | Broadcast(_) | InBlock(_) | Retracted(_) => (),
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
