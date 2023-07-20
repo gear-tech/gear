@@ -30,8 +30,7 @@ use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
-use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_sandbox::{HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -60,28 +59,45 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         HostError
     }
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(
+        &mut self,
+        gas: u64,
+        allowance: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(T, u64, u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
-        self.with_globals_update(|ctx| {
-            ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost)?;
-            f(ctx)
+        self.prepare_run(gas, allowance);
+        (|| {
+            self.ext.charge_gas_runtime(cost)?;
+            f(self)
+        })()
+        .map_err(|err| {
+            self.set_termination_reason(err);
+            HostError
+        })
+        .map(|r| {
+            let GasLeft { gas, allowance } = self.ext.gas_left();
+
+            (r, gas, allowance)
         })
     }
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
+        allowance: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<((), u64, u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx| {
+        self.run_any(gas, allowance, cost, |ctx| {
             let res = f(ctx);
             let res = ctx.process_fallible_func_result(res)?;
 
@@ -90,7 +106,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
             ctx.write_as(write_res, R::from(res)).map_err(Into::into)
         })
-        .map(|_| ())
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
@@ -100,53 +115,10 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
 impl<Ext: BackendExternalities> Runtime<Ext> {
     // Cleans `memory_manager`, updates ext counters based on globals.
-    fn prepare_run(&mut self) {
+    fn prepare_run(&mut self, gas: u64, allowance: u64) {
         self.memory_manager = Default::default();
 
-        let gas = self
-            .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(as_i64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        let allowance = self
-            .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(as_i64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
         self.ext.set_gas_left((gas, allowance).into());
-    }
-
-    // Updates globals after execution.
-    fn update_globals(&mut self) {
-        let GasLeft { gas, allowance } = self.ext.gas_left();
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-    }
-
-    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-    {
-        let result = f(self).map_err(|err| {
-            self.set_termination_reason(err);
-            HostError
-        });
-
-        self.update_globals();
-
-        result
     }
 
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>

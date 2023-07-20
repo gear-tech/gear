@@ -18,6 +18,8 @@
 
 //! Syscall implementations generic over wasmi and sandbox backends.
 
+#![allow(clippy::too_many_arguments)]
+
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::{RunFallibleError, Runtime},
@@ -79,11 +81,13 @@ where
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
     pub fn send(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         pid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_hash_val = ctx.register_read_as(pid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let HashWithValue {
@@ -100,10 +104,12 @@ where
     #[host(fallible, wgas, cost = RuntimeCosts::SendCommit)]
     pub fn send_commit(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         handle: u32,
         pid_value_ptr: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_pid_value = ctx.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
@@ -120,12 +126,19 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::SendInit, err = ErrorWithHandle)]
-    pub fn send_init(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn send_init(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().send_init().map_err(Into::into)
     }
 
     #[host(fallible, cost = RuntimeCosts::SendPush(len), err = ErrorBytes)]
-    pub fn send_push(ctx: &mut R, handle: u32, payload_ptr: u32, len: u32) -> Result<(), R::Error> {
+    pub fn send_push(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        handle: u32,
+        payload_ptr: u32,
+        len: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
@@ -137,11 +150,13 @@ where
     #[host(fallible, cost = RuntimeCosts::ReservationSend(len))]
     pub fn reservation_send(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         rid_pid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let TwoHashesWithValue {
@@ -163,10 +178,12 @@ where
     #[host(fallible, cost = RuntimeCosts::ReservationSendCommit)]
     pub fn reservation_send_commit(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         handle: u32,
         rid_pid_value_ptr: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
         let TwoHashesWithValue {
             hash1: reservation_id,
@@ -185,7 +202,14 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::Read, err = ErrorBytes)]
-    pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
+    pub fn read(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        at: u32,
+        len: u32,
+        buffer_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
         payload_lock
             .drop_with::<MemoryAccessError, _>(|payload_access| {
@@ -200,7 +224,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::Size)]
-    pub fn size(ctx: &mut R, size_ptr: u32) -> Result<(), R::Error> {
+    pub fn size(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        size_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let size = ctx.ext_mut().size()? as u32;
 
         let write_size = ctx.register_write_as(size_ptr);
@@ -209,14 +238,19 @@ where
     }
 
     #[host(cost = RuntimeCosts::Exit)]
-    pub fn exit(ctx: &mut R, inheritor_id_ptr: u32) -> Result<(), R::Error> {
+    pub fn exit(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        inheritor_id_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
         let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithReplyCode)]
-    pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn reply_code(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut()
             .reply_code()
             .map(ReplyCode::to_bytes)
@@ -225,7 +259,7 @@ where
 
     // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithSignalCode)]
-    pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn signal_code(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut()
             .signal_code()
             .map(SignalCode::to_u32)
@@ -233,7 +267,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::Alloc(pages))]
-    pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {
+    pub fn alloc(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        pages: u32,
+    ) -> Result<(u32, u64, u64), R::Error> {
         let res = ctx.alloc(pages);
         let res = ctx.process_alloc_func_result(res)?;
 
@@ -251,7 +290,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::Free)]
-    pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
+    pub fn free(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        page_no: u32,
+    ) -> Result<(i32, u64, u64), R::Error> {
         let page = WasmPage::new(page_no).map_err(|_| {
             TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
         })?;
@@ -272,7 +316,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::BlockHeight)]
-    pub fn block_height(ctx: &mut R, height_ptr: u32) -> Result<(), R::Error> {
+    pub fn block_height(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        height_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let height = ctx.ext_mut().block_height()?;
 
         let write_height = ctx.register_write_as(height_ptr);
@@ -281,7 +330,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::BlockTimestamp)]
-    pub fn block_timestamp(ctx: &mut R, timestamp_ptr: u32) -> Result<(), R::Error> {
+    pub fn block_timestamp(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        timestamp_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let timestamp = ctx.ext_mut().block_timestamp()?;
 
         let write_timestamp = ctx.register_write_as(timestamp_ptr);
@@ -290,7 +344,13 @@ where
     }
 
     #[host(cost = RuntimeCosts::Random)]
-    pub fn random(ctx: &mut R, subject_ptr: u32, bn_random_ptr: u32) -> Result<(), R::Error> {
+    pub fn random(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        subject_ptr: u32,
+        bn_random_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_subject = ctx.register_read_decoded(subject_ptr);
         let write_bn_random = ctx.register_write_as(bn_random_ptr);
 
@@ -307,7 +367,14 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Reply(len))]
-    pub fn reply(ctx: &mut R, payload_ptr: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
+    pub fn reply(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        payload_ptr: u32,
+        len: u32,
+        value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
@@ -318,7 +385,12 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, value_ptr: u32) -> Result<(), R::Error> {
+    pub fn reply_commit(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -329,10 +401,12 @@ where
     #[host(fallible, cost = RuntimeCosts::ReservationReply(len))]
     pub fn reservation_reply(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let HashWithValue {
@@ -347,7 +421,12 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
-    pub fn reservation_reply_commit(ctx: &mut R, rid_value_ptr: u32) -> Result<(), R::Error> {
+    pub fn reservation_reply_commit(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        rid_value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {
             hash: reservation_id,
@@ -363,18 +442,24 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyTo)]
-    pub fn reply_to(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn reply_to(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
     // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
-    pub fn signal_from(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn signal_from(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyPush(len), err = ErrorBytes)]
-    pub fn reply_push(ctx: &mut R, payload_ptr: u32, len: u32) -> Result<(), R::Error> {
+    pub fn reply_push(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        payload_ptr: u32,
+        len: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
@@ -382,7 +467,14 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyInput)]
-    pub fn reply_input(ctx: &mut R, offset: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
+    pub fn reply_input(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        offset: u32,
+        len: u32,
+        value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
@@ -396,7 +488,13 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyPushInput, err = ErrorBytes)]
-    pub fn reply_push_input(ctx: &mut R, offset: u32, len: u32) -> Result<(), R::Error> {
+    pub fn reply_push_input(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        offset: u32,
+        len: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut()
             .reply_push_input(offset, len)
             .map_err(Into::into)
@@ -405,11 +503,13 @@ where
     #[host(fallible, wgas, cost = RuntimeCosts::SendInput)]
     pub fn send_input(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         pid_value_ptr: u32,
         offset: u32,
         len: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         // Charge for `len` inside `send_push_input`
         let read_pid_value = ctx.register_read_as(pid_value_ptr);
         let HashWithValue {
@@ -433,17 +533,25 @@ where
     #[host(fallible, cost = RuntimeCosts::SendPushInput, err = ErrorBytes)]
     pub fn send_push_input(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         handle: u32,
         offset: u32,
         len: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut()
             .send_push_input(handle, offset, len)
             .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Debug(data_len))]
-    pub fn debug(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
+    pub fn debug(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        data_ptr: u32,
+        data_len: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
         let data: RuntimeBuffer = ctx
             .read(read_data)?
@@ -462,7 +570,13 @@ where
     }
 
     #[host(cost = RuntimeCosts::Null)]
-    pub fn panic(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
+    pub fn panic(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        data_ptr: u32,
+        data_len: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
         let data = ctx.read(read_data).unwrap_or_default();
 
@@ -472,27 +586,46 @@ where
     }
 
     #[host(cost = RuntimeCosts::Null)]
-    pub fn oom_panic(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn oom_panic(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
     }
 
     #[host(fallible, cost = RuntimeCosts::ReserveGas)]
-    pub fn reserve_gas(ctx: &mut R, gas: u64, duration: u32) -> Result<(), R::Error> {
-        ctx.ext_mut().reserve_gas(gas, duration).map_err(Into::into)
+    pub fn reserve_gas(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        gas_value: u64,
+        duration: u32,
+    ) -> Result<((), u64, u64), R::Error> {
+        ctx.ext_mut()
+            .reserve_gas(gas_value, duration)
+            .map_err(Into::into)
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyDeposit, err = ErrorBytes)]
-    pub fn reply_deposit(ctx: &mut R, message_id_ptr: u32, gas: u64) -> Result<(), R::Error> {
+    pub fn reply_deposit(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        message_id_ptr: u32,
+        gas_value: u64,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
         ctx.ext_mut()
-            .reply_deposit(message_id, gas)
+            .reply_deposit(message_id, gas_value)
             .map_err(Into::into)
     }
 
     #[host(fallible, cost = RuntimeCosts::UnreserveGas, err = ErrorWithGas)]
-    pub fn unreserve_gas(ctx: &mut R, reservation_id_ptr: u32) -> Result<(), R::Error> {
+    pub fn unreserve_gas(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        reservation_id_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
         let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
@@ -502,12 +635,22 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::SystemReserveGas, err = ErrorBytes)]
-    pub fn system_reserve_gas(ctx: &mut R, gas: u64) -> Result<(), R::Error> {
+    pub fn system_reserve_gas(
+        ctx: &mut R,
+        gas2: u64,
+        allowance: u64,
+        gas: u64,
+    ) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().system_reserve_gas(gas).map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::GasAvailable)]
-    pub fn gas_available(ctx: &mut R, gas_ptr: u32) -> Result<(), R::Error> {
+    pub fn gas_available(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        gas_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let gas = ctx.ext_mut().gas_available()?;
 
         let write_gas = ctx.register_write_as(gas_ptr);
@@ -516,7 +659,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::MsgId)]
-    pub fn message_id(ctx: &mut R, message_id_ptr: u32) -> Result<(), R::Error> {
+    pub fn message_id(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        message_id_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let message_id = ctx.ext_mut().message_id()?;
 
         let write_message_id = ctx.register_write_as(message_id_ptr);
@@ -525,7 +673,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::ProgramId)]
-    pub fn program_id(ctx: &mut R, program_id_ptr: u32) -> Result<(), R::Error> {
+    pub fn program_id(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        program_id_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let program_id = ctx.ext_mut().program_id()?;
 
         let write_program_id = ctx.register_write_as(program_id_ptr);
@@ -534,7 +687,12 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::PayProgramRent, err = ErrorWithBlockNumberAndValue)]
-    pub fn pay_program_rent(ctx: &mut R, rent_pid_ptr: u32) -> Result<(), R::Error> {
+    pub fn pay_program_rent(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        rent_pid_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
         let HashWithValue {
@@ -548,7 +706,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::Source)]
-    pub fn source(ctx: &mut R, source_ptr: u32) -> Result<(), R::Error> {
+    pub fn source(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        source_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let source = ctx.ext_mut().source()?;
 
         let write_source = ctx.register_write_as(source_ptr);
@@ -557,7 +720,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::Value)]
-    pub fn value(ctx: &mut R, value_ptr: u32) -> Result<(), R::Error> {
+    pub fn value(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let value = ctx.ext_mut().value()?;
 
         let write_value = ctx.register_write_as(value_ptr);
@@ -566,7 +734,12 @@ where
     }
 
     #[host(cost = RuntimeCosts::ValueAvailable)]
-    pub fn value_available(ctx: &mut R, value_ptr: u32) -> Result<(), R::Error> {
+    pub fn value_available(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        value_ptr: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let value_available = ctx.ext_mut().value_available()?;
 
         let write_value = ctx.register_write_as(value_ptr);
@@ -575,24 +748,34 @@ where
     }
 
     #[host(cost = RuntimeCosts::Leave)]
-    pub fn leave(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn leave(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         Err(ActorTerminationReason::Leave.into())
     }
 
     #[host(cost = RuntimeCosts::Wait)]
-    pub fn wait(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn wait(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().wait()?;
         Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
     }
 
     #[host(cost = RuntimeCosts::WaitFor)]
-    pub fn wait_for(ctx: &mut R, duration: u32) -> Result<(), R::Error> {
+    pub fn wait_for(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        duration: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         ctx.ext_mut().wait_for(duration)?;
         Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
     }
 
     #[host(cost = RuntimeCosts::WaitUpTo)]
-    pub fn wait_up_to(ctx: &mut R, duration: u32) -> Result<(), R::Error> {
+    pub fn wait_up_to(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        duration: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
             MessageWaitedType::WaitUpToFull
         } else {
@@ -602,7 +785,13 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::Wake, err = ErrorBytes)]
-    pub fn wake(ctx: &mut R, message_id_ptr: u32, delay: u32) -> Result<(), R::Error> {
+    pub fn wake(
+        ctx: &mut R,
+        gas: u64,
+        allowance: u64,
+        message_id_ptr: u32,
+        delay: u32,
+    ) -> Result<((), u64, u64), R::Error> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
@@ -613,13 +802,15 @@ where
     #[host(fallible, wgas, cost = RuntimeCosts::CreateProgram(payload_len, salt_len), err = ErrorWithTwoHashes)]
     pub fn create_program(
         ctx: &mut R,
+        gas: u64,
+        allowance: u64,
         cid_value_ptr: u32,
         salt_ptr: u32,
         salt_len: u32,
         payload_ptr: u32,
         payload_len: u32,
         delay: u32,
-    ) -> Result<(), R::Error> {
+    ) -> Result<((), u64, u64), R::Error> {
         let read_cid_value = ctx.register_read_as(cid_value_ptr);
         let read_salt = ctx.register_read(salt_ptr, salt_len);
         let read_payload = ctx.register_read(payload_ptr, payload_len);
@@ -635,15 +826,15 @@ where
             .map_err(Into::into)
     }
 
-    pub fn forbidden(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn forbidden(ctx: &mut R, gas: u64, allowance: u64) -> Result<((), u64, u64), R::Error> {
         syscall_trace!("forbidden");
 
-        ctx.run_any(RuntimeCosts::Null, |_| {
+        ctx.run_any(gas, allowance, RuntimeCosts::Null, |_| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
         })
     }
 
-    pub fn out_of_gas(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn out_of_gas(ctx: &mut R, _gas: u64, _allowance: u64) -> Result<((), u64, u64), R::Error> {
         syscall_trace!("out_of_gas");
 
         ctx.set_termination_reason(
@@ -653,7 +844,11 @@ where
         Err(R::unreachable_error())
     }
 
-    pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
+    pub fn out_of_allowance(
+        ctx: &mut R,
+        _gas: u64,
+        _allowance: u64,
+    ) -> Result<((), u64, u64), R::Error> {
         syscall_trace!("out_of_allowance");
 
         ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());

@@ -79,36 +79,49 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
     }
 
     #[track_caller]
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(
+        &mut self,
+        _gas: u64,
+        _allowance: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(T, u64, u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
-            f(ctx)
+            f(ctx).map(|r| (r, 0, 0))
         })
     }
 
     #[track_caller]
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
+        allowance: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<((), u64, u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
-            let res = f(ctx);
-            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+        self.run_any(
+            gas,
+            allowance,
+            cost,
+            |ctx: &mut Self| -> Result<_, TerminationReason> {
+                let res = f(ctx);
+                let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.register_write_as::<R>(res_ptr);
+                // TODO: move above or make normal process memory access.
+                let write_res = ctx.register_write_as::<R>(res_ptr);
 
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
+                ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+            },
+        )
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {

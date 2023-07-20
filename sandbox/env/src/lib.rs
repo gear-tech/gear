@@ -21,9 +21,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-
 use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;
+use sp_wasm_interface::ReturnValue;
 
 /// Error error that can be returned from host function.
 #[derive(Encode, Decode, RuntimeDebug)]
@@ -107,6 +107,21 @@ pub const ERROR_GLOBALS_NOT_FOUND: u32 = u32::MAX;
 ///
 /// For FFI purposes.
 pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
+
+/// Typed value that can be returned from a wasm function
+/// through the dispatch thunk.
+/// Additionally contains globals values.
+#[derive(Clone, Copy, PartialEq, Encode, Decode, Debug)]
+#[codec(crate = codec)]
+pub struct WasmReturnValue {
+    pub gas: i64,
+    pub allowance: i64,
+    pub value: ReturnValue,
+}
+
+impl WasmReturnValue {
+    pub const ENCODED_MAX_SIZE: usize = 16 + ReturnValue::ENCODED_MAX_SIZE;
+}
 
 #[cfg(test)]
 mod tests {
