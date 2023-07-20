@@ -18,10 +18,9 @@
 
 //! Wasmi specific impls for sandbox
 
-use std::{collections::BTreeMap, fmt, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, fmt, rc::Rc};
 
 use codec::{Decode, Encode};
-use debug_cell::RefCell;
 use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{

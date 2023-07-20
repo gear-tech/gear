@@ -25,13 +25,13 @@ mod wasmer_backend;
 mod wasmi_backend;
 
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap},
     pin::Pin,
     rc::Rc,
 };
 
 use codec::Decode;
-use debug_cell::RefCell;
 use gear_sandbox_env as sandbox_env;
 use sp_wasm_interface::{Pointer, WordSize};
 
