@@ -211,14 +211,14 @@ impl WasmProject {
 
         let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
+        fs::create_dir_all(&self.wasm_target_dir)?;
+
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
             let file_base_name = self
                 .file_base_name
                 .as_ref()
                 .expect("Run `WasmProject::create_project()` first");
-
-            fs::create_dir_all(&self.wasm_target_dir)?;
 
             let wasm_meta_path = self
                 .wasm_target_dir
