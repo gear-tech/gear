@@ -1490,7 +1490,7 @@ mod tests {
     // - `reply_push` with too much data
     // - `reply_push` after `reply_commit`
     // - `reply_push` data is added to buffer
-    fn test_reply_commit() {
+    fn test_reply_push() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(u64::MAX))
@@ -1546,7 +1546,7 @@ mod tests {
     // - `reply_push_input` with valid data
     // - `reply_push_input` after `reply_commit`
     // - `reply_push_input` data is added to buffer
-    fn test_send_push_input() {
+    fn test_reply_push_input() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_message_context(
