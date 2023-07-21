@@ -30,7 +30,7 @@ use primitive_types::H256;
 use sp_core::ConstU128;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, ConstU64, IdentityLookup},
+    traits::{BlakeTwo256, ConstU32, ConstU64, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -53,9 +53,9 @@ impl pallet_balances::Config for Test {
     type AccountStore = System;
     type WeightInfo = ();
     type FreezeIdentifier = ();
-    type MaxFreezes = ();
-    type HoldIdentifier = ();
-    type MaxHolds = ();
+    type HoldIdentifier = RuntimeHoldReason;
+    type MaxFreezes = ConstU32<100>;
+    type MaxHolds = ConstU32<100>;
 }
 
 parameter_types! {
@@ -151,6 +151,7 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;

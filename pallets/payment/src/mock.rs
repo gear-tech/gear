@@ -21,7 +21,8 @@ use common::storage::Messenger;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
+        ConstU128, ConstU32, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
+        OnUnbalanced,
     },
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
     PalletId,
@@ -84,9 +85,9 @@ impl pallet_balances::Config for Test {
     type AccountStore = System;
     type WeightInfo = ();
     type FreezeIdentifier = ();
-    type MaxFreezes = ();
-    type HoldIdentifier = ();
-    type MaxHolds = ();
+    type HoldIdentifier = RuntimeHoldReason;
+    type MaxFreezes = ConstU32<100>;
+    type MaxHolds = ConstU32<100>;
 }
 
 pub struct FixedBlockAuthor;
@@ -187,6 +188,7 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;

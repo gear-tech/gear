@@ -28,7 +28,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
-use sp_core::{ConstU128, H256};
+use sp_core::{ConstU128, ConstU32, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -55,15 +55,15 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        GearScheduler: pallet_gear_scheduler::{Pallet},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        System: system,
+        Balances: pallet_balances,
+        Authorship: pallet_authorship,
+        Timestamp: pallet_timestamp,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        Gear: pallet_gear,
+        GearGas: pallet_gear_gas,
     }
 );
 
@@ -78,9 +78,9 @@ impl pallet_balances::Config for Test {
     type AccountStore = System;
     type WeightInfo = ();
     type FreezeIdentifier = ();
-    type MaxFreezes = ();
-    type HoldIdentifier = ();
-    type MaxHolds = ();
+    type HoldIdentifier = RuntimeHoldReason;
+    type MaxFreezes = ConstU32<100>;
+    type MaxHolds = ConstU32<100>;
 }
 
 parameter_types! {
@@ -141,6 +141,7 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
