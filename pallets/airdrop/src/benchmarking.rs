@@ -21,7 +21,7 @@ use crate::Pallet as Airdrop;
 use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::traits::Currency;
+use frame_support::traits::fungible::{Inspect, Mutate};
 use frame_system::RawOrigin;
 use sp_runtime::traits::UniqueSaturatedInto;
 
@@ -34,14 +34,14 @@ benchmarks! {
         let q in 1 .. 256;
 
         let source: T::AccountId = benchmarking::account("source", 0, 0);
-        <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
+        <T as pallet_gear::Config>::Currency::set_balance(&source, (1u128 << 60).unique_saturated_into());
         let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
         // Keeping in mind the existential deposit
         let amount = 100_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
 
     }: _(RawOrigin::Root, source, recipient.clone(), amount.unique_saturated_into())
     verify {
-        assert_eq!(pallet_balances::Pallet::<T>::total_balance(&recipient), amount.unique_saturated_into());
+        assert_eq!(<T as pallet_gear::Config>::Currency::total_balance(&recipient), amount.unique_saturated_into());
     }
 }
 

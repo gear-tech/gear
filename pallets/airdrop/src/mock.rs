@@ -19,7 +19,7 @@
 use crate as pallet_airdrop;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU64, GenesisBuild, WithdrawReasons},
+    traits::{ConstU32, ConstU64, GenesisBuild, WithdrawReasons},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -108,9 +108,9 @@ impl pallet_balances::Config for Test {
     type AccountStore = System;
     type WeightInfo = ();
     type FreezeIdentifier = ();
-    type MaxFreezes = ();
-    type HoldIdentifier = ();
-    type MaxHolds = ();
+    type HoldIdentifier = RuntimeHoldReason;
+    type MaxFreezes = ConstU32<100>;
+    type MaxHolds = ConstU32<100>;
 }
 
 impl pallet_sudo::Config for Test {
@@ -162,6 +162,7 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;

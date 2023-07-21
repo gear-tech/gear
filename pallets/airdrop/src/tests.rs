@@ -21,7 +21,7 @@ use crate::mock::{
     new_test_ext, Airdrop, AirdropCall, AirdropError, Balances, RuntimeCall, RuntimeOrigin, Sudo,
     Test, Vesting, ALICE, BOB, ROOT,
 };
-use frame_support::{assert_err, assert_noop, assert_ok};
+use frame_support::{assert_err, assert_noop, assert_ok, traits::fungible::Inspect};
 use frame_system::Config;
 use pallet_vesting::VestingInfo;
 
@@ -42,8 +42,14 @@ fn sudo_call_works() {
             amount: 10_000_000,
         }));
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
-        assert_eq!(Balances::total_balance(&ALICE), 10_000_000);
-        assert_eq!(Balances::total_balance(&ROOT), 90_000_000);
+        assert_eq!(
+            <<Test as pallet_gear::Config>::Currency as Inspect<_>>::total_balance(&ALICE),
+            10_000_000
+        );
+        assert_eq!(
+            <<Test as pallet_gear::Config>::Currency as Inspect<_>>::total_balance(&ROOT),
+            90_000_000
+        );
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
         assert_eq!(Balances::locks(BOB).len(), 1);
@@ -54,9 +60,15 @@ fn sudo_call_works() {
             amount: None,
         }));
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
-        assert_eq!(Balances::total_balance(&BOB), 0);
+        assert_eq!(
+            <<Test as pallet_gear::Config>::Currency as Inspect<_>>::total_balance(&BOB),
+            0
+        );
         assert_eq!(Balances::locks(BOB), vec![]);
-        assert_eq!(Balances::total_balance(&ALICE), 110_000_000);
+        assert_eq!(
+            <<Test as pallet_gear::Config>::Currency as Inspect<_>>::total_balance(&ALICE),
+            110_000_000
+        );
         assert_eq!(Balances::total_issuance(), 200_000_000);
     });
 }
@@ -72,9 +84,18 @@ fn vesting_transfer_works() {
                 100,
             )
         );
-        assert_eq!(Balances::total_balance(&ALICE), 0);
-        assert_eq!(Balances::total_balance(&BOB), 100_000_000);
-        assert_eq!(Balances::total_balance(&ROOT), 100_000_000);
+        assert_eq!(
+            <<Test as pallet_vesting::Config>::Currency as Currency<_>>::total_balance(&ALICE),
+            0
+        );
+        assert_eq!(
+            <<Test as pallet_vesting::Config>::Currency as Currency<_>>::total_balance(&BOB),
+            100_000_000
+        );
+        assert_eq!(
+            <<Test as pallet_vesting::Config>::Currency as Currency<_>>::total_balance(&ROOT),
+            100_000_000
+        );
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
         // Amount can't be bigger than locked funds
@@ -99,7 +120,10 @@ fn vesting_transfer_works() {
                 90_000_000, 90_000, 100,
             )
         );
-        assert_eq!(Balances::total_balance(&BOB), 90_000_000);
+        assert_eq!(
+            <<Test as pallet_vesting::Config>::Currency as Currency<_>>::total_balance(&BOB),
+            90_000_000
+        );
         assert_eq!(Balances::free_balance(ALICE), 10_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
@@ -114,7 +138,10 @@ fn vesting_transfer_works() {
 
         // Check that BOB have no vesting and ALICE have all the unlocked funds.
         assert_eq!(Vesting::vesting(BOB), None);
-        assert_eq!(Balances::total_balance(&BOB), 0);
+        assert_eq!(
+            <<Test as pallet_vesting::Config>::Currency as Currency<_>>::total_balance(&BOB),
+            0
+        );
         assert_eq!(Balances::free_balance(ALICE), 100_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
     });

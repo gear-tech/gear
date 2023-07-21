@@ -20,7 +20,11 @@
 
 use frame_support::{
     pallet_prelude::*,
-    traits::{Currency, ExistenceRequirement, VestingSchedule},
+    traits::{
+        fungible::{Inspect, Mutate},
+        tokens::Preservation,
+        Currency, ExistenceRequirement, VestingSchedule,
+    },
 };
 pub use pallet::*;
 use sp_runtime::traits::{Convert, Saturating};
@@ -37,7 +41,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub(crate) type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
+pub(crate) type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Inspect<
     <T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -118,11 +122,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
-            <<T as pallet_gear::Config>::Currency as Currency<_>>::transfer(
+            <<T as pallet_gear::Config>::Currency>::transfer(
                 &source,
                 &dest,
                 amount,
-                ExistenceRequirement::KeepAlive,
+                Preservation::Protect,
             )?;
             Self::deposit_event(Event::TokensDeposited {
                 account: dest,
