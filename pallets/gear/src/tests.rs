@@ -45,9 +45,9 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
-    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf,
-    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
-    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, HoldReason, MailboxOf, ProgramStorageOf,
+    QueueOf, RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf,
+    Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -59,7 +59,7 @@ use frame_support::{
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
-    traits::{Currency, Randomness},
+    traits::{fungible::MutateHold, tokens::Precision, Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{

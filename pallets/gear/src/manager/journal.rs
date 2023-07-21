@@ -34,7 +34,6 @@ use frame_support::{
     traits::{
         fungible::{Inspect, Mutate, MutateHold},
         tokens::Preservation,
-        Currency, ExistenceRequirement, ReservableCurrency,
     },
 };
 use frame_system::pallet_prelude::BlockNumberFor;

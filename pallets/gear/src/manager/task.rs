@@ -32,9 +32,8 @@ use common::{
     Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use frame_support::traits::{
-    fungible::{Inspect, Mutate, MutateHold},
+    fungible::{Inspect, Mutate},
     tokens::Preservation,
-    Currency, ExistenceRequirement,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},

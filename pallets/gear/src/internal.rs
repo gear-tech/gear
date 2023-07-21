@@ -40,7 +40,6 @@ use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::traits::{
     fungible::{Inspect, InspectHold, Mutate, MutateHold},
     tokens::{Fortitude, Precision, Preservation, Restriction},
-    BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -235,11 +234,7 @@ where
         // Otherwise need to transfer them directly.
 
         // Checking balance existence of destination address.
-        if CurrencyOf::<T>::can_hold(
-            &HoldReason::StorageDepositReserve.into(),
-            to,
-            CurrencyOf::<T>::minimum_balance(),
-        ) {
+        if CurrencyOf::<T>::can_hold(&HoldReason::StorageDepositReserve.into(), to, ed) {
             // Repatriating reserved to existent account.
             let unrevealed = CurrencyOf::<T>::transfer_on_hold(
                 &HoldReason::StorageDepositReserve.into(),
@@ -751,9 +746,7 @@ where
         };
 
         if !dispatch.value().is_zero() {
-            let ed = CurrencyOf::<T>::minimum_balance();
             // Hold value from source for future transfer or release.
-            log::info!(target: "gear::internal", "balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::balance(&from), value, &from);
             CurrencyOf::<T>::hold(&HoldReason::StorageDepositReserve.into(), &from, value)
                 .unwrap_or_else(|e| unreachable!("Failed to hold funds: {:?}", e));
         }
@@ -861,17 +854,9 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if !value.is_zero() {
-                let ed = CurrencyOf::<T>::minimum_balance();
-                // log::info!(target: "gear::internal", "balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::total_balance(&from), value, &from);
-                log::info!(target: "gear::internal", "hold balance: {:?}, value: {:?}, from: {:?}", CurrencyOf::<T>::balance(&from), value, &from);
                 // Hold value from source for future transfer or release.
-                CurrencyOf::<T>::hold(
-                    &HoldReason::StorageDepositReserve.into(),
-                    &from,
-                    value.saturating_sub(ed),
-                    // value,
-                )
-                .unwrap_or_else(|e| unreachable!("Failed to hold funds: {:?}", e));
+                CurrencyOf::<T>::hold(&HoldReason::StorageDepositReserve.into(), &from, value)
+                    .unwrap_or_else(|e| unreachable!("Failed to hold funds: {:?}", e));
             }
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.

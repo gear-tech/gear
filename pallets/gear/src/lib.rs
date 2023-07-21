@@ -65,10 +65,9 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        fungible::{Inspect, InspectHold, Mutate, MutateHold},
+        fungible::{Inspect, Mutate, MutateHold},
         tokens::Preservation,
-        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        ReservableCurrency, StorageVersion,
+        ConstBool, Get, Randomness, StorageVersion,
     },
     weights::Weight,
 };

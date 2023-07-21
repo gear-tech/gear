@@ -63,10 +63,7 @@ use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::{
     codec::{Decode, Encode},
-    traits::{
-        fungible::{Inspect, Mutate, MutateHold},
-        Currency,
-    },
+    traits::fungible::Inspect,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
