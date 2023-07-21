@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::access::AccessQueue;
-use crate::{async_runtime, exec, msg, BlockCount, BlockNumber, Config, MessageId};
+use crate::{
+    async_runtime,
+    errors::{Error, Result},
+    exec, msg, BlockCount, BlockNumber, Config, MessageId,
+};
 use core::{
     cell::UnsafeCell,
     future::Future,
@@ -233,10 +237,14 @@ pub struct MutexLockFuture<'a, T> {
 impl<'a, T> MutexLockFuture<'a, T> {
     /// Sets the maximum number of blocks the mutex lock can be owned by
     /// some message before the ownership can be seized by another rival
-    pub fn own_up_for(self, block_count: BlockCount) -> Self {
-        MutexLockFuture {
-            mutex: self.mutex,
-            own_up_for: block_count,
+    pub fn own_up_for(self, block_count: BlockCount) -> Result<Self> {
+        if block_count == 0 {
+            Err(Error::ZeroMxLockDuration)
+        } else {
+            Ok(MutexLockFuture {
+                mutex: self.mutex,
+                own_up_for: block_count,
+            })
         }
     }
 
@@ -275,7 +283,7 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
         let current_block = exec::block_height();
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
         if let Some((lock_owner_msg_id, deadline_block)) = *locked_by {
-            if current_block > deadline_block {
+            if current_block >= deadline_block {
                 if let Some(msg_future_task) = async_runtime::futures().get_mut(&lock_owner_msg_id)
                 {
                     msg_future_task.set_lock_exceeded();

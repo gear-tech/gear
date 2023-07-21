@@ -8917,12 +8917,13 @@ fn mx_lock_ownership_exceedance() {
 
             let run_test_case =
                 move |command: WaiterCommand,
-                      run_for_blocks_after_command: u32,
+                      run_for_blocks_before_lock_assert: u32,
                       assert_command_result: &dyn Fn(MessageId),
                       assert_lock_result: &dyn Fn(MessageId, MessageId)| {
                     let (command_msg_id, _) = send_command_to_waiter(command);
 
-                    run_for_blocks(run_for_blocks_after_command, None);
+                    // Subtract 1 because sending command to waiter below adds 1 block
+                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
 
                     assert_command_result(command_msg_id);
 
