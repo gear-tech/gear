@@ -30,7 +30,7 @@
 use super::*;
 
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
-use frame_support::traits::Randomness;
+use frame_support::traits::{fungible::Mutate, Randomness};
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -112,7 +112,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_account = utils::default_account();
-        <T as pallet::Config>::Currency::deposit_creating(
+        <T as pallet::Config>::Currency::set_balance(
             &default_account,
             100_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -302,7 +302,7 @@ where
     let wasm_module = alloc_free_test_wasm::<T>();
 
     let default_account = utils::default_account();
-    <T as pallet::Config>::Currency::deposit_creating(
+    <T as pallet::Config>::Currency::set_balance(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -390,7 +390,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let message_sender = benchmarking::account::<T::AccountId>("some_user", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(
+        <T as pallet::Config>::Currency::set_balance(
             &message_sender,
             50_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -883,7 +883,7 @@ where
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
-    <T as pallet::Config>::Currency::deposit_creating(
+    <T as pallet::Config>::Currency::set_balance(
         &child_deployer,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -899,7 +899,7 @@ where
 
     // Set default code-hash for create program calls
     let default_account = utils::default_account();
-    <T as pallet::Config>::Currency::deposit_creating(
+    <T as pallet::Config>::Currency::set_balance(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -957,9 +957,9 @@ where
 
     // Manually reset the storage
     Gear::<T>::reset();
-    <T as pallet::Config>::Currency::slash(
+    <T as pallet::Config>::Currency::set_balance(
         &Id::from_origin(tester_pid.into_origin()),
-        <T as pallet::Config>::Currency::free_balance(&Id::from_origin(tester_pid.into_origin())),
+        Zero::zero(),
     );
 }
 

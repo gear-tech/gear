@@ -29,7 +29,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use frame_support::traits::{Currency, Get};
+use frame_support::traits::{fungible::Inspect, Get};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},

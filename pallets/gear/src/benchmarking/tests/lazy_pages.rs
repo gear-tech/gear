@@ -189,7 +189,7 @@ impl<P: PageU32Size> PageSets<P> {
 
 pub fn lazy_pages_charging<T>()
 where
-    T: Config,
+    T: Config + pallet_balances::Config,
     T::AccountId: Origin,
 {
     const MAX_ACCESSES_NUMBER: u32 = 1000;
@@ -347,7 +347,7 @@ where
 
 pub fn lazy_pages_charging_special<T>()
 where
-    T: Config,
+    T: Config + pallet_balances::Config,
     T::AccountId: Origin,
 {
     let size = GearPage::size() as i32;
@@ -510,7 +510,7 @@ where
 
 pub fn lazy_pages_gas_exceed<T>()
 where
-    T: Config,
+    T: Config + pallet_balances::Config,
     T::AccountId: Origin,
 {
     let instrs = vec![

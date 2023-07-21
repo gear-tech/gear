@@ -100,7 +100,7 @@ where
 
 impl<T> Benches<T>
 where
-    T: Config,
+    T: Config + pallet_balances::Config,
     T::AccountId: Origin,
 {
     fn prepare_handle(module: ModuleDefinition, value: u32) -> Result<Exec<T>, &'static str> {
