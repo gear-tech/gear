@@ -131,6 +131,7 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
+#![feature(maybe_uninit_slice, maybe_uninit_write_slice)]
 
 extern crate alloc;
 #[cfg(target_arch = "wasm32")]
