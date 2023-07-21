@@ -1036,7 +1036,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
-        message::{ContextSettings, IncomingDispatch, MAX_PAYLOAD_SIZE},
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         pages::PageNumber,
     };
 
@@ -1424,6 +1424,156 @@ mod tests {
         assert!(msg.is_ok());
 
         let res = ext.send_push_input(handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_commit` with too much data
+    // - `reply_commit` with valid data
+    // - `reply_commit` duplicate reply
+    fn test_reply_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[0]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::new(Payload::filled_with(0), 0));
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::DuplicateReply))
+        );
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_push` with valid data
+    // - `reply_push` with too much data
+    // - `reply_push` after `reply_commit`
+    // - `reply_push` data is added to buffer
+    fn test_reply_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[1, 2, 3]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[4, 5, 6]);
+        assert!(res.is_ok());
+
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+
+        let res = ext.reply_push(&large_payload);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[7, 8, 9]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `reply_push_input` with valid data
+    // - `reply_push_input` after `reply_commit`
+    // - `reply_push_input` data is added to buffer
+    fn test_send_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(8, 10);
+        assert!(res.is_ok());
+
+        let msg = ext.reply_commit(ReplyPacket::auto());
+        assert!(msg.is_ok());
+
+        let res = ext.reply_push_input(0, 1);
         assert_eq!(
             res.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
