@@ -163,6 +163,9 @@ jobs:
       - name: "Buid: Init"
         run: ./scripts/gear.sh init cargo
 
+      - name: "Debug testing"
+        run: RUST_BACKTRACE=full RUST_LOG=debug cargo nextest run locking_gas_for_waitlist --release --features lazy-pages -p pallet-gear --no-capture
+
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
 
@@ -360,9 +363,6 @@ jobs:
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
-
-      - name: "Debug testing"
-        run: RUST_BACKTRACE=full RUST_LOG=debug cargo nextest run locking_gas_for_waitlist --release --features lazy-pages -p pallet-gear --no-capture
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
