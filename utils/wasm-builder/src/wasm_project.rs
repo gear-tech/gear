@@ -218,6 +218,8 @@ impl WasmProject {
                 .as_ref()
                 .expect("Run `WasmProject::create_project()` first");
 
+            fs::create_dir_all(&self.wasm_target_dir)?;
+
             let wasm_meta_path = self
                 .wasm_target_dir
                 .join([file_base_name, ".meta.txt"].concat());
@@ -394,7 +396,6 @@ extern "C" fn metahash() {{
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
-        fs::create_dir_all(&self.wasm_target_dir)?;
 
         if self.project_type.is_metawasm() {
             self.postprocess_meta(&original_wasm_path, file_base_name)?;
