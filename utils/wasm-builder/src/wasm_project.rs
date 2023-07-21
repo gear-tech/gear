@@ -219,7 +219,7 @@ impl WasmProject {
                 .expect("Run `WasmProject::create_project()` first");
 
             let wasm_meta_path = self
-                .original_dir
+                .wasm_target_dir
                 .join([file_base_name, ".meta.txt"].concat());
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
