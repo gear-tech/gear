@@ -161,8 +161,9 @@ impl WasmProject {
         dev_profile.insert("opt-level".into(), "s".into());
 
         let mut release_profile = Table::new();
-        release_profile.insert("lto".into(), true.into());
-        release_profile.insert("opt-level".into(), "s".into());
+        release_profile.insert("lto".into(), "fat".into());
+        release_profile.insert("opt-level".into(), "z".into());
+        release_profile.insert("codegen-units".into(), 1.into());
 
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
@@ -316,7 +317,7 @@ extern "C" fn metahash() {{
             let path = optimize::optimize_wasm(
                 original_copy_wasm_path.clone(),
                 opt_wasm_path.clone(),
-                "s",
+                "z",
                 true,
             )
             .map(|res| {
