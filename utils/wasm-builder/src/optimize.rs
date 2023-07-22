@@ -277,6 +277,7 @@ pub fn do_optimization(
         "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
         _ => panic!("Invalid optimization level {}", optimization_level),
     }
+    .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
     // the memory in our module is imported, `wasm-opt` needs to be told that

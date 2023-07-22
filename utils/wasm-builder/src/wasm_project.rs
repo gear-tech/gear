@@ -31,6 +31,8 @@ use std::{
 };
 use toml::value::Table;
 
+const OPT_LEVEL: &str = "z";
+
 /// Enum defining type of binary compiling: production program or metawasm.
 pub enum ProjectType {
     Program(Option<MetadataRepr>),
@@ -158,11 +160,12 @@ impl WasmProject {
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
         let mut dev_profile = Table::new();
-        dev_profile.insert("opt-level".into(), "s".into());
+        dev_profile.insert("opt-level".into(), OPT_LEVEL.into());
 
         let mut release_profile = Table::new();
-        release_profile.insert("lto".into(), true.into());
-        release_profile.insert("opt-level".into(), "s".into());
+        release_profile.insert("lto".into(), "fat".into());
+        release_profile.insert("opt-level".into(), OPT_LEVEL.into());
+        release_profile.insert("codegen-units".into(), 1.into());
 
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
@@ -316,7 +319,7 @@ extern "C" fn metahash() {{
             let path = optimize::optimize_wasm(
                 original_copy_wasm_path.clone(),
                 opt_wasm_path.clone(),
-                "s",
+                "4",
                 true,
             )
             .map(|res| {
