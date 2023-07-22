@@ -23,7 +23,7 @@ use codec::{Decode, Encode};
 use gear_runtime_interface::sandbox;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface::HostPointer;
-
+use gear_sandbox_env::WasmReturnValue;
 use crate::{env, Error, HostFuncType, ReturnValue, Value};
 
 mod ffi {
@@ -243,8 +243,9 @@ extern "C" fn dispatch_thunk<T>(
         // This should be safe since mutable reference to T is passed upon the invocation.
         let state = &mut *(state as *mut T);
 
+        let mut result = Vec::with_capacity(WasmReturnValue::ENCODED_MAX_SIZE);
         // Pass control flow to the designated function.
-        let result = f(state, &args).encode();
+        f(state, &args).encode_to(&mut result);
 
         // Leak the result vector and return the pointer to return data.
         let result_ptr = result.as_ptr() as u64;
