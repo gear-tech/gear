@@ -19,7 +19,22 @@
 //! Gas module.
 
 use crate::costs::RuntimeCosts;
+use enum_iterator::Sequence;
 use scale_info::scale::{Decode, Encode};
+
+/// The id of the gas lock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
+#[repr(u8)]
+pub enum LockId {
+    /// The gas lock is provided by the mailbox.
+    Mailbox,
+    /// The gas lock is provided by the waitlist.
+    Waitlist,
+    /// The gas lock is provided by reservation.
+    Reservation,
+    /// The gas lock is provided by dispatch stash.
+    DispatchStash,
+}
 
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///
