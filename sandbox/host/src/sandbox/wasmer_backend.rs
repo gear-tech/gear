@@ -326,12 +326,12 @@ fn dispatch_function(
             let gas = env
                 .gas
                 .as_ref()
-                .ok_or(RuntimeError::new("gas global should be set"))?;
+                .ok_or_else(|| RuntimeError::new("gas global should be set"))?;
 
             let allowance = env
                 .allowance
                 .as_ref()
-                .ok_or(RuntimeError::new("allowance global should be set"))?;
+                .ok_or_else(|| RuntimeError::new("allowance global should be set"))?;
 
             // Serialize arguments into a byte vector.
             let invoke_args_data = [gas.get(), allowance.get()]
