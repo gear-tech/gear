@@ -24,7 +24,11 @@ use crate::{
     async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, mem::MaybeUninit, ops::RangeBounds},
+    prelude::{
+        convert::AsRef,
+        mem::{transmute, MaybeUninit},
+        ops::RangeBounds,
+    },
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
@@ -142,7 +146,8 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
             if end_offset > self.buffer.len() {
                 panic!("{ERROR_LOG}");
             }
-            MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes);
+            let this = &mut self.buffer[self.offset..end_offset];
+            this.copy_from_slice(unsafe { transmute(bytes) });
             self.offset = end_offset;
         }
     }
@@ -151,7 +156,7 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
         let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
         let ExternalBufferOutput { buffer, offset } = output;
-        let payload = unsafe { MaybeUninit::slice_assume_init_ref(&buffer[..offset]) };
+        let payload = unsafe { &*(&buffer[..offset] as *const _ as *const [u8]) };
         super::reply_bytes(payload, value)
     })
 }

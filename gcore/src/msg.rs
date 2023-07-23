@@ -44,7 +44,6 @@ use crate::{
     errors::{Error, Result, SyscallError},
     stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
 };
-use core::mem::MaybeUninit;
 use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{
     ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, HashWithValue,
@@ -203,7 +202,7 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
 
         f(SyscallError(len)
             .into_result()
-            .map(|_| unsafe { MaybeUninit::slice_assume_init_mut(&mut buffer[..size]) }))
+            .map(|_| unsafe { &mut *(&mut buffer[..size] as *mut _ as *mut [u8]) }))
     })
 }
 
