@@ -190,29 +190,6 @@ pub struct Instance<T> {
     _marker: marker::PhantomData<T>,
 }
 
-#[derive(Clone, Default)]
-pub struct InstanceGlobals {
-    instance_idx: Option<u32>,
-}
-
-impl super::InstanceGlobals for InstanceGlobals {
-    fn get_global_val(&self, name: &str) -> Option<Value> {
-        self.instance_idx
-            .and_then(|i| sandbox::get_global_val(i, name))
-    }
-
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
-        match self.instance_idx {
-            None => Err(super::GlobalsSetError::Other),
-            Some(i) => match sandbox::set_global_val(i, name, value) {
-                env::ERROR_GLOBALS_OK => Ok(()),
-                env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
-                _ => Err(super::GlobalsSetError::Other),
-            },
-        }
-    }
-}
-
 /// The primary responsibility of this thunk is to deserialize arguments and
 /// call the original function, specified by the index.
 extern "C" fn dispatch_thunk<T>(
@@ -259,7 +236,6 @@ extern "C" fn dispatch_thunk<T>(
 impl<T> super::SandboxInstance<T> for Instance<T> {
     type Memory = Memory;
     type EnvironmentBuilder = EnvironmentDefinitionBuilder<T>;
-    type InstanceGlobals = InstanceGlobals;
 
     fn new(
         code: &[u8],
@@ -319,10 +295,12 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         sandbox::get_global_val(self.instance_idx, name)
     }
 
-    fn instance_globals(&self) -> Option<Self::InstanceGlobals> {
-        Some(InstanceGlobals {
-            instance_idx: Some(self.instance_idx),
-        })
+    fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
+        match sandbox::set_global_val(self.instance_idx, name, value) {
+                env::ERROR_GLOBALS_OK => Ok(()),
+                env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
+                _ => Err(super::GlobalsSetError::Other),
+        }
     }
 
     fn get_instance_ptr(&self) -> HostPointer {

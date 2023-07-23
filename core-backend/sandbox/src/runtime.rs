@@ -43,7 +43,6 @@ pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
     pub termination_reason: TerminationReason,
-    pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<Ext>,
 }

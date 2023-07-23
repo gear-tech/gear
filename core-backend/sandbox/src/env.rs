@@ -39,7 +39,7 @@ use gear_core::{
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostError, HostFuncType, InstanceGlobals, IntoValue, ReturnValue, SandboxEnvironmentBuilder,
+    HostError, HostFuncType, IntoValue, ReturnValue, SandboxEnvironmentBuilder,
     SandboxInstance, SandboxMemory, Value,
 };
 use gear_sandbox_env::WasmReturnValue;
@@ -343,7 +343,6 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            globals: Default::default(),
             memory_manager: Default::default(),
             termination_reason: ActorTerminationReason::Success.into(),
         };
@@ -386,19 +385,13 @@ where
             .and_then(|global| global.as_i32())
             .map(|global| global as u32);
 
-        runtime.globals = instance
-            .instance_globals()
-            .ok_or(System(GlobalsNotSupported))?;
-
         let GasLeft { gas, allowance } = runtime.ext.gas_left();
 
-        runtime
-            .globals
+        instance
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
-        runtime
-            .globals
+        instance
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| System(WrongInjectedAllowance))?;
 
@@ -427,14 +420,12 @@ where
             .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
             .unwrap_or(Ok(ReturnValue::Unit));
 
-        let gas = runtime
-            .globals
+        let gas = instance
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
             .ok_or(System(WrongInjectedGas))?;
 
-        let allowance = runtime
-            .globals
+        let allowance = instance
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
             .ok_or(System(WrongInjectedAllowance))?;
