@@ -4634,6 +4634,7 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
+ "gstack-buffer",
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
