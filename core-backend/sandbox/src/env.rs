@@ -39,8 +39,8 @@ use gear_core::{
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostError, HostFuncType, IntoValue, ReturnValue, SandboxEnvironmentBuilder,
-    SandboxInstance, SandboxMemory, Value,
+    HostError, HostFuncType, IntoValue, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    SandboxMemory, Value,
 };
 use gear_sandbox_env::WasmReturnValue;
 use gear_wasm_instrument::{

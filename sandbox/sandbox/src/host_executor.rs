@@ -20,11 +20,11 @@
 
 use codec::{Decode, Encode};
 
+use crate::{env, Error, HostFuncType, ReturnValue, Value};
 use gear_runtime_interface::sandbox;
+use gear_sandbox_env::WasmReturnValue;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface::HostPointer;
-use gear_sandbox_env::WasmReturnValue;
-use crate::{env, Error, HostFuncType, ReturnValue, Value};
 
 mod ffi {
     use super::HostFuncType;
@@ -297,9 +297,9 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
 
     fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
         match sandbox::set_global_val(self.instance_idx, name, value) {
-                env::ERROR_GLOBALS_OK => Ok(()),
-                env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
-                _ => Err(super::GlobalsSetError::Other),
+            env::ERROR_GLOBALS_OK => Ok(()),
+            env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
+            _ => Err(super::GlobalsSetError::Other),
         }
     }
 
