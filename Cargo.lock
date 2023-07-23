@@ -189,15 +189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alloca"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "873a9f050fb9a85bd0c486a48277cbf48a840e5c806bc6d9988509a06ded1a58"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3675,9 +3666,9 @@ dependencies = [
 name = "gcore"
 version = "0.2.2"
 dependencies = [
- "alloca",
  "galloc",
  "gear-core-errors",
+ "gstack-buffer",
  "gsys",
  "hex-literal 0.3.4",
  "parity-scale-codec",
@@ -4628,6 +4619,11 @@ dependencies = [
  "quote",
  "syn 2.0.25",
 ]
+
+[[package]]
+name = "gstack-buffer"
+version = "0.1.0"
+source = "git+https://github.com/StackOverflowExcept1on/gstack-buffer.git#5f78726e66920756785742b8f4bcb6f853bcdfe7"
 
 [[package]]
 name = "gstd"

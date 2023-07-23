@@ -18,7 +18,6 @@
 
 //! Stack allocations utils.
 
-use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 /// Calls function `f` with provided byte buffer allocated on stack.
@@ -29,9 +28,5 @@ use core::mem::MaybeUninit;
 /// buffer size will be `size` aligned to upper power of 2.
 pub fn with_byte_buffer<T>(size: usize, f: impl FnOnce(&mut [MaybeUninit<u8>]) -> T) -> T {
     // TODO: consider to return error in case of heap allocation #2881
-    if size <= 0x4000 {
-        alloca::with_alloca(size, f)
-    } else {
-        f(Vec::with_capacity(size).spare_capacity_mut())
-    }
+    gstack_buffer::with_byte_buffer(size, f)
 }
