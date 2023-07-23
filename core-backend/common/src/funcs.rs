@@ -637,11 +637,13 @@ where
     #[host(fallible, cost = RuntimeCosts::SystemReserveGas, err = ErrorBytes)]
     pub fn system_reserve_gas(
         ctx: &mut R,
-        gas2: u64,
-        allowance: u64,
         gas: u64,
+        allowance: u64,
+        gas_value: u64,
     ) -> Result<((), u64, u64), R::Error> {
-        ctx.ext_mut().system_reserve_gas(gas).map_err(Into::into)
+        ctx.ext_mut()
+            .system_reserve_gas(gas_value)
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::GasAvailable)]
