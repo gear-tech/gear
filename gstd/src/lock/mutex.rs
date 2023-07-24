@@ -30,6 +30,22 @@ use core::{
     task::{Context, Poll},
 };
 
+static mut NEXT_MUTEX_ID: MutexId = MutexId::new();
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub(crate) struct MutexId(u32);
+
+impl MutexId {
+    pub const fn new() -> Self {
+        MutexId(1)
+    }
+
+    pub fn next(self) -> Self {
+        let id = self.0.wrapping_add(1);
+        MutexId(if id == 0 { 1 } else { id })
+    }
+}
+
 /// A mutual exclusion primitive useful for protecting shared data.
 ///
 /// This mutex will block the execution waiting for the lock to become
@@ -81,6 +97,7 @@ use core::{
 /// # fn main() {}
 /// ```
 pub struct Mutex<T> {
+    id: UnsafeCell<Option<MutexId>>,
     locked: UnsafeCell<Option<(MessageId, BlockNumber)>>,
     value: UnsafeCell<T>,
     queue: AccessQueue,
@@ -90,6 +107,7 @@ impl<T> Mutex<T> {
     /// Create a new mutex in an unlocked state ready for use.
     pub const fn new(t: T) -> Mutex<T> {
         Mutex {
+            id: UnsafeCell::new(None),
             value: UnsafeCell::new(t),
             locked: UnsafeCell::new(None),
             queue: AccessQueue::new(),
@@ -107,9 +125,19 @@ impl<T> Mutex<T> {
     /// of scope, the mutex will be unlocked.
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
         MutexLockFuture {
+            mutex_id: self.get_or_set_id(),
             mutex: self,
             own_up_for: Config::mx_lock_duration(),
         }
+    }
+
+    fn get_or_set_id(&self) -> MutexId {
+        let id = unsafe { &mut *self.id.get() };
+        *id.get_or_insert_with(|| unsafe {
+            let id = NEXT_MUTEX_ID;
+            NEXT_MUTEX_ID = NEXT_MUTEX_ID.next();
+            id
+        })
     }
 }
 
@@ -230,6 +258,7 @@ unsafe impl<T> Sync for Mutex<T> {}
 /// # fn main() {}
 /// ```
 pub struct MutexLockFuture<'a, T> {
+    mutex_id: MutexId,
     mutex: &'a Mutex<T>,
     own_up_for: BlockCount,
 }
@@ -242,6 +271,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
             Err(Error::ZeroMxLockDuration)
         } else {
             Ok(MutexLockFuture {
+                mutex_id: self.mutex_id,
                 mutex: self.mutex,
                 own_up_for: block_count,
             })
@@ -253,21 +283,48 @@ impl<'a, T> MutexLockFuture<'a, T> {
         owner_msg_id: MessageId,
         current_block: BlockNumber,
     ) -> Poll<MutexGuard<'a, T>> {
+        let owner_deadline_block = current_block.saturating_add(self.own_up_for);
+        async_runtime::locks().remove_mx_lock_monitor(owner_msg_id, self.mutex_id);
+        if let Some(next_rival_msg_id) = self.mutex.queue.first() {
+            // Give the next rival message a chance to own the lock after this owner
+            // exceeds the lock ownership duration
+            async_runtime::locks().insert_mx_lock_monitor(
+                *next_rival_msg_id,
+                self.mutex_id,
+                owner_deadline_block,
+            );
+        }
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
-        *locked_by = Some((owner_msg_id, current_block.saturating_add(self.own_up_for)));
+        *locked_by = Some((owner_msg_id, owner_deadline_block));
         Poll::Ready(MutexGuard {
             mutex: self.mutex,
             holder_msg_id: owner_msg_id,
         })
     }
 
-    fn queue_for_lock_ownership(&mut self, rival_msg_id: MessageId) -> Poll<MutexGuard<'a, T>> {
+    fn queue_for_lock_ownership(
+        &mut self,
+        rival_msg_id: MessageId,
+        owner_deadline_block: Option<BlockNumber>,
+    ) -> Poll<MutexGuard<'a, T>> {
         // If the message is already in the access queue, and we come here,
         // it means the message has just been woken up from the waitlist.
         // In that case we do not want to register yet another access attempt
-        // and just go back to the waitlist.
+        // and just go back to the waitlist
         if !self.mutex.queue.contains(&rival_msg_id) {
             self.mutex.queue.enqueue(rival_msg_id);
+            if let Some(owner_deadline_block) = owner_deadline_block {
+                // Lock owner did not know about this message when it was getting into
+                // lock ownership. We have to take care of ourselves and give us a chance
+                // to oust the lock owner when the lock ownership duration expires
+                if self.mutex.queue.len() == 1 {
+                    async_runtime::locks().insert_mx_lock_monitor(
+                        rival_msg_id,
+                        self.mutex_id,
+                        owner_deadline_block,
+                    );
+                }
+            }
         }
         Poll::Pending
     }
@@ -299,14 +356,21 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
                     }
                     *locked_by = None;
                     exec::wake(next_msg_id).expect("Failed to wake the message");
-                    return self.get_mut().queue_for_lock_ownership(current_msg_id);
+                    // We have just woken up the next lock owner, but we do not know its ownership
+                    // duration, thus we pass None as owner_deadline_block. The woken up message will
+                    // give us a chance to own the lock itself by registering a lock monitor for us
+                    return self
+                        .get_mut()
+                        .queue_for_lock_ownership(current_msg_id, None);
                 }
 
                 return self
                     .get_mut()
                     .acquire_lock_ownership(current_msg_id, current_block);
             }
-            return self.get_mut().queue_for_lock_ownership(current_msg_id);
+            return self
+                .get_mut()
+                .queue_for_lock_ownership(current_msg_id, Some(deadline_block));
         }
 
         self.get_mut()

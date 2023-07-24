@@ -81,13 +81,17 @@ async fn main() {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
         Command::MxLock(lock_duration, continuation) => {
-            let lock_guard = unsafe {
-                MUTEX
-                    .lock()
-                    .own_up_for(lock_duration)
-                    .expect("Failed to set mx ownership duration")
-                    .await
+            let lock = if let Some(lock_duration) = lock_duration {
+                unsafe {
+                    MUTEX
+                        .lock()
+                        .own_up_for(lock_duration)
+                        .expect("Failed to set mx lock ownership duration")
+                }
+            } else {
+                unsafe { MUTEX.lock() }
             };
+            let lock_guard = lock.await;
             process_mx_lock_continuation(
                 unsafe { &mut MUTEX_LOCK_GUARD },
                 lock_guard,

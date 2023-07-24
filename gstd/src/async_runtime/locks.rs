@@ -19,7 +19,9 @@
 use crate::{
     config::WaitType,
     errors::{Error, Result},
-    exec, BTreeMap, Config, MessageId,
+    exec,
+    lock::MutexId,
+    BTreeMap, BlockCount, BlockNumber, Config, MessageId,
 };
 use core::cmp::Ordering;
 use hashbrown::HashMap;
@@ -27,22 +29,22 @@ use hashbrown::HashMap;
 /// Type of wait locks.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum LockType {
-    WaitFor(u32),
-    WaitUpTo(u32),
+    WaitFor(BlockCount),
+    WaitUpTo(BlockCount),
 }
 
 /// Wait lock
 #[derive(Debug, PartialEq, Eq)]
 pub struct Lock {
     /// The start block number of this lock.
-    pub at: u32,
+    pub at: BlockNumber,
     /// The type of this lock.
     ty: LockType,
 }
 
 impl Lock {
     /// Wait for
-    pub fn exactly(b: u32) -> Result<Self> {
+    pub fn exactly(b: BlockCount) -> Result<Self> {
         if b == 0 {
             return Err(Error::EmptyWaitDuration);
         }
@@ -54,7 +56,7 @@ impl Lock {
     }
 
     /// Wait up to
-    pub fn up_to(b: u32) -> Result<Self> {
+    pub fn up_to(b: BlockCount) -> Result<Self> {
         if b == 0 {
             return Err(Error::EmptyWaitDuration);
         }
@@ -86,14 +88,14 @@ impl Lock {
     }
 
     /// Gets the deadline of the current lock.
-    pub fn deadline(&self) -> u32 {
+    pub fn deadline(&self) -> BlockNumber {
         match &self.ty {
             LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at.saturating_add(*d),
         }
     }
 
     /// Check if this lock is timed out.
-    pub fn timeout(&self) -> Option<(u32, u32)> {
+    pub fn timeout(&self) -> Option<(BlockNumber, BlockNumber)> {
         let current = exec::block_height();
         let expected = self.deadline();
 
@@ -134,8 +136,12 @@ impl Default for LockType {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum LockContext {
+    // Used for waiting a reply to message 'MessageId'
     ReplyTo(MessageId),
-    Sleep(u32),
+    // Used for sending a message to sleep until block 'BlockNumber'
+    Sleep(BlockNumber),
+    // Used for waking up a message for an attempt to seize lock for mutex 'MutexId'
+    MxLockMonitor(MutexId),
 }
 
 /// DoubleMap for wait locks.
@@ -145,7 +151,7 @@ pub struct LocksMap(HashMap<MessageId, BTreeMap<LockContext, Lock>>);
 impl LocksMap {
     /// Trigger waiting for the message.
     pub fn wait(&mut self, message_id: MessageId) {
-        let map = self.0.entry(message_id).or_insert_with(Default::default);
+        let map = self.message_locks(message_id);
         if map.is_empty() {
             // If there is no `waiting_reply_to` id specified, use
             // the message id as the key of the message lock.
@@ -172,35 +178,58 @@ impl LocksMap {
 
     /// Lock message.
     pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.insert(LockContext::ReplyTo(waiting_reply_to), lock);
+        self.message_locks(message_id)
+            .insert(LockContext::ReplyTo(waiting_reply_to), lock);
     }
 
     /// Remove message lock.
     pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&LockContext::ReplyTo(waiting_reply_to));
+        self.message_locks(message_id)
+            .remove(&LockContext::ReplyTo(waiting_reply_to));
     }
 
     /// Inserts a lock for putting a message into sleep.
-    pub fn insert_sleep(&mut self, message_id: MessageId, until_block: u32) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+    pub fn insert_sleep(&mut self, message_id: MessageId, wake_up_at: BlockNumber) {
+        let locks = self.message_locks(message_id);
         let current_block = exec::block_height();
-        if current_block < until_block {
+        if current_block < wake_up_at {
             locks.insert(
-                LockContext::Sleep(until_block),
-                Lock::exactly(until_block - current_block)
+                LockContext::Sleep(wake_up_at),
+                Lock::exactly(wake_up_at - current_block)
                     .expect("Never fails with block count > 0"),
             );
         } else {
-            locks.remove(&LockContext::Sleep(until_block));
+            locks.remove(&LockContext::Sleep(wake_up_at));
         }
     }
 
     /// Removes a sleep lock.
-    pub fn remove_sleep(&mut self, message_id: MessageId, until_block: u32) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&LockContext::Sleep(until_block));
+    pub fn remove_sleep(&mut self, message_id: MessageId, wake_up_at: BlockNumber) {
+        self.message_locks(message_id)
+            .remove(&LockContext::Sleep(wake_up_at));
+    }
+
+    pub(crate) fn insert_mx_lock_monitor(
+        &mut self,
+        message_id: MessageId,
+        mutex_id: MutexId,
+        wake_up_at: BlockNumber,
+    ) {
+        let locks = self.message_locks(message_id);
+        locks.insert(
+            LockContext::MxLockMonitor(mutex_id),
+            Lock::exactly(
+                wake_up_at
+                    .checked_sub(exec::block_height())
+                    .expect("Value of after_block must be greater than current block"),
+            )
+            .expect("Never fails with block count > 0"),
+        );
+    }
+
+    pub(crate) fn remove_mx_lock_monitor(&mut self, message_id: MessageId, mutex_id: MutexId) {
+        self.message_locks(message_id)
+            .remove(&LockContext::MxLockMonitor(mutex_id));
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
@@ -217,11 +246,15 @@ impl LocksMap {
         &mut self,
         message_id: MessageId,
         waiting_reply_to: MessageId,
-    ) -> Option<(u32, u32)> {
+    ) -> Option<(BlockNumber, BlockNumber)> {
         self.0.get(&message_id).and_then(|locks| {
             locks
                 .get(&LockContext::ReplyTo(waiting_reply_to))
                 .and_then(|l| l.timeout())
         })
+    }
+
+    fn message_locks(&mut self, message_id: MessageId) -> &mut BTreeMap<LockContext, Lock> {
+        self.0.entry(message_id).or_insert_with(Default::default)
     }
 }
