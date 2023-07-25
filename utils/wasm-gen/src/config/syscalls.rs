@@ -22,6 +22,7 @@
 mod amount;
 mod param;
 
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::HashWithValue;
 use std::ops::RangeInclusive;
@@ -71,7 +72,7 @@ impl SysCallsConfigBuilder {
 
     /// Set whether `gr_send*` sys-calls must use some address from `addresses` collection
     /// as a message destination.
-    pub fn with_data_offset_msg_dest(mut self, addresses: Vec<HashWithValue>) -> Self {
+    pub fn with_data_offset_msg_dest(mut self, addresses: NonEmpty<HashWithValue>) -> Self {
         self.0.sending_message_destination = MessageDestination::ExistingAddresses(addresses);
 
         self
@@ -154,7 +155,7 @@ impl SysCallsConfig {
 #[derive(Debug, Clone, Default)]
 pub enum MessageDestination {
     Source,
-    ExistingAddresses(Vec<HashWithValue>),
+    ExistingAddresses(NonEmpty<HashWithValue>),
     #[default]
     Random,
 }
