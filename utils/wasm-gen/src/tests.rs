@@ -19,8 +19,8 @@
 use std::mem;
 
 use crate::{
-    gen_gear_program_code, generator::GearWasmGeneratorConfig, memory::ModuleBuilderWithData,
-    utils, ModuleWithDebug, SysCallsConfigBuilder,
+    gen_gear_program_code, memory::ModuleBuilderWithData, utils, GearWasmGeneratorConfig,
+    ModuleWithDebug, WasmGenConfig,
 };
 use arbitrary::Unstructured;
 use gear_wasm_instrument::parity_wasm::{
@@ -43,7 +43,7 @@ fn gen_wasm_normal() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearWasmGeneratorConfig::default(), &[]);
+        let code = gen_gear_program_code(&mut u, WasmGenConfig::default(), &[]);
         let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
@@ -51,7 +51,10 @@ fn gen_wasm_normal() {
 #[test]
 fn gen_wasm_valid() {
     let mut rng = SmallRng::seed_from_u64(33333);
-    let config = GearWasmGeneratorConfig::default_with_log_info("HEY GEAR".into());
+    let config = WasmGenConfig {
+        generator_config: GearWasmGeneratorConfig::default_with_log_info("HEY GEAR".into()),
+        ..Default::default()
+    };
     for _ in 0..MODULES_AMOUNT {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
@@ -122,7 +125,7 @@ proptest! {
         let mut u = Unstructured::new(&buf);
         let mut u2 = Unstructured::new(&buf);
 
-        let gear_config = GearWasmGeneratorConfig::default();
+        let gear_config = WasmGenConfig::default();
 
         let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
         let second = gen_gear_program_code(&mut u2, gear_config, &[]);
@@ -140,7 +143,7 @@ fn injecting_addresses_works() {
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
-    let code = gen_gear_program_code(&mut u, GearWasmGeneratorConfig::default(), &[]);
+    let code = gen_gear_program_code(&mut u, WasmGenConfig::default(), &[]);
 
     let module: elements::Module = parity_wasm::deserialize_buffer(&code).unwrap();
     let memory_pages = module

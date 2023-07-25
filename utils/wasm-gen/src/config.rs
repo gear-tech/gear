@@ -40,7 +40,8 @@
 //!     stack_end: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsAmountRanges::all_once())
+//! let use_random_memory_access_ptrs = true;
+//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsAmountRanges::all_once(), use_random_memory_access_ptrs)
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
