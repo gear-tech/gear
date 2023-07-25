@@ -35,7 +35,7 @@ fuzzer_build() {
 
 node_build() {
   $CARGO build -p gear-cli "$@"
-  for f in ./target/release/build/gear-runtime-*
+  for f in ./target/release/build/gear-runtime-*/output
   do
     echo "Processing $f file..."
     # take action on each file. $f store current file name
