@@ -19,8 +19,10 @@
 //! Gear api
 pub use crate::{
     api::Api,
+    metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
+    subscription::{Blocks, Events},
 };
 use crate::{
     config::GearConfig,
@@ -50,8 +52,8 @@ pub mod result;
 mod rpc;
 pub mod signer;
 mod storage;
+pub mod subscription;
 pub mod testing;
-pub mod types;
 mod utils;
 
 pub mod ext {

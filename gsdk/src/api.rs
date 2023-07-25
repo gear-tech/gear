@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{client::RpcClient, config::GearConfig, signer::Signer, types, Result};
+use crate::{client::RpcClient, config::GearConfig, signer::Signer, Blocks, Events, Result};
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use subxt::OnlineClient;
@@ -52,22 +52,22 @@ impl Api {
     }
 
     /// Subscribe all blocks
-    pub async fn blocks(&self) -> Result<types::Blocks> {
+    pub async fn blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized blocks
-    pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
+    pub async fn finalized_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
     /// Subscribe all events
-    pub async fn events(&self) -> Result<types::Events> {
+    pub async fn events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized events
-    pub async fn finalized_events(&self) -> Result<types::Events> {
+    pub async fn finalized_events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
