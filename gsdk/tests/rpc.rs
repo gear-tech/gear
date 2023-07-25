@@ -228,7 +228,12 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let mut finalized_blocks = api.finalized_blocks().await?;
 
     let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
-    assert!(wasm_blob_version_1.ends_with(git_commit_hash.as_ref()));
+    assert!(
+        wasm_blob_version_1.ends_with(git_commit_hash.as_ref()),
+        "The WASM blob version {} does not end with the git commit hash {}",
+        wasm_blob_version_1,
+        git_commit_hash
+    );
 
     let block_hash_1 = finalized_blocks.next_events().await.unwrap()?.block_hash();
     let wasm_blob_version_2 = api.runtime_wasm_blob_version(Some(block_hash_1)).await?;
