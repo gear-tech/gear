@@ -315,7 +315,7 @@ impl SysCallName {
 }
 
 /// Syscall param type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
     Ptr,             // i32 pointer

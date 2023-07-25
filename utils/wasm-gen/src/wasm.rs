@@ -39,12 +39,6 @@ impl From<u32> for PageCount {
     }
 }
 
-impl From<Page> for PageCount {
-    fn from(value: Page) -> Self {
-        Self(u32::from(value.0) + 1)
-    }
-}
-
 impl PageCount {
     /// Calculate WASM memory size for this pages count.
     pub fn memory_size(&self) -> u32 {

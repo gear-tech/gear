@@ -18,6 +18,7 @@ rand = { workspace = true, features = ["small_rng"] }
 clap = { workspace = true, features = ["derive"] }
 
 gear-call-gen.workspace = true
+gear-wasm-gen.workspace = true
 runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true

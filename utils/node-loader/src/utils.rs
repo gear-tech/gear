@@ -2,9 +2,9 @@ use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
-use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
+use gear_wasm_gen::WasmGenConfig;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
@@ -35,7 +35,7 @@ pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
 pub fn dump_with_seed(seed: u64) -> Result<()> {
     let code = gear_call_gen::generate_gear_program::<SmallRng>(
         seed,
-        GearProgGenConfig::new_normal(),
+        WasmGenConfig::default(),
         Default::default(),
     );
 

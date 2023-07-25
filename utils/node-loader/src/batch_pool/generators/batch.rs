@@ -6,10 +6,11 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
-    SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, SendMessageArgs,
+    SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_utils::NonEmpty;
+use gear_wasm_gen::{GearWasmGeneratorConfig, WasmGenConfig};
 use std::iter;
 use tracing::instrument;
 
@@ -31,7 +32,7 @@ impl RuntimeSettings {
 pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
-    prog_gen_config: GearProgGenConfig,
+    prog_gen_config: WasmGenConfig,
     code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
 }
@@ -116,7 +117,12 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
         tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
-        let prog_gen_config = GearProgGenConfig::new_normal();
+        let prog_gen_config = WasmGenConfig {
+            generator_config: GearWasmGeneratorConfig::default_with_log_info(format!(
+                "Gear program seed = '{seed}'"
+            )),
+            ..Default::default()
+        };
 
         Self {
             batch_gen_rng,
