@@ -19,7 +19,7 @@
 //! Utils
 
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, types::InBlock, Error,
+    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, Error, InBlock,
 };
 use scale_value::Composite;
 use subxt::blocks::ExtrinsicEvents;

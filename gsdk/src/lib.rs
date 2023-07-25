@@ -17,17 +17,30 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear api
-use client::RpcClient;
-use config::GearConfig;
-use core::ops::{Deref, DerefMut};
-pub use result::{Error, Result};
-pub use signer::PairSigner;
-use signer::Signer;
-use std::sync::Arc;
+pub use crate::{
+    api::Api,
+    result::{Error, Result},
+    signer::PairSigner,
+};
+use crate::{
+    config::GearConfig,
+    metadata::runtime_types::gear_common::{
+        gas_provider::node::{GasNode, GasNodeId},
+        ActiveProgram,
+    },
+};
+use gear_core::ids::{MessageId, ReservationId};
+use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
+use sp_runtime::AccountId32;
+use std::collections::HashMap;
 pub use subxt::dynamic::Value;
-use subxt::OnlineClient;
-pub mod testing;
+use subxt::{
+    tx::{self, TxInBlock},
+    OnlineClient,
+};
 
+mod api;
 mod client;
 pub mod config;
 mod constants;
@@ -37,8 +50,10 @@ pub mod result;
 mod rpc;
 pub mod signer;
 mod storage;
+pub mod testing;
 pub mod types;
 mod utils;
+
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
@@ -51,74 +66,38 @@ pub mod gp {
     };
 }
 
+/// Block number type
 pub type BlockNumber = u32;
 
-/// Gear api wrapper.
-#[derive(Clone)]
-pub struct Api {
-    /// How many times we'll retry when rpc requests failed.
-    pub retry: u16,
-    client: OnlineClient<GearConfig>,
+/// Information of gas
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GasInfo {
+    /// Represents minimum gas limit required for execution.
+    pub min_limit: u64,
+    /// Gas amount that we reserve for some other on-chain interactions.
+    pub reserved: u64,
+    /// Contains number of gas burned during message processing.
+    pub burned: u64,
 }
 
-impl Api {
-    /// Create new API client.
-    pub async fn new(url: Option<&str>) -> Result<Self> {
-        Self::new_with_timeout(url, None).await
-    }
+/// Gear gas node id.
+pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
 
-    /// Create new API client with timeout.
-    pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        Ok(Self {
-            // Retry our failed RPC requests for 5 times by default.
-            retry: 5,
-            client: OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?))
-                .await?,
-        })
-    }
+/// Gear gas node.
+pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
 
-    /// Setup retry times and return the API instance.
-    pub fn with_retry(mut self, retry: u16) -> Self {
-        self.retry = retry;
-        self
-    }
+/// Gear pages.
+pub type GearPages = HashMap<u32, Vec<u8>>;
 
-    /// Subscribe all blocks
-    pub async fn blocks(&self) -> Result<types::Blocks> {
-        Ok(self.client.blocks().subscribe_all().await?.into())
-    }
+/// Transaction in block.
+pub type InBlock = Result<TxInBlock<GearConfig, OnlineClient<GearConfig>>>;
 
-    /// Subscribe finalized blocks
-    pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
-    }
+/// Transaction status.
+pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
 
-    /// Subscribe all events
-    pub async fn events(&self) -> Result<types::Events> {
-        Ok(self.client.blocks().subscribe_all().await?.into())
-    }
-
-    /// Subscribe finalized events
-    pub async fn finalized_events(&self) -> Result<types::Events> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
-    }
-
-    /// New signer from api
-    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
-    }
-}
-
-impl Deref for Api {
-    type Target = OnlineClient<GearConfig>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
-    }
-}
-
-impl DerefMut for Api {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.client
-    }
+/// Gear Program
+#[derive(Debug, Decode)]
+pub enum Program {
+    Active(ActiveProgram<BlockNumber>),
+    Terminated,
 }

@@ -33,9 +33,8 @@ use crate::{
         Event,
     },
     signer::Signer,
-    types::{self, InBlock, TxStatus},
     utils::storage_address_bytes,
-    Api, BlockNumber, Error,
+    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, InBlock, TxStatus,
 };
 use anyhow::anyhow;
 use gear_core::{
@@ -261,7 +260,7 @@ impl Signer {
     /// Writes Gear gas nodes into storage at their ids.
     pub async fn set_gas_nodes(
         &self,
-        gas_nodes: &impl AsRef<[(types::GearGasNodeId, types::GearGasNode)]>,
+        gas_nodes: &impl AsRef<[(GearGasNodeId, GearGasNode)]>,
     ) -> EventsResult {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
@@ -297,7 +296,7 @@ impl Signer {
     pub async fn set_gpages(
         &self,
         program_id: ProgramId,
-        program_pages: &types::GearPages,
+        program_pages: &GearPages,
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {

@@ -17,30 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Shared types
-use crate::{
-    config::GearConfig,
-    metadata::{
-        runtime_types::gear_common::{
-            gas_provider::node::{GasNode, GasNodeId},
-            ActiveProgram,
-        },
-        Event,
-    },
-    result::Result,
-    BlockNumber,
-};
+use crate::{config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
-use gear_core::ids::*;
-use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
-use sp_runtime::AccountId32;
-use std::{collections::HashMap, marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
-use subxt::{
-    blocks::Block,
-    events::Events as SubxtEvents,
-    tx::{self, TxInBlock},
-    Error, OnlineClient,
-};
+use std::{marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
+use subxt::{blocks::Block, events::Events as SubxtEvents, Error, OnlineClient};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
 type BlockSubscription = Pin<Box<dyn Stream<Item = StdResult<SubxtBlock, Error>> + Send>>;
@@ -100,37 +80,4 @@ impl From<BlockSubscription> for Events {
     fn from(sub: BlockSubscription) -> Self {
         Self(sub.into())
     }
-}
-
-/// Information of gas
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GasInfo {
-    /// Represents minimum gas limit required for execution.
-    pub min_limit: u64,
-    /// Gas amount that we reserve for some other on-chain interactions.
-    pub reserved: u64,
-    /// Contains number of gas burned during message processing.
-    pub burned: u64,
-}
-
-/// Gear gas node id.
-pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
-
-/// Gear gas node.
-pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
-
-/// Gear pages.
-pub type GearPages = HashMap<u32, Vec<u8>>;
-
-/// Transaction in block.
-pub type InBlock = Result<TxInBlock<GearConfig, OnlineClient<GearConfig>>>;
-
-/// Transaction status.
-pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
-
-/// Gear Program
-#[derive(Debug, Decode)]
-pub enum Program {
-    Active(ActiveProgram<BlockNumber>),
-    Terminated,
 }
