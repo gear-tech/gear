@@ -84,33 +84,23 @@ impl Api {
     }
 
     /// Subscribe all blocks
-    ///
-    /// # Parse events from blocks
-    ///
-    /// ```ignore
-    /// use gsdk::metadata::{Event, system};
-    ///
-    /// let api = Api::new(None).await?;
-    /// let mut blocks = api.blocks().await?;
-    ///
-    /// while let Some(Ok(events)) = blocks.next_events().await {
-    ///   for event in events {
-    ///     let ev = event.as_root_event::<Event>();
-    ///
-    ///     // Match events here.
-    ///     matches!(ev, Event::System(system::Event::ExtrinsicSuccess(_)));
-    ///   }
-    /// }
-    /// ```
     pub async fn blocks(&self) -> Result<types::Blocks> {
-        Ok(types::Blocks(self.client.blocks().subscribe_all().await?))
+        Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized blocks
     pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
-        Ok(types::Blocks(
-            self.client.blocks().subscribe_finalized().await?,
-        ))
+        Ok(self.client.blocks().subscribe_finalized().await?.into())
+    }
+
+    /// Subscribe all events
+    pub async fn events(&self) -> Result<types::Events> {
+        Ok(self.client.blocks().subscribe_all().await?.into())
+    }
+
+    /// Subscribe finalized events
+    pub async fn finalized_events(&self) -> Result<types::Events> {
+        Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
     /// New signer from api
