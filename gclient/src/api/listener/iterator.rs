@@ -23,7 +23,7 @@ use gsdk::{
     config::GearConfig,
     ext::sp_core::H256,
     metadata::{gear::Event as GearEvent, Event},
-    types::Blocks,
+    Blocks,
 };
 use subxt::events::Events;
 
