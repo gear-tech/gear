@@ -689,6 +689,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "constant_time_eq 0.1.5",
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -1068,6 +1069,15 @@ dependencies = [
  "clap_builder",
  "clap_derive 4.3.2",
  "once_cell",
+]
+
+[[package]]
+name = "clap-num"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488557e97528174edaa2ee268b23a809e0c598213a4bbcb4f34575a46fda147e"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -3797,6 +3807,7 @@ name = "gear-cli"
 version = "0.2.2"
 dependencies = [
  "clap 4.3.11",
+ "clap-num",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -13648,6 +13659,18 @@ dependencies = [
  "thiserror",
  "wasmer-compiler",
  "wasmer-types",
+]
+
+[[package]]
+name = "wasmer-cache"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0def391ee1631deac5ac1e6ce919c07a5ccb936ad0fd44708cdc2365c49561a4"
+dependencies = [
+ "blake3",
+ "hex",
+ "thiserror",
+ "wasmer",
 ]
 
 [[package]]

@@ -34,8 +34,10 @@ pub struct StressBatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
     pub gas: u64,
-    pub estimated: u128,
     pub pid_gas: HashMap<ProgramId, u64>,
+    pub wasm_binary: Vec<u8>,
+    pub init_payload: Vec<u8>,
+    pub handle_payload: Vec<u8>,
     rt_settings: RuntimeSettings,
 }
 
@@ -255,18 +257,22 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
     pub fn new(
         seed: Seed,
         batch_size: usize,
-        estimated: u128,
+        wasm_binary: Vec<u8>,
+        init_payload: Vec<u8>,
+        handle_payload: Vec<u8>,
         rt_settings: RuntimeSettings,
     ) -> Self {
-        let mut batch_gen_rng = Rng::seed_from_u64(seed);
+        let batch_gen_rng = Rng::seed_from_u64(seed);
         // tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
         Self {
             batch_gen_rng,
             batch_size,
             gas: 1,
-            estimated,
             pid_gas: Default::default(),
+            wasm_binary,
+            init_payload,
+            handle_payload,
             rt_settings,
         }
     }
@@ -283,7 +289,7 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
 
     fn generate_batch(
         &mut self,
-        batch_id: u8,
+        _batch_id: u8,
         context: Context,
         seed: Seed,
         rt_settings: RuntimeSettings,
@@ -311,27 +317,22 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
         use demo_calc_hash_in_one_block::WASM_BINARY;
 
         let mut rng = Rng::seed_from_u64(seed);
-        // let inner = utils::iterator_with_args(self.batch_size, || {
-        //     (existing_programs.clone(), rng.next_u64())
-        // })
-        // .enumerate()
-        // .map(|(i, (existing_programs, rng_seed))| {
-        //     let mut rng = Rng::seed_from_u64(rng_seed);
-        //     let mut salt = vec![0; rng.gen_range(1..=100)];
-        //     rng.fill_bytes(&mut salt);
-        //     UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
-        // })
-        // .collect();
 
         let inner = iter::zip(
             1_usize..,
             iter::repeat_with(|| (existing_programs.clone(), seed)),
         )
         .take(self.batch_size)
-        .map(|(i, (existing_programs, rng_seed))| {
+        .map(|(_i, (_existing_programs, _rng_seed))| {
             let mut salt = vec![0; rng.gen_range(1..=100)];
             rng.fill_bytes(&mut salt);
-            UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
+            UploadProgramArgs((
+                self.wasm_binary.clone(),
+                salt,
+                self.init_payload.clone(),
+                rt_settings.gas_limit,
+                0,
+            ))
         })
         .collect();
 
@@ -343,7 +344,7 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
         &mut self,
         existing_programs: NonEmpty<ProgramId>,
         seed: Seed,
-        rt_settings: RuntimeSettings,
+        _rt_settings: RuntimeSettings,
     ) -> Batch {
         use demo_calc_hash_in_one_block::Package;
         let inner = iter::zip(1_usize.., iter::repeat_with(|| existing_programs.clone()))
@@ -359,9 +360,7 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
                             i
                         );
                         let &destination = existing_programs.get(i - 1).unwrap();
-                        let src = [0; 32];
-                        let payload = Package::new(self.estimated, src).encode();
-                        SendMessageArgs((destination, payload, self.gas, 0))
+                        SendMessageArgs((destination, self.handle_payload.clone(), self.gas, 0))
                     },
                 )
             })

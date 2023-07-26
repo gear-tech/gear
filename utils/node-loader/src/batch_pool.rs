@@ -12,6 +12,7 @@ use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings, StressBatchGenerator};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
+use hex::FromHex;
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
@@ -31,7 +32,7 @@ type Seed = u64;
 type CallId = usize;
 type EventsReciever = Receiver<subxt::events::Events<gsdk::config::GearConfig>>;
 
-pub struct BatchPool<Rng: CallGenRng> {
+pub struct LoadBatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
@@ -40,7 +41,7 @@ pub struct BatchPool<Rng: CallGenRng> {
     _phantom: PhantomData<Rng>,
 }
 
-impl<Rng: CallGenRng> BatchPool<Rng> {
+impl<Rng: CallGenRng> LoadBatchPool<Rng> {
     pub fn new(
         api: GearApiFacade,
         batch_size: usize,
@@ -67,6 +68,33 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     pub async fn run(mut self, params: LoadParams, rx: EventsReciever) -> Result<()> {
         let gear_api = self.api.clone().into_gear_api();
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
+        let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
+        let renew_balance_task =
+            tokio::spawn(create_renew_balance_task(gear_api, params.root).await?);
+
+        let run_result = tokio::select! {
+            r = run_pool_task => r,
+            r = inspect_crash_task => r?,
+            r = renew_balance_task => r?,
+        };
+
+        if let Err(ref e) = run_result {
+            tracing::info!("Pool run ends up with an error: {e:?}");
+            utils::stop_node(params.node_stopper).await?;
+        }
+
+        run_result
+    }
+
+    pub async fn run_stress(mut self, params: StressParams, rx: EventsReciever) -> Result<()> {
+        let gear_api = self.api.clone().into_gear_api();
+        let wasm_binary = std::fs::read(params.wasm_path)?;
+        let run_pool_task = self.run_stress_pool_loop(
+            params.loader_seed,
+            &wasm_binary,
+            Vec::from_hex(params.init_payload)?,
+            Vec::from_hex(params.handle_payload)?,
+        );
         let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
         let renew_balance_task =
             tokio::spawn(create_renew_balance_task(gear_api, params.root).await?);
@@ -128,7 +156,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     }
 
     #[instrument(skip_all)]
-    async fn run_stress_pool_loop(&mut self, loader_seed: Option<u64>) -> Result<()> {
+    async fn run_stress_pool_loop(
+        &mut self,
+        loader_seed: Option<u64>,
+        wasm_binary: &[u8],
+        init_payload: Vec<u8>,
+        handle_payload: Vec<u8>,
+    ) -> Result<()> {
         let mut batches = FuturesUnordered::new();
         let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
 
@@ -139,13 +173,21 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         );
 
         let rt_settings = RuntimeSettings::new(&self.api).await?;
-        let mut batch_gen = StressBatchGenerator::<Rng>::new(seed, self.batch_size, 1, rt_settings);
+        let mut batch_gen = StressBatchGenerator::<Rng>::new(
+            seed,
+            self.batch_size,
+            wasm_binary.to_vec(),
+            init_payload,
+            handle_payload,
+            rt_settings,
+        );
 
         while batches.len() != self.pool_size {
+            println!("POOL SIZE = {:?}", batches.len());
             let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
         }
 
         while let Some(report_res) = batches.next().await {
@@ -153,32 +195,23 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
             let mut api = self.api.clone();
             println!("PID LEN = {:?}", self.tasks_context.programs.len());
-            if self.tasks_context.programs.len() >= 1 && batch_gen.estimated == 1 {
-                while (batch_gen.gas * self.batch_size as u64) < rt_settings.gas_limit {
-                    use demo_calc_hash_in_one_block::Package;
+            if !self.tasks_context.programs.is_empty() && batch_gen.gas == 1 {
+                let gas_spent = api
+                    .calculate_handle_gas_info(gear_call_gen::SendMessageArgs((
+                        *self.tasks_context.programs.first().unwrap(),
+                        batch_gen.handle_payload.clone(),
+                        0,
+                        0,
+                    )))
+                    .await
+                    .expect("Failed to get gas spent");
+                batch_gen.gas = gas_spent;
 
-                    batch_gen.estimated = batch_gen.estimated + 50;
-                    let (src, times) = ([0; 32], batch_gen.estimated);
-
-                    // estimate start cost
-                    let pkg = Package::new(times, src);
-                    let new_gas = api
-                        .calculate_handle_gas_info(gear_call_gen::SendMessageArgs((
-                            self.tasks_context.programs.first().unwrap().clone(),
-                            pkg.encode(),
-                            0,
-                            0,
-                        )))
-                        .await
-                        .expect("Failed to get gas spent");
-
-                    batch_gen.gas = new_gas + new_gas / 4;
-                }
-                println!("ESTIMATED = {:?}", batch_gen.estimated);
+                println!("ESTIMATED = {:?}", batch_gen.gas);
             }
 
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
         }
 
         unreachable!()

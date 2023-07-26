@@ -7,7 +7,7 @@
 
 use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params, StressParams};
-use batch_pool::{api::GearApiFacade, BatchPool};
+use batch_pool::{api::GearApiFacade, LoadBatchPool};
 use gsdk::config::GearConfig;
 use names::Generator;
 use rand::rngs::SmallRng;
@@ -67,7 +67,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
     let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
 
     let batch_pool =
-        BatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
+        LoadBatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
 
     let run_result = tokio::select! {
         r = tokio::spawn(listen_events(tx, params.node.clone())) => r?,
@@ -78,13 +78,14 @@ async fn load_node(params: LoadParams) -> Result<()> {
 }
 
 async fn stress_network(params: StressParams) -> Result<()> {
+    let (tx, rx) = tokio::sync::broadcast::channel(16);
     let mut name_gen = Generator::default();
     let run_name = name_gen
         .next()
         .ok_or(anyhow!("Failed generating run name"))?;
 
     // this should not be dropped, until the loader works
-    let _guard = log::init_log(run_name.clone())?;
+    // let _guard = log::init_log(run_name.clone())?;
 
     tracing::info!(
         "Running {} of version {}. Run name: {run_name}.",
@@ -92,5 +93,15 @@ async fn stress_network(params: StressParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    BatchPool::<SmallRng>::run_stress(params).await
+    let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
+
+    let batch_pool =
+        LoadBatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
+
+    let run_result = tokio::select! {
+        r = tokio::spawn(listen_events(tx, params.node.clone())) => r?,
+        r = tokio::spawn(batch_pool.run_stress(params, rx)) => r?,
+    };
+
+    run_result
 }

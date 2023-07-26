@@ -1,8 +1,8 @@
 //! CLI args for the `gear-node-loader`
 
-use anyhow::Error;
+use anyhow::{anyhow, Error, Result};
 use clap::Parser;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr, string::ParseError};
 
 #[derive(Debug, Parser)]
 #[clap(name = "node-loader")]
@@ -86,6 +86,15 @@ pub struct StressParams {
     /// Desirable amount of calls in the sending batch.
     #[arg(long, short, default_value = "4")]
     pub batch_size: usize,
+
+    #[arg(long, short)]
+    pub wasm_path: PathBuf,
+
+    #[arg(long, short)]
+    pub init_payload: String,
+
+    #[arg(long, short)]
+    pub handle_payload: String,
 }
 
 pub fn parse_cli_params() -> Params {
@@ -119,4 +128,10 @@ impl FromStr for SeedVariant {
             v => Err(anyhow::anyhow!("Invalid variant {v}")),
         }
     }
+}
+
+fn parse_hex(input: &str) -> Result<Vec<u8>> {
+    use hex::FromHex;
+    // Vec::from_hex(input).map_err(|_| anyhow!("Failed to parse hex string"));
+    Ok(vec![1u8])
 }

@@ -55,6 +55,7 @@ try-runtime-cli = { workspace = true, optional = true }
 
 # Program CLI
 gcli = { workspace = true, optional = true }
+clap-num = "1.0.2"
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
