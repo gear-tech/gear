@@ -54,12 +54,9 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager,
-    pallet,
-    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
-    ResumeMinimalPeriodOf, Schedule,
+    manager::ExtManager, pallet, BalanceOf, BenchmarkStorage, Call, Config, Event,
+    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -113,14 +110,20 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
-const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
-/// How many batches we do per API benchmark.
-const API_BENCHMARK_BATCHES: u32 = 20;
+/// How many runs we do per API benchmark.
+///
+/// This is picked more or less arbitrary. We experimented with different numbers until
+/// the results appeared to be stable. Reducing the number would speed up the benchmarks
+/// but might make the results less precise.
+const API_BENCHMARK_RUNS: u32 = 1600;
 
-/// How many batches we do per Instruction benchmark.
-const INSTR_BENCHMARK_BATCHES: u32 = 50;
+/// How many runs we do per Instruction benchmark.
+///
+/// Same rationale as for [`API_BENCHMARK_RUNS`]. The number is bigger because instruction
+/// benchmarks are faster.
+const INSTR_BENCHMARK_RUNS: u32 = 5000;
 
 // Initializes new block.
 fn init_block<T: Config>(previous: Option<T::BlockNumber>)
@@ -406,7 +409,7 @@ benchmarks! {
 
     // This bench uses `StorageMap` as a storage, due to the fact that
     // the most of the gear storages represented with this type.
-    db_write_per_kb {
+    db_write_per_byte {
         // Code is the biggest data could be written into storage in gear runtime.
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
@@ -419,7 +422,7 @@ benchmarks! {
 
     // This bench uses `StorageMap` as a storage, due to the fact that
     // the most of the gear storages represented with this type.
-    db_read_per_kb {
+    db_read_per_byte {
         // Code is the biggest data could be written into storage in gear runtime.
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
@@ -433,8 +436,8 @@ benchmarks! {
         BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
-    // `c`: Size of the code in kilobytes.
-    instantiate_module_per_kb {
+    // `c`: Size of the code in bytes.
+    instantiate_module_per_byte {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
@@ -600,7 +603,7 @@ benchmarks! {
     // This constructs a program that is maximal expensive to instrument.
     // It creates a maximum number of metering blocks per byte.
     //
-    // `c`: Size of the code in kilobytes.
+    // `c`: Size of the code in bytes.
     upload_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let value = <T as pallet::Config>::Currency::minimum_balance();
@@ -618,9 +621,9 @@ benchmarks! {
     // The size of the salt influences the runtime because is is hashed in order to
     // determine the program address.
     //
-    // `s`: Size of the salt in kilobytes.
+    // `s`: Size of the salt in bytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128 * 1024;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -645,16 +648,16 @@ benchmarks! {
     // The size of the salt influences the runtime because is is hashed in order to
     // determine the program address.
     //
-    // `c`: Size of the code in kilobytes.
-    // `s`: Size of the salt in kilobytes.
+    // `c`: Size of the code in bytes.
+    // `s`: Size of the salt in bytes.
     //
     // # Note
     //
     // We cannot let `c` grow to the maximum code size because the code is not allowed
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128 * 1024;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -805,7 +808,7 @@ benchmarks! {
     // This benchmarks the additional weight that is charged when a program is executed the
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
-    reinstrument_per_kb {
+    reinstrument_per_byte {
         let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
         let code = Code::new_raw(code, 1, None, false, true).unwrap();
@@ -827,7 +830,7 @@ benchmarks! {
 
     // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::alloc(r, 1)?;
     }: {
@@ -849,7 +852,7 @@ benchmarks! {
     }
 
     free {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::free(r)?;
     }: {
@@ -882,7 +885,7 @@ benchmarks! {
     }
 
     gr_system_reserve_gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_system_reserve_gas(r)?;
     }: {
@@ -893,7 +896,7 @@ benchmarks! {
     }
 
     gr_message_id {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::MessageId, r)?;
     }: {
@@ -904,7 +907,7 @@ benchmarks! {
     }
 
     gr_program_id {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::ProgramId, r)?;
     }: {
@@ -915,7 +918,7 @@ benchmarks! {
     }
 
     gr_source {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::Source, r)?;
     }: {
@@ -926,7 +929,7 @@ benchmarks! {
     }
 
     gr_value {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::Value, r)?;
     }: {
@@ -937,7 +940,7 @@ benchmarks! {
     }
 
     gr_value_available {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::ValueAvailable, r)?;
     }: {
@@ -948,7 +951,7 @@ benchmarks! {
     }
 
     gr_gas_available {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::GasAvailable, r)?;
     }: {
@@ -959,7 +962,7 @@ benchmarks! {
     }
 
     gr_size {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::Size, r)?;
     }: {
@@ -970,7 +973,7 @@ benchmarks! {
     }
 
     gr_read {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_read(r)?;
     }: {
@@ -980,10 +983,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_read_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_read_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
-        let exec = Benches::<T>::gr_read_per_kb(n)?;
+        let exec = Benches::<T>::gr_read_per_byte(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -992,7 +995,7 @@ benchmarks! {
     }
 
     gr_block_height {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::BlockHeight, r)?;
     }: {
@@ -1003,7 +1006,7 @@ benchmarks! {
     }
 
     gr_block_timestamp {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::BlockTimestamp, r)?;
     }: {
@@ -1014,7 +1017,7 @@ benchmarks! {
     }
 
     gr_random {
-        let n in 0 .. API_BENCHMARK_BATCHES;
+        let n in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_random(n)?;
     }: {
@@ -1025,7 +1028,7 @@ benchmarks! {
     }
 
     gr_reply_deposit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_deposit(r)?;
     }: {
@@ -1036,7 +1039,7 @@ benchmarks! {
     }
 
     gr_send {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send(r, None, false)?;
     }: {
@@ -1046,8 +1049,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_send_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_send(1, Some(n), false)?;
     }: {
@@ -1058,7 +1061,7 @@ benchmarks! {
     }
 
     gr_send_wgas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send(r, None, true)?;
     }: {
@@ -1068,8 +1071,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_wgas_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_send_wgas_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_send(1, Some(n), true)?;
     }: {
@@ -1080,7 +1083,7 @@ benchmarks! {
     }
 
     gr_send_input {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_input(r, None, false)?;
     }: {
@@ -1091,7 +1094,7 @@ benchmarks! {
     }
 
     gr_send_input_wgas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_input(r, None, true)?;
     }: {
@@ -1102,7 +1105,7 @@ benchmarks! {
     }
 
     gr_send_init {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_init(r)?;
     }: {
@@ -1113,7 +1116,7 @@ benchmarks! {
     }
 
     gr_send_push {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push(r)?;
     }: {
@@ -1123,10 +1126,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_push_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_send_push_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
-        let exec = Benches::<T>::gr_send_push_per_kb(n)?;
+        let exec = Benches::<T>::gr_send_push_per_byte(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1135,7 +1138,7 @@ benchmarks! {
     }
 
     gr_send_commit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit(r, false)?;
     }: {
@@ -1146,7 +1149,7 @@ benchmarks! {
     }
 
     gr_send_commit_wgas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit(r, true)?;
     }: {
@@ -1157,7 +1160,7 @@ benchmarks! {
     }
 
     gr_reservation_send {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send(r, None)?;
     }: {
@@ -1167,8 +1170,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reservation_send_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reservation_send_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send(1, Some(n))?;
     }: {
@@ -1179,7 +1182,7 @@ benchmarks! {
     }
 
     gr_reservation_send_commit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send_commit(r)?;
     }: {
@@ -1202,8 +1205,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reply_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_reply(1, Some(n), false)?;
     }: {
@@ -1226,8 +1229,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_wgas_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reply_wgas_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_reply(1, Some(n), true)?;
     }: {
@@ -1264,7 +1267,7 @@ benchmarks! {
     }
 
     gr_reply_push {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push(r)?;
     }: {
@@ -1274,10 +1277,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_push_per_kb {
-        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
+    gr_reply_push_per_byte {
+        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
+        let exec = Benches::<T>::gr_reply_push_per_byte(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1324,8 +1327,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reservation_reply_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reservation_reply_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_reply(1, Some(n))?;
     }: {
@@ -1348,10 +1351,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reservation_reply_commit_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reservation_reply_commit_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
-        let exec = Benches::<T>::gr_reservation_reply_commit_per_kb(n)?;
+        let exec = Benches::<T>::gr_reservation_reply_commit_per_byte(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1360,7 +1363,7 @@ benchmarks! {
     }
 
     gr_reply_to {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_to(r)?;
     }: {
@@ -1371,7 +1374,7 @@ benchmarks! {
     }
 
     gr_signal_from {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_signal_from(r)?;
     }: {
@@ -1382,7 +1385,7 @@ benchmarks! {
     }
 
     gr_reply_push_input {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_input(Some(r), None)?;
     }: {
@@ -1392,8 +1395,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_push_input_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reply_push_input_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_input(None, Some(n))?;
     }: {
@@ -1404,7 +1407,7 @@ benchmarks! {
     }
 
     gr_send_push_input {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_input(r, None)?;
     }: {
@@ -1414,8 +1417,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_push_input_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_send_push_input_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_input(1, Some(n))?;
     }: {
@@ -1426,7 +1429,7 @@ benchmarks! {
     }
 
     gr_debug {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_debug(r)?;
     }: {
@@ -1436,10 +1439,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_debug_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_debug_per_byte {
+        let n in 0 .. MAX_PAYLOAD_LEN;
         let mut res = None;
-        let exec = Benches::<T>::gr_debug_per_kb(n)?;
+        let exec = Benches::<T>::gr_debug_per_byte(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1448,7 +1451,7 @@ benchmarks! {
     }
 
     gr_reply_code {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_code(r)?;
     }: {
@@ -1524,7 +1527,7 @@ benchmarks! {
     }
 
     gr_wake {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_wake(r)?;
     }: {
@@ -1535,7 +1538,7 @@ benchmarks! {
     }
 
     gr_create_program {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program(r, None, None, false)?;
     }: {
@@ -1545,11 +1548,11 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_create_program_per_kb {
-        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_create_program_per_byte {
+        let p in 0 .. MAX_PAYLOAD_LEN;
         // salt cannot be zero because we cannot execute batch of sys-calls
         // as salt will be the same and we will get `ProgramAlreadyExists` error
-        let s in 1 .. MAX_PAYLOAD_LEN_KB;
+        let s in 1 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), false)?;
     }: {
@@ -1560,7 +1563,7 @@ benchmarks! {
     }
 
     gr_create_program_wgas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program(r, None, None, true)?;
     }: {
@@ -1570,11 +1573,11 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_create_program_wgas_per_kb {
-        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_create_program_wgas_per_byte {
+        let p in 0 .. MAX_PAYLOAD_LEN;
         // salt cannot be zero because we cannot execute batch of sys-calls
         // as salt will be the same and we will get `ProgramAlreadyExists` error
-        let s in 1 .. MAX_PAYLOAD_LEN_KB;
+        let s in 1 .. MAX_PAYLOAD_LEN;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), true)?;
     }: {
@@ -1585,7 +1588,7 @@ benchmarks! {
     }
 
     gr_pay_program_rent {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut res = None;
         let exec = Benches::<T>::gr_pay_program_rent(r)?;
     }: {
@@ -1673,10 +1676,10 @@ benchmarks! {
     }
 
     mem_grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. API_BENCHMARK_RUNS;
         let mut mem = MemoryWrap::new(DefaultExecutorMemory::new(1, None).unwrap());
     }: {
-        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
+        for _ in 0..r {
             mem.grow(1.into()).unwrap();
         }
     }
@@ -1684,11 +1687,11 @@ benchmarks! {
     // w_load = w_bench
     instr_i64load {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
@@ -1702,11 +1705,11 @@ benchmarks! {
     // w_load = w_bench
     instr_i32load {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
@@ -1720,11 +1723,11 @@ benchmarks! {
     // w_store = w_bench - w_i64const
     instr_i64store {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
@@ -1738,11 +1741,11 @@ benchmarks! {
     // w_store = w_bench
     instr_i32store {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
@@ -1755,9 +1758,9 @@ benchmarks! {
 
     // w_select = w_bench - 2 * w_i64const
     instr_select {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI64Repeated(1),
                 RandomI64Repeated(1),
                 RandomI32(0, 2),
@@ -1772,9 +1775,9 @@ benchmarks! {
 
     // w_if = w_bench
     instr_if {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut instructions = body::repeated_dyn_instr(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
             vec![
                 Regular(Instruction::If(BlockType::Value(ValueType::I32))),
                 RandomI32Repeated(1),
@@ -1796,9 +1799,9 @@ benchmarks! {
 
     // w_br = w_bench
     instr_br {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Br(0)),
                 Regular(Instruction::End),
@@ -1811,9 +1814,9 @@ benchmarks! {
 
     // w_br_if = w_bench - w_i64const
     instr_br_if {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 RandomI32(0, 2),
                 Regular(Instruction::BrIf(0)),
@@ -1827,13 +1830,13 @@ benchmarks! {
 
     // w_br_table = w_bench
     instr_br_table {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let table = Box::new(BrTableData {
             table: Box::new([0]),
             default: 0,
         });
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 RandomI32Repeated(1),
                 Regular(Instruction::BrTable(table)),
@@ -1857,21 +1860,21 @@ benchmarks! {
             default: 0,
         });
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                RandomI32(0, (e + 1) as i32), // Make sure the default entry is also used
-                Regular(Instruction::BrTable(table)),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
+            handle_body: Some(body::plain(vec![
+                Instruction::Block(BlockType::NoResult),
+                Instruction::Block(BlockType::NoResult),
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const((e / 2) as i32),
+                Instruction::BrTable(table),
+                Instruction::I64Const(42),
+                Instruction::Drop,
+                Instruction::End,
+                Instruction::I64Const(42),
+                Instruction::Drop,
+                Instruction::End,
+                Instruction::I64Const(42),
+                Instruction::Drop,
+                Instruction::End,
             ])),
             .. Default::default()
         }));
@@ -1881,11 +1884,11 @@ benchmarks! {
 
      // w_i64const = w_bench - w_call
      instr_call_const {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::from_instructions(vec![Instruction::I64Const(0x7ffffffff3ffffff)])),
             aux_res: Some(ValueType::I64),
-            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r, &[
                 Instruction::Call(OFFSET_AUX),
                 Instruction::Drop,
             ])),
@@ -1897,10 +1900,10 @@ benchmarks! {
 
     // w_call = w_bench
     instr_call {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::empty()),
-            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r, &[
                 Instruction::Call(OFFSET_AUX),
             ])),
             .. Default::default()
@@ -1911,37 +1914,13 @@ benchmarks! {
 
     // w_call_indirect = w_bench
     instr_call_indirect {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let num_elements = T::Schedule::get().limits.table_size;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::empty()),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(0, 0)),
-            ])),
-            table: Some(TableSegment {
-                num_elements,
-                function_index: OFFSET_AUX,
-            }),
-            .. Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_instr_call_indirect_per_param = w_bench - w_i64const
-    // Calling a function indirectly causes it to go through a thunk function whose runtime
-    // linearly depend on the amount of parameters to this function.
-    instr_call_indirect_per_param {
-        let p in 0 .. T::Schedule::get().limits.parameters;
-        let num_elements = T::Schedule::get().limits.table_size;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::empty()),
-            aux_arg_num: p,
-            handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomI64Repeated(p as usize),
-                RandomI32(0, num_elements as i32),
-                Regular(Instruction::CallIndirect(p.min(1), 0)), // aux signature: 1 or 0
             ])),
             table: Some(TableSegment {
                 num_elements,
@@ -1960,7 +1939,7 @@ benchmarks! {
         body::inject_locals(&mut aux_body, l);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(aux_body),
-            handle_body: Some(body::repeated(INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::plain(vec![
                 Instruction::Call(2), // call aux
             ])),
             .. Default::default()
@@ -1971,9 +1950,9 @@ benchmarks! {
 
     // w_local_get = w_bench
     instr_local_get {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
-        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r, vec![
             RandomGetLocal(0, max_locals),
             Regular(Instruction::Drop),
         ]);
@@ -1988,9 +1967,9 @@ benchmarks! {
 
     // w_local_set = w_bench - w_i64const
     instr_local_set {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
-        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r, vec![
             RandomI64Repeated(1),
             RandomSetLocal(0, max_locals),
         ]);
@@ -2005,9 +1984,9 @@ benchmarks! {
 
     // w_local_tee = w_bench - w_i64const
     instr_local_tee {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
-        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r, vec![
             RandomI64Repeated(1),
             RandomTeeLocal(0, max_locals),
             Regular(Instruction::Drop),
@@ -2023,10 +2002,10 @@ benchmarks! {
 
     // w_global_get = w_bench
     instr_global_get {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let max_globals = T::Schedule::get().limits.globals;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomGetGlobal(0, max_globals),
                 Regular(Instruction::Drop),
             ])),
@@ -2039,10 +2018,10 @@ benchmarks! {
 
     // w_global_set = w_bench - w_i64const
     instr_global_set {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let max_globals = T::Schedule::get().limits.globals;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI64Repeated(1),
                 RandomSetGlobal(0, max_globals),
             ])),
@@ -2055,10 +2034,10 @@ benchmarks! {
 
     // w_memory_get = w_bench
     instr_memory_current {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r, &[
                 Instruction::CurrentMemory(0),
                 Instruction::Drop
             ])),
@@ -2072,80 +2051,80 @@ benchmarks! {
     // All use w = w_bench - w_i64const
 
     instr_i64clz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_64(
             Instruction::I64Clz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32clz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
             Instruction::I32Clz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64ctz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_64(
             Instruction::I64Ctz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32ctz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
             Instruction::I32Ctz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64popcnt {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_64(
             Instruction::I64Popcnt,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32popcnt {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
             Instruction::I32Popcnt,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64eqz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_64(
             Instruction::I64Eqz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32eqz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
             Instruction::I32Eqz,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
@@ -2155,9 +2134,9 @@ benchmarks! {
     //
     // i32.extend8_s
     instr_i32extend8s {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::SignExt(SignExtInstruction::I32Extend8S)),
                 Regular(Instruction::Drop),
@@ -2172,9 +2151,9 @@ benchmarks! {
     //
     // i32.extend16_s
     instr_i32extend16s {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::SignExt(SignExtInstruction::I32Extend16S)),
                 Regular(Instruction::Drop),
@@ -2189,9 +2168,9 @@ benchmarks! {
     //
     // i64.extend8_s
     instr_i64extend8s {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI64Repeated(1),
                 Regular(Instruction::SignExt(SignExtInstruction::I64Extend8S)),
                 Regular(Instruction::Drop),
@@ -2206,9 +2185,9 @@ benchmarks! {
     //
     // i64.extend16_s
     instr_i64extend16s {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI64Repeated(1),
                 Regular(Instruction::SignExt(SignExtInstruction::I64Extend16S)),
                 Regular(Instruction::Drop),
@@ -2223,9 +2202,9 @@ benchmarks! {
     //
     // i64.extend32_s
     instr_i64extend32s {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI64Repeated(1),
                 Regular(Instruction::SignExt(SignExtInstruction::I64Extend32S)),
                 Regular(Instruction::Drop),
@@ -2238,9 +2217,9 @@ benchmarks! {
 
     // w_extends = w_bench
     instr_i64extendsi32 {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::I64ExtendSI32),
                 Regular(Instruction::Drop),
@@ -2253,9 +2232,9 @@ benchmarks! {
 
     // w_extendu = w_bench
     instr_i64extendui32 {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::I64ExtendUI32),
                 Regular(Instruction::Drop),
@@ -2267,10 +2246,10 @@ benchmarks! {
     }
 
     instr_i32wrapi64 {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_64(
             Instruction::I32WrapI64,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
@@ -2280,500 +2259,500 @@ benchmarks! {
     // All use w = w_bench - 2 * w_i64const
 
     instr_i64eq {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Eq,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32eq {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Eq,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64ne {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Ne,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32ne {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Ne,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64lts {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64LtS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32lts {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32LtS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64ltu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64LtU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32ltu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32LtU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64gts {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64GtS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32gts {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32GtS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64gtu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64GtU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32gtu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32GtU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64les {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64LeS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32les {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32LeS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64leu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64LeU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32leu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32LeU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64ges {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64GeS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32ges {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32GeS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64geu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64GeU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32geu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32GeU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Add,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Add,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64sub {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Sub,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32sub {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Sub,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64mul {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Mul,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32mul {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Mul,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64divs {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64DivS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32divs {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32DivS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64divu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64DivU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32divu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32DivU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64rems {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64RemS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32rems {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32RemS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64remu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64RemU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32remu {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32RemU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64and {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64And,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32and {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32And,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64or {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Or,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32or {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Or,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64xor {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Xor,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32xor {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Xor,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64shl {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Shl,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32shl {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Shl,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64shrs {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64ShrS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32shrs {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32ShrS,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64shru {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64ShrU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32shru {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32ShrU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64rotl {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Rotl,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32rotl {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Rotl,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i64rotr {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_64(
             Instruction::I64Rotr,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();
     }
 
     instr_i32rotr {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
             Instruction::I32Rotr,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
+            r,
         ));
     }: {
         sbox.invoke();

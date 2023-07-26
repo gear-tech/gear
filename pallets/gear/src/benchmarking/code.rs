@@ -632,6 +632,10 @@ pub mod body {
         FuncBody::new(vec![], Instructions::empty())
     }
 
+    pub fn plain(instructions: Vec<Instruction>) -> FuncBody {
+        FuncBody::new(vec![], Instructions::new(instructions))
+    }
+
     pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
         let instructions = instructions
             .iter()

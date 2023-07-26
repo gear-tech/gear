@@ -24,11 +24,11 @@ use super::{
         max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
-    Exec, Program, API_BENCHMARK_BATCHES,
+    Exec, Program, API_BENCHMARK_RUNS,
 };
 use crate::{
-    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
-    MailboxOf, Pallet as Gear, ProgramStorageOf,
+    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, Config, MailboxOf, Pallet as Gear,
+    ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
 use common::{benchmarking, storage::*, Origin, ProgramStorage};
@@ -84,11 +84,7 @@ const COMMON_OFFSET: u32 = 1;
 /// Common small payload len.
 const COMMON_PAYLOAD_LEN: u32 = 100;
 
-const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
-
-fn kb_to_bytes(size_in_kb: u32) -> u32 {
-    size_in_kb.checked_mul(1024).unwrap()
-}
+const MAX_REPETITIONS: u32 = API_BENCHMARK_RUNS;
 
 pub(crate) struct Benches<T>
 where
@@ -179,7 +175,7 @@ where
     pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
         const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
 
-        assert!(repetitions * pages * API_BENCHMARK_BATCH_SIZE <= MAX_PAGES_OVERRIDE as u32);
+        assert!(repetitions * pages <= MAX_PAGES_OVERRIDE as u32);
 
         let mut instructions = vec![
             Instruction::I32Const(pages as i32),
@@ -192,10 +188,7 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SysCallName::Alloc],
-            handle_body: Some(body::repeated(
-                repetitions * API_BENCHMARK_BATCH_SIZE,
-                &instructions,
-            )),
+            handle_body: Some(body::repeated(repetitions, &instructions)),
             ..Default::default()
         };
 
@@ -207,7 +200,7 @@ where
 
         use Instruction::*;
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+        for _ in 0..API_BENCHMARK_RUNS {
             instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
@@ -289,7 +282,7 @@ where
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -310,7 +303,7 @@ where
     }
 
     pub fn getter(name: SysCallName, r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -330,7 +323,7 @@ where
     }
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let buffer_offset = COMMON_OFFSET;
         let buffer_len = COMMON_PAYLOAD_LEN;
         let res_offset = buffer_offset + buffer_len;
@@ -358,8 +351,8 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_read_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_RUNS;
         let buffer_offset = COMMON_OFFSET;
         let buffer_len = n * 1024;
         let res_offset = buffer_offset + buffer_len;
@@ -388,7 +381,7 @@ where
     }
 
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let subject_offset = COMMON_OFFSET;
         let bn_random_offset = subject_offset + RANDOM_SUBJECT_SIZE;
 
@@ -411,7 +404,7 @@ where
     }
 
     pub fn gr_reply_deposit(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let pid_value_offset = COMMON_OFFSET;
         let send_res_offset = COMMON_OFFSET + PID_VALUE_SIZE;
         let mid_offset = send_res_offset + ERR_LEN_SIZE;
@@ -452,15 +445,13 @@ where
 
     pub fn gr_send(
         batches: u32,
-        payload_len_kb: Option<u32>,
+        payload_len: Option<u32>,
         wgas: bool,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = batches;
         let pid_value_offset = COMMON_OFFSET;
         let payload_offset = pid_value_offset + PID_VALUE_SIZE;
-        let payload_len = payload_len_kb
-            .map(kb_to_bytes)
-            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let payload_len = payload_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = payload_offset + payload_len;
 
         let mut params = vec![
@@ -492,7 +483,7 @@ where
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -506,7 +497,7 @@ where
     }
 
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let payload_offset = COMMON_OFFSET;
@@ -545,15 +536,15 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_send_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_send_push_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_RUNS;
         let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
         let err_handle_offset = res_offset + ERR_LEN_SIZE;
 
         let mut instructions = body::fallible_syscall_instr(
-            API_BENCHMARK_BATCH_SIZE,
+            API_BENCHMARK_RUNS,
             1,
             Counter(err_handle_offset, ERR_HANDLE_SIZE),
             &[],
@@ -584,7 +575,7 @@ where
     }
 
     pub fn gr_send_commit(r: u32, wgas: bool) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r * API_BENCHMARK_RUNS;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let pid_value_offset = COMMON_OFFSET;
@@ -634,9 +625,9 @@ where
 
     pub fn gr_reservation_send(
         batches: u32,
-        payload_len_kb: Option<u32>,
+        payload_len: Option<u32>,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = batches;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let rid_pid_values: Vec<u8> = (0..MAX_REPETITIONS)
@@ -649,9 +640,7 @@ where
 
         let rid_pid_value_offset = COMMON_OFFSET;
         let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
-        let payload_len = payload_len_kb
-            .map(kb_to_bytes)
-            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let payload_len = payload_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
@@ -682,7 +671,7 @@ where
     }
 
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let rid_pid_values: Vec<u8> = (0..MAX_REPETITIONS)
@@ -735,18 +724,12 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    pub fn gr_reply(
-        r: u32,
-        payload_len_kb: Option<u32>,
-        wgas: bool,
-    ) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply(r: u32, payload_len: Option<u32>, wgas: bool) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
         assert!(repetitions <= 1);
 
         let payload_offset = COMMON_OFFSET;
-        let payload_len = payload_len_kb
-            .map(kb_to_bytes)
-            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let payload_len = payload_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let value_offset = payload_offset + payload_len;
         let res_offset = value_offset + VALUE_SIZE;
 
@@ -812,7 +795,7 @@ where
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let payload_offset = COMMON_OFFSET;
         let payload_len = COMMON_PAYLOAD_LEN;
         let res_offset = payload_offset + payload_len;
@@ -836,7 +819,7 @@ where
         Self::prepare_handle(module, 10_000_000)
     }
 
-    pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_push_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
@@ -863,7 +846,7 @@ where
 
     pub fn gr_reservation_reply(
         batches: u32,
-        payload_len_kb: Option<u32>,
+        payload_len: Option<u32>,
     ) -> Result<Exec<T>, &'static str> {
         let repetitions = batches;
         let max_repetitions = 1;
@@ -879,9 +862,7 @@ where
 
         let rid_value_offset = COMMON_OFFSET;
         let payload_offset = rid_value_offset + rid_values.len() as u32;
-        let payload_len = payload_len_kb
-            .map(kb_to_bytes)
-            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let payload_len = payload_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
@@ -946,7 +927,7 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reservation_reply_commit_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let rid_value_offset = COMMON_OFFSET;
         let payload_offset = rid_value_offset + RID_VALUE_SIZE;
@@ -975,7 +956,7 @@ where
     }
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -1013,7 +994,7 @@ where
     }
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -1028,11 +1009,11 @@ where
 
     pub fn gr_reply_input(
         repetitions: u32,
-        input_len_kb: Option<u32>,
+        input_len: Option<u32>,
         wgas: bool,
     ) -> Result<Exec<T>, &'static str> {
         let input_at = 0;
-        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let input_len = input_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let value_offset = COMMON_OFFSET;
         let res_offset = value_offset + VALUE_SIZE;
 
@@ -1068,16 +1049,14 @@ where
 
     pub fn gr_reply_push_input(
         batches: Option<u32>,
-        input_len_kb: Option<u32>,
+        input_len: Option<u32>,
     ) -> Result<Exec<T>, &'static str> {
         // We cannot use batches, when big payloads
-        assert!(batches.is_some() != input_len_kb.is_some());
+        assert!(batches.is_some() != input_len.is_some());
 
-        let repetitions = batches
-            .map(|batches| batches * API_BENCHMARK_BATCH_SIZE)
-            .unwrap_or(1);
+        let repetitions = batches.unwrap_or(1);
         let input_at = 0;
-        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let input_len = input_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;
 
         assert!(input_len <= MAX_PAYLOAD_LEN);
@@ -1103,12 +1082,12 @@ where
 
     pub fn gr_send_input(
         batches: u32,
-        input_len_kb: Option<u32>,
+        input_len: Option<u32>,
         wgas: bool,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = batches;
         let input_at = 0;
-        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let input_len = input_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let pid_value_offset = COMMON_OFFSET;
         let res_offset = pid_value_offset + PID_VALUE_SIZE;
 
@@ -1144,12 +1123,12 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_send_push_input(r: u32, input_len_kb: Option<u32>) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_send_push_input(r: u32, input_len: Option<u32>) -> Result<Exec<T>, &'static str> {
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let input_at = 0;
-        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let input_len = input_len.unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;
         let err_handle_offset = COMMON_OFFSET + ERR_LEN_SIZE;
 
@@ -1189,7 +1168,7 @@ where
     }
 
     pub fn gr_reply_code(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
@@ -1227,7 +1206,7 @@ where
     }
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let string_offset = COMMON_OFFSET;
         let string_len = COMMON_PAYLOAD_LEN;
 
@@ -1249,8 +1228,8 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_debug_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_RUNS;
         let string_offset = COMMON_OFFSET;
         let string_len = n * 1024;
 
@@ -1299,7 +1278,7 @@ where
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let message_ids: Vec<u8> = (0..MAX_REPETITIONS)
@@ -1333,7 +1312,7 @@ where
     }
 
     // pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
-    //     let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+    //     let repetitions = r * API_BENCHMARK_RUNS;
 
     //     let module = WasmModule::<T>::dummy();
     //     let _ = Gear::<T>::upload_code_raw(
@@ -1389,11 +1368,11 @@ where
 
     pub fn gr_create_program(
         batches: u32,
-        payload_len_kb: Option<u32>,
-        salt_len_kb: Option<u32>,
+        payload_len: Option<u32>,
+        salt_len: Option<u32>,
         wgas: bool,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = batches;
 
         let module = WasmModule::<T>::dummy();
         let _ = Gear::<T>::upload_code_raw(
@@ -1407,12 +1386,12 @@ where
 
         let cid_value_offset = COMMON_OFFSET;
         let payload_offset = cid_value_offset + cid_value.len() as u32;
-        let payload_len = payload_len_kb.map(kb_to_bytes).unwrap_or(10);
+        let payload_len = payload_len.unwrap_or(10);
         let res_offset = payload_offset + payload_len;
 
         // Use previous result bytes as part of salt buffer. First one uses 0 bytes.
         let salt_offset = res_offset;
-        let salt_len = salt_len_kb.map(kb_to_bytes).unwrap_or(32);
+        let salt_len = salt_len.unwrap_or(32);
 
         let mut params = vec![
             // cid_value offset
