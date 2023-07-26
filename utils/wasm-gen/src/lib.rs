@@ -398,7 +398,7 @@ impl<'a> WasmGen<'a> {
     }
 
     pub fn gen_handle(&mut self, module: Module) -> (Module, bool) {
-        if self.config.entry_points_config.has_handle() {
+        if !self.config.entry_points_config.has_handle() {
             return (module, false);
         }
 
@@ -415,7 +415,7 @@ impl<'a> WasmGen<'a> {
     }
 
     pub fn gen_handle_reply(&mut self, module: Module) -> (Module, bool) {
-        if self.config.entry_points_config.has_handle_reply() {
+        if !self.config.entry_points_config.has_handle_reply() {
             return (module, false);
         }
 
@@ -432,7 +432,7 @@ impl<'a> WasmGen<'a> {
     }
 
     pub fn gen_init(&mut self, module: Module) -> (Module, bool) {
-        if self.config.entry_points_config.has_init() {
+        if !self.config.entry_points_config.has_init() {
             return (module, false);
         }
 
