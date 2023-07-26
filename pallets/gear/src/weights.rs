@@ -37,9 +37,9 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_gear.
 pub trait WeightInfo {
-    fn db_write_per_kb(c: u32, ) -> Weight;
-    fn db_read_per_kb(c: u32, ) -> Weight;
-    fn instantiate_module_per_kb(c: u32, ) -> Weight;
+    fn db_write_per_byte(c: u32, ) -> Weight;
+    fn db_read_per_byte(c: u32, ) -> Weight;
+    fn instantiate_module_per_byte(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn pay_program_rent() -> Weight;
     fn resume_session_init() -> Weight;
@@ -54,7 +54,7 @@ pub trait WeightInfo {
     fn send_reply_with_voucher(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
-    fn reinstrument_per_kb(c: u32, ) -> Weight;
+    fn reinstrument_per_byte(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn alloc_per_page(p: u32, ) -> Weight;
     fn free(r: u32, ) -> Weight;
@@ -69,47 +69,47 @@ pub trait WeightInfo {
     fn gr_gas_available(r: u32, ) -> Weight;
     fn gr_size(r: u32, ) -> Weight;
     fn gr_read(r: u32, ) -> Weight;
-    fn gr_read_per_kb(n: u32, ) -> Weight;
+    fn gr_read_per_byte(n: u32, ) -> Weight;
     fn gr_block_height(r: u32, ) -> Weight;
     fn gr_block_timestamp(r: u32, ) -> Weight;
     fn gr_random(n: u32, ) -> Weight;
     fn gr_reply_deposit(r: u32, ) -> Weight;
     fn gr_send(r: u32, ) -> Weight;
-    fn gr_send_per_kb(n: u32, ) -> Weight;
+    fn gr_send_per_byte(n: u32, ) -> Weight;
     fn gr_send_wgas(r: u32, ) -> Weight;
-    fn gr_send_wgas_per_kb(n: u32, ) -> Weight;
+    fn gr_send_wgas_per_byte(n: u32, ) -> Weight;
     fn gr_send_input(r: u32, ) -> Weight;
     fn gr_send_input_wgas(r: u32, ) -> Weight;
     fn gr_send_init(r: u32, ) -> Weight;
     fn gr_send_push(r: u32, ) -> Weight;
-    fn gr_send_push_per_kb(n: u32, ) -> Weight;
+    fn gr_send_push_per_byte(n: u32, ) -> Weight;
     fn gr_send_commit(r: u32, ) -> Weight;
     fn gr_send_commit_wgas(r: u32, ) -> Weight;
     fn gr_reservation_send(r: u32, ) -> Weight;
-    fn gr_reservation_send_per_kb(n: u32, ) -> Weight;
+    fn gr_reservation_send_per_byte(n: u32, ) -> Weight;
     fn gr_reservation_send_commit(r: u32, ) -> Weight;
     fn gr_reply(r: u32, ) -> Weight;
-    fn gr_reply_per_kb(n: u32, ) -> Weight;
+    fn gr_reply_per_byte(n: u32, ) -> Weight;
     fn gr_reply_wgas(r: u32, ) -> Weight;
-    fn gr_reply_wgas_per_kb(n: u32, ) -> Weight;
+    fn gr_reply_wgas_per_byte(n: u32, ) -> Weight;
     fn gr_reply_commit(r: u32, ) -> Weight;
     fn gr_reply_commit_wgas(r: u32, ) -> Weight;
     fn gr_reply_push(r: u32, ) -> Weight;
-    fn gr_reply_push_per_kb(n: u32, ) -> Weight;
+    fn gr_reply_push_per_byte(n: u32, ) -> Weight;
     fn gr_reply_input(r: u32, ) -> Weight;
     fn gr_reply_input_wgas(r: u32, ) -> Weight;
     fn gr_reservation_reply(r: u32, ) -> Weight;
-    fn gr_reservation_reply_per_kb(n: u32, ) -> Weight;
+    fn gr_reservation_reply_per_byte(n: u32, ) -> Weight;
     fn gr_reservation_reply_commit(r: u32, ) -> Weight;
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight;
+    fn gr_reservation_reply_commit_per_byte(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_signal_from(r: u32, ) -> Weight;
     fn gr_reply_push_input(r: u32, ) -> Weight;
-    fn gr_reply_push_input_per_kb(n: u32, ) -> Weight;
+    fn gr_reply_push_input_per_byte(n: u32, ) -> Weight;
     fn gr_send_push_input(r: u32, ) -> Weight;
-    fn gr_send_push_input_per_kb(n: u32, ) -> Weight;
+    fn gr_send_push_input_per_byte(n: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
-    fn gr_debug_per_kb(n: u32, ) -> Weight;
+    fn gr_debug_per_byte(n: u32, ) -> Weight;
     fn gr_reply_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
@@ -118,9 +118,9 @@ pub trait WeightInfo {
     fn gr_wait_up_to(r: u32, ) -> Weight;
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program(r: u32, ) -> Weight;
-    fn gr_create_program_per_kb(p: u32, s: u32, ) -> Weight;
+    fn gr_create_program_per_byte(p: u32, s: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
-    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
+    fn gr_create_program_wgas_per_byte(p: u32, s: u32, ) -> Weight;
     fn gr_pay_program_rent(r: u32, ) -> Weight;
     fn lazy_pages_signal_read(p: u32, ) -> Weight;
     fn lazy_pages_signal_write(p: u32, ) -> Weight;
@@ -242,7 +242,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         T::DbWeight::get().reads(1)
     }
     /// The range of component `c` is `[0, 512]`.
-    fn db_write_per_kb(c: u32, ) -> Weight {
+    fn db_write_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -253,7 +253,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn db_read_per_kb(c: u32, ) -> Weight {
+    fn db_read_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `42 + c * (1024 ±0)`
         //  Estimated: `3506 + c * (1024 ±0)`
@@ -265,7 +265,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn instantiate_module_per_kb(c: u32, ) -> Weight {
+    fn instantiate_module_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -439,7 +439,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(22_u64))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn reinstrument_per_kb(c: u32, ) -> Weight {
+    fn reinstrument_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `211 + c * (1075 ±0)`
         //  Estimated: `3899 + c * (2150 ±0)`
@@ -592,7 +592,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(317_512_842, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_read_per_kb(n: u32, ) -> Weight {
+    fn gr_read_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -652,7 +652,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(444_403_185, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_per_kb(n: u32, ) -> Weight {
+    fn gr_send_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -672,7 +672,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(448_618_346, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_wgas_per_kb(n: u32, ) -> Weight {
+    fn gr_send_wgas_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -722,7 +722,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(338_431_048, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_push_per_kb(n: u32, ) -> Weight {
+    fn gr_send_push_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -762,7 +762,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(459_054_688, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_send_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_send_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -792,7 +792,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(20_836_104, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -812,7 +812,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(19_110_181, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_wgas_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_wgas_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -852,7 +852,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(327_004_586, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 8192]`.
-    fn gr_reply_push_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_push_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -892,7 +892,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(12_424_889, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_reply_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -912,7 +912,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(12_498_034, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_reply_commit_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -952,7 +952,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(248_489_654, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_push_input_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_push_input_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -972,7 +972,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(266_723_710, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_push_input_per_kb(n: u32, ) -> Weight {
+    fn gr_send_push_input_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -992,7 +992,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(246_303_550, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_debug_per_kb(n: u32, ) -> Weight {
+    fn gr_debug_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -1083,7 +1083,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
-    fn gr_create_program_per_kb(p: u32, s: u32, ) -> Weight {
+    fn gr_create_program_per_byte(p: u32, s: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -1106,7 +1106,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
-    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight {
+    fn gr_create_program_wgas_per_byte(p: u32, s: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2113,7 +2113,7 @@ impl WeightInfo for () {
         RocksDbWeight::get().reads(1)
     }
     /// The range of component `c` is `[0, 512]`.
-    fn db_write_per_kb(c: u32, ) -> Weight {
+    fn db_write_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2124,7 +2124,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn db_read_per_kb(c: u32, ) -> Weight {
+    fn db_read_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `42 + c * (1024 ±0)`
         //  Estimated: `3506 + c * (1024 ±0)`
@@ -2136,7 +2136,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn instantiate_module_per_kb(c: u32, ) -> Weight {
+    fn instantiate_module_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2310,7 +2310,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(22_u64))
     }
     /// The range of component `c` is `[0, 512]`.
-    fn reinstrument_per_kb(c: u32, ) -> Weight {
+    fn reinstrument_per_byte(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `211 + c * (1075 ±0)`
         //  Estimated: `3899 + c * (2150 ±0)`
@@ -2463,7 +2463,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(317_512_842, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_read_per_kb(n: u32, ) -> Weight {
+    fn gr_read_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2523,7 +2523,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(444_403_185, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_per_kb(n: u32, ) -> Weight {
+    fn gr_send_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2543,7 +2543,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(448_618_346, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_wgas_per_kb(n: u32, ) -> Weight {
+    fn gr_send_wgas_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2593,7 +2593,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(338_431_048, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_push_per_kb(n: u32, ) -> Weight {
+    fn gr_send_push_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2633,7 +2633,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(459_054_688, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_send_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_send_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2663,7 +2663,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(20_836_104, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2683,7 +2683,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(19_110_181, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_wgas_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_wgas_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2723,7 +2723,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(327_004_586, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 8192]`.
-    fn gr_reply_push_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_push_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2763,7 +2763,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(12_424_889, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_reply_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2783,7 +2783,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(12_498_034, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
+    fn gr_reservation_reply_commit_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2823,7 +2823,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(248_489_654, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_reply_push_input_per_kb(n: u32, ) -> Weight {
+    fn gr_reply_push_input_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2843,7 +2843,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(266_723_710, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_send_push_input_per_kb(n: u32, ) -> Weight {
+    fn gr_send_push_input_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2863,7 +2863,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(246_303_550, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
-    fn gr_debug_per_kb(n: u32, ) -> Weight {
+    fn gr_debug_per_byte(n: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2954,7 +2954,7 @@ impl WeightInfo for () {
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
-    fn gr_create_program_per_kb(p: u32, s: u32, ) -> Weight {
+    fn gr_create_program_per_byte(p: u32, s: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2977,7 +2977,7 @@ impl WeightInfo for () {
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
-    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight {
+    fn gr_create_program_wgas_per_byte(p: u32, s: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
