@@ -37,7 +37,7 @@ benchmarks! {
         <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
         let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
         // Keeping in mind the existential deposit
-        let amount = 100_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
+        let amount = 10_000_000_000_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
 
     }: _(RawOrigin::Root, source, recipient.clone(), amount.unique_saturated_into())
     verify {
