@@ -46,7 +46,6 @@ fn instruction_weights_heuristics_test() {
         call: 4_900,
         call_per_local: 0,
         call_indirect: 22_100,
-        call_indirect_per_param: 2_000,
 
         local_get: 600,
         local_set: 1_900,

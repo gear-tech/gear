@@ -123,13 +123,13 @@ impl Optimizer {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
             OptType::Meta => {
-                Code::new_raw_with_rules(raw_code, 1, false, || CustomConstantCostRules::default())
+                Code::new_raw_with_rules(raw_code, 1, false, CustomConstantCostRules::default)
                     .map(|_| ())
                     .map_err(BuilderError::CodeCheckFailed)?
             }
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => Code::try_new(raw_code, 1, || CustomConstantCostRules::default(), None)
+            OptType::Opt => Code::try_new(raw_code, 1, CustomConstantCostRules::default, None)
                 .map(|_| ())
                 .map_err(BuilderError::CodeCheckFailed)?,
         }

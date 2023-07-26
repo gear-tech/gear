@@ -1279,24 +1279,6 @@ mod test {
         ]
     }
 
-    fn default_wasm_module() -> elements::Module {
-        let simple_wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (export "init" (func $init))
-            (func $handle)
-            (func $init)
-        )"#;
-        elements::Module::from_bytes(
-            wabt::Wat2Wasm::new()
-                .validate(false)
-                .convert(simple_wat)
-                .expect("failed to parse module"),
-        )
-        .expect("module instantiation failed")
-    }
-
     // This test must never fail during local development/release.
     //
     // The instruction set in the test mustn't be changed. Test checks

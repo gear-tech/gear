@@ -396,7 +396,6 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     br_table_per_entry,
                     call,
                     call_indirect,
-                    call_indirect_per_param,
                     call_per_local,
                     local_get,
                     local_set,

@@ -663,7 +663,7 @@ mod tests {
         let raw_code = wat2wasm(WAT);
 
         assert_eq!(
-            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(raw_code, 1, ConstantCostRules::default, None),
             Err(CodeError::NonGearExportFnFound)
         );
     }
@@ -681,7 +681,7 @@ mod tests {
         let raw_code = wat2wasm(WAT);
 
         assert_eq!(
-            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(raw_code, 1, ConstantCostRules::default, None),
             Err(CodeError::RequiredExportFnNotFound)
         );
     }
@@ -698,12 +698,6 @@ mod tests {
 
         let raw_code = wat2wasm(WAT);
 
-        let _ = Code::try_new(
-            raw_code,
-            1,
-            |_| ConstantCostRules::default(),
-            Some(16 * 1024),
-        )
-        .unwrap();
+        let _ = Code::try_new(raw_code, 1, ConstantCostRules::default, Some(16 * 1024)).unwrap();
     }
 }
