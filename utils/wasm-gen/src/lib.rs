@@ -148,17 +148,18 @@ fn build_checked_call(
                     }
                 };
                 let instr = if let Some(allowed_values) = allowed_values {
-                    is_i32
-                        .then_some(Instruction::I32Const(allowed_values.get_i32(u).unwrap()))
-                        .unwrap_or(Instruction::I64Const(allowed_values.get_i64(u).unwrap()))
+                    if is_i32 {
+                        Instruction::I32Const(allowed_values.get_i32(u).unwrap())
+                    } else {
+                        Instruction::I64Const(allowed_values.get_i64(u).unwrap())
+                    }
+                } else if is_i32 {
+                    Instruction::I32Const(u.arbitrary().unwrap())
                 } else {
-                    is_i32
-                        .then_some(Instruction::I32Const(u.arbitrary().unwrap()))
-                        .unwrap_or(Instruction::I64Const(u.arbitrary().unwrap()))
+                    Instruction::I64Const(u.arbitrary().unwrap())
                 };
                 code.push(instr);
             }
-
             ProcessedSysCallParams::MemoryArray => {
                 if unchecked_memory {
                     code.push(Instruction::I32Const(
@@ -184,7 +185,6 @@ fn build_checked_call(
                     code.push(Instruction::I32Const((pointer_beyond - offset) as i32));
                 }
             }
-
             ProcessedSysCallParams::MemoryPtrValue => {
                 if unchecked_memory {
                     code.push(Instruction::I32Const(
@@ -202,7 +202,6 @@ fn build_checked_call(
                     code.push(Instruction::I32Const(offset as i32));
                 }
             }
-
             ProcessedSysCallParams::Alloc => {
                 if unchecked_memory {
                     code.push(Instruction::I32Const(
@@ -513,7 +512,7 @@ impl<'a> WasmGen<'a> {
         }
         let import_count = module.import_count(ImportCountType::Function);
         let mut module_builder = builder::from_module(module);
-        let sys_calls_table = sys_calls_table(&self.config.sys_calls_config.params_config());
+        let sys_calls_table = sys_calls_table(self.config.sys_calls_config.params_config());
         for (i, (name, info, sys_call_amount)) in sys_calls_table
             .into_iter()
             .filter_map(|(name, info)| {

@@ -33,7 +33,7 @@ impl SysCallsAmountRanges {
         Self(
             SysCallName::instrumentable()
                 .into_iter()
-                .map(|name| (name, (1..=1).into()))
+                .map(|name| (name, (1..=1)))
                 .collect(),
         )
     }
@@ -43,7 +43,7 @@ impl SysCallsAmountRanges {
         Self(
             SysCallName::instrumentable()
                 .into_iter()
-                .map(|name| (name, (0..=0).into()))
+                .map(|name| (name, (0..=0)))
                 .collect(),
         )
     }
@@ -66,7 +66,7 @@ impl SysCallsAmountRanges {
 
     /// Sets possible amount range for the the sys-call.
     pub fn set(&mut self, name: SysCallName, min: u32, max: u32) {
-        self.0.insert(name, (min..=max).into());
+        self.0.insert(name, min..=max);
     }
 
     ///  Same as [`SysCallsAmountRanges::set`], but sets amount ranges for multiple sys-calls.
