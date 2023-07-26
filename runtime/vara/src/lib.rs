@@ -1070,6 +1070,7 @@ mod benches {
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
         // Gear pallets
+        [pallet_airdrop, Airdrop]
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
     );
