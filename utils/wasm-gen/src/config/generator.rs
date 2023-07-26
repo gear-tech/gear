@@ -64,8 +64,7 @@ impl Default for MemoryPagesConfig {
         Self {
             initial_size: Self::MAX_VALUE / 2 + 1,
             upper_limit: Some(Self::MAX_VALUE),
-            // Make value a multiple of WASM_PAGE_SIZE (bytes), but less than min memory.
-            stack_end: Some(WASM_PAGE_SIZE * Self::MAX_VALUE / 2),
+            stack_end: None,
         }
     }
 }
@@ -113,27 +112,33 @@ pub enum EntryPointsSet {
 impl EntryPointsSet {
     /// Checks whether the set has ***init*** entry point.
     pub fn has_init(&self) -> bool {
-        matches!(self, EntryPointsSet::Init
-            | EntryPointsSet::InitHandle
-            | EntryPointsSet::InitHandleReply
-            | EntryPointsSet::InitHandleHandleReply
+        matches!(
+            self,
+            EntryPointsSet::Init
+                | EntryPointsSet::InitHandle
+                | EntryPointsSet::InitHandleReply
+                | EntryPointsSet::InitHandleHandleReply
         )
     }
 
     /// Checks whether the set has ***handle*** entry point.
     pub fn has_handle(&self) -> bool {
-        matches!(self, EntryPointsSet::InitHandle
-            | EntryPointsSet::InitHandleHandleReply
-            | EntryPointsSet::Handle
-            | EntryPointsSet::HandleHandleReply
+        matches!(
+            self,
+            EntryPointsSet::InitHandle
+                | EntryPointsSet::InitHandleHandleReply
+                | EntryPointsSet::Handle
+                | EntryPointsSet::HandleHandleReply
         )
     }
 
     /// Checks whether the set has ***handle_reply*** entry point.
     pub fn has_handle_reply(&self) -> bool {
-        matches!(self, EntryPointsSet::InitHandleReply
-            | EntryPointsSet::InitHandleHandleReply
-            | EntryPointsSet::HandleHandleReply
+        matches!(
+            self,
+            EntryPointsSet::InitHandleReply
+                | EntryPointsSet::InitHandleHandleReply
+                | EntryPointsSet::HandleHandleReply
         )
     }
 }
