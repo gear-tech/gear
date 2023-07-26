@@ -113,33 +113,27 @@ pub enum EntryPointsSet {
 impl EntryPointsSet {
     /// Checks whether the set has ***init*** entry point.
     pub fn has_init(&self) -> bool {
-        match self {
-            EntryPointsSet::Init
+        matches!(self, EntryPointsSet::Init
             | EntryPointsSet::InitHandle
             | EntryPointsSet::InitHandleReply
-            | EntryPointsSet::InitHandleHandleReply => true,
-            _ => false,
-        }
+            | EntryPointsSet::InitHandleHandleReply
+        )
     }
 
     /// Checks whether the set has ***handle*** entry point.
     pub fn has_handle(&self) -> bool {
-        match self {
-            EntryPointsSet::InitHandle
+        matches!(self, EntryPointsSet::InitHandle
             | EntryPointsSet::InitHandleHandleReply
             | EntryPointsSet::Handle
-            | EntryPointsSet::HandleHandleReply => true,
-            _ => false,
-        }
+            | EntryPointsSet::HandleHandleReply
+        )
     }
 
     /// Checks whether the set has ***handle_reply*** entry point.
     pub fn has_handle_reply(&self) -> bool {
-        match self {
-            EntryPointsSet::InitHandleReply
+        matches!(self, EntryPointsSet::InitHandleReply
             | EntryPointsSet::InitHandleHandleReply
-            | EntryPointsSet::HandleHandleReply => true,
-            _ => false,
-        }
+            | EntryPointsSet::HandleHandleReply
+        )
     }
 }
