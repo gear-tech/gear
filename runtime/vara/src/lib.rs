@@ -816,7 +816,7 @@ impl pallet_gear_messenger::Config for Runtime {
 
 impl pallet_airdrop::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
+    type WeightInfo = weights::pallet_airdrop::SubstrateWeight<Runtime>;
     type VestingSchedule = Vesting;
 }
 
