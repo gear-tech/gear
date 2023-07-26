@@ -202,7 +202,7 @@ mod wasm {
             HandleAction::ForbiddenCall => unsafe {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
 
-                msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0).unwrap();
+                msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0).expect("cannot send message");
             },
             HandleAction::SaveSignal(signal_received) => {
                 debug!("handle: signal_received={:?}", signal_received);

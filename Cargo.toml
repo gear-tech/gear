@@ -414,41 +414,41 @@ demo-wat = { path = "examples/wat" }
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
-cfg-if = "1.0.0" # gear-lazy-pages
+cfg-if = "1.0.0"                                                          # gear-lazy-pages
 # TODO: upgrade this package ( issue #2694 )
-cargo_metadata = "=0.15.3"                                   # utils/wasm-builder
-errno = "0.3"                                                # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                              # pallets/staking-rewards
-indexmap = "1.9.3"                                           # utils/weight-diff
-indicatif = "*"                                              # utils/wasm-gen
-keyring = "1.2.1"                                            # gcli
-libp2p = "=0.50.1"                                           # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.34", default-features = false }  # node/cli
-nacl = "0.5.3"                                               # gcli
-nix = "0.26.2"                                               # gear-lazy-pages
-nonempty = "0.8.1"                                           # utils/utils
-libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
-pwasm-utils = "0.19.0"                                       # utils/wasm-builder
-page_size = { version = "0.5", default-features = false }    # pallets/gear
-pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
-rand_pcg = "0.3.1"                                           # pallets/gear
-schnorrkel = "0.9.1"                                         # gcli
-scopeguard = { version = "1.1.0", default-features = false } # pallets/gear
-tabled = "0.10.0"                                            # utils/regression-analysis
-thousands = "0.2.0"                                          # utils/regression-analysis
-toml = "0.7.3"                                               # utils/wasm-builder
-tracing = "0.1.37"                                           # utils/node-loder
-tracing-appender = "0.2"                                     # utils/node-loder
-tracing-subscriber = "0.3.16"                                # utils/node-loder
-trybuild = "1"                                               # gstd/codegen
-wasm-opt = "0.111.0"                                         # utils/wasm-builder
-wasmprinter = "0.2"                                          # utils/wasm-gen
-whoami = "1.4.0"                                             # gcli
-fail = "0.5"                                                 # gear-common
-scale-value = "^0.10"                                        # gsdk
-heck = "0.4.1"                                               # gsdk-api-gen
-etc = "0.1.16"                                               # gcli
-scale-decode = "0.7.0"                                       # gsdk
+cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
+errno = "0.3"                                                             # gear-lazy-pages
+impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
+indexmap = "1.9.3"                                                        # utils/weight-diff
+indicatif = "*"                                                           # utils/wasm-gen
+keyring = "1.2.1"                                                         # gcli
+libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.34", default-features = false }               # node/cli
+nacl = "0.5.3"                                                            # gcli
+nix = "0.26.2"                                                            # gear-lazy-pages
+nonempty = "0.8.1"                                                        # utils/utils
+libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
+pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
+page_size = { version = "0.5", default-features = false }                 # pallets/gear
+pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
+rand_pcg = "0.3.1"                                                        # pallets/gear
+schnorrkel = "0.9.1"                                                      # gcli
+scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
+tabled = "0.10.0"                                                         # utils/regression-analysis
+thousands = "0.2.0"                                                       # utils/regression-analysis
+toml = "0.7.3"                                                            # utils/wasm-builder
+tracing = "0.1.37"                                                        # utils/node-loder
+tracing-appender = "0.2"                                                  # utils/node-loder
+tracing-subscriber = "0.3.16"                                             # utils/node-loder
+trybuild = "1"                                                            # gstd/codegen
+wasm-opt = "0.111.0"                                                      # utils/wasm-builder
+wasmprinter = "0.2"                                                       # utils/wasm-gen
+whoami = "1.4.0"                                                          # gcli
+fail = "0.5"                                                              # gear-common
+scale-value = "^0.10"                                                     # gsdk
+heck = "0.4.1"                                                            # gsdk-api-gen
+etc = "0.1.16"                                                            # gcli
+scale-decode = "0.7.0"                                                    # gsdk
 
 [profile.release]
 panic = "unwind"
