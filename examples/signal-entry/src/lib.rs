@@ -53,10 +53,8 @@ pub enum HandleAction {
 
 pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
 
-// #[cfg(not(feature = "std"))]
+#[cfg(not(feature = "std"))]
 mod wasm {
-    use core::alloc::Layout;
-
     use super::*;
     use gear_core::ids::ProgramId;
     use gstd::{
@@ -199,11 +197,12 @@ mod wasm {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 exec::wait();
             }
-            HandleAction::ForbiddenCall => unsafe {
+            HandleAction::ForbiddenCall => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
 
-                msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0).expect("cannot send message");
-            },
+                msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0)
+                    .expect("cannot send message");
+            }
             HandleAction::SaveSignal(signal_received) => {
                 debug!("handle: signal_received={:?}", signal_received);
 
