@@ -10102,282 +10102,43 @@ fn signal_async_wait_works() {
 }
 
 #[test]
-fn signal_gas_limit_exceeded_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::OutOfGas.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let mid = get_last_message_id();
-
-        run_to_block(3, None);
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        // check signal dispatch executed
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
-    });
-}
-
-#[test]
 fn signal_run_out_of_gas_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SaveSignal(SimpleExecutionError::RanOutOfGas.into()).encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::OutOfGas.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let mid = get_last_message_id();
-
-        run_to_block(4, None);
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
-    });
+    test_signal_code_works(
+        SimpleExecutionError::RanOutOfGas.into(),
+        demo_signal_entry::HandleAction::OutOfGas,
+    );
 }
 
 #[test]
 fn signal_userspace_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SaveSignal(SimpleExecutionError::UserspacePanic.into()).encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::Panic.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let mid = get_last_message_id();
-
-        run_to_block(4, None);
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
-    });
+    test_signal_code_works(
+        SimpleExecutionError::UserspacePanic.into(),
+        demo_signal_entry::HandleAction::Panic,
+    );
 }
 
 #[test]
 fn signal_backend_error_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SaveSignal(SimpleExecutionError::BackendError.into()).encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::ForbiddenCall.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let mid = get_last_message_id();
-
-        run_to_block(4, None);
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
-    });
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::ForbiddenCall,
+    );
 }
 
 #[test]
 fn signal_unreachable_instruction_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SaveSignal(SimpleExecutionError::UnreachableInstruction.into()).encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::UnreachableInstruction.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let mid = get_last_message_id();
-
-        run_to_block(4, None);
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
-    });
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::UnreachableInstruction,
+    );
 }
 
 #[test]
 fn signal_memory_overflow_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SaveSignal(SimpleExecutionError::MemoryOverflow.into()).encode(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::ExceedMemory.encode(),
-            250_000_000_000,
-            0,
-        ));
-
-        run_to_block(4, None);
-
-        let mid = get_last_message_id();
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
-    });
+    test_signal_code_works(
+        SimpleExecutionError::MemoryOverflow.into(),
+        demo_signal_entry::HandleAction::ExceedMemory,
+    );
 }
 
 #[test]
@@ -13418,13 +13179,13 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, GasHandlerOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
         paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage,
+        Origin, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
@@ -14260,5 +14021,57 @@ mod utils {
         });
 
         assert_eq!(res, assertions);
+    }
+
+    #[track_caller]
+    pub(super) fn test_signal_code_works(
+        signal_code: SignalCode,
+        action: demo_signal_entry::HandleAction,
+    ) {
+        use crate::tests::new_test_ext;
+        use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+        init_logger();
+        new_test_ext().execute_with(|| {
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                USER_1.encode(),
+                10_000_000_000,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_block(2, None);
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SaveSignal(signal_code).encode(),
+                10_000_000_000,
+                0,
+            ));
+
+            run_to_block(3, None);
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                10_000_000_000,
+                0,
+            ));
+
+            let mid = get_last_message_id();
+
+            run_to_block(4, None);
+
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
+        });
     }
 }
