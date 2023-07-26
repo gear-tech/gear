@@ -52,16 +52,15 @@ impl Signer {
     }
 
     /// Change inner signer.
-    pub fn change(self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
-            api: self.api,
-            signer: PairSigner::new(
-                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
-            ),
-            nonce: None,
-        })
+    pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        let signer =
+            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+        self.signer = signer;
+
+        Ok(self)
     }
 
+    /// Set nonce of the signer
     pub fn set_nonce(&mut self, nonce: u32) {
         self.nonce = Some(nonce)
     }
