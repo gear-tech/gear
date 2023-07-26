@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use gstd::errors::SignalCode;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -44,16 +45,26 @@ pub enum HandleAction {
     AcrossWaits,
     ZeroReserve,
     ForbiddenCallInSignal([u8; 32]),
+    ForbiddenCall,
+    SaveSignal(SignalCode),
+    ExceedMemory,
+    UnreachableInstruction,
 }
 
 pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
 
-#[cfg(not(feature = "std"))]
+// #[cfg(not(feature = "std"))]
 mod wasm {
+    use core::alloc::Layout;
+
     use super::*;
+    use gear_core::ids::ProgramId;
     use gstd::{
+        debug,
         errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
-        exec, msg,
+        exec,
+        ext::oom_panic,
+        msg,
         prelude::*,
         ActorId, MessageId,
     };
@@ -68,6 +79,7 @@ mod wasm {
         Normal,
         Panic,
         ForbiddenCall([u8; 32]),
+        Assert(SignalCode),
     }
 
     #[no_mangle]
@@ -187,6 +199,27 @@ mod wasm {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 exec::wait();
             }
+            HandleAction::ForbiddenCall => unsafe {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0).unwrap();
+            },
+            HandleAction::SaveSignal(signal_received) => {
+                debug!("handle: signal_received={:?}", signal_received);
+
+                unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::Assert(signal_received) };
+            }
+            HandleAction::ExceedMemory => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                oom_panic();
+            }
+            HandleAction::UnreachableInstruction => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                #[cfg(target_arch = "wasm32")]
+                core::arch::wasm32::unreachable();
+            }
         }
     }
 
@@ -220,6 +253,17 @@ mod wasm {
             HandleSignalState::ForbiddenCall(user) => {
                 msg::send_bytes((*user).into(), b"handle_signal_forbidden_call", 0).unwrap();
                 let _ = msg::source();
+            }
+            HandleSignalState::Assert(signal_saved) => {
+                let signal_received = msg::signal_code()
+                    .expect("Incorrect call")
+                    .expect("Unsupported code");
+
+                if signal_received == *signal_saved {
+                    msg::send(unsafe { INITIATOR }, b"handle_signal_equal", 0).unwrap();
+                } else {
+                    msg::send(unsafe { INITIATOR }, b"handle_signal_not_equal", 0).unwrap();
+                }
             }
         }
     }

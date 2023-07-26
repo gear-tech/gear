@@ -2209,19 +2209,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signal-assert"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
+ "gear-core",
  "gear-wasm-builder",
  "gstd",
  "gtest",
