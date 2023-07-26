@@ -59,10 +59,10 @@ benchmarks! {
         let vesting_schedule = VestingInfo::new(vested_amount.unique_saturated_into(), 10u128.unique_saturated_into(),  1000u32.into());
         pallet_vesting::Pallet::<T>::vested_transfer(RawOrigin::Signed(source.clone()).into(), source_lookup, vesting_schedule)?;
 
-    }: _(RawOrigin::Root, source.clone(), recipient.clone(), 0, Some(amount.into()))
+    }: _(RawOrigin::Root, source.clone(), recipient.clone(), 0, Some(amount))
     verify {
         // check that the total vested amount is halved between the source and the recipient
-        assert_eq!(pallet_vesting::Pallet::<T>::vesting_balance(&source), Some(amount.into()));
+        assert_eq!(pallet_vesting::Pallet::<T>::vesting_balance(&source), Some(amount));
         assert_eq!(<T as pallet_vesting::Config>::Currency::free_balance(&recipient), amount);
     }
 }
