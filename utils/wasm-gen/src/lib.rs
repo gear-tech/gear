@@ -40,8 +40,11 @@ use gsys::{ErrorWithHash, HashWithValue, Length};
 use wasm_smith::{Module as ModuleSmith, SwarmConfig};
 
 mod config;
-mod syscalls;
 pub use config::*;
+mod generator;
+pub use generator::*;
+
+mod syscalls;
 use syscalls::{sys_calls_table, CallInfo, CallSignature};
 
 #[cfg(test)]
