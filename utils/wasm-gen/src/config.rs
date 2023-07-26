@@ -87,5 +87,5 @@ pub use syscalls::*;
 #[derive(Debug, Clone, Default)]
 pub struct WasmGenConfig {
     pub generator_config: GearWasmGeneratorConfig,
-    pub selectables_config: SelectableParams,
+    pub selectable_params: SelectableParams,
 }

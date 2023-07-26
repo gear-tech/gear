@@ -126,7 +126,7 @@ fn fuzzer_config(seed: u64) -> WasmGenConfig {
 
     WasmGenConfig {
         generator_config,
-        selectables_config,
+        selectable_params: selectables_config,
     }
 }
 
