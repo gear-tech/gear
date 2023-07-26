@@ -18,7 +18,7 @@
 
 //! Configs related to instantiation of gear wasm module generators.
 
-use crate::{wasm::PAGE_SIZE as WASM_PAGE_SIZE, SysCallsConfig, SysCallsConfigBuilder};
+use crate::{SysCallsConfig, SysCallsConfigBuilder};
 
 /// Gear wasm generator config.
 ///
