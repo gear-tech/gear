@@ -35,11 +35,23 @@ fuzzer_build() {
 
 node_build() {
   $CARGO build -p gear-cli "$@"
+  echo "Printing build scripts output..."
   for f in ./target/release/build/gear-runtime-*/output
   do
     echo "Processing $f file..."
-    # take action on each file. $f store current file name
+    head -n 5 $f
+  done
+  echo "Printing was_binary.rs files..."
+  for f in ./target/release/build/gear-runtime-*/out/wasm_binary.rs
+  do
+    echo "Processing $f file..."
     cat $f
+  done
+  echo "Printing gear-runtime mtime..."
+  for f in ./target/release/wbuild/gear-runtime/*.wasm
+  do
+    echo "Processing $f file..."
+    stat $f
   done
 }
 
