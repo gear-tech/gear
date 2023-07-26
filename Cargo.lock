@@ -4299,7 +4299,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.3.11",
  "env_logger",
- "futures-util",
+ "futures",
  "gsdk",
  "log",
  "parity-scale-codec",
