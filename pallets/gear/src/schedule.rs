@@ -40,16 +40,7 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
-use sp_std::{marker::PhantomData, vec::Vec};
-
-/// How many API calls are executed in a single batch. The reason for increasing the amount
-/// of API calls in batches (per benchmark component increase) is so that the linear regression
-/// has an easier time determining the contribution of that component.
-pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
-
-/// How many instructions are executed in a single batch. The reasoning is the same
-/// as for `API_BENCHMARK_BATCH_SIZE`.
-pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
+use sp_std::marker::PhantomData;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -637,43 +628,10 @@ macro_rules! cost_args {
     }
 }
 
-macro_rules! cost_batched_args {
-    ($name:ident, $( $arg: expr ),+) => {
-        cost_args!($name, $( $arg ),+) / u64::from(API_BENCHMARK_BATCH_SIZE)
-    }
-}
-
-macro_rules! cost_instr_no_params_with_batch_size {
-    ($name:ident, $batch_size:expr) => {
-        (cost_args!($name, 1) / u64::from($batch_size)) as u32
+macro_rules! cost_instr_no_params {
+    ($name:ident) => {
+        cost_args!($name, 1) as u32
     };
-}
-
-macro_rules! cost_instr_with_batch_size {
-    ($name:ident, $num_params:expr, $batch_size:expr) => {
-        cost_instr_no_params_with_batch_size!($name, $batch_size).saturating_sub(
-            (cost_instr_no_params_with_batch_size!(instr_i64const, $batch_size) / 2)
-                .saturating_mul($num_params),
-        )
-    };
-}
-
-macro_rules! cost_instr {
-    ($name:ident, $num_params:expr) => {
-        cost_instr_with_batch_size!($name, $num_params, INSTR_BENCHMARK_BATCH_SIZE)
-    };
-}
-
-macro_rules! cost_byte_args {
-    ($name:ident, $( $arg: expr ),+) => {
-        cost_args!($name, $( $arg ),+) / 1024
-    }
-}
-
-macro_rules! cost_byte_batched_args {
-    ($name:ident, $( $arg: expr ),+) => {
-        cost_batched_args!($name, $( $arg ),+) / 1024
-    }
 }
 
 macro_rules! cost {
@@ -682,21 +640,10 @@ macro_rules! cost {
     };
 }
 
-macro_rules! cost_batched {
-    ($name:ident) => {
-        cost_batched_args!($name, 1)
-    };
-}
-
-macro_rules! cost_byte {
-    ($name:ident) => {
-        cost_byte_args!($name, 1)
-    };
-}
-
-macro_rules! cost_byte_batched {
-    ($name:ident) => {
-        cost_byte_batched_args!($name, 1)
+macro_rules! cost_instr {
+    ($name:ident, $num_params:expr) => {
+        cost_instr_no_params!($name)
+            .saturating_sub((cost_instr_no_params!(instr_i64const) / 2).saturating_mul($num_params))
     };
 }
 
@@ -713,11 +660,11 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             host_fn_weights: Default::default(),
             memory_weights: Default::default(),
-            db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
-            db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
-            module_instantiation_per_byte: to_weight!(cost_byte!(instantiate_module_per_kb)),
-            code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
-            code_instrumentation_byte_cost: to_weight!(cost_byte!(reinstrument_per_kb)),
+            db_write_per_byte: to_weight!(cost!(db_write_per_byte)),
+            db_read_per_byte: to_weight!(cost!(db_read_per_byte)),
+            module_instantiation_per_byte: to_weight!(cost!(instantiate_module_per_byte)),
+            code_instrumentation_cost: call_zero!(reinstrument_per_byte, 0),
+            code_instrumentation_byte_cost: to_weight!(cost!(reinstrument_per_byte)),
         }
     }
 }
@@ -918,97 +865,95 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
-            gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
-                .saturating_sub(to_weight!(cost_batched!(gr_send))),
+            gr_reply_deposit: to_weight!(cost!(gr_reply_deposit))
+                .saturating_sub(to_weight!(cost!(gr_send))),
 
-            gr_send: to_weight!(cost_batched!(gr_send)),
-            gr_send_per_byte: to_weight!(cost_byte_batched!(gr_send_per_kb)),
-            gr_send_wgas: to_weight!(cost_batched!(gr_send_wgas)),
-            gr_send_wgas_per_byte: to_weight!(cost_byte_batched!(gr_send_wgas_per_kb)),
-            gr_send_init: to_weight!(cost_batched!(gr_send_init)),
-            gr_send_push: to_weight!(cost_batched!(gr_send_push)),
-            gr_send_push_per_byte: to_weight!(cost_byte_batched!(gr_send_push_per_kb)),
-            gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
-            gr_send_commit_wgas: to_weight!(cost_batched!(gr_send_commit_wgas)),
-            gr_reservation_send: to_weight!(cost_batched!(gr_reservation_send)),
-            gr_reservation_send_per_byte: to_weight!(cost_byte_batched!(
-                gr_reservation_send_per_kb
-            )),
-            gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
-            gr_send_input: to_weight!(cost_batched!(gr_send_input)),
-            gr_send_input_wgas: to_weight!(cost_batched!(gr_send_input_wgas)),
-            gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
-            gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
+            gr_send: to_weight!(cost!(gr_send)),
+            gr_send_per_byte: to_weight!(cost!(gr_send_per_byte)),
+            gr_send_wgas: to_weight!(cost!(gr_send_wgas)),
+            gr_send_wgas_per_byte: to_weight!(cost!(gr_send_wgas_per_byte)),
+            gr_send_init: to_weight!(cost!(gr_send_init)),
+            gr_send_push: to_weight!(cost!(gr_send_push)),
+            gr_send_push_per_byte: to_weight!(cost!(gr_send_push_per_byte)),
+            gr_send_commit: to_weight!(cost!(gr_send_commit)),
+            gr_send_commit_wgas: to_weight!(cost!(gr_send_commit_wgas)),
+            gr_reservation_send: to_weight!(cost!(gr_reservation_send)),
+            gr_reservation_send_per_byte: to_weight!(cost!(gr_reservation_send_per_byte)),
+            gr_reservation_send_commit: to_weight!(cost!(gr_reservation_send_commit)),
+            gr_send_input: to_weight!(cost!(gr_send_input)),
+            gr_send_input_wgas: to_weight!(cost!(gr_send_input_wgas)),
+            gr_send_push_input: to_weight!(cost!(gr_send_push_input)),
+            gr_send_push_input_per_byte: to_weight!(cost!(gr_send_push_input_per_byte)),
 
             gr_reply: to_weight!(cost!(gr_reply)),
-            gr_reply_per_byte: to_weight!(cost_byte!(gr_reply_per_kb)),
+            gr_reply_per_byte: to_weight!(cost!(gr_reply_per_byte)),
             gr_reply_wgas: to_weight!(cost!(gr_reply_wgas)),
-            gr_reply_wgas_per_byte: to_weight!(cost_byte!(gr_reply_wgas_per_kb)),
-            gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
-            gr_reply_push_per_byte: to_weight!(cost_byte!(gr_reply_push_per_kb)),
+            gr_reply_wgas_per_byte: to_weight!(cost!(gr_reply_wgas_per_byte)),
+            gr_reply_push: to_weight!(cost!(gr_reply_push)),
+            gr_reply_push_per_byte: to_weight!(cost!(gr_reply_push_per_byte)),
             gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
             gr_reply_commit_wgas: to_weight!(cost!(gr_reply_commit_wgas)),
             gr_reservation_reply: to_weight!(cost!(gr_reservation_reply)),
-            gr_reservation_reply_per_byte: to_weight!(cost!(gr_reservation_reply_per_kb)),
+            gr_reservation_reply_per_byte: to_weight!(cost!(gr_reservation_reply_per_byte)),
             gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
             gr_reply_input: to_weight!(cost!(gr_reply_input)),
             gr_reply_input_wgas: to_weight!(cost!(gr_reply_input_wgas)),
-            gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
-            gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
+            gr_reply_push_input: to_weight!(cost!(gr_reply_push_input)),
+            gr_reply_push_input_per_byte: to_weight!(cost!(gr_reply_push_input_per_byte)),
 
             // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
-            alloc: to_weight!(cost_batched!(alloc))
-                .saturating_sub(to_weight!(cost_batched!(alloc_per_page)))
-                .saturating_sub(to_weight!(cost_batched!(mem_grow))),
-            alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
-            free: to_weight!(cost_batched!(free)),
+            alloc: to_weight!(cost!(alloc))
+                .saturating_sub(to_weight!(cost!(alloc_per_page)))
+                .saturating_sub(to_weight!(cost!(mem_grow))),
+            alloc_per_page: to_weight!(cost!(alloc_per_page)),
+            free: to_weight!(cost!(free)),
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
-            gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
+            gr_system_reserve_gas: to_weight!(cost!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
-            gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
-            gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
-            gr_program_id: to_weight!(cost_batched!(gr_program_id)),
-            gr_source: to_weight!(cost_batched!(gr_source)),
-            gr_value: to_weight!(cost_batched!(gr_value)),
-            gr_value_available: to_weight!(cost_batched!(gr_value_available)),
-            gr_size: to_weight!(cost_batched!(gr_size)),
-            gr_read: to_weight!(cost_batched!(gr_read)),
-            gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
-            gr_block_height: to_weight!(cost_batched!(gr_block_height)),
-            gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
-            gr_random: to_weight!(cost_batched!(gr_random)),
-            gr_debug: to_weight!(cost_batched!(gr_debug)),
-            gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
-            gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
-            gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
-            gr_reply_code: to_weight!(cost_batched!(gr_reply_code)),
+            gr_gas_available: to_weight!(cost!(gr_gas_available)),
+            gr_message_id: to_weight!(cost!(gr_message_id)),
+            gr_pay_program_rent: to_weight!(cost!(gr_pay_program_rent)),
+            gr_program_id: to_weight!(cost!(gr_program_id)),
+            gr_source: to_weight!(cost!(gr_source)),
+            gr_value: to_weight!(cost!(gr_value)),
+            gr_value_available: to_weight!(cost!(gr_value_available)),
+            gr_size: to_weight!(cost!(gr_size)),
+            gr_read: to_weight!(cost!(gr_read)),
+            gr_read_per_byte: to_weight!(cost!(gr_read_per_byte)),
+            gr_block_height: to_weight!(cost!(gr_block_height)),
+            gr_block_timestamp: to_weight!(cost!(gr_block_timestamp)),
+            gr_random: to_weight!(cost!(gr_random)),
+            gr_debug: to_weight!(cost!(gr_debug)),
+            gr_debug_per_byte: to_weight!(cost!(gr_debug_per_byte)),
+            gr_reply_to: to_weight!(cost!(gr_reply_to)),
+            gr_signal_from: to_weight!(cost!(gr_signal_from)),
+            gr_reply_code: to_weight!(cost!(gr_reply_code)),
             gr_exit: to_weight!(cost!(gr_exit)),
             gr_leave: to_weight!(cost!(gr_leave)),
             gr_wait: to_weight!(cost!(gr_wait)),
             gr_wait_for: to_weight!(cost!(gr_wait_for)),
             gr_wait_up_to: to_weight!(cost!(gr_wait_up_to)),
-            gr_wake: to_weight!(cost_batched!(gr_wake)),
+            gr_wake: to_weight!(cost!(gr_wake)),
 
-            gr_create_program: to_weight!(cost_batched!(gr_create_program)),
-            gr_create_program_payload_per_byte: to_weight!(cost_byte_batched_args!(
-                gr_create_program_per_kb,
+            gr_create_program: to_weight!(cost!(gr_create_program)),
+            gr_create_program_payload_per_byte: to_weight!(cost_args!(
+                gr_create_program_per_byte,
                 1,
                 0
             )),
-            gr_create_program_salt_per_byte: to_weight!(cost_byte_batched_args!(
-                gr_create_program_per_kb,
+            gr_create_program_salt_per_byte: to_weight!(cost_args!(
+                gr_create_program_per_byte,
                 0,
                 1
             )),
-            gr_create_program_wgas: to_weight!(cost_batched!(gr_create_program_wgas)),
-            gr_create_program_wgas_payload_per_byte: to_weight!(cost_byte_batched_args!(
-                gr_create_program_wgas_per_kb,
+            gr_create_program_wgas: to_weight!(cost!(gr_create_program_wgas)),
+            gr_create_program_wgas_payload_per_byte: to_weight!(cost_args!(
+                gr_create_program_wgas_per_byte,
                 1,
                 0
             )),
-            gr_create_program_wgas_salt_per_byte: to_weight!(cost_byte_batched_args!(
-                gr_create_program_wgas_per_kb,
+            gr_create_program_wgas_salt_per_byte: to_weight!(cost_args!(
+                gr_create_program_wgas_per_byte,
                 0,
                 1
             )),
@@ -1033,9 +978,9 @@ impl<T: Config> Default for MemoryWeights<T> {
         // which accesses memory. So, we have to subtract corresponding syscall weight.
         macro_rules! host_func_access {
             ($name:ident, $syscall:ident) => {{
-                let syscall_per_kb_weight = cost_batched!($syscall);
+                let syscall_per_byte_weight = cost!($syscall);
                 let syscall_per_gear_page_weight =
-                    (syscall_per_kb_weight / KB_SIZE) * GearPage::size() as u64;
+                    syscall_per_byte_weight * GearPage::size() as u64;
                 to_cost_per_gear_page!($name).saturating_sub(syscall_per_gear_page_weight)
             }};
         }
@@ -1052,27 +997,27 @@ impl<T: Config> Default for MemoryWeights<T> {
             )),
             lazy_pages_host_func_read: to_weight!(host_func_access!(
                 lazy_pages_host_func_read,
-                gr_debug_per_kb
+                gr_debug_per_byte
             )),
             lazy_pages_host_func_write: to_weight!(host_func_access!(
                 lazy_pages_host_func_write,
-                gr_read_per_kb
+                gr_read_per_byte
             )),
             lazy_pages_host_func_write_after_read: to_weight!(host_func_access!(
                 lazy_pages_host_func_write_after_read,
-                gr_read_per_kb
+                gr_read_per_byte
             )),
             // As you can see from calculation: `load_page_data` doesn't include weight for db read.
             // This is correct situation, because this weight is already included in above
             // lazy-pages weights.
             load_page_data: to_weight!(to_cost_per_gear_page!(lazy_pages_load_page_storage_data)
                 .saturating_sub(to_cost_per_gear_page!(lazy_pages_signal_read))),
-            upload_page_data: to_weight!(cost!(db_write_per_kb)
+            upload_page_data: to_weight!(cost!(db_write_per_byte)
                 .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
                 .saturating_add(T::DbWeight::get().writes(1).ref_time())),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
-            mem_grow: to_weight!(cost_batched!(mem_grow)),
+            mem_grow: to_weight!(cost!(mem_grow)),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
