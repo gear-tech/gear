@@ -623,7 +623,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in bytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128 * 1024;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -662,7 +662,7 @@ benchmarks! {
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
