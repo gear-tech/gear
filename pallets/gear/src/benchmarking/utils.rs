@@ -140,7 +140,7 @@ where
             let code = Code::try_new(
                 code.clone(),
                 schedule.instruction_weights.version,
-                |module| schedule.rules(module),
+                || schedule.rules(),
                 schedule.limits.stack_height,
             )
             .map_err(|_| "Code failed to load")?;

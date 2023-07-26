@@ -296,7 +296,7 @@ impl Code {
     ) -> Result<Self, CodeError>
     where
         R: Rules,
-        GetRulesFn: FnMut(&Module) -> R,
+        GetRulesFn: FnMut() -> R,
     {
         wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
 
@@ -332,7 +332,7 @@ impl Code {
         let exports = get_exports(&module, true)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
-            let gas_rules = get_gas_rules(&module);
+            let gas_rules = get_gas_rules();
             let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
                 .map_err(|_| CodeError::GasInjection)?;
 
@@ -433,7 +433,7 @@ impl Code {
     ) -> Result<Self, CodeError>
     where
         R: Rules,
-        GetRulesFn: FnMut(&Module) -> R,
+        GetRulesFn: FnMut() -> R,
     {
         wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
 
@@ -468,7 +468,7 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
-        let gas_rules = get_gas_rules(&module);
+        let gas_rules = get_gas_rules();
         let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
             .map_err(|_| CodeError::GasInjection)?;
 

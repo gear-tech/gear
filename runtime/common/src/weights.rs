@@ -46,10 +46,6 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     check_instruction_weight(weights.br_table_per_entry, expected.br_table_per_entry);
     check_instruction_weight(weights.call, expected.call);
     check_instruction_weight(weights.call_indirect, expected.call_indirect);
-    check_instruction_weight(
-        weights.call_indirect_per_param,
-        expected.call_indirect_per_param,
-    );
     check_instruction_weight(weights.call_per_local, expected.call_per_local);
     check_instruction_weight(weights.local_get, expected.local_get);
     check_instruction_weight(weights.local_set, expected.local_set);

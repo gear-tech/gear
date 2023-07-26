@@ -244,7 +244,6 @@ pub struct InstructionWeights<T: Config> {
     pub br_table_per_entry: u32,
     pub call: u32,
     pub call_indirect: u32,
-    pub call_indirect_per_param: u32,
     pub call_per_local: u32,
     pub local_get: u32,
     pub local_set: u32,
@@ -759,7 +758,6 @@ impl<T: Config> Default for InstructionWeights<T> {
             br_table_per_entry: cost_instr!(instr_br_table_per_entry, 0),
             call: cost_instr!(instr_call, 2),
             call_indirect: cost_instr!(instr_call_indirect, 1),
-            call_indirect_per_param: cost_instr!(instr_call_indirect_per_param, 1),
             call_per_local: cost_instr!(instr_call_per_local, 1),
             local_get: cost_instr!(instr_local_get, 0),
             local_set: cost_instr!(instr_local_set, 1),
@@ -1084,23 +1082,11 @@ impl<T: Config> Default for MemoryWeights<T> {
 
 struct ScheduleRules<'a, T: Config> {
     schedule: &'a Schedule<T>,
-    params: Vec<u32>,
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
-        ScheduleRules {
-            schedule: self,
-            params: module
-                .type_section()
-                .iter()
-                .flat_map(|section| section.types())
-                .map(|func| {
-                    let elements::Type::Function(func) = func;
-                    func.params().len() as u32
-                })
-                .collect(),
-        }
+    pub fn rules(&self) -> impl gas_metering::Rules + '_ {
+        ScheduleRules { schedule: self }
     }
 }
 
@@ -1108,7 +1094,6 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
     fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
         use self::elements::{Instruction::*, SignExtInstruction::*};
         let w = &self.schedule.instruction_weights;
-        let max_params = self.schedule.limits.parameters;
 
         let weight = match *instruction {
             End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
@@ -1138,7 +1123,7 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             GetGlobal(_) => w.global_get,
             SetGlobal(_) => w.global_set,
             CurrentMemory(_) => w.memory_current,
-            CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
+            CallIndirect(_, _) => w.call_indirect,
             BrTable(ref data) => w
                 .br_table
                 .saturating_add(w.br_table_per_entry.saturating_mul(data.table.len() as u32)),
@@ -1377,7 +1362,7 @@ mod test {
         let schedule = Schedule::<Test>::default();
 
         // used in `pallet-gear` to estimate the gas used by the program
-        let schedule_rules = schedule.rules(&default_wasm_module());
+        let schedule_rules = schedule.rules();
 
         // used in `gear-wasm-builder` to check program code at an early stage
         let custom_cost_rules = CustomConstantCostRules::default();

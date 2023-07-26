@@ -292,13 +292,11 @@ where
             return Err("Wasm too big".into());
         }
 
-        let code = Code::new_raw_with_rules(
-            wasm,
-            schedule.instruction_weights.version,
-            false,
-            |module| schedule.rules(module),
-        )
-        .map_err(|e| format!("Failed to construct program: {e:?}"))?;
+        let code =
+            Code::new_raw_with_rules(wasm, schedule.instruction_weights.version, false, || {
+                schedule.rules()
+            })
+            .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
         if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
             return Err("Wasm after instrumentation too big".into());

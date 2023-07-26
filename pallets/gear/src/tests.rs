@@ -4208,7 +4208,7 @@ fn test_code_submission_pass() {
         let code = Code::try_new(
             code,
             schedule.instruction_weights.version,
-            |module| schedule.rules(module),
+            || schedule.rules(),
             schedule.limits.stack_height,
         )
         .expect("Error creating Code");
@@ -5674,7 +5674,7 @@ fn test_create_program_works() {
         let code = Code::try_new(
             code,
             schedule.instruction_weights.version,
-            |module| schedule.rules(module),
+            || schedule.rules(),
             schedule.limits.stack_height,
         )
         .expect("Code failed to load");
@@ -9575,7 +9575,7 @@ fn test_mad_big_prog_instrumentation() {
         let code_inst_res = gear_core::code::Code::try_new(
             code_bytes,
             schedule.instruction_weights.version,
-            |module| schedule.rules(module),
+            || schedule.rules(),
             schedule.limits.stack_height,
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
