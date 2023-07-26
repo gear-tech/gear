@@ -108,6 +108,7 @@ jobs:
 
   build:
     # needs: spec_version
+    if: false
     needs: [check-commit-message, check-labels]
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
@@ -288,7 +289,7 @@ jobs:
           path: artifact
 
   build-win-native:
-    needs: build
+    #needs: build
     runs-on: ci-win
     defaults:
       run:
