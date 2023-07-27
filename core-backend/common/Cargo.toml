@@ -20,6 +20,7 @@ blake2-rfc.workspace = true
 derive_more.workspace = true
 gsys.workspace = true
 log.workspace = true
+num_enum.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 

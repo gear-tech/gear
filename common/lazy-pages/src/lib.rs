@@ -175,5 +175,10 @@ pub fn pre_process_memory_accesses(
         gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, *gas_counter);
 
     *gas_counter = gas;
-    res
+    
+    // if result can be converted to `ProcessAccessError` then it's an error
+    if let Ok(err) = ProcessAccessError::try_from(res) {
+        return Err(err);
+    }
+    Ok(())
 }

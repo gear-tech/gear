@@ -36,15 +36,16 @@ use gear_core::{
     memory::{Memory, MemoryError, MemoryInterval},
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
-use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use scale_info::scale::{Decode, DecodeAll, Encode, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
-#[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = scale)]
+#[derive(Debug, Clone, Encode, Decode, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
 pub enum ProcessAccessError {
-    OutOfBounds,
-    GasLimitExceeded,
-    GasAllowanceExceeded,
+    OutOfBounds = 1,
+    GasLimitExceeded = 2,
+    GasAllowanceExceeded = 3,
 }
 
 #[derive(Debug, Clone, derive_more::From)]

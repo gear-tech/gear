@@ -114,13 +114,14 @@ pub trait GearRI {
             gas: gas_couunter,
             allowance: gas_couunter,
         };
-
-        let res = lazy_pages::pre_process_memory_accesses(
+        let res = match lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
             &writes_intervals,
             &mut gas_left,
-        );
-
+        ) {
+            Ok(_) => 0,
+            Err(err) => err.into(),
+        };
         let GasLeft { gas, allowance } = gas_left;
         (gas.min(allowance), res)
     }
