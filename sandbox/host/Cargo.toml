@@ -25,10 +25,14 @@ gear-sandbox-env = { workspace = true, features = ["std"] }
 wasmer-cache = { version = "2.2.1", optional = true }
 once_cell = "1.17.1"
 tempfile = "3.5.0"
+gwasm-processor = { workspace = true, optional = true }
 
 [features]
 default = ["host-sandbox"]
 host-sandbox = [
 	"wasmer",
-	"wasmer-cache",
+	"wasmer-cache"
+]
+unstable-features = [
+  "gwasm-processor"
 ]

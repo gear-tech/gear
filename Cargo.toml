@@ -200,6 +200,7 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gwasm = { path = "gwasm" }
+gwasm-processor = { path = "gwasm/processor" }
 gear-authorship = { path = "node/authorship" }
 gear-backend-codegen = { path = "core-backend/codegen" }
 gear-backend-common = { path = "core-backend/common" }

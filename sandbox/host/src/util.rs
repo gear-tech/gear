@@ -49,3 +49,11 @@ pub trait MemoryTransfer {
     /// Returns host pointer to the wasm memory buffer.
     fn get_buff(&mut self) -> *mut u8;
 }
+
+/// Enabled libraries
+///
+/// TODO: refactor this in #2990
+pub trait Libraries {
+    /// Enable libraries.
+    fn enable<E>(&mut self, libraries: &[&str]) -> Result<()>;
+}

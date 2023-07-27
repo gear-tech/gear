@@ -7,12 +7,12 @@ mod libs {
 }
 
 /// Process wasm libraries to linker.
-pub fn process<L, E>(link: L) -> Result<(), E>
+pub fn process<L, E>(mut link: L) -> Result<(), E>
 where
-    L: Fn(&str, &[u8]) -> Result<(), E>,
+    L: FnMut(String, Vec<u8>) -> Result<(), E>,
 {
     libs::LIBS
         .iter()
-        .map(|(lib, bin)| link(lib, bin))
+        .map(|(lib, bin)| link(lib.to_string(), bin.to_vec()))
         .collect::<Result<_, _>>()
 }

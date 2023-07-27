@@ -256,6 +256,24 @@ pub fn instantiate(
         import_object.register(module_name, exports);
     }
 
+    // Register linking modules
+    //
+    // TODO: refactor this after #2990
+    #[cfg(feature = "unstable-features")]
+    {
+        let link = |name, code| -> std::result::Result<(), InstantiationError> {
+            let module = Module::new(&context.store, code)
+                .map_err(|_| InstantiationError::ModuleDecoding)?;
+            let instance = wasmer::Instance::new(&module, &import_object)
+                .map_err(|_| InstantiationError::Instantiation)?;
+            import_object.register(name, instance.exports);
+
+            Ok(())
+        };
+
+        gwasm_processor::process(link).map_err(|_| InstantiationError::ModuleDecoding)?;
+    }
+
     let instance = SandboxContextStore::using(sandbox_context, || {
         wasmer::Instance::new(&module, &import_object).map_err(|error| match error {
             wasmer::InstantiationError::Link(_) => InstantiationError::Instantiation,

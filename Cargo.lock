@@ -4188,6 +4188,7 @@ version = "0.1.0"
 dependencies = [
  "environmental",
  "gear-sandbox-env",
+ "gwasm-processor",
  "log",
  "once_cell",
  "parity-scale-codec",
