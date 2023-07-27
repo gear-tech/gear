@@ -18,16 +18,13 @@
 
 //! wasmi environment for running a module.
 
-use crate::{
-    funcs_tree,
-    memory::MemoryWrap,
-    state::{HostState, State},
-};
+use crate::{funcs_tree, memory::MemoryWrap};
 use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
+    state::{HostState, State},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
     BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,

@@ -18,7 +18,7 @@
 
 //! Runtime implementation for wasmi backend.
 
-use crate::{memory::MemoryWrapRef, state::HostState};
+use crate::memory::MemoryWrapRef;
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -27,6 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime},
+    state::{HostState, State},
     ActorTerminationReason, BackendExternalities, BackendState, TrapExplanation,
     UndefinedTerminationReason,
 };
@@ -36,8 +37,6 @@ use wasmi::{
     core::{Trap, TrapCode, Value},
     AsContextMut, Caller, Memory as WasmiMemory,
 };
-
-use crate::state::State;
 
 pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
     caller: &'a mut Caller<'b, Option<Ext>>,

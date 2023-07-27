@@ -32,6 +32,7 @@ pub mod mock;
 pub mod funcs;
 pub mod memory;
 pub mod runtime;
+pub mod state;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},

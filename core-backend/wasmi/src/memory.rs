@@ -18,7 +18,7 @@
 
 //! wasmi extensions for memory.
 
-use crate::state::HostState;
+use gear_backend_common::state::HostState;
 use gear_core::{
     env::Externalities,
     memory::{HostPointer, Memory, MemoryError},
@@ -112,10 +112,11 @@ impl<Ext: Externalities + 'static> Memory for MemoryWrap<Ext> {
 
 #[cfg(test)]
 mod tests {
-    use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
+    use gear_backend_common::{
+        assert_err, assert_ok, mock::MockExt, state::State, ActorTerminationReason,
+    };
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
