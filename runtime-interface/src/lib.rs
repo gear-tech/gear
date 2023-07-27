@@ -86,18 +86,43 @@ impl PassBy for LazyPagesRuntimeContext {
     type PassBy = Codec<LazyPagesRuntimeContext>;
 }
 
+pub fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
+    for chunk in bytes.chunks(8) {
+        intervals.push(MemoryInterval::from_bytes(chunk));
+    }
+}
+
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
     fn pre_process_memory_accesses(
-        reads: &[MemoryInterval],
-        writes: &[MemoryInterval],
-        gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<(), ProcessAccessError>) {
-        let mut gas_left = gas_left.0;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
-        (gas_left, res)
+        reads: &[u8],
+        writes: &[u8],
+        gas_couunter: u64,
+    ) -> (u64, Result<(), ProcessAccessError>) {
+        let reads_len = reads.len();
+        let writes_len = writes.len();
+        assert!(reads_len % 8 == 0);
+        assert!(writes_len % 8 == 0);
+        let mut reads_intervals = Vec::with_capacity(reads_len / 8);
+        deserialize_mem_intervals(&reads, &mut reads_intervals);
+        let mut writes_intervals = Vec::with_capacity(writes_len / 8);
+        deserialize_mem_intervals(&writes, &mut writes_intervals);
+
+        let mut gas_left = GasLeft {
+            gas: gas_couunter,
+            allowance: gas_couunter,
+        };
+
+        let res = lazy_pages::pre_process_memory_accesses(
+            &reads_intervals,
+            &writes_intervals,
+            &mut gas_left,
+        );
+
+        let GasLeft { gas, allowance } = gas_left;
+        (gas.min(allowance), res)
     }
 
     fn lazy_pages_status() -> (Status,) {

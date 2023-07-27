@@ -30,7 +30,6 @@ use gear_backend_common::{
 };
 use gear_common::Origin;
 use gear_core::{
-    gas::GasLeft,
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
@@ -155,18 +154,26 @@ pub fn get_status() -> Status {
     gear_ri::lazy_pages_status().0
 }
 
+fn serialize_mem_intervals(intervals: &[MemoryInterval]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(intervals.len() * 8);
+    for interval in intervals {
+        bytes.extend_from_slice(&interval.to_bytes());
+    }
+    bytes
+}
+
 /// Pre-process memory access in syscalls in lazy-pages.
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
     gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
-    let gas_left = GasLeft {
-        gas: *gas_counter,
-        allowance: *gas_counter,
-    };
-    let (GasLeft { gas, allowance }, res) =
-        gear_ri::pre_process_memory_accesses(reads, writes, (gas_left,));
-    *gas_counter = gas.min(allowance);
+    let serialized_reads = serialize_mem_intervals(reads);
+    let serialized_writes = serialize_mem_intervals(writes);
+
+    let (gas, res) =
+        gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, *gas_counter);
+
+    *gas_counter = gas;
     res
 }
