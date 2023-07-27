@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "dlmalloc"
+]
+
+[workspace.dependencies]
+dlmalloc = "0.2.4"

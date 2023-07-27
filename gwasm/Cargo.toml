@@ -3,3 +3,4 @@ name = "gwasm"
 version = "0.0.0"
 edition = "2021"
 description = "Gear WASM libraries"
+

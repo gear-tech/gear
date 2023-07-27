@@ -2561,15 +2561,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dlmalloc"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "203540e710bfadb90e5e29930baf5d10270cec1f43ab34f46f78b147b2de715a"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3583,7 +3574,7 @@ dependencies = [
 name = "galloc"
 version = "0.2.2"
 dependencies = [
- "dlmalloc 0.1.4",
+ "dlmalloc",
  "gwasm",
 ]
 
@@ -4693,10 +4684,11 @@ name = "gwasm"
 version = "0.0.0"
 
 [[package]]
-name = "gwasm-dlmalloc"
-version = "0.0.1"
+name = "gwasm-processor"
+version = "0.1.0"
 dependencies = [
- "dlmalloc 0.2.4",
+ "anyhow",
+ "gear-wasm-builder",
 ]
 
 [[package]]
@@ -13544,15 +13536,6 @@ version = "0.3.0"
 source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.3.0-sign-ext#7d5226a805b39ed297e78427c21ee2cb39795139"
 dependencies = [
  "parity-wasm 0.45.0",
-]
-
-[[package]]
-name = "wasm-linker"
-version = "0.1.0"
-dependencies = [
- "pwasm-utils",
- "rustc-demangle",
- "wasmparser-nostd 0.100.1",
 ]
 
 [[package]]
