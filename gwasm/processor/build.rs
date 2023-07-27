@@ -32,11 +32,14 @@ fn main() -> Result<()> {
 
     // Inject helper iterator.
     {
-        libs_rs.push_str("/// GWASM libraries\n");
+        libs_rs.push_str("/// Count of gwasm libraries.\n");
         libs_rs.push_str(&format!(
-            "pub const LIBS: [(&str, &[u8]); {}] = [",
+            "pub const LIBS_LEN: usize = {};\n\n",
             LIBRARIES.len()
         ));
+
+        libs_rs.push_str("/// GWASM libraries\n");
+        libs_rs.push_str("pub const LIBS: [(&str, &[u8]); LIBS_LEN] = [");
         libs_rs.push_str(
             &LIBRARIES
                 .iter()
