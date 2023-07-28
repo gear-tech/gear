@@ -4371,7 +4371,7 @@ dependencies = [
  "clap 4.3.11",
  "frame-support",
  "gear-runtime",
- "indexmap 1.9.3",
+ "indexmap 2.0.0",
  "pallet-gear",
  "serde",
  "serde_json",
