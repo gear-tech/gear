@@ -4623,7 +4623,7 @@ dependencies = [
 [[package]]
 name = "gstack-buffer"
 version = "0.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/gstack-buffer.git#86205af6e0ac87c36c6e236953b11ca3b1136fff"
+source = "git+https://github.com/StackOverflowExcept1on/gstack-buffer.git#98365d52a942299bd17a1de1fa0e45c2d3ca6be1"
 
 [[package]]
 name = "gstd"
