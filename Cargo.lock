@@ -4622,8 +4622,10 @@ dependencies = [
 
 [[package]]
 name = "gstack-buffer"
-version = "0.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/gstack-buffer.git#98365d52a942299bd17a1de1fa0e45c2d3ca6be1"
+version = "0.2.2"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "gstd"

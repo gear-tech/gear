@@ -1,0 +1,13 @@
+[package]
+name = "gstack-buffer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+cc = { version = "1.0", optional = true }
+
+[features]
+compile-alloca = ["cc"]
+stack-clash-protection = []
