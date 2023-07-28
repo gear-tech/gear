@@ -265,6 +265,7 @@ jobs:
         shell: msys2 {0}
     env:
       RUSTC_WRAPPER: cachepot
+      CARGO_INCREMENTAL: 0
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
