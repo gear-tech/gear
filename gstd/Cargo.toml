@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-gstack-buffer.workspace = true
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen = { path = "codegen" }

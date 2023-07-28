@@ -1,3 +1,23 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Stack allocations utils.
+
 #![feature(c_unwind)]
 #![no_std]
 
@@ -59,6 +79,12 @@ fn with_alloca<T>(size: usize, f: impl FnOnce(&mut [MaybeUninit<u8>]) -> T) -> T
     }
 }
 
+/// Calls function `f` with provided uninitialized byte buffer allocated on stack.
+/// ### IMPORTANT
+/// If buffer size is too big (currently bigger than 0x10000 bytes),
+/// then allocation will be on heap.
+/// If buffer is small enough to be allocated on stack, then real allocated
+/// buffer size will be `size` aligned to 16 bytes.
 pub fn with_byte_buffer<T>(size: usize, f: impl FnOnce(&mut [MaybeUninit<u8>]) -> T) -> T {
     if size <= MAX_BUFFER_SIZE {
         with_alloca(size, f)

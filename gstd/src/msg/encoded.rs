@@ -152,7 +152,7 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
         }
     }
 
-    gstack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
+    gcore::stack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
         let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
         let ExternalBufferOutput { buffer, offset } = output;
