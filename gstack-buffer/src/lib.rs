@@ -39,12 +39,12 @@ type Callback = unsafe extern "C-unwind" fn(ptr: *mut MaybeUninit<u8>, data: *mu
     feature = "compile-alloca",
     all(not(feature = "compile-alloca"), target_arch = "wasm32")
 ))]
-extern "C" {
+extern "C-unwind" {
     fn c_with_alloca(size: usize, callback: Callback, data: *mut c_void);
 }
 
 #[cfg(all(not(feature = "compile-alloca"), not(target_arch = "wasm32")))]
-unsafe extern "C" fn c_with_alloca(_size: usize, callback: Callback, data: *mut c_void) {
+unsafe extern "C-unwind" fn c_with_alloca(_size: usize, callback: Callback, data: *mut c_void) {
     let mut buffer = MaybeUninit::<[MaybeUninit<u8>; MAX_BUFFER_SIZE]>::uninit().assume_init();
     callback(buffer.as_mut_ptr(), data);
 }
