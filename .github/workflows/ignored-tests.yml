@@ -1,0 +1,34 @@
+name: Ignored tests
+
+on:
+  schedule:
+    - cron: "0 0 * * MON"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+
+jobs:
+  ignored-tests:
+    runs-on: [kuberunner]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Buid: Init"
+        run: ./scripts/gear.sh init cargo
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Test: Ignored tests"
+        run: ./scripts/gear.sh test ignored --release
