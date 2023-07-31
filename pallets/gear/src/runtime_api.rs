@@ -23,9 +23,9 @@ use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
-// Multiplier 6 was experimentally found as median value for performance,
+// Multiplier 64 was experimentally found as median value for performance,
 // security and abilities for calculations on-chain.
-pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 64;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
