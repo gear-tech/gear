@@ -259,7 +259,7 @@ pub fn instantiate(
     // Register linking modules
     //
     // TODO: refactor this after #2990
-    #[cfg(feature = "unstable-features")]
+    #[cfg(feature = "experimental-features")]
     {
         let link = |name, code| -> std::result::Result<(), InstantiationError> {
             let module = Module::new(&context.store, code)

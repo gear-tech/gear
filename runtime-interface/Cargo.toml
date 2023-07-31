@@ -41,3 +41,4 @@ std = [
 	"gear-sandbox-host",
 ]
 host-sandbox = ["gear-sandbox-host?/host-sandbox"]
+experimental-features = ["gear-sandbox-host?/experimental-features"]

@@ -1,3 +1,7 @@
+//! GWASM processor
+
+pub use libs::*;
+
 /// GWASM Libraries
 ///
 /// - pub const LIBS: list of libraries.

@@ -60,6 +60,7 @@ fn main() -> Result<()> {
 // Build libraries.
 fn build() -> Result<()> {
     Command::new("cargo")
+        .env("RUSTFLAGS", "-C link-arg=--import-memory")
         .args(&["build", "--release", "--target", "wasm32-unknown-unknown"])
         .current_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(LIBRARY_RELATIVE_DIR))
         .status()?;

@@ -33,6 +33,6 @@ host-sandbox = [
 	"wasmer",
 	"wasmer-cache"
 ]
-unstable-features = [
+experimental-features = [
   "gwasm-processor"
 ]

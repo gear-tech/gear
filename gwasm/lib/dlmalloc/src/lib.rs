@@ -1,5 +1,7 @@
 //! Dummy library for exporting dlmalloc-rs as wasm module.
 #![no_std]
+// #![feature(wasm_import_memory)]
+// #![wasm_import_memory]
 
 use dlmalloc::Dlmalloc;
 

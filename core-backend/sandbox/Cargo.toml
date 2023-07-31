@@ -21,3 +21,4 @@ codec.workspace = true
 [features]
 default = ["std"]
 std = ["gear-sandbox/std", "gear-wasm-instrument/std", "log/std"]
+experimental-features = ["gear-sandbox/experimental-features"]
