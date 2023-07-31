@@ -156,6 +156,7 @@ impl Log {
         self.payload_bytes(payload.encode())
     }
 
+    #[track_caller]
     pub fn payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if self.payload.is_some() {
             panic!("Payload was already set for this log");
@@ -170,6 +171,7 @@ impl Log {
         self
     }
 
+    #[track_caller]
     pub fn source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         if self.source.is_some() {
             panic!("Source was already set for this log");
@@ -180,6 +182,7 @@ impl Log {
         self
     }
 
+    #[track_caller]
     pub fn dest(mut self, dest: impl Into<ProgramIdWrapper>) -> Self {
         if self.destination.is_some() {
             panic!("Destination was already set for this log");
@@ -190,6 +193,7 @@ impl Log {
     }
 
     /// Set the reply code for this log.
+    #[track_caller]
     pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
         if self.reply_code.is_some() {
             panic!("Reply code was already set for this log");
