@@ -198,6 +198,9 @@ impl Log {
         if self.reply_code.is_some() {
             panic!("Reply code was already set for this log");
         }
+        if self.payload.is_some() && reply_code == ReplyCode::Success(SuccessReplyReason::Auto) {
+            panic!("Cannot set auto reply for log with payload");
+        }
 
         self.reply_code = Some(reply_code);
 
