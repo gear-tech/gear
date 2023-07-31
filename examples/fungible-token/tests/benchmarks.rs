@@ -23,11 +23,11 @@ use ft_io::*;
 use gclient::{EventProcessor, GearApi, Result};
 use gear_core::ids::{MessageId, ProgramId};
 use gstd::{vec, ActorId, Encode, Vec};
-use rand::Rng;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use statrs::statistics::Statistics;
 
 /// Path to the gear node binary.
-const GEAR_PATH: &str = "../../../target/release/gear";
+const GEAR_PATH: &str = "../../target/release/gear";
 
 /// This constant defines the number of messages in the batch.
 /// It is calculated empirically, and 25 is considered the optimal value for
@@ -206,7 +206,7 @@ async fn stress_test() -> Result<()> {
 #[ignore]
 #[tokio::test]
 async fn stress_transfer() -> Result<()> {
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(42);
 
     let api = GearApi::dev_from_path(GEAR_PATH).await?;
     // Use this code in comment for custom node run:

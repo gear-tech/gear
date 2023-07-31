@@ -40,4 +40,3 @@ std = [
 	"wasmi/virtual_memory",
 ]
 strict = []
-host-sandbox = ["gear-runtime-interface/host-sandbox"]

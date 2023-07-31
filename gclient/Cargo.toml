@@ -10,7 +10,6 @@ gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-common = { workspace = true, features = ["std"] }
 
 futures.workspace = true
 anyhow.workspace = true
