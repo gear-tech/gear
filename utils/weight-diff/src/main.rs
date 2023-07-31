@@ -76,6 +76,7 @@ enum Runtime {
 enum WeightsKind {
     Instruction,
     HostFn,
+    Memory,
 }
 
 #[derive(Debug, Serialize)]
@@ -97,6 +98,7 @@ struct DeserializableDump {
 struct DeserializableSchedule {
     instruction_weights: IndexMap<String, serde_json::Value>,
     host_fn_weights: IndexMap<String, serde_json::Value>,
+    memory_weights: IndexMap<String, serde_json::Value>,
 }
 
 impl DeserializableSchedule {
@@ -120,6 +122,18 @@ impl DeserializableSchedule {
         let mut map = IndexMap::new();
 
         for (k, v) in self.host_fn_weights.clone() {
+            if let Ok(v) = serde_json::from_value::<Weight>(v) {
+                map.insert(k, v.ref_time());
+            }
+        }
+
+        map
+    }
+
+    fn memory_weights(&self) -> IndexMap<String, u64> {
+        let mut map = IndexMap::new();
+
+        for (k, v) in self.memory_weights.clone() {
             if let Ok(v) = serde_json::from_value::<Weight>(v) {
                 map.insert(k, v.ref_time());
             }
@@ -214,6 +228,7 @@ fn main() {
                     schedule2.instruction_weights(),
                 ),
                 WeightsKind::HostFn => (schedule1.host_fn_weights(), schedule2.host_fn_weights()),
+                WeightsKind::Memory => (schedule1.memory_weights(), schedule2.memory_weights()),
             };
 
             let mut result_map = IndexMap::new();
