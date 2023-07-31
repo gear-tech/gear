@@ -34,7 +34,7 @@ use crate::{
 use gstd_codegen::wait_for_reply;
 use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
 
-fn with_encode_on_stack<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -> T {
+fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -> T {
     struct ExternalBufferOutput<'a> {
         buffer: &'a mut [MaybeUninit<u8>],
         offset: usize,
@@ -153,7 +153,7 @@ pub fn load_on_stack<D: Decode>() -> Result<D> {
 ///   functions allow forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| super::reply_bytes(buffer, value))
+    with_optimized_encode(payload, |buffer| super::reply_bytes(buffer, value))
 }
 
 // TODO: use encoded_size and in reply also. But should also check,
@@ -162,7 +162,7 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 /// Same as [reply], but encodes payload to stack allocated buffer.
 /// Buffer size for encoding is at least `E::max_encoded_len()`.
 pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| super::reply_bytes(buffer, value))
+    with_optimized_encode(payload, |buffer| super::reply_bytes(buffer, value))
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of
@@ -206,7 +206,7 @@ pub fn reply_from_reservation<E: Encode>(
     payload: E,
     value: u128,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::reply_bytes_from_reservation(id, buffer, value)
     })
 }
@@ -236,7 +236,7 @@ pub fn reply_from_reservation<E: Encode>(
 /// }
 /// ```
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::reply_bytes_with_gas(buffer, gas_limit, value)
     })
 }
@@ -412,7 +412,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
 ///   forming a message to send in parts.
 #[wait_for_reply]
 pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| super::send_bytes(program, buffer, value))
+    with_optimized_encode(payload, |buffer| super::send_bytes(program, buffer, value))
 }
 
 /// Same as [`send`], but sends the message after the `delay` expressed in block
@@ -423,7 +423,7 @@ pub fn send_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::send_bytes_delayed(program, buffer, value, delay)
     })
 }
@@ -436,7 +436,7 @@ pub fn send_with_gas<E: Encode>(
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::send_bytes_with_gas(program, buffer, gas_limit, value)
     })
 }
@@ -450,7 +450,7 @@ pub fn send_with_gas_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::send_bytes_with_gas_delayed(program, buffer, gas_limit, value, delay)
     })
 }
@@ -508,7 +508,7 @@ pub fn send_from_reservation<E: Encode>(
     payload: E,
     value: u128,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::send_bytes_from_reservation(id, program, buffer, value)
     })
 }
@@ -522,7 +522,7 @@ pub fn send_delayed_from_reservation<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    with_encode_on_stack(payload, |buffer| {
+    with_optimized_encode(payload, |buffer| {
         super::send_bytes_delayed_from_reservation(id, program, buffer, value, delay)
     })
 }
