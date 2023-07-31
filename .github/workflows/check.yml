@@ -4,12 +4,8 @@ on:
   workflow_call:
     inputs:
       cache:
-        type: boolean
-        default: true
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+        type: string
+        required: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -23,23 +19,17 @@ jobs:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
-
-      - uses: ./.github/actions/prepare-sccache
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !inputs.cache }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -66,17 +56,14 @@ jobs:
             exit 1
           fi
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
+      - run: sccache --show-stats
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
@@ -98,3 +85,5 @@ jobs:
 
       - name: "Check fuzzer with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+      - run: sccache --show-stats

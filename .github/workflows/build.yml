@@ -4,15 +4,11 @@ on:
   workflow_call:
     inputs:
       cache:
-        type: boolean
-        default: true
+        type: string
+        required: true
       macos:
         type: boolean
         default: false
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -27,11 +23,11 @@ jobs:
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
-
-      - uses: ./.github/actions/prepare-sccache
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -52,12 +48,6 @@ jobs:
           curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
           ./rust-covfix --version
-
-      - name: "Cache: Unpack"
-        if: ${{ inputs.cache }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "ACTIONS: Setup environment variable"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
@@ -159,13 +149,6 @@ jobs:
         if: github.event_name == 'push'
         run: cargo build -p gear-cli -F cli --profile production
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
-
       - name: Prepare artifacts
         if: github.event_name == 'push'
         run: |
@@ -189,6 +172,8 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: artifact
+
+      - run: sccache --show-stats
 
   win-cross:
     runs-on: [kuberunner, github-runner-03]
@@ -260,6 +245,8 @@ jobs:
           --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+      - run: sccache --show-stats
 
   macos-x86:
     if: ${{ always() && inputs.macos }}

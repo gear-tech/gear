@@ -31,24 +31,30 @@ jobs:
           MESSAGE=$(git show -s --format=%s)
           CACHE=true
           if [[ $MESSAGE == *"[skip-cache]"* ]]; then
-            CACHE=false
+            CACHE=""
           fi
 
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
+      - name: Set sccache path
+        if: ${{ steps.check-commit-message.outputs.cache }}
+        run: |
+          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
+          echo "cache=$sccache_path" >> $GITHUB_OUTPUT
+
   check:
     needs: status
     uses: ./.github/workflows/check.yml
     with:
-      cache: ${{ needs.status.outputs.cache == 'true' }}
+      cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
-    uses: ./.github/workflows/build.yml
     if: >-
       contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
       || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+    uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.status.outputs.cache == 'true' }}
+      cache: ${{ needs.status.outputs.cache }}
       macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
