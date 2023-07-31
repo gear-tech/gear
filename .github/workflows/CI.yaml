@@ -7,6 +7,10 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
@@ -17,14 +21,8 @@ env:
 jobs:
   # TODO: add to specific branches.
   # spec_version:
-  #   runs-on: [self-hosted, epyc]
+  #   runs-on: [kuberunner]
   #   steps:
-  #     - name: Cancel Previous Runs
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.11.0
-  #       with:
-  #         access_token: ${{ github.token }}
-
   #     - name: "ACTIONS: Checkout"
   #       uses: actions/checkout@v3
 
@@ -51,15 +49,8 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -134,15 +125,9 @@ jobs:
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: Download artifacts
         uses: actions/download-artifact@v3
 

@@ -1,0 +1,10 @@
+runs:
+  using: composite
+  outputs:
+    sccache_path: ${{ steps.sccache.outputs.sccache_path }}
+  steps:
+    - name: "CACHE: Set sccache path"
+      id: sccache
+      run: |
+        sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
+        echo "sccache_path=$sccache_path" >> $GITHUB_OUTPUT

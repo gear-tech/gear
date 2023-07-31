@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
