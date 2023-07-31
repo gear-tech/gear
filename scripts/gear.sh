@@ -305,9 +305,9 @@ case "$COMMAND" in
         header "Testing examples in docs"
         doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
-      ignored)
-        header "Running ignored tests"
-        ignored_tests "$@"; ;;
+      time-consuming)
+        header "Running time consuming tests"
+        time_consuming_tests "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
