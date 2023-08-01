@@ -13174,7 +13174,7 @@ fn test_gas_allowance_exceed_with_context() {
 /// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
-    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13187,7 +13187,7 @@ fn test_send_to_terminated_from_program() {
         let (_, pid_dead) = utils::submit_constructor_with_args(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
-            b"salt1".to_vec(),
+            b"salt1",
             Scheme::predefined(init_dead, handle_dead, Calls::default()),
             0,
         );
@@ -13201,7 +13201,7 @@ fn test_send_to_terminated_from_program() {
         let (_, proxy_pid) = utils::submit_constructor_with_args(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
-            b"salt2".to_vec(),
+            b"salt2",
             Scheme::predefined(Calls::default(), handle_proxy, handle_reply_proxy),
             0,
         );
