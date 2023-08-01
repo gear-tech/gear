@@ -31,7 +31,7 @@
 //!     Ok((selectable_params, arbitrary).into())
 //! }
 //! ```
-//! Or, for example, gear was generators config:
+//! Or, for example, gear wasm generators config:
 //! ```rust
 //! use gear_wasm_gen::*;
 //! let memory_pages_config = MemoryPagesConfig {

@@ -90,9 +90,8 @@ impl SysCallsConfigBuilder {
         let range = self.0.frequencies.get(name);
 
         let range_start = *range.start();
-        let range_end = *range.end();
         if range_start == 0 {
-            let max = range_end.max(1);
+            let max = *range.end().max(&1);
             self.0.frequencies.set(name, 1, max);
         }
     }
