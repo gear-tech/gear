@@ -13170,8 +13170,8 @@ fn test_gas_allowance_exceed_with_context() {
     })
 }
 
-/// Test that if a message is addressed to the terminated program (sent from program)
-/// This case is handled properly - no panic occur, the message is not executed.
+/// Test that if a message is addressed to a terminated program (sent from program),
+/// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
     use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
