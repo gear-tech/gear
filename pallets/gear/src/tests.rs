@@ -13182,6 +13182,7 @@ fn test_send_to_terminated_from_program() {
 
         // Dies in init
         let init_dead = Calls::builder().panic("Die in init");
+        // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
         let handle_dead = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
         let (_, pid_dead) = utils::submit_constructor_with_args(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
@@ -13191,8 +13192,9 @@ fn test_send_to_terminated_from_program() {
             0,
         );
 
-        // Sends in handle message do dead program
+        // Sends in handle message to the dead program
         let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
+        // Sends to USER_1 the error reply from the dead program
         let handle_reply_proxy = Calls::builder()
             .reply_code("err_reply")
             .send(user_1_bytes, "err_reply");
@@ -13217,9 +13219,8 @@ fn test_send_to_terminated_from_program() {
         run_to_next_block(None);
 
         // No panic occurred.
-        // Need to check, that user has message in the mailbox with error reply (InactiveProgram).
-        // Also check that user hasn't received anything from dead program with `reply_from_dead`
-        // payload message.
+        // Need to check, that user has message in the mailbox with error reply (`InactiveProgram`).
+        // Also check that user hasn't received anything from the dead program.
         let mails_from_proxy_count = MailboxOf::<Test>::iter_key(USER_1)
             .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg))
             .count();
@@ -13233,7 +13234,6 @@ fn test_send_to_terminated_from_program() {
             mail_from_proxy,
             ReplyCode::Error(ErrorReplyReason::InactiveProgram).encode()
         );
-
         let mails_from_dead_count = MailboxOf::<Test>::iter_key(USER_1)
             .filter(|(msg, _)| msg.source() == pid_dead)
             .count();
