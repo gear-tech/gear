@@ -25,14 +25,13 @@ use crate::{
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{
-        convert::AsRef,
         mem::{transmute, MaybeUninit},
         ops::RangeBounds,
     },
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
+use scale_info::scale::{Decode, Encode, Output};
 
 fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -> T {
     struct ExternalBufferOutput<'a> {
@@ -91,14 +90,6 @@ fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
 pub fn load<D: Decode>() -> Result<D> {
-    D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
-}
-
-/// Same as [`load`](self::load), but reads current message payload to allocated
-/// on stack buffer. Decoded object will be also on stack, but if it contains
-/// any fields, with heap allocations inside (for example vec), then
-/// this decoding may lead to heap allocations.
-pub fn load_on_stack<D: Decode>() -> Result<D> {
     super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
         let mut buffer = read_result? as &[u8];
         D::decode(&mut buffer).map_err(Error::Decode)
@@ -153,15 +144,6 @@ pub fn load_on_stack<D: Decode>() -> Result<D> {
 ///   functions allow forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
-    with_optimized_encode(payload, |buffer| super::reply_bytes(buffer, value))
-}
-
-// TODO: use encoded_size and in reply also. But should also check,
-// that does not lead to additional heap allocations and additional calculation
-// #2880.
-/// Same as [reply], but encodes payload to stack allocated buffer.
-/// Buffer size for encoding is at least `E::max_encoded_len()`.
-pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
     with_optimized_encode(payload, |buffer| super::reply_bytes(buffer, value))
 }
 
