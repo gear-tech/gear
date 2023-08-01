@@ -13181,32 +13181,37 @@ fn test_send_to_terminated_from_program() {
         let user_1_bytes = ProgramId::from_origin(USER_1.into_origin()).into_bytes();
 
         // Dies in init
-        let init_dead = Calls::builder().panic("Die in init");
+        let init = Calls::builder().panic("Die in init");
         // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
-        let handle_dead = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
-        let (_, pid_dead) = utils::submit_constructor_with_args(
+        let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
+        let (_, pid_terminated) = utils::submit_constructor_with_args(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
             b"salt1",
-            Scheme::predefined(init_dead, handle_dead, Calls::default()),
+            Scheme::predefined(init, handle, Calls::default()),
             0,
         );
 
+        // Check `pid_terminated` exists as an active program.
+        assert!(Gear::is_active(pid_terminated));
+
         // Sends in handle message to the dead program
-        let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
+        let handle = Calls::builder().send(pid_terminated.into_bytes(), []);
         // Sends to USER_1 the error reply from the dead program
-        let handle_reply_proxy = Calls::builder()
+        let handle_reply = Calls::builder()
             .reply_code("err_reply")
             .send(user_1_bytes, "err_reply");
         let (_, proxy_pid) = utils::submit_constructor_with_args(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
             b"salt2",
-            Scheme::predefined(Calls::default(), handle_proxy, handle_reply_proxy),
+            Scheme::predefined(Calls::default(), handle, handle_reply),
             0,
         );
 
         run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid_terminated));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -13221,23 +13226,21 @@ fn test_send_to_terminated_from_program() {
         // No panic occurred.
         // Need to check, that user has message in the mailbox with error reply (`InactiveProgram`).
         // Also check that user hasn't received anything from the dead program.
-        let mails_from_proxy_count = MailboxOf::<Test>::iter_key(USER_1)
-            .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg))
-            .count();
-        assert_eq!(mails_from_proxy_count, 1);
-        let mail_from_proxy = MailboxOf::<Test>::iter_key(USER_1)
-            .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg))
+        let mut mails_from_proxy_iter = MailboxOf::<Test>::iter_key(USER_1)
+            .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg));
+        let mail_from_proxy = mails_from_proxy_iter
             .next()
-            .map(|msg| msg.payload_bytes().to_vec())
-            .expect("checked");
+            .expect("internal error: no message from proxy");
         assert_eq!(
-            mail_from_proxy,
+            mail_from_proxy.payload_bytes().to_vec(),
             ReplyCode::Error(ErrorReplyReason::InactiveProgram).encode()
         );
-        let mails_from_dead_count = MailboxOf::<Test>::iter_key(USER_1)
-            .filter(|(msg, _)| msg.source() == pid_dead)
+        assert_eq!(mails_from_proxy_iter.next(), None);
+
+        let mails_from_terminated_count = MailboxOf::<Test>::iter_key(USER_1)
+            .filter(|(msg, _)| msg.source() == pid_terminated)
             .count();
-        assert_eq!(mails_from_dead_count, 0);
+        assert_eq!(mails_from_terminated_count, 0);
     })
 }
 
