@@ -18,6 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
+use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
@@ -204,10 +205,10 @@ impl ProgramId {
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
     /// Generate ProgramId from given CodeId and salt
-    pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
+    pub fn generate<T: ProgramNonce>(nonce: T, code_id: CodeId, salt: &[u8]) -> Self {
         const SALT: &[u8] = b"program";
 
-        let argument = [SALT, code_id.as_ref(), salt].concat();
+        let argument = [nonce.as_nonce().as_ref(), SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
@@ -224,41 +225,63 @@ impl ReservationId {
     }
 }
 
+pub trait ProgramNonce {
+    fn as_nonce(&self) -> Vec<u8>;
+}
+
+impl ProgramNonce for MessageId {
+    fn as_nonce(&self) -> Vec<u8> {
+        self.as_ref().to_vec()
+    }
+}
+
+impl ProgramNonce for u32 {
+    fn as_nonce(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
+    }
+}
+
+impl ProgramNonce for u64 {
+    fn as_nonce(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
+    }
+}
+
 #[test]
 fn formatting_test() {
     use alloc::format;
 
     let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate(code_id, &[2, 1, 0]);
+    let id = ProgramId::generate(0u32, code_id, &[2, 1, 0]);
 
     // `Debug`/`Display`.
     assert_eq!(
         format!("{id:?}"),
-        "0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67"
+        "0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1"
     );
     // `Debug`/`Display` with precision 0.
     assert_eq!(format!("{id:.0?}"), "0x..");
     // `Debug`/`Display` with precision 1.
-    assert_eq!(format!("{id:.1?}"), "0x22..67");
+    assert_eq!(format!("{id:.1?}"), "0x2d..b1");
     // `Debug`/`Display` with precision 2.
-    assert_eq!(format!("{id:.2?}"), "0x227e..fa67");
+    assert_eq!(format!("{id:.2?}"), "0x2ddf..1bb1");
     // `Debug`/`Display` with precision 4.
-    assert_eq!(format!("{id:.4?}"), "0x227e5319..8925fa67");
+    assert_eq!(format!("{id:.4?}"), "0x2ddf37a5..34f31bb1");
     // `Debug`/`Display` with precision 15.
     assert_eq!(
         format!("{id:.15?}"),
-        "0x227e53192dc14699539c44608810a8..6a2bee92078e6913b1bdf38925fa67"
+        "0x2ddf37a5450ec75f6caa30c5db22a3..43f69e3dda1e173839df9634f31bb1"
     );
     // `Debug`/`Display` with precision 30 (the same for any case >= 16).
     assert_eq!(
         format!("{id:.30?}"),
-        "0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67"
+        "0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1"
     );
     // Alternate formatter.
     assert_eq!(
         format!("{id:#}"),
-        "ProgramId(0x227e53192dc14699539c44608810a8202d6a2bee92078e6913b1bdf38925fa67)"
+        "ProgramId(0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1)"
     );
     // Alternate formatter with precision 2.
-    assert_eq!(format!("{id:#.2}"), "ProgramId(0x227e..fa67)");
+    assert_eq!(format!("{id:#.2}"), "ProgramId(0x2ddf..1bb1)");
 }

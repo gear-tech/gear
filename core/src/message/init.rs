@@ -133,7 +133,7 @@ impl InitPacket {
     /// Create new InitPacket without gas.
     pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
         Self {
-            program_id: ProgramId::generate(code_id, salt.inner()),
+            program_id: ProgramId::generate(0u32, code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -151,7 +151,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate(code_id, salt.inner()),
+            program_id: ProgramId::generate(0u32, code_id, salt.inner()),
             code_id,
             salt,
             payload,

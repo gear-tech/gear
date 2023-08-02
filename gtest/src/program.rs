@@ -520,7 +520,7 @@ fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
 }
 
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
-    ProgramId::generate(code_id, salt)
+    ProgramId::generate(0u32, code_id, salt)
 }
 
 #[cfg(test)]
