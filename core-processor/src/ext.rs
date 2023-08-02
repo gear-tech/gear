@@ -44,7 +44,7 @@ use gear_core::{
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
+        ReplyPacket, WasmEntryPoint,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
@@ -737,7 +737,14 @@ impl Externalities for Ext {
     }
 
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        let program_id = self.program_id()?;
+        let dispatch_kind = self.context.message_context.dispatch_kind();
+        let entry_point = dispatch_kind.as_entry();
+        let message_id = self.message_id()?;
+
+        log::trace!(target: "gwasm", "Program {program_id} executes {entry_point:?} entry point while processing message {message_id}");
+        log::debug!(target: "gwasm", "DEBUG: {data}");
+
         Ok(())
     }
 
