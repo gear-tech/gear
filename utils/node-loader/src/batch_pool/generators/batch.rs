@@ -2,14 +2,16 @@ use super::seed;
 use crate::{
     args::SeedVariant,
     batch_pool::{api::GearApiFacade, context::Context, Seed},
+    utils,
 };
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
-    SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, SendMessageArgs,
+    SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_utils::NonEmpty;
+use gear_wasm_gen::ConfigsBundle;
 use std::iter;
 use tracing::instrument;
 
@@ -31,7 +33,7 @@ impl RuntimeSettings {
 pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
-    prog_gen_config: GearProgGenConfig,
+    prog_gen_config: ConfigsBundle,
     code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
 }
@@ -116,12 +118,10 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
         tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
-        let prog_gen_config = GearProgGenConfig::new_normal();
-
         Self {
             batch_gen_rng,
             batch_size,
-            prog_gen_config,
+            prog_gen_config: utils::get_config_with_seed_log(seed),
             code_seed_gen: seed::some_generator::<Rng>(code_seed_type),
             rt_settings,
         }
