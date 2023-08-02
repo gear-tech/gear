@@ -285,7 +285,10 @@ where
         static_pages,
         memory_size,
     )
-    .map_err(SystemExecutionError::PrepareMemory)?;
+    .map_err(|e| {
+        log::debug!("check_memory failed: {e:?}");
+        SystemExecutionError::PrepareMemory(e)
+    })?;
 
     // Creating allocations context.
     let allocations_context =
@@ -337,7 +340,10 @@ where
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentError::from_infallible)?;
+        .map_err(|e| {
+            log::debug!("E::new failed: {e:?}");
+            EnvironmentError::from_infallible(e)
+        })?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
@@ -384,20 +390,24 @@ where
             (termination, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
+            log::debug!("EnvironmentError::System: {e:?}");
             return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
         }
         Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+            log::debug!("EnvironmentError::PrepareMemory: {gas_amount:?}, {e:?}");
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReplyReason::PrepareMemory(e),
             }))
         }
-        Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
+        Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::System(e))) => {
+            log::debug!("EnvironmentError::PrepareMemory: {gas_amount:?}, {e:?}");
             return Err(ExecutionError::System(e.into()));
         }
         Err(EnvironmentError::Actor(gas_amount, err)) => {
+            log::debug!("EnvironmentError::Actor: {gas_amount:?}, {err:?}");
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReplyReason::Environment(err.into()),

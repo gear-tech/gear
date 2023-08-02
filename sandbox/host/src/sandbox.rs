@@ -260,6 +260,7 @@ impl SandboxInstance {
 }
 
 /// Error occurred during instantiation of a sandboxed module.
+#[derive(Debug)]
 pub enum InstantiationError {
     /// Something wrong with the environment definition. It either can't
     /// be decoded, have a reference to a non-existent or torn down memory instance.

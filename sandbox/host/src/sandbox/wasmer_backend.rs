@@ -20,7 +20,7 @@
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use wasmer::RuntimeError;
+use wasmer::{Exportable, RuntimeError};
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
@@ -34,6 +34,62 @@ use crate::{
     },
     util::MemoryTransfer,
 };
+
+#[derive(Default)]
+pub struct MyEnv {
+   memory: Option<wasmer::Memory>,
+   gas: Option<wasmer::Global>,
+   allowance: Option<wasmer::Global>,
+}
+
+// WARNING: intentionally to avoid cyclic refs
+impl Clone for MyEnv {
+    fn clone(&self) -> Self {
+        Self {
+            memory: self.memory.clone().map(|mut m| {
+                m.into_weak_instance_ref();
+    
+                m
+            }),
+            gas: self.gas.clone().map(|mut g| {
+                g.into_weak_instance_ref();
+
+                g
+            }),
+            allowance: self.allowance.clone().map(|mut a| {
+                a.into_weak_instance_ref();
+
+                a
+            }),
+        }
+    }
+}
+
+// copypaste
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
+
+impl wasmer::WasmerEnv for MyEnv {
+    fn init_with_instance(&mut self, instance: &wasmer::Instance) -> std::result::Result<(), wasmer::HostEnvInitError> {
+        // let memory: wasmer::Memory = instance.exports.get_with_generics_weak("memory")?;
+        // self.memory = Some(memory);
+
+        let gas: wasmer::Global = instance.exports.get_with_generics_weak(GLOBAL_NAME_GAS)?;
+        self.gas = Some(gas);
+
+        let allowance: wasmer::Global = instance.exports.get_with_generics_weak(GLOBAL_NAME_ALLOWANCE)?;
+        self.allowance = Some(allowance);
+
+        Ok(())
+    }
+}
+
+impl MyEnv {
+    fn init(&mut self, mut memory: wasmer::Memory) {
+        memory.into_weak_instance_ref();
+        self.memory = Some(memory);
+    }
+}
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
 
@@ -184,6 +240,10 @@ pub fn instantiate(
     type Exports = HashMap<String, wasmer::Exports>;
     let mut exports_map = Exports::new();
 
+    let mut env = MyEnv::default();
+
+    let mut bls12_381_multi_miller_loop = false;
+
     for import in module.imports() {
         match import.ty() {
             // Nothing to do here
@@ -220,10 +280,16 @@ pub fn instantiate(
                     .map_err(|_| InstantiationError::EnvironmentDefinitionCorrupted)?
                     .clone();
 
+                env.init(wasmer_memory.clone());
+
                 exports.insert(import.name(), wasmer::Extern::Memory(wasmer_memory));
             }
 
             wasmer::ExternType::Function(func_ty) => {
+                if import.name() == "bls12_381_multi_miller_loop" {
+                    bls12_381_multi_miller_loop = true;
+                }
+                else {
                 let guest_func_index = guest_env
                     .imports
                     .func_by_name(import.module(), import.name());
@@ -247,8 +313,114 @@ pub fn instantiate(
                     .or_insert_with(wasmer::Exports::new);
 
                 exports.insert(import.name(), wasmer::Extern::Function(function));
+                }
             }
         }
+    }
+
+    if bls12_381_multi_miller_loop {
+        fn bls12_381_multi_miller_loop(env: &MyEnv,
+            a_len: u32,
+            a_ptr: u32,
+            b_len: u32,
+            b_ptr: u32,
+            len_ptr: u32,
+            ptr: u32,
+        ) -> std::result::Result<u32, wasmer::RuntimeError> {
+            use ark_ec::pairing::Pairing;
+            use ark_bls12_381::Bls12_381;
+
+            type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+            // log::info!("sha2_256; offset = {offset}, len = {len}, hash_offset = {hash_offset}");
+
+            // mocked value
+            const GAS_TO_CHARGE: u64 = 100_000_000_000;
+
+            let gas = env.gas.as_ref().expect("gas global should be set");
+            let gas_value = gas.get().i64().expect("global should be i64") as u64;
+            if gas_value < GAS_TO_CHARGE {
+                return Err(wasmer::RuntimeError::new("failed to charge gas"));
+            }
+
+            gas.set(wasmer::Value::I64((gas_value - GAS_TO_CHARGE) as i64)).unwrap();
+
+            let allowance = env.allowance.as_ref().expect("allowance global should be set");
+            let allowance_value = allowance.get().i64().expect("global should be i64") as u64;
+            if allowance_value < GAS_TO_CHARGE {
+                return Err(wasmer::RuntimeError::new("failed to charge allowance"));
+            }
+
+            allowance.set(wasmer::Value::I64((allowance_value - GAS_TO_CHARGE) as i64)).unwrap();
+
+            let memory = env.memory.as_ref().expect("memory should be inited");
+
+            let a_ptr = a_ptr as usize;
+            let a_len = a_len as usize;
+            let a = match unsafe { memory.data_unchecked() }.get(a_ptr..a_ptr + a_len) {
+                Some(data_ref) => data_ref,
+                None => return Ok(1),
+            };
+
+            let Ok(a) = <ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> as Decode>::decode(&mut &a[..]) else {
+                return Ok(2);
+            };
+
+            let b_ptr = b_ptr as usize;
+            let b_len = b_len as usize;
+            let b = match unsafe { memory.data_unchecked() }.get(b_ptr..b_ptr + b_len) {
+                Some(data_ref) => data_ref,
+                None => return Ok(3),
+            };
+
+            let Ok(b) = <ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> as Decode>::decode(&mut &b[..]) else {
+                return Ok(4);
+            };
+
+            let len_ptr = len_ptr as usize;
+            let len = match unsafe { memory.data_unchecked() }.get(len_ptr..len_ptr + std::mem::size_of::<u32>()) {
+                Some(data_ref) => data_ref,
+                None => return Ok(5),
+            };
+            let len = u32::from_le_bytes(len.try_into().unwrap());
+
+            let result = Bls12_381::multi_miller_loop(a.0, b.0).0;
+            let result: ArkScale<<Bls12_381 as Pairing>::TargetField> = result.into();
+            let result = result.encode();
+            let result_len = result.len() as u32;
+            if result_len > len {
+                return Ok(6);
+            }
+
+            // write result length
+            match unsafe { memory.data_unchecked_mut() }.get_mut(len_ptr..len_ptr + std::mem::size_of::<u32>()) {
+                Some(data_ref) => {
+                    let r = result_len.to_le_bytes();
+                    data_ref[0] = r[0];
+                    data_ref[1] = r[1];
+                    data_ref[2] = r[2];
+                    data_ref[3] = r[3];
+                }
+                None => return Ok(7),
+            };
+
+            // write result
+            let ptr = ptr as usize;
+            match unsafe { memory.data_unchecked_mut() }.get_mut(ptr..ptr + result.len()) {
+                Some(data_ref) => data_ref.copy_from_slice(&result),
+                None => return Ok(8),
+            };
+
+            Ok(0)
+        }
+
+        let func = wasmer::Function::new_native_with_env(&context.store, env.clone(), bls12_381_multi_miller_loop);
+
+        let exports = exports_map
+            .entry("env".to_string())
+            .or_insert_with(wasmer::Exports::new);
+
+        exports.insert("bls12_381_multi_miller_loop", wasmer::Extern::Function(func));
     }
 
     let mut import_object = wasmer::ImportObject::new();
@@ -257,13 +429,16 @@ pub fn instantiate(
     }
 
     let instance = SandboxContextStore::using(sandbox_context, || {
-        wasmer::Instance::new(&module, &import_object).map_err(|error| match error {
+        wasmer::Instance::new(&module, &import_object).map_err(|error| {
+            log::trace!("wasmer::Instance::new failed: {error:?}");
+            match error {
             wasmer::InstantiationError::Link(_) => InstantiationError::Instantiation,
             wasmer::InstantiationError::Start(_) => InstantiationError::StartTrapped,
             wasmer::InstantiationError::HostEnvInitialization(_) => {
                 InstantiationError::EnvironmentDefinitionCorrupted
             }
             wasmer::InstantiationError::CpuFeature(_) => InstantiationError::CpuFeature,
+        }
         })
     })?;
 

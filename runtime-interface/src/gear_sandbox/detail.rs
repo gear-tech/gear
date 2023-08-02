@@ -295,7 +295,11 @@ pub fn instantiate(
                 instance.register(store, dispatch_thunk)
             }),
             Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
-            Err(_) => sandbox_env::env::ERR_MODULE,
+            Err(e) => {
+                log::trace!("instantiate failed: {e:?}");
+
+                sandbox_env::env::ERR_MODULE
+            }
         };
 
         method_result = instance_idx_or_err_code;
