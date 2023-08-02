@@ -30,7 +30,7 @@ use core::{
     slice,
 };
 
-const MAX_BUFFER_SIZE: usize = 64 * 1024;
+pub const MAX_BUFFER_SIZE: usize = 64 * 1024;
 
 type Callback = unsafe extern "C-unwind" fn(ptr: *mut MaybeUninit<u8>, data: *mut c_void);
 
