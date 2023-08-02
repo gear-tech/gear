@@ -642,12 +642,12 @@ impl<'a> WasmGen<'a> {
         };
         let send_from_reservation_signature = SysCallSignature {
             params: vec![
-                ParamType::Ptr,      // Address of recipient and value (HashWithValue struct)
-                ParamType::Ptr,      // Pointer to payload
-                ParamType::Size,     // Size of the payload
-                ParamType::Delay,    // Number of blocks to delay the sending for
-                ParamType::Gas,      // Amount of gas to reserve
-                ParamType::Duration, // Duration of the reservation
+                ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
+                ParamType::Ptr(Some(1)), // Pointer to payload
+                ParamType::Size,         // Size of the payload
+                ParamType::Delay,        // Number of blocks to delay the sending for
+                ParamType::Gas,          // Amount of gas to reserve
+                ParamType::Duration,     // Duration of the reservation
             ],
             results: Default::default(),
         };
