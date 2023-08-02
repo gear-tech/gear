@@ -87,7 +87,7 @@ impl<'a> GearWasmGenerator<'a> {
 
 /// Frozen gear wasm generator.
 ///
-/// Instantce of this generator signals. that the gear wasm generator
+/// Instantce of this generator signals, that some gear wasm generator
 /// instance was converted to some other generator available in this crate.
 /// This type serves as an access/ticket for converting some generator back
 /// to the gear wasm generator. So it mainly controls state machine flow.
@@ -106,9 +106,8 @@ impl<'a> FrozenGearWasmGenerator<'a> {
 
 /// Disabled gear wasm generator.
 ///
-/// It differs from the frozen gear wasm generator in the way, that
-/// the latter one can be used to instantiate the gear wasm generator
-/// again, but this signals that state machine transitions are ended.
+/// Similar to [`FrozenGearWasmGenerator`], but this one signals that state
+/// machine transitions are ended.
 pub struct DisabledGearWasmGenerator(WasmModule);
 
 impl DisabledGearWasmGenerator {
