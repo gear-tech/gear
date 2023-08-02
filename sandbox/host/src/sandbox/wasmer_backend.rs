@@ -243,6 +243,7 @@ pub fn instantiate(
     let mut env = MyEnv::default();
 
     let mut bls12_381_multi_miller_loop = false;
+    let mut bls12_381_final_exponentiation = false;
 
     for import in module.imports() {
         match import.ty() {
@@ -288,6 +289,8 @@ pub fn instantiate(
             wasmer::ExternType::Function(func_ty) => {
                 if import.name() == "bls12_381_multi_miller_loop" {
                     bls12_381_multi_miller_loop = true;
+                } else if import.name() == "bls12_381_final_exponentiation" {
+                    bls12_381_final_exponentiation = true;
                 }
                 else {
                 let guest_func_index = guest_env
@@ -421,6 +424,101 @@ pub fn instantiate(
             .or_insert_with(wasmer::Exports::new);
 
         exports.insert("bls12_381_multi_miller_loop", wasmer::Extern::Function(func));
+    }
+
+    if bls12_381_final_exponentiation {
+        fn bls12_381_final_exponentiation(env: &MyEnv,
+            target_len: u32,
+            target_ptr: u32,
+            len_ptr: u32,
+            ptr: u32,
+        ) -> std::result::Result<u32, wasmer::RuntimeError> {
+            use ark_ec::pairing::{Pairing, MillerLoopOutput, PairingOutput};
+            use ark_bls12_381::Bls12_381;
+
+            type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+            // log::info!("sha2_256; offset = {offset}, len = {len}, hash_offset = {hash_offset}");
+
+            // mocked value
+            const GAS_TO_CHARGE: u64 = 100_000_000_000;
+
+            let gas = env.gas.as_ref().expect("gas global should be set");
+            let gas_value = gas.get().i64().expect("global should be i64") as u64;
+            if gas_value < GAS_TO_CHARGE {
+                return Err(wasmer::RuntimeError::new("failed to charge gas"));
+            }
+
+            gas.set(wasmer::Value::I64((gas_value - GAS_TO_CHARGE) as i64)).unwrap();
+
+            let allowance = env.allowance.as_ref().expect("allowance global should be set");
+            let allowance_value = allowance.get().i64().expect("global should be i64") as u64;
+            if allowance_value < GAS_TO_CHARGE {
+                return Err(wasmer::RuntimeError::new("failed to charge allowance"));
+            }
+
+            allowance.set(wasmer::Value::I64((allowance_value - GAS_TO_CHARGE) as i64)).unwrap();
+
+            let memory = env.memory.as_ref().expect("memory should be inited");
+
+            let target_ptr = target_ptr as usize;
+            let target_len = target_len as usize;
+            let target = match unsafe { memory.data_unchecked() }.get(target_ptr..target_ptr + target_len) {
+                Some(data_ref) => data_ref,
+                None => return Ok(1),
+            };
+
+            let Ok(target) = <ArkScale<<Bls12_381 as Pairing>::TargetField> as Decode>::decode(&mut &target[..]) else {
+                return Ok(2);
+            };
+
+            let len_ptr = len_ptr as usize;
+            let len = match unsafe { memory.data_unchecked() }.get(len_ptr..len_ptr + std::mem::size_of::<u32>()) {
+                Some(data_ref) => data_ref,
+                None => return Ok(5),
+            };
+            let len = u32::from_le_bytes(len.try_into().unwrap());
+
+            let Ok(result) = Bls12_381::final_exponentiation(MillerLoopOutput(target.0)) else {
+                return Ok(6);
+            }
+
+            let result: ArkScale<PairingOutput<Bls12_381>> = result.into();
+            let result = result.encode();
+            let result_len = result.len() as u32;
+            if result_len > len {
+                return Ok(7);
+            }
+
+            // write result length
+            match unsafe { memory.data_unchecked_mut() }.get_mut(len_ptr..len_ptr + std::mem::size_of::<u32>()) {
+                Some(data_ref) => {
+                    let r = result_len.to_le_bytes();
+                    data_ref[0] = r[0];
+                    data_ref[1] = r[1];
+                    data_ref[2] = r[2];
+                    data_ref[3] = r[3];
+                }
+                None => return Ok(8),
+            };
+
+            // write result
+            let ptr = ptr as usize;
+            match unsafe { memory.data_unchecked_mut() }.get_mut(ptr..ptr + result.len()) {
+                Some(data_ref) => data_ref.copy_from_slice(&result),
+                None => return Ok(9),
+            };
+
+            Ok(0)
+        }
+
+        let func = wasmer::Function::new_native_with_env(&context.store, env.clone(), bls12_381_final_exponentiation);
+
+        let exports = exports_map
+            .entry("env".to_string())
+            .or_insert_with(wasmer::Exports::new);
+
+        exports.insert("bls12_381_final_exponentiation", wasmer::Extern::Function(func));
     }
 
     let mut import_object = wasmer::ImportObject::new();
