@@ -44,6 +44,9 @@ extern "C-unwind" {
 
 #[cfg(all(not(feature = "compile-alloca"), not(target_arch = "wasm32")))]
 unsafe extern "C-unwind" fn c_with_alloca(_size: usize, callback: Callback, data: *mut c_void) {
+    // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
+    // safe because the type we are claiming to have initialized here is a
+    // bunch of `MaybeUninit`s, which do not require initialization.
     let mut buffer = MaybeUninit::<[MaybeUninit<u8>; MAX_BUFFER_SIZE]>::uninit().assume_init();
     callback(buffer.as_mut_ptr(), data);
 }
