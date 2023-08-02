@@ -175,6 +175,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// However, it has a `parent` field pointing to the node,
     /// from which that one was created.
     SpecifiedLocal {
+        root: Id,
         parent: Id,
         value: Balance,
         lock: NodeLock<Balance>,
@@ -188,6 +189,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     ///
     /// Such nodes don't have children references.
     UnspecifiedLocal {
+        root: Id,
         parent: Id,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
@@ -347,6 +349,14 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
             | GasNode::SpecifiedLocal { system_reserve, .. }
             | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(system_reserve),
             GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+        }
+    }
+
+    /// +_+_+
+    pub fn root_id(&self) -> Option<Id> {
+        match self {
+            Self::External { .. } | Self::Cut { .. } | Self::Reserved { .. } => None,
+            Self::SpecifiedLocal { root, .. } | Self::UnspecifiedLocal { root, .. } => Some(*root),
         }
     }
 

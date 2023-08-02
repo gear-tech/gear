@@ -93,37 +93,19 @@ where
     pub(super) fn node_with_value(
         node: StorageMap::Value,
     ) -> Result<(StorageMap::Value, Option<NodeId>), Error> {
-        let mut ret_node = node;
-        let mut ret_id = None;
-        if let GasNode::UnspecifiedLocal { parent, .. } = ret_node {
-            ret_id = Some(parent);
-            ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
-            if !(ret_node.is_external() || ret_node.is_specified_local() || ret_node.is_reserved())
+        if let GasNode::UnspecifiedLocal { parent, .. } = node {
+            let parent_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
+            if parent_node.is_specified_local()
+                || parent_node.is_reserved()
+                || parent_node.is_external()
             {
-                return Err(InternalError::unexpected_node_type().into());
+                Ok((parent_node, Some(parent)))
+            } else {
+                Err(InternalError::unexpected_node_type().into())
             }
+        } else {
+            Ok((node, None))
         }
-
-        Ok((ret_node, ret_id))
-    }
-
-    /// Returns id and data for root node (as [`GasNode`]) of the value tree,
-    /// which contains the `node`. If some node along the upstream path is
-    /// missing, returns an error (tree is invalidated).
-    ///
-    /// As in [`TreeImpl::node_with_value`], root's id is of `Option` type. It
-    /// is equal to `None` in case `node` is a root node.
-    pub(super) fn root(
-        node: StorageMap::Value,
-    ) -> Result<(StorageMap::Value, Option<NodeId>), Error> {
-        let mut ret_id = None;
-        let mut ret_node = node;
-        while let Some(parent) = ret_node.parent() {
-            ret_id = Some(parent);
-            ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
-        }
-
-        Ok((ret_node, ret_id))
     }
 
     pub(super) fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
@@ -354,8 +336,8 @@ where
 
     /// Create ValueNode from node key with value
     fn create_from_with_value(
-        key: impl Into<NodeId>,
-        new_node_key: impl Into<NodeId>,
+        node_id: impl Into<NodeId>,
+        new_node_id: impl Into<NodeId>,
         amount: Balance,
         constructor: impl FnOnce(
             NodeId,
@@ -364,25 +346,28 @@ where
             NodeId,
         ) -> Result<GasNode<ExternalId, NodeId, Balance>, Error>,
     ) -> Result<(), Error> {
-        let key = key.into();
-        let new_node_key = new_node_key.into();
+        let node_id = node_id.into();
+        let new_node_id = new_node_id.into();
 
         // Check if there is no node with such key yet first.
         // This also checks if key == new_node_key.
-        if StorageMap::contains_key(&new_node_key) {
+        if StorageMap::contains_key(&new_node_id) {
             return Err(InternalError::node_already_exists().into());
         }
 
-        let (mut node, node_id) =
-            Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
+        let (mut value_node, value_node_id) = Self::node_with_value(
+            Self::get_node(node_id).ok_or_else(InternalError::node_not_found)?,
+        )?;
+        let value_node_id = value_node_id.unwrap_or(node_id);
+
         // Check if the parent node is cut
-        if node.is_cut() {
+        if value_node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 
-        // A `node` is guaranteed to have inner_value here, because
+        // `parent_node` is guaranteed to have inner_value here, because
         // it was queried after `Self::node_with_value` call.
-        if node
+        if value_node
             .value()
             .ok_or_else(InternalError::unexpected_node_type)?
             < amount
@@ -390,20 +375,18 @@ where
             return Err(InternalError::insufficient_balance().into());
         }
 
-        let node_id = node_id.unwrap_or(key);
-
-        let new_node = constructor(key, amount, &mut node, node_id)?;
+        let new_node = constructor(node_id, amount, &mut value_node, value_node_id)?;
 
         // Save new node
-        StorageMap::insert(new_node_key, new_node);
+        StorageMap::insert(new_node_id, new_node);
 
-        let node_value = node
+        let node_value = value_node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         *node_value = node_value.saturating_sub(amount);
 
-        StorageMap::insert(node_id, node);
+        StorageMap::insert(value_node_id, value_node);
 
         Ok(())
     }
@@ -485,21 +468,23 @@ where
     }
 
     fn get_origin_node(
-        key: impl Into<Self::NodeId>,
+        node_id: impl Into<Self::NodeId>,
     ) -> Result<(Self::ExternalOrigin, NodeId), Self::Error> {
-        let key = key.into();
-        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+        let node_id = node_id.into();
+        let node = Self::get_node(node_id).ok_or_else(InternalError::node_not_found)?;
 
-        // key known, must return the origin, unless corrupted
-        let (root, maybe_key) = Self::root(node)?;
-
-        if let GasNode::External { id, .. }
-        | GasNode::Cut { id, .. }
-        | GasNode::Reserved { id, .. } = root
-        {
-            Ok((id, maybe_key.unwrap_or(key)))
+        let (node, node_id) = if let Some(root_id) = node.root_id() {
+            let root_node = Self::get_node(root_id).ok_or_else(InternalError::node_not_found)?;
+            (root_node, root_id)
         } else {
-            unreachable!("Guaranteed by ValueNode::root method")
+            (node, node_id)
+        };
+
+        match node {
+            GasNode::External { id, .. }
+            | GasNode::Cut { id, .. }
+            | GasNode::Reserved { id, .. } => Ok((id, node_id)),
+            _ => unreachable!("+_+_+"),
         }
     }
 
@@ -696,22 +681,23 @@ where
     }
 
     fn split_with_value(
-        key: impl Into<Self::NodeId>,
-        new_key: impl Into<Self::NodeId>,
+        node_id: impl Into<Self::NodeId>,
+        new_node_id: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
         Self::create_from_with_value(
-            key,
-            new_key,
+            node_id,
+            new_node_id,
             amount,
-            |_key, value, parent_node, parent_id| {
-                parent_node.increase_spec_refs();
+            |_node_id, value, value_node, value_node_id| {
+                value_node.increase_spec_refs();
 
                 Ok(GasNode::SpecifiedLocal {
+                    root: value_node.root_id().unwrap_or(value_node_id),
+                    parent: value_node_id,
                     value,
                     lock: Zero::zero(),
                     system_reserve: Zero::zero(),
-                    parent: parent_id,
                     refs: Default::default(),
                     consumed: false,
                 })
@@ -720,38 +706,40 @@ where
     }
 
     fn split(
-        key: impl Into<Self::NodeId>,
-        new_key: impl Into<Self::NodeId>,
+        node_id: impl Into<Self::NodeId>,
+        new_node_id: impl Into<Self::NodeId>,
     ) -> Result<(), Self::Error> {
-        let key = key.into();
-        let new_key = new_key.into();
+        let node_id = node_id.into();
+        let new_node_id = new_node_id.into();
 
-        let (mut node, node_id) =
-            Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
-        let node_id = node_id.unwrap_or(key);
+        let (mut value_node, value_node_id) = Self::node_with_value(
+            Self::get_node(node_id).ok_or_else(InternalError::node_not_found)?,
+        )?;
+        let value_node_id = value_node_id.unwrap_or(node_id);
 
         // Check if the value node is cut
-        if node.is_cut() {
+        if value_node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 
         // This also checks if key == new_node_key
-        if StorageMap::contains_key(&new_key) {
+        if StorageMap::contains_key(&new_node_id) {
             return Err(InternalError::node_already_exists().into());
         }
 
-        node.increase_unspec_refs();
+        value_node.increase_unspec_refs();
 
         let new_node = GasNode::UnspecifiedLocal {
-            parent: node_id,
+            root: value_node.root_id().unwrap_or(value_node_id),
+            parent: value_node_id,
             lock: Zero::zero(),
             system_reserve: Zero::zero(),
         };
 
         // Save new node
-        StorageMap::insert(new_key, new_node);
+        StorageMap::insert(new_node_id, new_node);
         // Update current node
-        StorageMap::insert(node_id, node);
+        StorageMap::insert(value_node_id, value_node);
 
         Ok(())
     }

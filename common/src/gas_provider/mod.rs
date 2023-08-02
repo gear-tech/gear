@@ -99,14 +99,14 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_origin_node(
-        key: impl Into<Self::NodeId>,
+        node_id: impl Into<Self::NodeId>,
     ) -> Result<(Self::ExternalOrigin, Self::NodeId), Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(key: impl Into<Self::NodeId>) -> Result<Self::ExternalOrigin, Self::Error> {
-        Self::get_origin_node(key).map(|(external, _key)| external)
+    fn get_external(node_id: impl Into<Self::NodeId>) -> Result<Self::ExternalOrigin, Self::Error> {
+        Self::get_origin_node(node_id).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.

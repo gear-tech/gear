@@ -16,11 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AccountIdOf, Balance, Config, GasNodes, Pallet};
-use common::gas_provider::{ChildrenRefs, GasNode, GasNodeId, NodeLock};
+use crate::{AccountIdOf, Balance, Config, Pallet};
+use common::{
+    gas_provider::{ChildrenRefs, GasNodeId, NodeLock},
+    storage::MapStorage,
+};
 use frame_support::{
     pallet_prelude::*,
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, PalletInfo},
 };
 use gear_core::ids::{MessageId, ReservationId};
 use sp_runtime::traits::Saturating;
@@ -30,7 +33,7 @@ use sp_std::vec::Vec;
 pub(crate) type NodeId = GasNodeId<MessageId, ReservationId>;
 
 #[derive(Decode, Encode)]
-pub enum OldGasNode<ExternalId, Id, Balance> {
+pub enum GasNodeV1<ExternalId, Id, Balance> {
     External {
         id: ExternalId,
         value: Balance,
@@ -66,6 +69,67 @@ pub enum OldGasNode<ExternalId, Id, Balance> {
     },
 }
 
+#[derive(Decode, Encode)]
+pub enum GasNodeV2<ExternalId, Id, Balance> {
+    External {
+        id: ExternalId,
+        value: Balance,
+        lock: NodeLock<Balance>,
+        system_reserve: Balance,
+        refs: ChildrenRefs,
+        consumed: bool,
+        deposit: bool,
+    },
+    Cut {
+        id: ExternalId,
+        value: Balance,
+        lock: NodeLock<Balance>,
+    },
+    Reserved {
+        id: ExternalId,
+        value: Balance,
+        lock: NodeLock<Balance>,
+        refs: ChildrenRefs,
+        consumed: bool,
+    },
+    SpecifiedLocal {
+        parent: Id,
+        value: Balance,
+        lock: NodeLock<Balance>,
+        system_reserve: Balance,
+        refs: ChildrenRefs,
+        consumed: bool,
+    },
+    UnspecifiedLocal {
+        parent: Id,
+        lock: NodeLock<Balance>,
+        system_reserve: Balance,
+    },
+}
+
+pub struct GasNodesPrefix<T>(PhantomData<(T,)>);
+
+impl<T: Config> frame_support::traits::StorageInstance for GasNodesPrefix<T> {
+    fn pallet_prefix() -> &'static str {
+        <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
+    }
+    const STORAGE_PREFIX: &'static str = "GasNodes";
+}
+
+pub type Key = GasNodeId<MessageId, ReservationId>;
+pub type NodeOf<T> = GasNodeV2<AccountIdOf<T>, Key, Balance>;
+
+// Private storage for missed blocks collection.
+pub type GasNodes<T> = StorageMap<GasNodesPrefix<T>, Identity, Key, NodeOf<T>>;
+
+// Public wrap of the missed blocks collection.
+common::wrap_storage_map!(
+    storage: GasNodes,
+    name: GasNodesWrap,
+    key: Key,
+    value: NodeOf<T>
+);
+
 pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     #[cfg(feature = "try-runtime")]
@@ -85,71 +149,71 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
             onchain
         );
 
-        if current == 2 && onchain == 1 {
-            let mut translated = 0_u64;
-            GasNodes::<T>::translate::<OldGasNode<AccountIdOf<T>, NodeId, Balance>, _>(
-                |_key, old_value| {
-                    let new_value = match old_value {
-                        OldGasNode::Cut { id, value, lock } => GasNode::Cut { id, value, lock },
-                        OldGasNode::External {
-                            id,
-                            value,
-                            lock,
-                            system_reserve,
-                            refs,
-                            consumed,
-                        } => GasNode::External {
-                            id,
-                            value,
-                            lock,
-                            system_reserve,
-                            refs,
-                            consumed,
-                            deposit: false,
-                        },
-                        OldGasNode::Reserved {
-                            id,
-                            value,
-                            lock,
-                            refs,
-                            consumed,
-                        } => GasNode::Reserved {
-                            id,
-                            value,
-                            lock,
-                            refs,
-                            consumed,
-                        },
-                        OldGasNode::SpecifiedLocal {
-                            parent,
-                            value,
-                            lock,
-                            system_reserve,
-                            refs,
-                            consumed,
-                        } => GasNode::SpecifiedLocal {
-                            parent,
-                            value,
-                            lock,
-                            system_reserve,
-                            refs,
-                            consumed,
-                        },
-                        OldGasNode::UnspecifiedLocal {
-                            parent,
-                            lock,
-                            system_reserve,
-                        } => GasNode::UnspecifiedLocal {
-                            parent,
-                            lock,
-                            system_reserve,
-                        },
-                    };
-
-                    translated.saturating_inc();
-                    Some(new_value)
+        let mut translated = 0_u64;
+        let f = |_key, old_value| {
+            let new_value = match old_value {
+                GasNodeV1::Cut { id, value, lock } => GasNodeV2::Cut { id, value, lock },
+                GasNodeV1::External {
+                    id,
+                    value,
+                    lock,
+                    system_reserve,
+                    refs,
+                    consumed,
+                } => GasNodeV2::External {
+                    id,
+                    value,
+                    lock,
+                    system_reserve,
+                    refs,
+                    consumed,
+                    deposit: false,
                 },
-            );
+                GasNodeV1::Reserved {
+                    id,
+                    value,
+                    lock,
+                    refs,
+                    consumed,
+                } => GasNodeV2::Reserved {
+                    id,
+                    value,
+                    lock,
+                    refs,
+                    consumed,
+                },
+                GasNodeV1::SpecifiedLocal {
+                    parent,
+                    value,
+                    lock,
+                    system_reserve,
+                    refs,
+                    consumed,
+                } => GasNodeV2::SpecifiedLocal {
+                    parent,
+                    value,
+                    lock,
+                    system_reserve,
+                    refs,
+                    consumed,
+                },
+                GasNodeV1::UnspecifiedLocal {
+                    parent,
+                    lock,
+                    system_reserve,
+                } => GasNodeV2::UnspecifiedLocal {
+                    parent,
+                    lock,
+                    system_reserve,
+                },
+            };
+
+            translated.saturating_inc();
+            Some(new_value)
+        };
+
+        if current == 2 && onchain == 1 {
+            GasNodes::<T>::translate::<GasNodeV1<AccountIdOf<T>, NodeId, Balance>, _>(f);
             current.put::<Pallet<T>>();
             log::info!(
                 "Upgraded {} gas nodes, storage to version {:?}",
@@ -182,8 +246,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
 #[cfg(test)]
 pub mod test_v2 {
     use super::*;
-    use crate::{mock::*, AccountIdOf, Balance, GasNodes, Pallet};
-    use common::{gas_provider::GasNode, Origin as _};
+    use crate::{mock::*, AccountIdOf, Balance, Pallet};
+    use common::Origin as _;
     use frame_support::{
         codec::Encode,
         storage::{storage_prefix, unhashed},
@@ -221,7 +285,7 @@ pub mod test_v2 {
                 let random_factor = u64::from_le_bytes(factor_bytes);
                 // Decide the node type
                 let node = match random_factor % 3 {
-                    0 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::External {
+                    0 => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::External {
                         id: 1_u64,
                         value: Balance::zero(),
                         lock: Zero::zero(),
@@ -229,7 +293,7 @@ pub mod test_v2 {
                         refs: Default::default(),
                         consumed: false,
                     },
-                    1 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
+                    1 => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
                         value: Balance::zero(),
                         lock: Zero::zero(),
@@ -237,7 +301,7 @@ pub mod test_v2 {
                         refs: Default::default(),
                         consumed: false,
                     },
-                    _ => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
+                    _ => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
                         lock: Zero::zero(),
                         system_reserve: Default::default(),
@@ -252,7 +316,7 @@ pub mod test_v2 {
             assert_ne!(weight.ref_time(), 0);
 
             for (_key, node) in GasNodes::<Test>::iter() {
-                if let GasNode::External { deposit, .. } = node {
+                if let GasNodeV2::External { deposit, .. } = node {
                     assert!(!deposit, "Incorrect migration");
                 }
             }
