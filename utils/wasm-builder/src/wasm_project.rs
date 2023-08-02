@@ -214,6 +214,8 @@ impl WasmProject {
 
         let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
+        fs::create_dir_all(&self.wasm_target_dir)?;
+
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
             let file_base_name = self
@@ -222,7 +224,7 @@ impl WasmProject {
                 .expect("Run `WasmProject::create_project()` first");
 
             let wasm_meta_path = self
-                .original_dir
+                .wasm_target_dir
                 .join([file_base_name, ".meta.txt"].concat());
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
@@ -397,7 +399,6 @@ extern "C" fn metahash() {{
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
-        fs::create_dir_all(&self.wasm_target_dir)?;
 
         if self.project_type.is_metawasm() {
             self.postprocess_meta(&original_wasm_path, file_base_name)?;
