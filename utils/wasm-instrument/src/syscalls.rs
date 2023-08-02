@@ -242,60 +242,89 @@ impl SysCallName {
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
-            Self::Debug => SysCallSignature::gr([Ptr, Size]),
-            Self::Panic => SysCallSignature::gr([Ptr, Size]),
+            Self::Debug => SysCallSignature::gr([Ptr(Some(1)), Size]),
+            Self::Panic => SysCallSignature::gr([Ptr(Some(1)), Size]),
             Self::OomPanic => SysCallSignature::gr([]),
-            Self::BlockHeight => SysCallSignature::gr([Ptr]),
-            Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
-            Self::Exit => SysCallSignature::gr([Ptr]),
-            Self::GasAvailable => SysCallSignature::gr([Ptr]),
-            Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ProgramId => SysCallSignature::gr([Ptr]),
+            Self::BlockHeight => SysCallSignature::gr([Ptr(None)]),
+            Self::BlockTimestamp => SysCallSignature::gr([Ptr(None)]),
+            Self::Exit => SysCallSignature::gr([Ptr(None)]),
+            Self::GasAvailable => SysCallSignature::gr([Ptr(None)]),
+            Self::PayProgramRent => SysCallSignature::gr([Ptr(None), Ptr(None)]),
+            Self::ProgramId => SysCallSignature::gr([Ptr(None)]),
             Self::Leave => SysCallSignature::gr([]),
-            Self::ValueAvailable => SysCallSignature::gr([Ptr]),
+            Self::ValueAvailable => SysCallSignature::gr([Ptr(None)]),
             Self::Wait => SysCallSignature::gr([]),
             Self::WaitUpTo => SysCallSignature::gr([Duration]),
             Self::WaitFor => SysCallSignature::gr([Duration]),
-            Self::Wake => SysCallSignature::gr([Ptr, Delay, Ptr]),
-            Self::ReplyCode => SysCallSignature::gr([Ptr]),
-            Self::SignalCode => SysCallSignature::gr([Ptr]),
-            Self::MessageId => SysCallSignature::gr([Ptr]),
-            Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
-            Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Ptr]),
-            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Ptr]),
-            Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Ptr]),
-            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr, Ptr]),
-            Self::ReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr, Ptr]),
-            Self::ReservationReply => SysCallSignature::gr([Ptr, Ptr, Size, Ptr]),
-            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ReplyPush => SysCallSignature::gr([Ptr, Size, Ptr]),
-            Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr]),
-            Self::ReplyTo => SysCallSignature::gr([Ptr]),
-            Self::SignalFrom => SysCallSignature::gr([Ptr]),
-            Self::Send => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-            Self::SendInput => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
-            Self::SendWGas => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
-            Self::SendInputWGas => SysCallSignature::gr([Ptr, Size, Size, Gas, Delay, Ptr]),
-            Self::SendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-            Self::SendCommitWGas => SysCallSignature::gr([Handler, Ptr, Gas, Delay, Ptr]),
-            Self::SendInit => SysCallSignature::gr([Ptr]),
-            Self::SendPush => SysCallSignature::gr([Handler, Ptr, Size, Ptr]),
-            Self::SendPushInput => SysCallSignature::gr([Handler, Size, Size, Ptr]),
-            Self::ReservationSend => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-            Self::ReservationSendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-            Self::Size => SysCallSignature::gr([Ptr]),
-            Self::Source => SysCallSignature::gr([Ptr]),
-            Self::Value => SysCallSignature::gr([Ptr]),
-            Self::CreateProgram => SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Delay, Ptr]),
-            Self::CreateProgramWGas => {
-                SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
+            Self::Wake => SysCallSignature::gr([Ptr(None), Delay, Ptr(None)]),
+            Self::ReplyCode => SysCallSignature::gr([Ptr(None)]),
+            Self::SignalCode => SysCallSignature::gr([Ptr(None)]),
+            Self::MessageId => SysCallSignature::gr([Ptr(None)]),
+            Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr(None), Ptr(None)]),
+            Self::Reply => SysCallSignature::gr([Ptr(Some(1)), Size, Ptr(None), Ptr(None)]),
+            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr(None), Ptr(None)]),
+            Self::ReplyWGas => {
+                SysCallSignature::gr([Ptr(Some(1)), Size, Gas, Ptr(None), Ptr(None)])
             }
-            Self::ReplyDeposit => SysCallSignature::gr([Ptr, Gas, Ptr]),
-            Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
-            Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
-            Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
-            Self::Random => SysCallSignature::gr([Ptr, Ptr]),
+            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr(None), Ptr(None)]),
+            Self::ReplyCommit => SysCallSignature::gr([Ptr(None), Ptr(None)]),
+            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr(None), Ptr(None)]),
+            Self::ReservationReply => {
+                SysCallSignature::gr([Ptr(None), Ptr(Some(2)), Size, Ptr(None)])
+            }
+            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr(None), Ptr(None)]),
+            Self::ReplyPush => SysCallSignature::gr([Ptr(Some(1)), Size, Ptr(None)]),
+            Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr(None)]),
+            Self::ReplyTo => SysCallSignature::gr([Ptr(None)]),
+            Self::SignalFrom => SysCallSignature::gr([Ptr(None)]),
+            Self::Send => SysCallSignature::gr([Ptr(None), Ptr(Some(2)), Size, Delay, Ptr(None)]),
+            Self::SendInput => SysCallSignature::gr([Ptr(None), Size, Size, Delay, Ptr(None)]),
+            Self::SendWGas => {
+                SysCallSignature::gr([Ptr(None), Ptr(Some(2)), Size, Gas, Delay, Ptr(None)])
+            }
+            Self::SendInputWGas => {
+                SysCallSignature::gr([Ptr(None), Size, Size, Gas, Delay, Ptr(None)])
+            }
+            Self::SendCommit => SysCallSignature::gr([Handler, Ptr(None), Delay, Ptr(None)]),
+            Self::SendCommitWGas => {
+                SysCallSignature::gr([Handler, Ptr(None), Gas, Delay, Ptr(None)])
+            }
+            Self::SendInit => SysCallSignature::gr([Ptr(None)]),
+            Self::SendPush => SysCallSignature::gr([Handler, Ptr(Some(2)), Size, Ptr(None)]),
+            Self::SendPushInput => SysCallSignature::gr([Handler, Size, Size, Ptr(None)]),
+            Self::ReservationSend => {
+                SysCallSignature::gr([Ptr(None), Ptr(Some(2)), Size, Delay, Ptr(None)])
+            }
+            Self::ReservationSendCommit => {
+                SysCallSignature::gr([Handler, Ptr(None), Delay, Ptr(None)])
+            }
+            Self::Size => SysCallSignature::gr([Ptr(None)]),
+            Self::Source => SysCallSignature::gr([Ptr(None)]),
+            Self::Value => SysCallSignature::gr([Ptr(None)]),
+            Self::CreateProgram => SysCallSignature::gr([
+                Ptr(None),
+                Ptr(Some(2)),
+                Size,
+                Ptr(Some(4)),
+                Size,
+                Delay,
+                Ptr(None),
+            ]),
+            Self::CreateProgramWGas => SysCallSignature::gr([
+                Ptr(None),
+                Ptr(Some(2)),
+                Size,
+                Ptr(Some(4)),
+                Size,
+                Gas,
+                Delay,
+                Ptr(None),
+            ]),
+            Self::ReplyDeposit => SysCallSignature::gr([Ptr(None), Gas, Ptr(None)]),
+            Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr(None)]),
+            Self::UnreserveGas => SysCallSignature::gr([Ptr(None), Ptr(None)]),
+            Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr(None)]),
+            Self::Random => SysCallSignature::gr([Ptr(None), Ptr(None)]),
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }
@@ -315,17 +344,24 @@ impl SysCallName {
 }
 
 /// Syscall param type.
+///
+/// `Ptr` is usually used to point to the beginning of the array in memory.
+/// In order to distiguish between pointer to the memory array and pointer
+/// to some value, `Ptr` was defined as a tuple-like struct that owns an
+/// optional index of the memory array size parameter. So if current sys-call
+/// doesn't accept any memory array as an argument, then pointer parameter will
+/// be `Ptr(None)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParamType {
-    Size,            // i32 buffers size in memory
-    Ptr,             // i32 pointer
-    Gas,             // i64 gas amount
-    MessagePosition, // i32 message position
-    Duration,        // i32 duration in blocks
-    Delay,           // i32 delay in blocks
-    Handler,         // i32 handler number
-    Alloc,           // i32 alloc pages
-    Free,            // i32 free page
+    Size,               // i32 buffers size in memory
+    Ptr(Option<usize>), // i32 pointer
+    Gas,                // i64 gas amount
+    MessagePosition,    // i32 message position
+    Duration,           // i32 duration in blocks
+    Delay,              // i32 delay in blocks
+    Handler,            // i32 handler number
+    Alloc,              // i32 alloc pages
+    Free,               // i32 free page
 }
 
 impl From<ParamType> for ValueType {
