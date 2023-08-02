@@ -24,7 +24,6 @@ use crate::SysCallsConfig;
 pub struct GearWasmGeneratorConfigBuilder(GearWasmGeneratorConfig);
 
 impl GearWasmGeneratorConfigBuilder {
-
     #[allow(clippy::new_without_default)]
     /// Create a new builder.
     pub fn new() -> Self {
