@@ -34,11 +34,11 @@ pub use param::*;
 pub struct SysCallsConfigBuilder(SysCallsConfig);
 
 impl SysCallsConfigBuilder {
-    /// Create new builder with defined frequencies for all sys-calls.
-    pub fn new(frequencies: SysCallsAmountRanges, random_mem_access: bool) -> Self {
+    /// Create a new builder with defined injection amounts for all sys-calls.
+    pub fn new(injection_amounts: SysCallsInjectionAmounts) -> Self {
         Self(SysCallsConfig {
-            random_mem_access,
-            frequencies,
+            injection_amounts,
+            random_mem_access: false,
             params_config: SysCallsParamsConfig::default(),
             sending_message_destination: MessageDestination::default(),
             log_info: None,
@@ -78,7 +78,10 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether some externalities must be logged.
+    /// Set whether some externalities must be logged in the gear export (entry point)
+    /// function.
+    ///
+    /// Choosing gear export to log data is done from best `init` to worse `handle`.
     pub fn with_log_info(mut self, log: String) -> Self {
         self.0.log_info = Some(log);
         self.enable_sys_call(SysCallName::Debug);
@@ -87,12 +90,12 @@ impl SysCallsConfigBuilder {
     }
 
     fn enable_sys_call(&mut self, name: SysCallName) {
-        let range = self.0.frequencies.get(name);
+        let range = self.0.injection_amounts.get(name);
 
         let range_start = *range.start();
         if range_start == 0 {
             let max = *range.end().max(&1);
-            self.0.frequencies.set(name, 1, max);
+            self.0.injection_amounts.set(name, 1, max);
         }
     }
 
@@ -108,7 +111,7 @@ pub struct SysCallsConfig {
     // # Note:
     // To be removed in next refactoring iterations
     random_mem_access: bool,
-    frequencies: SysCallsAmountRanges,
+    injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
     sending_message_destination: MessageDestination,
     log_info: Option<String>,
@@ -120,15 +123,15 @@ impl SysCallsConfig {
         self.random_mem_access
     }
 
-    /// Get ***frequency*** range of the sys-call.
-    pub fn frequency(&self, name: SysCallName) -> RangeInclusive<u32> {
-        self.frequencies.get(name)
+    /// Get possible number of times (range) the sys-call can be injected in the wasm.
+    pub fn injection_amounts(&self, name: SysCallName) -> RangeInclusive<u32> {
+        self.injection_amounts.get(name)
     }
 
     /// Get defined message destination for `gr_send*` sys-calls.
     ///
     /// For more info, read [`MessageDestination`].
-    pub fn message_destination(&self) -> &MessageDestination {
+    pub fn sending_message_destination(&self) -> &MessageDestination {
         &self.sending_message_destination
     }
 

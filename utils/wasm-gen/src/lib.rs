@@ -580,7 +580,7 @@ impl<'a> WasmGen<'a> {
         for (i, (name, info, sys_call_amount)) in sys_calls_table
             .into_iter()
             .filter_map(|(name, info)| {
-                let frequency = self.config.sys_calls_config.frequency(name);
+                let frequency = self.config.sys_calls_config.injection_amounts(name);
                 let sys_call_amount = self.u.int_in_range(frequency).unwrap() as usize;
                 (sys_call_amount != 0).then_some((name, info, sys_call_amount))
             })
@@ -782,7 +782,7 @@ impl<'a> WasmGen<'a> {
             if self
                 .config
                 .sys_calls_config
-                .message_destination()
+                .sending_message_destination()
                 .is_source()
             {
                 let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
@@ -945,12 +945,12 @@ impl<'a> WasmGen<'a> {
 
 pub fn gen_gear_program_module<'a>(
     u: &'a mut Unstructured<'a>,
-    config: WasmGenConfig,
+    config: ConfigsBundle,
     addresses: &[HashWithValue],
 ) -> Module {
-    let WasmGenConfig {
-        generator_config,
-        selectables_config,
+    let ConfigsBundle {
+        gear_wasm_generator_config: generator_config,
+        module_selectables_config: selectables_config,
     } = config;
     let swarm_config = default_swarm_config(selectables_config, u);
 
@@ -999,7 +999,7 @@ pub fn gen_gear_program_module<'a>(
 
 pub fn gen_gear_program_code<'a>(
     u: &'a mut Unstructured<'a>,
-    config: WasmGenConfig,
+    config: ConfigsBundle,
     addresses: &[HashWithValue],
 ) -> Vec<u8> {
     let module = gen_gear_program_module(u, config, addresses);

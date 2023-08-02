@@ -40,8 +40,8 @@
 //!     stack_end: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let use_random_memory_access_ptrs = true;
-//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsAmountRanges::all_once(), use_random_memory_access_ptrs)
+//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionAmounts::all_once())
+//!     .with_unchecked_memory_access(true)
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
@@ -85,7 +85,7 @@ pub use syscalls::*;
 /// the former one provides all required from the crate user configurations
 /// and all the other configurations are generated internally.
 #[derive(Debug, Clone, Default)]
-pub struct WasmGenConfig {
-    pub generator_config: GearWasmGeneratorConfig,
-    pub selectables_config: SelectableParams,
+pub struct ConfigsBundle {
+    pub gear_wasm_generator_config: GearWasmGeneratorConfig,
+    pub module_selectables_config: SelectableParams,
 }

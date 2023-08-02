@@ -26,7 +26,10 @@ use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
-use gear_wasm_gen::{GearWasmGeneratorConfig, SelectableParams, WasmGenConfig};
+use gear_wasm_gen::{
+    ConfigsBundle, EntryPointsSet, GearWasmGeneratorConfigBuilder, SelectableParams,
+    SysCallsConfigBuilder,
+};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event;
@@ -116,17 +119,23 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     }
 }
 
-fn fuzzer_config(seed: u64) -> WasmGenConfig {
-    let mut generator_config =
-        GearWasmGeneratorConfig::default_with_log_info(format!("Gear program seed = '{seed}'"));
-    generator_config.remove_recursions = true;
+fn fuzzer_config(seed: u64) -> ConfigsBundle {
+    let generator_config = GearWasmGeneratorConfigBuilder::new()
+        .with_entry_points_config(EntryPointsSet::InitHandleHandleReply)
+        .with_sys_calls_config(
+            SysCallsConfigBuilder::new(Default::default())
+                .with_log_info(format!("Gear program seed = '{seed}'"))
+                .build(),
+        )
+        .with_recursions_removed(true)
+        .build();
     let selectables_config = SelectableParams {
         call_indirect_enabled: false,
     };
 
-    WasmGenConfig {
-        generator_config,
-        selectables_config,
+    ConfigsBundle {
+        gear_wasm_generator_config: generator_config,
+        module_selectables_config: selectables_config,
     }
 }
 

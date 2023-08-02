@@ -40,7 +40,7 @@ pub use upload_program::UploadProgramArgs;
 pub struct GearCallConversionError(pub &'static str);
 
 pub type Seed = u64;
-pub type GearProgGenConfig = gear_wasm_gen::WasmGenConfig;
+pub type GearProgGenConfig = gear_wasm_gen::ConfigsBundle;
 
 /// This trait must be implemented for all argument types
 /// that are defined in [`GearCall`] variants.

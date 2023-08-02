@@ -25,7 +25,7 @@ use gear_wasm_instrument::{
     parity_wasm::elements::ValueType,
     syscalls::{ParamType, SysCallName},
 };
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -81,7 +81,7 @@ pub(crate) fn process_sys_call_params(
 /// param, that a sys-call can have, and allowed values ("rules") for each of
 /// the params.
 #[derive(Debug, Clone)]
-pub struct SysCallsParamsConfig(BTreeMap<ParamType, SysCallParamAllowedValues>);
+pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
     /// Get allowed values for the `param`.

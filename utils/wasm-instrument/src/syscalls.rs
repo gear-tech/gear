@@ -26,7 +26,7 @@ use enum_iterator::{self, Sequence};
 ///
 /// The type is mainly used to prevent from skipping sys-call integration test for
 /// a newly introduced sys-call or from typo in sys-call name.
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence, Hash)]
 pub enum SysCallName {
     // Message sending related
     // --
@@ -315,7 +315,7 @@ impl SysCallName {
 }
 
 /// Syscall param type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
     Ptr,             // i32 pointer
