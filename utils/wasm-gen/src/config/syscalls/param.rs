@@ -21,11 +21,8 @@
 //! Types here are used to create [`crate::SysCallsConfig`].
 
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::{
-    parity_wasm::elements::ValueType,
-    syscalls::{ParamType, SysCallName},
-};
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use gear_wasm_instrument::{parity_wasm::elements::ValueType, syscalls::ParamType};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -39,40 +36,37 @@ pub(crate) enum ProcessedSysCallParams {
 }
 
 pub(crate) fn process_sys_call_params(
-    name: Option<SysCallName>,
     params: &[ParamType],
     params_config: &SysCallsParamsConfig,
 ) -> Vec<ProcessedSysCallParams> {
-    let skip_mem_array = name
-        .map(|name| matches!(name, SysCallName::SendInput | SysCallName::SendInputWGas))
-        .unwrap_or_default();
-
     let mut res = Vec::with_capacity(params.len());
-    for &parameter in params {
-        if ParamType::Size == parameter {
-            if let Some((ParamType::Ptr, is_memory_array @ false)) = res.last_mut() {
-                if !skip_mem_array {
-                    *is_memory_array = true;
-                    continue;
-                }
-            }
+    let mut skip_next_param = false;
+    for &param in params {
+        if skip_next_param {
+            skip_next_param = false;
+            continue;
         }
-        res.push((parameter, false));
+        let processed_param = match param {
+            ParamType::Alloc => ProcessedSysCallParams::Alloc,
+            ParamType::Ptr(maybe_idx) => maybe_idx
+                .map(|_| {
+                    // skipping next as we don't need the following `Size` param,
+                    // because it will be chosen in accordance to the wasm module
+                    // memory pages config.
+                    skip_next_param = true;
+                    ProcessedSysCallParams::MemoryArray
+                })
+                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
+            _ => ProcessedSysCallParams::Value {
+                value_type: param.into(),
+                allowed_values: params_config.get_rule(&param),
+            },
+        };
+
+        res.push(processed_param);
     }
 
-    res.into_iter()
-        .map(|(param_type, is_memory_array)| match is_memory_array {
-            true => ProcessedSysCallParams::MemoryArray,
-            false => match param_type {
-                ParamType::Alloc => ProcessedSysCallParams::Alloc,
-                ParamType::Ptr => ProcessedSysCallParams::MemoryPtrValue,
-                _ => ProcessedSysCallParams::Value {
-                    value_type: param_type.into(),
-                    allowed_values: params_config.get_rule(&param_type),
-                },
-            },
-        })
-        .collect()
+    res
 }
 
 /// Sys-calls params config.
@@ -81,7 +75,7 @@ pub(crate) fn process_sys_call_params(
 /// param, that a sys-call can have, and allowed values ("rules") for each of
 /// the params.
 #[derive(Debug, Clone)]
-pub struct SysCallsParamsConfig(BTreeMap<ParamType, SysCallParamAllowedValues>);
+pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
     /// Get allowed values for the `param`.
@@ -100,7 +94,9 @@ impl Default for SysCallsParamsConfig {
         Self(
             [
                 (ParamType::Size, (0..=0x10000).into()),
-                (ParamType::Ptr, (0..=513 * 0x10000 - 1).into()),
+                // There are no rules for memory arrays as they are chose in accordance
+                // to memory pages config.
+                (ParamType::Ptr(None), (0..=513 * 0x10000 - 1).into()),
                 (ParamType::Gas, (0..=250_000_000_000).into()),
                 (ParamType::MessagePosition, (0..=10).into()),
                 (ParamType::Duration, (0..=100).into()),

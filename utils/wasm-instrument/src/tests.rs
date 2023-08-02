@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{rules::CustomConstantCostRules, syscalls::SysCallName};
+use crate::{
+    rules::CustomConstantCostRules,
+    syscalls::{ParamType, SysCallName},
+};
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
@@ -664,4 +667,23 @@ fn test_sys_calls_table() {
     } = report;
 
     assert_eq!(termination_reason, ActorTerminationReason::Success.into());
+}
+
+#[test]
+fn check_memory_array_pointers_definition_correctness() {
+    let sys_calls = SysCallName::instrumentable();
+    for sys_call in sys_calls {
+        let signature = sys_call.signature();
+        let size_param_indexes = signature
+            .params
+            .iter()
+            .filter_map(|param_ty| match param_ty {
+                ParamType::Ptr(maybe_size_idx) if maybe_size_idx.is_some() => *maybe_size_idx,
+                _ => None,
+            });
+
+        for idx in size_param_indexes {
+            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+        }
+    }
 }

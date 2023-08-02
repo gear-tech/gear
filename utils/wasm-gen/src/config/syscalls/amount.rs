@@ -21,13 +21,13 @@
 //! Types here are used to create [`crate::SysCallsConfig`].
 
 use gear_wasm_instrument::syscalls::SysCallName;
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use std::{collections::HashMap, ops::RangeInclusive};
 
-/// Possible amount ranges for each sys-call.
+/// Possible injection amount ranges for each sys-call.
 #[derive(Debug, Clone)]
-pub struct SysCallsAmountRanges(BTreeMap<SysCallName, RangeInclusive<u32>>);
+pub struct SysCallsInjectionAmounts(HashMap<SysCallName, RangeInclusive<u32>>);
 
-impl SysCallsAmountRanges {
+impl SysCallsInjectionAmounts {
     /// Instantiate a sys-calls amounts ranges map, where each gear sys-call is injected into wasm-module only once.
     pub fn all_once() -> Self {
         Self(
@@ -56,14 +56,6 @@ impl SysCallsAmountRanges {
             .expect("instantiated with all sys-calls set")
     }
 
-    /// Same as [`SysCallsAmountRanges::set`], but consumes the type and returns
-    /// it updated.
-    pub fn with(mut self, name: SysCallName, min: u32, max: u32) -> Self {
-        self.set(name, min, max);
-
-        self
-    }
-
     /// Sets possible amount range for the the sys-call.
     pub fn set(&mut self, name: SysCallName, min: u32, max: u32) {
         self.0.insert(name, min..=max);
@@ -78,7 +70,7 @@ impl SysCallsAmountRanges {
     }
 }
 
-impl Default for SysCallsAmountRanges {
+impl Default for SysCallsInjectionAmounts {
     fn default() -> Self {
         Self::all_once()
     }

@@ -42,11 +42,7 @@ impl CallInfo {
         Self {
             params: signature.params.iter().copied().map(Into::into).collect(),
             results: signature.results.to_vec(),
-            parameter_rules: process_sys_call_params(
-                call_signature.name(),
-                &signature.params,
-                params_config,
-            ),
+            parameter_rules: process_sys_call_params(&signature.params, params_config),
         }
     }
 
@@ -63,13 +59,6 @@ pub enum CallSignature {
 }
 
 impl CallSignature {
-    fn name(&self) -> Option<SysCallName> {
-        match self {
-            CallSignature::Standard(name) => Some(*name),
-            _ => None,
-        }
-    }
-
     fn signature(&self) -> SysCallSignature {
         match self {
             CallSignature::Standard(name) => name.signature(),

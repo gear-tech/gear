@@ -1041,10 +1041,57 @@ impl Ext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use gear_core::{
-        message::{ContextSettings, IncomingDispatch},
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         pages::PageNumber,
     };
+
+    struct MessageContextBuilder {
+        incoming_dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        sending_fee: u64,
+        scheduled_sending_fee: u64,
+        waiting_fee: u64,
+        waking_fee: u64,
+        reservation_fee: u64,
+        outgoing_limit: u32,
+    }
+
+    impl MessageContextBuilder {
+        fn new() -> Self {
+            Self {
+                incoming_dispatch: Default::default(),
+                program_id: Default::default(),
+                sending_fee: 0,
+                scheduled_sending_fee: 0,
+                waiting_fee: 0,
+                waking_fee: 0,
+                reservation_fee: 0,
+                outgoing_limit: 0,
+            }
+        }
+
+        fn build(self) -> MessageContext {
+            MessageContext::new(
+                self.incoming_dispatch,
+                self.program_id,
+                ContextSettings::new(
+                    self.sending_fee,
+                    self.scheduled_sending_fee,
+                    self.waiting_fee,
+                    self.waking_fee,
+                    self.reservation_fee,
+                    self.outgoing_limit,
+                ),
+            )
+        }
+
+        fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {
+            self.outgoing_limit = outgoing_limit;
+            self
+        }
+    }
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1091,6 +1138,16 @@ mod tests {
             Self(default_pc)
         }
 
+        fn build(self) -> ProcessorContext {
+            self.0
+        }
+
+        fn with_message_context(mut self, context: MessageContext) -> Self {
+            self.0.message_context = context;
+
+            self
+        }
+
         fn with_gas(mut self, gas_counter: GasCounter) -> Self {
             self.0.gas_counter = gas_counter;
 
@@ -1113,10 +1170,6 @@ mod tests {
             self.0.allocations_context = ctx;
 
             self
-        }
-
-        fn build(self) -> ProcessorContext {
-            self.0
         }
     }
 
@@ -1216,6 +1269,334 @@ mod tests {
         assert_eq!(initial_gas, gas_amount.burned());
         // there was lack of allowance
         assert_eq!(0, allowance);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_commit` on valid handle
+    // - `send_commit` on invalid handle
+    // - `send_commit` on used handle
+    // - `send_init` after limit is exceeded
+    fn test_send_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().with_outgoing_limit(1).build())
+                .build(),
+        );
+
+        let data = HandlePacket::default();
+
+        let fake_handle = 0;
+
+        let msg = ext.send_commit(fake_handle, data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().expect("Outgoing limit is 1");
+
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert!(msg.is_ok());
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let handle = ext.send_init();
+        assert_eq!(
+            handle.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutgoingMessagesAmountLimitExceeded
+            ))
+        );
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_push` on non-existent handle
+    // - `send_push` on valid handle
+    // - `send_push` on used handle
+    // - `send_push` with too large payload
+    // - `send_push` data is added to buffer
+    fn test_send_push() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let data = HandlePacket::default();
+
+        let fake_handle = 0;
+
+        let res = ext.send_push(fake_handle, &[0, 0, 0]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
+
+        let res = ext.send_push(handle, &[1, 2, 3]);
+        assert!(res.is_ok());
+
+        let res = ext.send_push(handle, &[4, 5, 6]);
+        assert!(res.is_ok());
+
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+
+        let res = ext.send_push(handle, &large_payload);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push(handle, &[7, 8, 9]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_push_input` on non-existent handle
+    // - `send_push_input` on valid handle
+    // - `send_push_input` on used handle
+    // - `send_push_input` data is added to buffer
+    fn test_send_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let data = HandlePacket::default();
+
+        let fake_handle = 0;
+
+        let res = ext.send_push_input(fake_handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 8, 10);
+        assert!(res.is_ok());
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push_input(handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_commit` with too much data
+    // - `reply_commit` with valid data
+    // - `reply_commit` duplicate reply
+    fn test_reply_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[0]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::new(Payload::filled_with(0), 0));
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::DuplicateReply))
+        );
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_push` with valid data
+    // - `reply_push` with too much data
+    // - `reply_push` after `reply_commit`
+    // - `reply_push` data is added to buffer
+    fn test_reply_push() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[1, 2, 3]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[4, 5, 6]);
+        assert!(res.is_ok());
+
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+
+        let res = ext.reply_push(&large_payload);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[7, 8, 9]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `reply_push_input` with valid data
+    // - `reply_push_input` after `reply_commit`
+    // - `reply_push_input` data is added to buffer
+    fn test_reply_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(8, 10);
+        assert!(res.is_ok());
+
+        let msg = ext.reply_commit(ReplyPacket::auto());
+        assert!(msg.is_ok());
+
+        let res = ext.reply_push_input(0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
     }
 
     mod property_tests {

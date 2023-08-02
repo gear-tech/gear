@@ -18,7 +18,51 @@
 
 //! Configs related to instantiation of gear wasm module generators.
 
-use crate::{SysCallsConfig, SysCallsConfigBuilder};
+use crate::SysCallsConfig;
+
+/// Builder for [`GearWasmGeneratorConfig`].
+pub struct GearWasmGeneratorConfigBuilder(GearWasmGeneratorConfig);
+
+impl GearWasmGeneratorConfigBuilder {
+    #[allow(clippy::new_without_default)]
+    /// Create a new builder.
+    pub fn new() -> Self {
+        Self(GearWasmGeneratorConfig::default())
+    }
+
+    /// Defines memory pages confir for the gear wasm generator.
+    pub fn with_memory_config(mut self, mem_config: MemoryPagesConfig) -> Self {
+        self.0.memory_config = mem_config;
+
+        self
+    }
+
+    /// Defines entry points (gear exports) config for the gear wasm generator.
+    pub fn with_entry_points_config(mut self, ep_config: EntryPointsSet) -> Self {
+        self.0.entry_points_config = ep_config;
+
+        self
+    }
+
+    /// Defines sys-calls config for the gear wasm generator.
+    pub fn with_sys_calls_config(mut self, sys_calls_config: SysCallsConfig) -> Self {
+        self.0.sys_calls_config = sys_calls_config;
+
+        self
+    }
+
+    /// Defines whether recursions must be removed from the resulting gear wasm.
+    pub fn with_recursions_removed(mut self, remove_recursions: bool) -> Self {
+        self.0.remove_recursions = remove_recursions;
+
+        self
+    }
+
+    /// Build the gear wasm generator.
+    pub fn build(self) -> GearWasmGeneratorConfig {
+        self.0
+    }
+}
 
 /// Gear wasm generator config.
 ///
@@ -35,17 +79,6 @@ pub struct GearWasmGeneratorConfig {
     /// Flag, signalizing whether recursions
     /// should be removed from resulting module.
     pub remove_recursions: bool,
-}
-
-impl GearWasmGeneratorConfig {
-    pub fn default_with_log_info(log: String) -> GearWasmGeneratorConfig {
-        GearWasmGeneratorConfig {
-            sys_calls_config: SysCallsConfigBuilder::new(Default::default(), false)
-                .with_log_info(log)
-                .build(),
-            ..Default::default()
-        }
-    }
 }
 
 /// Memory pages config used by [`crate::MemoryGenerator`].

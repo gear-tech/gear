@@ -519,7 +519,7 @@ impl<'a> WasmGen<'a> {
         for (i, (name, info, sys_call_amount)) in sys_calls_table
             .into_iter()
             .filter_map(|(name, info)| {
-                let frequency = self.config.sys_calls_config.frequency(name);
+                let frequency = self.config.sys_calls_config.injection_amounts(name);
                 let sys_call_amount = self.u.int_in_range(frequency).unwrap() as usize;
                 (sys_call_amount != 0).then_some((name, info, sys_call_amount))
             })
@@ -581,12 +581,12 @@ impl<'a> WasmGen<'a> {
         };
         let send_from_reservation_signature = SysCallSignature {
             params: vec![
-                ParamType::Ptr,      // Address of recipient and value (HashWithValue struct)
-                ParamType::Ptr,      // Pointer to payload
-                ParamType::Size,     // Size of the payload
-                ParamType::Delay,    // Number of blocks to delay the sending for
-                ParamType::Gas,      // Amount of gas to reserve
-                ParamType::Duration, // Duration of the reservation
+                ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
+                ParamType::Ptr(Some(1)), // Pointer to payload
+                ParamType::Size,         // Size of the payload
+                ParamType::Delay,        // Number of blocks to delay the sending for
+                ParamType::Gas,          // Amount of gas to reserve
+                ParamType::Duration,     // Duration of the reservation
             ],
             results: Default::default(),
         };
@@ -721,7 +721,7 @@ impl<'a> WasmGen<'a> {
             if self
                 .config
                 .sys_calls_config
-                .message_destination()
+                .sending_message_destination()
                 .is_source()
             {
                 let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
@@ -884,23 +884,23 @@ impl<'a> WasmGen<'a> {
 
 pub fn gen_gear_program_module<'a>(
     u: &'a mut Unstructured<'a>,
-    config: WasmGenConfig,
+    config: ConfigsBundle,
     addresses: &[HashWithValue],
 ) -> Module {
-    let WasmGenConfig {
-        generator_config,
-        selectable_params,
+    let ConfigsBundle {
+        gear_wasm_generator_config,
+        module_selectables_config,
     } = config;
 
     let (module, memory_pages) = {
         // Create wasm module config.
         let arbitrary_params = u.arbitrary::<ArbitraryParams>().unwrap();
         let wasm_module =
-            WasmModule::generate_with_config((selectable_params, arbitrary_params).into(), u)
+            WasmModule::generate_with_config((module_selectables_config, arbitrary_params).into(), u)
                 .unwrap();
 
         // Instantiate memory generator and generate memory import
-        let mem_config = generator_config.memory_config;
+        let mem_config = gear_wasm_generator_config.memory_config;
         let (DisabledMemoryGenerator(wasm_module), _mem_import_gen_proof) =
             MemoryGenerator::new(wasm_module, mem_config).generate_memory();
 
@@ -911,7 +911,7 @@ pub fn gen_gear_program_module<'a>(
         (wasm_module.into_inner(), memory_pages)
     };
 
-    let mut gen = WasmGen::new(&module, u, generator_config);
+    let mut gen = WasmGen::new(&module, u, gear_wasm_generator_config);
     let (module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
@@ -945,7 +945,7 @@ pub fn gen_gear_program_module<'a>(
 
 pub fn gen_gear_program_code<'a>(
     u: &'a mut Unstructured<'a>,
-    config: WasmGenConfig,
+    config: ConfigsBundle,
     addresses: &[HashWithValue],
 ) -> Vec<u8> {
     let module = gen_gear_program_module(u, config, addresses);
