@@ -21,6 +21,7 @@ use crate::{
     rules::CustomConstantCostRules,
     syscalls::{ParamType, SysCallName},
 };
+use alloc::format;
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
