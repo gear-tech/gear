@@ -18,13 +18,12 @@
 
 //! Stack allocations utils.
 
-#![feature(c_unwind)]
 #![no_std]
+#![feature(c_unwind)]
 
 extern crate alloc;
 
 use alloc::vec::Vec;
-
 use core::{
     ffi::c_void,
     mem::{ManuallyDrop, MaybeUninit},
