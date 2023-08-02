@@ -742,7 +742,9 @@ impl Externalities for Ext {
         let entry_point = dispatch_kind.as_entry();
         let message_id = self.message_id()?;
 
-        log::trace!(target: "gwasm", "Program {program_id} executes {entry_point:?} entry point while processing message {message_id}");
+        log::trace!(target: "gwasm", "Program {program_id} executes {entry_point:?}");
+        log::trace!(target: "gwasm", "Current message id: {message_id}");
+
         log::debug!(target: "gwasm", "DEBUG: {data}");
 
         Ok(())
