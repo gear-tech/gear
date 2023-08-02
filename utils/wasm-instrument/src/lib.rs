@@ -119,7 +119,9 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    let specific_num = 1248163264128;
+    // This const is introduced to avoid future errors in code if some other
+    // `I64Const` instructions appear in gas charge function body.
+    const GAS_CHARGE_COST_PLACEHOLDER: i64 = 1248163264128;
 
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
@@ -131,7 +133,7 @@ pub fn inject<R: Rules>(
         // Setting the sum into local with index 1 with keeping it on stack.
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
-        Instruction::I64Const(specific_num),
+        Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER),
         Instruction::I64Add,
         Instruction::TeeLocal(1),
         // III. Validating left amount of gas.
@@ -202,7 +204,7 @@ pub fn inject<R: Rules>(
     // update cost for 'gas_charge' function itself
     let cost_instr = elements
         .iter_mut()
-        .find(|i| **i == Instruction::I64Const(specific_num))
+        .find(|i| **i == Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER))
         .expect("Const for cost of the fn not found");
     *cost_instr = Instruction::I64Const(cost as i64);
 

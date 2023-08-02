@@ -512,7 +512,7 @@ impl CountersOwner for Ext {
         }
 
         if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
-            unreachable!("Tried to set gas limit left bigger than before")
+            unreachable!("Tried to set gas allowance left bigger than before")
         }
     }
 
