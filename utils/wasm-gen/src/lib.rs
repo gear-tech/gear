@@ -895,9 +895,11 @@ pub fn gen_gear_program_module<'a>(
     let (module, memory_pages) = {
         // Create wasm module config.
         let arbitrary_params = u.arbitrary::<ArbitraryParams>().unwrap();
-        let wasm_module =
-            WasmModule::generate_with_config((module_selectables_config, arbitrary_params).into(), u)
-                .unwrap();
+        let wasm_module = WasmModule::generate_with_config(
+            (module_selectables_config, arbitrary_params).into(),
+            u,
+        )
+        .unwrap();
 
         // Instantiate memory generator and generate memory import
         let mem_config = gear_wasm_generator_config.memory_config;
