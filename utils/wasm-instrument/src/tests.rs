@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{rules::CustomConstantCostRules, syscalls::SysCallName};
 use crate::{
     rules::CustomConstantCostRules,
     syscalls::{ParamType, SysCallName},
