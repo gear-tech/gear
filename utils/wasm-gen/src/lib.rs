@@ -30,19 +30,21 @@ use gear_wasm_instrument::{
         self, builder,
         elements::{
             BlockType, External, FunctionType, ImportCountType, Instruction, Instructions,
-            Internal, Module, Section, Type, ValueType,
+            Internal, Module, Type, ValueType,
         },
     },
     syscalls::{ParamType, SysCallName, SysCallSignature},
-    STACK_END_EXPORT_NAME,
 };
 pub use gsys;
 use gsys::{ErrorWithHash, HashWithValue, Length};
 use wasm_smith::{Module as ModuleSmith, SwarmConfig};
 
 mod config;
-mod syscalls;
 pub use config::*;
+mod generator;
+pub use generator::*;
+
+mod syscalls;
 use syscalls::{sys_calls_table, CallInfo, CallSignature};
 
 #[cfg(test)]
@@ -51,9 +53,10 @@ mod tests;
 pub mod utils;
 pub mod wasm;
 use wasm::PageCount as WasmPageCount;
+pub use wasm::*;
 
 pub mod memory;
-use memory::ModuleBuilderWithData;
+pub use memory::*;
 
 const MEMORY_VALUE_SIZE: u32 = 100;
 const MEMORY_FIELD_NAME: &str = "memory";
@@ -115,11 +118,6 @@ impl From<(Module, Option<u32>, u32)> for ModuleWithDebug {
             last_offset,
         }
     }
-}
-
-pub fn default_swarm_config(selectables: SelectableParams, u: &mut Unstructured) -> SwarmConfig {
-    let arbitrary_params = u.arbitrary().unwrap();
-    WasmModuleConfig::from((selectables, arbitrary_params)).into_inner()
 }
 
 pub fn gen_wasm_smith_module(u: &mut Unstructured, config: SwarmConfig) -> ModuleSmith {
@@ -290,11 +288,6 @@ struct WasmGen<'a> {
     calls_indexes: Vec<FuncIdx>,
 }
 
-enum GearStackEndExportSeed {
-    NotGenerate,
-    GenerateValue(u32),
-}
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum CallName {
     System(SysCallName),
@@ -346,60 +339,6 @@ impl<'a> WasmGen<'a> {
             config,
             calls_indexes,
         }
-    }
-
-    pub fn gen_mem_export(&mut self, mut module: Module) -> (Module, WasmPageCount) {
-        let mut mem_section_idx = None;
-        for (idx, section) in module.sections().iter().enumerate() {
-            if let Section::Memory(_) = section {
-                mem_section_idx = Some(idx);
-                break;
-            }
-        }
-        mem_section_idx.map(|index| module.sections_mut().remove(index));
-
-        let mem_size = self.config.memory_config.initial_size;
-        let mem_size_upper_bound = self.config.memory_config.upper_limit;
-        let module = builder::from_module(module)
-            .import()
-            .module("env")
-            .field(MEMORY_FIELD_NAME)
-            .external()
-            .memory(mem_size, mem_size_upper_bound)
-            .build()
-            .build();
-
-        let gear_stack_end_seed = self
-            .config
-            .memory_config
-            .stack_end
-            .map_or(GearStackEndExportSeed::NotGenerate, |stack_end| {
-                GearStackEndExportSeed::GenerateValue(stack_end)
-            });
-        if let GearStackEndExportSeed::GenerateValue(gear_stack_val) = gear_stack_end_seed {
-            let mut module = builder::from_module(module)
-                .global()
-                .value_type()
-                .i32()
-                .init_expr(Instruction::I32Const(gear_stack_val as i32))
-                .build()
-                .build();
-
-            let last_element_num = module.global_section_mut().unwrap().entries_mut().len() - 1;
-
-            return (
-                builder::from_module(module)
-                    .export()
-                    .field(STACK_END_EXPORT_NAME)
-                    .internal()
-                    .global(last_element_num.try_into().unwrap())
-                    .build()
-                    .build(),
-                mem_size.into(),
-            );
-        }
-
-        (module, mem_size.into())
     }
 
     /// Inserts `instructions` into funcs satisfying the `insert_into_func_filter`
@@ -949,23 +888,32 @@ pub fn gen_gear_program_module<'a>(
     addresses: &[HashWithValue],
 ) -> Module {
     let ConfigsBundle {
-        gear_wasm_generator_config: generator_config,
-        module_selectables_config: selectables_config,
+        gear_wasm_generator_config,
+        module_selectables_config,
     } = config;
-    let swarm_config = default_swarm_config(selectables_config, u);
 
-    let module = loop {
-        let module = gen_wasm_smith_module(u, swarm_config.clone());
-        let wasm_bytes = module.to_bytes();
-        let module: Module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
-        if module.function_section().is_some() {
-            break module;
-        }
+    let (module, memory_pages) = {
+        // Create wasm module config.
+        let arbitrary_params = u.arbitrary::<ArbitraryParams>().unwrap();
+        let wasm_module = WasmModule::generate_with_config(
+            (module_selectables_config, arbitrary_params).into(),
+            u,
+        )
+        .unwrap();
+
+        // Instantiate memory generator and generate memory import
+        let mem_config = gear_wasm_generator_config.memory_config;
+        let (DisabledMemoryGenerator(wasm_module), _mem_import_gen_proof) =
+            MemoryGenerator::new(wasm_module, mem_config).generate_memory();
+
+        let memory_pages = wasm_module
+            .initial_mem_size()
+            .expect("proof of import memory generation exists")
+            .into();
+        (wasm_module.into_inner(), memory_pages)
     };
 
-    let mut gen = WasmGen::new(&module, u, generator_config);
-
-    let (module, memory_pages) = gen.gen_mem_export(module);
+    let mut gen = WasmGen::new(&module, u, gear_wasm_generator_config);
     let (module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
