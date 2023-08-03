@@ -27,8 +27,8 @@ use super::{
     Exec, Program, API_BENCHMARK_BATCHES,
 };
 use crate::{
-    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
-    MailboxOf, Pallet as Gear, ProgramStorageOf,
+    benchmarking::MAX_PAYLOAD_LEN, ext_manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE,
+    Config, MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
 use common::{benchmarking, storage::*, Origin, ProgramStorage};

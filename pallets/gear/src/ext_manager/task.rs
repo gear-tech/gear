@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
+    ext_manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
     QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;

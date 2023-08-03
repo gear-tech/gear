@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ext_manager::{CodeInfo, ExtManager},
     internal::HoldBoundBuilder,
-    manager::{CodeInfo, ExtManager},
     Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
     QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
 };

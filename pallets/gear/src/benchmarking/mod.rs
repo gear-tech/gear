@@ -55,7 +55,7 @@ use self::{
 };
 use crate::{
     ext::Ext as Externalities,
-    manager::ExtManager,
+    ext_manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, GasHandlerOf,

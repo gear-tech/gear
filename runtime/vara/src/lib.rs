@@ -51,7 +51,7 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
-pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear::ext_manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{

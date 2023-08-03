@@ -48,7 +48,7 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
-pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear::ext_manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,

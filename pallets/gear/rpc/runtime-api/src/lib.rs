@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet_gear::{manager::HandleKind, GasInfo};
+pub use pallet_gear::{ext_manager::HandleKind, GasInfo};
 use sp_core::H256;
 use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;

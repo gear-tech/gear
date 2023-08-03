@@ -31,7 +31,7 @@ mod queue;
 mod runtime_api;
 mod schedule;
 
-pub mod manager;
+pub mod ext_manager;
 pub mod migration;
 pub mod weights;
 
@@ -42,7 +42,7 @@ mod mock;
 mod tests;
 
 pub use crate::{
-    manager::{ExtManager, HandleKind},
+    ext_manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
@@ -60,6 +60,7 @@ use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
 };
+use ext_manager::{CodeInfo, QueuePostProcessingData};
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
@@ -78,7 +79,6 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
-use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{One, Saturating, UniqueSaturatedInto, Zero},

@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ext_manager::HandleKind,
     internal::HoldBoundBuilder,
-    manager::HandleKind,
     mock::{
         self,
         new_test_ext,
