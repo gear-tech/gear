@@ -487,21 +487,27 @@ impl CountersOwner for Ext {
             .into()
     }
 
-    fn current_counter(&self) -> CounterType {
+    fn current_counter_type(&self) -> CounterType {
         self.current_counter
     }
 
-    fn decrease_to(&mut self, amount: u64) {
+    fn decrease_current_counter_to(&mut self, amount: u64) {
         // For possible cases of non-atomic charges on backend side when global
         // value is less than appropriate at the backend.
-        if self.current_val() <= amount {
+        //
+        // Example:
+        // * While executing program calls some syscall.
+        // * Syscall ends up with unrecoverable error - gas limit exceeded.
+        // * We have to charge it so we leave backend and whole execution with 0 inner counter.
+        // * Meanwhile global is not zero, so for this case we have to skip decreasing.
+        if self.current_counter_value() <= amount {
             log::trace!("Skipped decrease to global value");
             return;
         }
 
         let GasLeft { gas, allowance } = self.gas_left();
 
-        let diff = match self.current_counter() {
+        let diff = match self.current_counter_type() {
             CounterType::GasLimit => gas.checked_sub(amount),
             CounterType::GasAllowance => allowance.checked_sub(amount),
         }
@@ -516,7 +522,7 @@ impl CountersOwner for Ext {
         }
     }
 
-    fn define_current(&mut self) -> u64 {
+    fn define_current_counter(&mut self) -> u64 {
         let GasLeft { gas, allowance } = self.gas_left();
 
         if gas <= allowance {

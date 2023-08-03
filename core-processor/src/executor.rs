@@ -370,7 +370,7 @@ where
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
                 if !E::Ext::lazy_pages_status().is_normal() {
-                    termination = ext.current_counter().into()
+                    termination = ext.current_counter_type().into()
                 }
             }
 

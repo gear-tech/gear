@@ -269,15 +269,15 @@ pub trait CountersOwner {
     /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
     /// Currently set gas counter type.
-    fn current_counter(&self) -> CounterType;
+    fn current_counter_type(&self) -> CounterType;
     /// Decreases gas left by fetched single numeric of actual counter.
-    fn decrease_to(&mut self, amount: u64);
+    fn decrease_current_counter_to(&mut self, amount: u64);
     /// Returns minimal amount of gas counters and set the type of current counter.
-    fn define_current(&mut self) -> u64;
-    /// Returns minimal amount of gas counter currently set type.
-    fn current_val(&self) -> u64 {
+    fn define_current_counter(&mut self) -> u64;
+    /// Returns value of gas counter currently set.
+    fn current_counter_value(&self) -> u64 {
         let GasLeft { gas, allowance } = self.gas_left();
-        match self.current_counter() {
+        match self.current_counter_type() {
             CounterType::GasLimit => gas,
             CounterType::GasAllowance => allowance,
         }

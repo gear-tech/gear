@@ -371,7 +371,7 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let gas = runtime.ext.define_current();
+        let gas = runtime.ext.define_current_counter();
 
         // Setting initial value of global.
         runtime

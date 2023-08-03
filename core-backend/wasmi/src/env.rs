@@ -235,7 +235,7 @@ where
             .as_mut()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
-            .define_current();
+            .define_current_counter();
 
         let gear_gas = instance
             .get_export(&store, GLOBAL_NAME_GAS)

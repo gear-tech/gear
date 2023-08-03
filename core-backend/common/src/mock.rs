@@ -87,13 +87,13 @@ impl CountersOwner for MockExt {
         (0u64, 0u64).into()
     }
 
-    fn current_counter(&self) -> CounterType {
+    fn current_counter_type(&self) -> CounterType {
         CounterType::GasLimit
     }
 
-    fn decrease_to(&mut self, _amount: u64) {}
+    fn decrease_current_counter_to(&mut self, _amount: u64) {}
 
-    fn define_current(&mut self) -> u64 {
+    fn define_current_counter(&mut self) -> u64 {
         0
     }
 }

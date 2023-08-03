@@ -484,9 +484,9 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();
-        let termination_reason = termination_reason.define(ext.current_counter());
+        let termination_reason = termination_reason.define(ext.current_counter_type());
 
-        ext.decrease_to(gas);
+        ext.decrease_current_counter_to(gas);
 
         let termination_reason = if res.is_err() {
             if matches!(

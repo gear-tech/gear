@@ -39,15 +39,13 @@ pub(crate) enum GlobalNo {
 
 impl GlobalNo {
     pub(crate) fn into_idx(self, version: LazyPagesVersion) -> usize {
-        let two_globals = version == LazyPagesVersion::Version1;
-
         match self {
             GlobalNo::Gas => 0,
             GlobalNo::GasAllowance => {
-                if two_globals {
+                if version == LazyPagesVersion::Version1 {
                     1
                 } else {
-                    unreachable!("AllowanceLimit global is deprecated since lazy-pages v2")
+                    unreachable!("GasAllowance global is deprecated since lazy-pages v2")
                 }
             }
         }

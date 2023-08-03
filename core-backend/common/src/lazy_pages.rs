@@ -100,7 +100,7 @@ pub trait GlobalsAccessor {
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
 #[codec(crate = scale)]
 #[repr(i64)]
-// TODO: consider removal of two exceed options in favor of one global.
+// TODO: consider removal of two exceed options in favor of one global (issue #3018).
 // Will require bump of many RI func's versions.
 pub enum Status {
     /// Lazy-pages works in normal mode.

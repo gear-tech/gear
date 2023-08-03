@@ -154,7 +154,10 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         let gas_left =
             f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        wrapper.host_state_mut().ext.decrease_to(gas_left);
+        wrapper
+            .host_state_mut()
+            .ext
+            .decrease_current_counter_to(gas_left);
 
         Ok(wrapper)
     }
@@ -176,7 +179,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     fn update_globals(&mut self) {
-        let gas = self.host_state_mut().ext.define_current();
+        let gas = self.host_state_mut().ext.define_current_counter();
 
         let mut f = || {
             let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
@@ -197,14 +200,16 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
             &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let mut gas_counter = self.host_state_mut().ext.define_current();
+        let mut gas_counter = self.host_state_mut().ext.define_current_counter();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 
         // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.manager, &mut memory, &mut gas_counter);
 
-        self.host_state_mut().ext.decrease_to(gas_counter);
+        self.host_state_mut()
+            .ext
+            .decrease_current_counter_to(gas_counter);
         res
     }
 

@@ -72,6 +72,10 @@ impl BackendSyscallError for MemoryAccessError {
                 )
                 .into()
             }
+            // TODO: In facts thats legacy from lazy pages V1 implementation,
+            // previously it was able to figure out that gas ended up in
+            // pre-process charges: now we need actual counter type, so
+            // it will be parsed and handled further (issue #3018).
             MemoryAccessError::ProcessAccess(
                 ProcessAccessError::GasLimitExceeded | ProcessAccessError::GasAllowanceExceeded,
             ) => UndefinedTerminationReason::ProcessAccessErrorResourcesExceed,

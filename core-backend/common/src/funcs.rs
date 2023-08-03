@@ -650,13 +650,13 @@ where
         syscall_trace!("out_of_gas");
 
         let ext = ctx.ext_mut();
-        let current_counter = ext.current_counter();
+        let current_counter = ext.current_counter_type();
         log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
 
         if current_counter == CounterType::GasAllowance {
             // We manually decrease it to 0 because global won't be affected
             // since it didn't pass comparison to argument of `gas_charge()`
-            ext.decrease_to(0);
+            ext.decrease_current_counter_to(0);
         }
 
         let termination_reason: ActorTerminationReason = current_counter.into();

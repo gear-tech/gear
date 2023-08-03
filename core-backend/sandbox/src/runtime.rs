@@ -113,12 +113,12 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
             .and_then(as_u64)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        self.ext.decrease_to(gas);
+        self.ext.decrease_current_counter_to(gas);
     }
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
-        let gas = self.ext.define_current();
+        let gas = self.ext.define_current_counter();
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
@@ -149,12 +149,12 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
             &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let mut gas_counter = self.ext.define_current();
+        let mut gas_counter = self.ext.define_current_counter();
 
         // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_counter);
 
-        self.ext.decrease_to(gas_counter);
+        self.ext.decrease_current_counter_to(gas_counter);
         res
     }
 }
