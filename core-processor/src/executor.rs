@@ -330,10 +330,7 @@ where
                 }
             };
 
-            // released pages initial data will be added to `pages_initial_data` after execution.
-            if E::Ext::LAZY_PAGES_ENABLED {
-                E::Ext::pages_post_execution_actions(&mut memory, &mut termination);
-            }
+            E::Ext::pages_post_execution_actions(&mut memory, &mut termination);
 
             (termination, memory, ext)
         }

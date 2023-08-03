@@ -135,7 +135,7 @@ pub trait ProcessorExternalities {
         lazy_pages_weights: LazyPagesWeights,
     ) -> Result<(), PrepareMemoryError>;
 
-    /// Lazy pages contract post execution actions
+    /// Pages contract post execution actions
     fn pages_post_execution_actions(mem: &mut impl Memory, reason: &mut ActorTerminationReason);
 }
 

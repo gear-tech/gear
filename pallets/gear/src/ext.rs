@@ -125,6 +125,7 @@ mod lazy_pages {
             mem: &mut impl Memory,
             termination: &mut ActorTerminationReason,
         ) {
+            // released pages initial data will be added to `pages_initial_data`
             lazy_pages::remove_lazy_pages_prot(mem);
 
             match lazy_pages::get_status() {
