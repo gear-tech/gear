@@ -200,3 +200,8 @@ fn injecting_addresses_works() {
     let wat = wasmprinter::print_bytes(code).unwrap();
     println!("wat = {wat}");
 }
+
+// Additional tests
+// 1. call-indexes remain stable when you make transitions epGen -> memGen -> epGen
+// 2. Transition from memGen to epGen saves memory import. If no proof , then no mem import.
+// 3. Process sys-calls params works correctly.

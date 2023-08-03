@@ -17,16 +17,53 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Generators entities used to generate a valid gear wasm module.
+//!
+//! Generally, all generators have same work-patterns:
+//! 1. Every generator has a disabled version of itself.
+//! 2. Almost all disabled generators can be converted to [`ModuleWithCallIndexes`], from which the wasm module can be retrieved.
+//! 3. Every generator has a "main" function, after finishing which a transition to another generator is available (either directly or through disabled
+//! version of the generator).
+//! 4. Almost all are instantiated from the disabled generator worked on the previous generation step (see [`GearWasmGenerator::generate`]). This is how
+//! generator form a state-machine.
+//!
+//! Transitions paths:
+//! ```text
+//! # Zero generators nesting level
+//! GearWasmGenerator--->DisabledGearWasmGenerator--->ModuleWithCallIndexes--->WasmModule
+//!
+//! # First generators nesting level
+//! GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
+//! GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->WasmModule
+//!
+//! # Second generators nesting level
+//! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
+//! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->
+//!
+//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
+//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
+//!
+//! # Third generators nesting level
+//! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
+//! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
+//!
+//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
+//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
+//! ```
+//!
+//! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
+//! For more info about this state machine read docs of the [`syscalls`] mod.
 
-use crate::{GearWasmGeneratorConfig, WasmModule};
+use crate::{utils, GearWasmGeneratorConfig, WasmModule};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::elements::Module;
 
 mod entry_points;
 mod memory;
+pub mod syscalls;
 
 pub use entry_points::*;
 pub use memory::*;
+pub use syscalls::*;
 
 /// Module and it's call indexes carrier.
 ///
@@ -86,14 +123,24 @@ impl<'a> GearWasmGenerator<'a> {
 
     /// Run all generators, while mediating between them.
     pub fn generate(self) -> Result<Module> {
-        let (disabled_mem_gen, frozen_gear_wasm_gen, _mem_imports_gen_proof) =
+        let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
-        let (disabled_ep_gen, frozen_gear_wasm_gen, _ep_gen_proof) =
+        let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof) =
             Self::from((disabled_mem_gen, frozen_gear_wasm_gen)).generate_entry_points()?;
+        let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
+            Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
+                .generate_sys_calls(mem_imports_gen_proof, ep_gen_proof)?;
 
-        Ok(Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
-            .module
-            .into_inner())
+        let config = frozen_gear_wasm_gen.melt();
+        let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
+            .into_wasm_module()
+            .into_inner();
+
+        Ok(if config.remove_recursions {
+            utils::remove_recursion(module)
+        } else {
+            module
+        })
     }
 
     /// Generate memory export using memory generator.
@@ -124,6 +171,27 @@ impl<'a> GearWasmGenerator<'a> {
         let (disabled_ep_gen, ep_gen_proof) = ep_gen.generate_entry_points()?;
 
         Ok((disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof))
+    }
+
+    /// Generate sys-calls using sys-calls module generators.
+    pub fn generate_sys_calls(
+        self,
+        mem_import_gen_proof: MemoryImportGenerationProof,
+        ep_gen_proof: GearEntryPointGenerationProof,
+    ) -> Result<(DisabledSysCallsInvocator, FrozenGearWasmGenerator<'a>)> {
+        let sys_calls_imports_gen_instantiator =
+            SysCallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
+        let (sys_calls_imports_gen, frozen_gear_wasm_gen) =
+            sys_calls_imports_gen_instantiator.into();
+        let sys_calls_imports_gen_res = sys_calls_imports_gen.generate()?;
+
+        let ad_injector = AdditionalDataInjector::from(sys_calls_imports_gen_res);
+        let data_injection_res = ad_injector.inject();
+
+        let sys_calls_invocator = SysCallsInvocator::from(data_injection_res);
+        let disabled_sys_calls_invocator = sys_calls_invocator.insert_invokes()?;
+
+        Ok((disabled_sys_calls_invocator, frozen_gear_wasm_gen))
     }
 
     /// Disable current generator.

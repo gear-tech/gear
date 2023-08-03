@@ -770,13 +770,13 @@ pub fn gen_gear_program_module<'a>(
             MemoryGenerator::new(wasm_module, mem_config).generate_memory();
 
         // Instantiate entry points generator and generate entry points
-        let entry_points_config = gear_wasm_generator_config.entry_points_config;
-        let (disabled_ep_gen, _ep_gen_proof) =
-            EntryPointsGenerator::new(disable_mem_gen.into(), entry_points_config, u)
-                .generate_entry_points()
-                .unwrap();
+        // let entry_points_config = gear_wasm_generator_config.entry_points_config;
+        // let (disabled_ep_gen, _ep_gen_proof) =
+        //     EntryPointsGenerator::new(disable_mem_gen.into(), entry_points_config, u)
+        //         .generate_entry_points()
+        //         .unwrap();
 
-        let wasm_module = Into::<ModuleWithCallIndexes>::into(disabled_ep_gen).into_wasm_module();
+        let wasm_module = Into::<ModuleWithCallIndexes>::into(disable_mem_gen).into_wasm_module();
 
         let memory_pages = wasm_module
             .initial_mem_size()
