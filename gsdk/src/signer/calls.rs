@@ -34,7 +34,7 @@ use crate::{
     },
     signer::Signer,
     utils::storage_address_bytes,
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, InBlock, TxStatus,
+    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, TxInBlockResult, TxStatus,
 };
 use anyhow::anyhow;
 use gear_core::{
@@ -60,7 +60,7 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 // pallet-balances
 impl Signer {
     /// `pallet_balances::transfer`
-    pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> InBlock {
+    pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> TxInBlockResult {
         self.run_tx(
             BalancesCall::Transfer,
             vec![
@@ -82,7 +82,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> InBlock {
+    ) -> TxInBlockResult {
         self.run_tx(
             GearCall::CreateProgram,
             vec![
@@ -97,7 +97,7 @@ impl Signer {
     }
 
     /// `pallet_gear::claim_value`
-    pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
+    pub async fn claim_value(&self, message_id: MessageId) -> TxInBlockResult {
         self.run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
             .await
     }
@@ -109,7 +109,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> InBlock {
+    ) -> TxInBlockResult {
         self.run_tx(
             GearCall::SendMessage,
             vec![
@@ -129,7 +129,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> InBlock {
+    ) -> TxInBlockResult {
         self.run_tx(
             GearCall::SendReply,
             vec![
@@ -143,7 +143,7 @@ impl Signer {
     }
 
     /// `pallet_gear::upload_code`
-    pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
+    pub async fn upload_code(&self, code: Vec<u8>) -> TxInBlockResult {
         self.run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
             .await
     }
@@ -156,7 +156,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> InBlock {
+    ) -> TxInBlockResult {
         self.run_tx(
             GearCall::UploadProgram,
             vec![
@@ -174,7 +174,7 @@ impl Signer {
 // pallet-utility
 impl Signer {
     /// `pallet_utility::force_batch`
-    pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> InBlock {
+    pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> TxInBlockResult {
         self.run_tx(
             UtilityCall::ForceBatch,
             vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
@@ -375,7 +375,7 @@ impl Signer {
     }
 
     /// Listen transaction process and print logs.
-    pub async fn process<'a>(&self, tx: DynamicPayload) -> InBlock {
+    pub async fn process<'a>(&self, tx: DynamicPayload) -> TxInBlockResult {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;

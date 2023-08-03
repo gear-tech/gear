@@ -19,7 +19,7 @@
 //! Utils
 
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, Error, InBlock,
+    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, Error, TxInBlockResult,
 };
 use scale_value::Composite;
 use subxt::blocks::ExtrinsicEvents;
@@ -83,7 +83,7 @@ impl Signer {
         &self,
         call: Call,
         fields: impl Into<Composite<()>>,
-    ) -> InBlock {
+    ) -> TxInBlockResult {
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await

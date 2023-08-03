@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Shared types
+//! Subscription implementation.
+
 use crate::{config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
 use std::{marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
