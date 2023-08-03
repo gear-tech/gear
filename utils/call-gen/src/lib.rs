@@ -159,6 +159,18 @@ pub fn generate_gear_program<Rng: CallGenRng>(
 
     let mut u = Unstructured::new(&buf);
 
+<<<<<<< HEAD
     gear_wasm_gen::generate_gear_program_code(&mut u, config)
         .expect("failed generating gear program")
+=======
+    let addresses = programs
+        .iter()
+        .map(|pid| gsys::HashWithValue {
+            hash: pid.into_bytes(),
+            value: 0,
+        })
+        .collect::<Vec<_>>();
+
+    gear_wasm_gen::generate_gear_program_code(&mut u, config, &addresses)
+>>>>>>> 308aad672 (Apply usage of all generators instead of the old code)
 }
