@@ -64,10 +64,10 @@ where
 }
 
 #[cfg(not(feature = "lazy-pages"))]
-pub(crate) type DefaultPagesManagerDetails<T> = NoopPagesManager<T>;
+type DefaultPagesManagerDetails<T> = NoopPagesManagerDetails<T>;
 
 #[cfg(feature = "lazy-pages")]
-pub(crate) type DefaultPagesManagerDetails<T> = lazy_pages::LazyPagesManager<T>;
+type DefaultPagesManagerDetails<T> = lazy_pages::LazyPagesManagerDetails<T>;
 
 /// Pages manager implementation details.
 trait PagesManagerDetails<T>
@@ -84,9 +84,9 @@ where
 }
 
 /// Manager that literally does nothing.
-pub(crate) struct NoopPagesManager<T>(PhantomData<T>);
+struct NoopPagesManagerDetails<T>(PhantomData<T>);
 
-impl<T> PagesManagerDetails<T> for NoopPagesManager<T>
+impl<T> PagesManagerDetails<T> for NoopPagesManagerDetails<T>
 where
     T: pallet::Config,
 {
@@ -112,9 +112,9 @@ mod lazy_pages {
     use std::collections::{BTreeMap, BTreeSet};
 
     /// Manager that works with [`gear_lazy_pages_common`].
-    pub(crate) struct LazyPagesManager<T>(PhantomData<T>);
+    pub(crate) struct LazyPagesManagerDetails<T>(PhantomData<T>);
 
-    impl<T> PagesManagerDetails<T> for LazyPagesManager<T>
+    impl<T> PagesManagerDetails<T> for LazyPagesManagerDetails<T>
     where
         T: Config,
     {
