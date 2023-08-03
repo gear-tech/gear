@@ -113,11 +113,15 @@ pub struct ProcessorContext {
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
-    /// Whether this extension works with lazy pages.
-    const LAZY_PAGES_ENABLED: bool;
-
     /// Create new
     fn new(context: ProcessorContext) -> Self;
+
+    /// Returns pages and their new data, which must be updated or uploaded to storage.
+    fn pages_to_be_updated(
+        old_pages_data: BTreeMap<GearPage, PageBuf>,
+        new_pages_data: BTreeMap<GearPage, PageBuf>,
+        static_pages: WasmPage,
+    ) -> BTreeMap<GearPage, PageBuf>;
 
     /// Check initial pages data.
     fn check_init_pages_data(
@@ -262,8 +266,6 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExternalities for Ext {
-    const LAZY_PAGES_ENABLED: bool = false;
-
     fn new(context: ProcessorContext) -> Self {
         let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
         {
@@ -277,6 +279,38 @@ impl ProcessorExternalities for Ext {
             current_counter,
             outgoing_gasless: 0,
         }
+    }
+
+    fn pages_to_be_updated(
+        old_pages_data: BTreeMap<GearPage, PageBuf>,
+        new_pages_data: BTreeMap<GearPage, PageBuf>,
+        static_pages: WasmPage,
+    ) -> BTreeMap<GearPage, PageBuf> {
+        let mut page_update = BTreeMap::new();
+        let mut old_pages_data = old_pages_data;
+        let static_gear_pages = static_pages.to_page();
+        for (page, new_data) in new_pages_data {
+            let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
+                initial_data
+            } else {
+                // If it's static page without initial data,
+                // then it's stack page and we skip this page update.
+                if page < static_gear_pages {
+                    continue;
+                }
+
+                // If page has no data in `pages_initial_data` then data is zeros.
+                // Because it's default data for wasm pages which is not static,
+                // and for all static pages we save data in `pages_initial_data` in E::new.
+                PageBuf::new_zeroed()
+            };
+
+            if new_data != initial_data {
+                page_update.insert(page, new_data);
+                log::trace!("{page:?} has been changed - will be updated in storage");
+            }
+        }
+        page_update
     }
 
     fn check_init_pages_data(

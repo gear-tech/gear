@@ -171,48 +171,6 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     Ok(())
 }
 
-/// Returns pages and their new data, which must be updated or uploaded to storage.
-fn get_pages_to_be_updated<ProcessorExt: ProcessorExternalities>(
-    old_pages_data: BTreeMap<GearPage, PageBuf>,
-    new_pages_data: BTreeMap<GearPage, PageBuf>,
-    static_pages: WasmPage,
-) -> BTreeMap<GearPage, PageBuf> {
-    if ProcessorExt::LAZY_PAGES_ENABLED {
-        // In lazy pages mode we update some page data in storage,
-        // when it has been write accessed, so no need to compare old and new page data.
-        new_pages_data.keys().for_each(|page| {
-            log::trace!("{:?} has been write accessed, update it in storage", page)
-        });
-        return new_pages_data;
-    }
-
-    let mut page_update = BTreeMap::new();
-    let mut old_pages_data = old_pages_data;
-    let static_gear_pages = static_pages.to_page();
-    for (page, new_data) in new_pages_data {
-        let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
-            initial_data
-        } else {
-            // If it's static page without initial data,
-            // then it's stack page and we skip this page update.
-            if page < static_gear_pages {
-                continue;
-            }
-
-            // If page has no data in `pages_initial_data` then data is zeros.
-            // Because it's default data for wasm pages which is not static,
-            // and for all static pages we save data in `pages_initial_data` in E::new.
-            PageBuf::new_zeroed()
-        };
-
-        if new_data != initial_data {
-            page_update.insert(page, new_data);
-            log::trace!("{page:?} has been changed - will be updated in storage");
-        }
-    }
-    page_update
-}
-
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E>(
     balance: u128,
@@ -382,7 +340,7 @@ where
     };
 
     let page_update =
-        get_pages_to_be_updated::<E::Ext>(pages_initial_data, info.pages_data, static_pages);
+        E::Ext::pages_to_be_updated(pages_initial_data, info.pages_data, static_pages);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
@@ -577,9 +535,16 @@ mod tests {
     struct LazyTestExt;
 
     impl ProcessorExternalities for TestExt {
-        const LAZY_PAGES_ENABLED: bool = false;
         fn new(_context: ProcessorContext) -> Self {
             Self
+        }
+
+        fn pages_to_be_updated(
+            _old_pages_data: BTreeMap<GearPage, PageBuf>,
+            _new_pages_data: BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
+        ) -> BTreeMap<GearPage, PageBuf> {
+            Default::default()
         }
 
         fn check_init_pages_data(
@@ -608,10 +573,16 @@ mod tests {
     }
 
     impl ProcessorExternalities for LazyTestExt {
-        const LAZY_PAGES_ENABLED: bool = true;
-
         fn new(_context: ProcessorContext) -> Self {
             Self
+        }
+
+        fn pages_to_be_updated(
+            _old_pages_data: BTreeMap<GearPage, PageBuf>,
+            _new_pages_data: BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
+        ) -> BTreeMap<GearPage, PageBuf> {
+            Default::default()
         }
 
         fn check_init_pages_data(
@@ -683,8 +654,7 @@ mod tests {
     #[test]
     fn lazy_pages_to_update() {
         let new_pages = prepare_pages();
-        let res =
-            get_pages_to_be_updated::<LazyTestExt>(Default::default(), new_pages.clone(), 0.into());
+        let res = LazyTestExt::pages_to_be_updated(Default::default(), new_pages.clone(), 0.into());
         // All touched pages are to be updated in lazy mode
         assert_eq!(res, new_pages);
     }
@@ -694,8 +664,7 @@ mod tests {
         let old_pages = prepare_pages();
         let mut new_pages = old_pages.clone();
         let static_pages = 4;
-        let res =
-            get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages.into());
+        let res = TestExt::pages_to_be_updated(old_pages, new_pages.clone(), static_pages.into());
         assert_eq!(res, Default::default());
 
         // Change static pages
@@ -708,8 +677,7 @@ mod tests {
             .into_iter()
             .take(WasmPage::from(static_pages).to_page::<GearPage>().raw() as _)
             .collect();
-        let res =
-            get_pages_to_be_updated::<TestExt>(Default::default(), new_pages, static_pages.into());
+        let res = TestExt::pages_to_be_updated(Default::default(), new_pages, static_pages.into());
         assert_eq!(res, Default::default());
     }
 
@@ -736,12 +704,11 @@ mod tests {
 
         // Change pages
         let static_pages = 4.into();
-        let res = get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages);
+        let res = TestExt::pages_to_be_updated(old_pages, new_pages.clone(), static_pages);
         assert_eq!(res, changes);
 
         // There was no any old page
-        let res =
-            get_pages_to_be_updated::<TestExt>(Default::default(), new_pages.clone(), static_pages);
+        let res = TestExt::pages_to_be_updated(Default::default(), new_pages.clone(), static_pages);
 
         // The result is all pages except the static ones
         for page in static_pages.to_page::<GearPage>().iter_from_zero() {

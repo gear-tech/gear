@@ -83,12 +83,23 @@ mod lazy_pages {
     }
 
     impl ProcessorExternalities for LazyPagesExt {
-        const LAZY_PAGES_ENABLED: bool = true;
-
         fn new(context: ProcessorContext) -> Self {
             Self {
                 inner: Ext::new(context),
             }
+        }
+
+        fn pages_to_be_updated(
+            _old_pages_data: BTreeMap<GearPage, PageBuf>,
+            new_pages_data: BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
+        ) -> BTreeMap<GearPage, PageBuf> {
+            // In lazy pages mode we update some page data in storage,
+            // when it has been write accessed, so no need to compare old and new page data.
+            new_pages_data.keys().for_each(|page| {
+                log::trace!("{:?} has been write accessed, update it in storage", page)
+            });
+            new_pages_data
         }
 
         fn check_init_pages_data(
