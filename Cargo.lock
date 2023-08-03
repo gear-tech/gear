@@ -3965,6 +3965,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-utils",
+ "gear-wasm-gen",
  "gsdk",
  "hex",
  "names 0.14.0",
@@ -4348,6 +4349,7 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-utils",
  "gear-wasm-instrument",
  "gsys",
  "indicatif",
@@ -9136,6 +9138,7 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-primitives",
  "gear-utils",
+ "gear-wasm-gen",
  "hex",
  "log",
  "once_cell",
