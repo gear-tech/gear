@@ -419,4 +419,34 @@ mod lazy_pages {
             self.inner.unlock_payload(payload_holder)
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::ext::lazy_pages::LazyPagesExt;
+        use alloc::collections::BTreeMap;
+        use core_processor::ProcessorExternalities;
+        use gear_core::{
+            memory::{PageBuf, PageBufInner},
+            pages::GearPage,
+        };
+
+        #[test]
+        fn lazy_pages_to_update() {
+            let new_pages: BTreeMap<_, _> = [
+                (
+                    GearPage::from(0xBABE),
+                    PageBuf::from_inner(PageBufInner::filled_with(123)),
+                ),
+                (
+                    GearPage::from(0xCAFE),
+                    PageBuf::from_inner(PageBufInner::filled_with(254)),
+                ),
+            ]
+            .into();
+            let res =
+                LazyPagesExt::pages_to_be_updated(Default::default(), new_pages.clone(), 0.into());
+            // All touched pages are to be updated in lazy mode
+            assert_eq!(res, new_pages);
+        }
+    }
 }

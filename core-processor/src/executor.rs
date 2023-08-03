@@ -652,14 +652,6 @@ mod tests {
     }
 
     #[test]
-    fn lazy_pages_to_update() {
-        let new_pages = prepare_pages();
-        let res = LazyTestExt::pages_to_be_updated(Default::default(), new_pages.clone(), 0.into());
-        // All touched pages are to be updated in lazy mode
-        assert_eq!(res, new_pages);
-    }
-
-    #[test]
     fn no_pages_to_update() {
         let old_pages = prepare_pages();
         let mut new_pages = old_pages.clone();
@@ -704,11 +696,12 @@ mod tests {
 
         // Change pages
         let static_pages = 4.into();
-        let res = TestExt::pages_to_be_updated(old_pages, new_pages.clone(), static_pages);
+        let res = crate::Ext::pages_to_be_updated(old_pages, new_pages.clone(), static_pages);
         assert_eq!(res, changes);
 
         // There was no any old page
-        let res = TestExt::pages_to_be_updated(Default::default(), new_pages.clone(), static_pages);
+        let res =
+            crate::Ext::pages_to_be_updated(Default::default(), new_pages.clone(), static_pages);
 
         // The result is all pages except the static ones
         for page in static_pages.to_page::<GearPage>().iter_from_zero() {
