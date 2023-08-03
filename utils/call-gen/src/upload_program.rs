@@ -19,7 +19,7 @@
 //! Upload program args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed, WasmGenConfigsBundle,
+    impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed, GearWasmGenConfigsBundle,
 };
 
 // code, salt, payload, gas, value
@@ -40,7 +40,7 @@ impl_convert_traits!(
 
 impl GeneratableCallArgs for UploadProgramArgs {
     type FuzzerArgs = (Seed, Seed);
-    type ConstArgs = (u64, WasmGenConfigsBundle);
+    type ConstArgs = (u64, GearWasmGenConfigsBundle);
 
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
     fn generate<Rng: CallGenRng>(

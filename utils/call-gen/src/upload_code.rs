@@ -19,7 +19,7 @@
 //! Upload code args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed, WasmGenConfigsBundle,
+    impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed, GearWasmGenConfigsBundle,
 };
 
 /// Upload code args
@@ -32,7 +32,7 @@ impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
 
 impl GeneratableCallArgs for UploadCodeArgs {
     type FuzzerArgs = Seed;
-    type ConstArgs = (WasmGenConfigsBundle,);
+    type ConstArgs = (GearWasmGenConfigsBundle,);
 
     /// Generates `pallet_gear::Pallet::<T>::upload_code` call arguments.
     fn generate<Rng: CallGenRng>(code_seed: Self::FuzzerArgs, (config,): Self::ConstArgs) -> Self {
