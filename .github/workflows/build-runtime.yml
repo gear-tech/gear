@@ -1,0 +1,75 @@
+name: Build runtime
+
+on:
+  # push:
+  #   branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+  # pull_request:
+  #   branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+  #   types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      rustc_version:
+          description: rustc version
+          required: false
+          default: 1.70.0 # available versions: https://hub.docker.com/r/paritytech/srtool/tags
+      srtool_version:
+          description: srtool version
+          required: false
+          default: 0.11.0 # available versions: https://hub.docker.com/r/paritytech/srtool/tags
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [kuberunner]
+    strategy:
+      matrix:
+        chain: [gear, vara]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build runtime
+        id: build
+        uses: chevdor/srtool-actions@v0.7.0
+        with:
+          tag: ${{ inputs.rustc_version }}-${{ inputs.srtool_version }}
+          chain: ${{ matrix.chain }}
+          package: ${{ matrix.chain }}-runtime
+          runtime_dir: runtime/${{ matrix.chain }}
+
+      - name: Info runtime
+        run: |
+          echo - location wasm: ${{ steps.build.outputs.wasm }}
+          echo - location wasm_compressed: ${{ steps.build.outputs.wasm_compressed }}
+          echo - version: ${{ steps.build.outputs.version }}
+          echo - info: ${{ steps.build.outputs.info }}
+          echo - prop: ${{ steps.build.outputs.proposal_hash }}
+          echo - json: ${{ steps.build.outputs.json }}
+
+      - name: Install wasm-proc
+        run: |
+          wget https://github.com/gear-tech/gear/releases/download/build/wasm-proc
+          chmod +x ./wasm-proc
+
+      - name: Check wasm
+        run: |
+          ./wasm-proc --check-runtime-imports ${{ steps.build.outputs.wasm }}
+
+      - name: Check wasm compressed
+        run: |
+          ./wasm-proc --check-runtime-imports ${{ steps.build.outputs.wasm_compressed }}
+
+      - name: Prepair artifacts
+        run: echo '${{ steps.build.outputs.json }}' | jq . > ${{ matrix.chain }}-digest.json
+
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.chain }}-runtime-${{ github.sha }}
+          path: |
+            ${{ steps.build.outputs.wasm }}
+            ${{ steps.build.outputs.wasm_compressed }}
+            ${{ matrix.chain }}-digest.json
