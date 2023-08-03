@@ -42,6 +42,7 @@ pub use wasm_gen_arbitrary::*;
 
 use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 
+/// Generate gear program as raw bytes.
 pub fn generate_gear_program_code<'a>(
     u: &'a mut Unstructured<'a>,
     config: ConfigsBundle,
@@ -51,6 +52,7 @@ pub fn generate_gear_program_code<'a>(
     Ok(parity_wasm::serialize(module).expect("unable to serialize pw module"))
 }
 
+/// Generate gear program as [`parity_wasm::elements::Module`](https://docs.rs/parity-wasm/latest/parity_wasm/elements/struct.Module.html)
 pub fn generate_gear_program_module<'a>(
     u: &'a mut Unstructured<'a>,
     config: ConfigsBundle,
