@@ -42,7 +42,10 @@ pub use wasm_gen_arbitrary::*;
 
 use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 
+<<<<<<< HEAD
 /// Generate gear program as raw bytes.
+=======
+>>>>>>> 308aad672 (Apply usage of all generators instead of the old code)
 pub fn generate_gear_program_code<'a>(
     u: &'a mut Unstructured<'a>,
     configs_bundle: impl ConfigsBundle,
