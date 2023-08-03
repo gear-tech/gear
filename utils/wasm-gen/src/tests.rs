@@ -125,22 +125,14 @@ fn remove_multiple_recursions() {
 
 #[test]
 fn injecting_addresses_works() {
-    use gsys::HashWithValue;
-
     let mut rng = SmallRng::seed_from_u64(1234);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
 
     let addresses = NonEmpty::from_vec(vec![
-        HashWithValue {
-            hash: Default::default(),
-            value: 0,
-        },
-        HashWithValue {
-            hash: [1; 32],
-            value: 1,
-        },
+        [0; 32],
+        [1; 32],
     ])
     .expect("vec wasn't empty");
     let config = GearWasmGeneratorConfigBuilder::new()
