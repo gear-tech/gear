@@ -27,7 +27,6 @@ use gear_wasm_instrument::parity_wasm::{
     self,
     elements::{self, External},
 };
-use proptest::prelude::{proptest, ProptestConfig};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[allow(unused)]
