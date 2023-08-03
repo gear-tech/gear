@@ -29,8 +29,8 @@ use gear_wasm_instrument::{
     parity_wasm::{
         self, builder,
         elements::{
-            BlockType, External, FunctionType, ImportCountType, Instruction, Instructions,
-            Internal, Module, Type, ValueType,
+            BlockType, External, ImportCountType, Instruction, Instructions, Internal, Module,
+            ValueType,
         },
     },
     syscalls::{ParamType, SysCallName, SysCallSignature},
@@ -227,59 +227,10 @@ fn build_checked_call(
     code
 }
 
-fn make_call_instructions_vec(
-    u: &mut Unstructured,
-    params: &[ValueType],
-    results: &[ValueType],
-    func_no: u32,
-) -> Vec<Instruction> {
-    let mut code = Vec::with_capacity(params.len() + 1 + results.len());
-    for val in params {
-        let instr = match val {
-            ValueType::I32 => Instruction::I32Const(
-                u.arbitrary()
-                    .expect("Unstructured::arbitrary failed for I32"),
-            ),
-            ValueType::I64 => Instruction::I64Const(
-                u.arbitrary()
-                    .expect("Unstructured::arbitrary failed for I64"),
-            ),
-            _ => panic!("Cannot handle f32/f64"),
-        };
-        code.push(instr);
-    }
-    code.push(Instruction::Call(func_no));
-    code.extend(results.iter().map(|_| Instruction::Drop));
-
-    code
-}
-
 #[derive(Debug, Clone, Copy)]
 enum FuncIdx {
     Import(u32),
     Func(u32),
-}
-
-fn get_func_type(module: &Module, func_idx: FuncIdx) -> FunctionType {
-    match func_idx {
-        FuncIdx::Import(idx) => {
-            let type_no = if let External::Function(type_no) =
-                module.import_section().unwrap().entries()[idx as usize].external()
-            {
-                *type_no as usize
-            } else {
-                panic!("Import func index must be for import function");
-            };
-            let Type::Function(func_type) = &module.type_section().unwrap().types()[type_no];
-            func_type.clone()
-        }
-        FuncIdx::Func(idx) => {
-            let func = module.function_section().unwrap().entries()[idx as usize];
-            let Type::Function(func_type) =
-                &module.type_section().unwrap().types()[func.type_ref() as usize];
-            func_type.clone()
-        }
-    }
 }
 
 struct WasmGen<'a> {
@@ -361,94 +312,6 @@ impl<'a> WasmGen<'a> {
         let pos = self.u.int_in_range(0..=code.len() - 1).unwrap();
         code.splice(pos..pos, instructions.iter().cloned());
         module
-    }
-
-    pub fn gen_export_func_which_call_func_no(
-        &mut self,
-        mut module: Module,
-        name: &str,
-        func_no: u32,
-    ) -> Module {
-        let funcs_len = module
-            .function_section()
-            .map(|funcs| funcs.entries().len() as u32)
-            .expect("unreachable until functions section is not empty");
-        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
-
-        let mut instructions =
-            make_call_instructions_vec(self.u, func_type.params(), func_type.results(), func_no);
-        instructions.push(Instruction::End);
-
-        module = builder::from_module(module)
-            .function()
-            .body()
-            .with_instructions(Instructions::new(instructions))
-            .build()
-            .signature()
-            .build()
-            .build()
-            .export()
-            .field(name)
-            .internal()
-            .func(funcs_len)
-            .build()
-            .build();
-
-        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
-        self.calls_indexes.push(FuncIdx::Func(init_function_no));
-
-        module
-    }
-
-    pub fn gen_handle(&mut self, module: Module) -> (Module, bool) {
-        if !self.config.entry_points_config.has_handle() {
-            return (module, false);
-        }
-
-        let funcs_len = module
-            .function_section()
-            .map(|funcs| funcs.entries().len() as u32)
-            .expect("unreachable until functions section is not empty");
-
-        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
-        (
-            self.gen_export_func_which_call_func_no(module, "handle", func_no),
-            true,
-        )
-    }
-
-    pub fn gen_handle_reply(&mut self, module: Module) -> (Module, bool) {
-        if !self.config.entry_points_config.has_handle_reply() {
-            return (module, false);
-        }
-
-        let funcs_len = module
-            .function_section()
-            .map(|funcs| funcs.entries().len() as u32)
-            .expect("unreachable until functions section is not empty");
-
-        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
-        (
-            self.gen_export_func_which_call_func_no(module, "handle_reply", func_no),
-            true,
-        )
-    }
-
-    pub fn gen_init(&mut self, module: Module) -> (Module, bool) {
-        if !self.config.entry_points_config.has_init() {
-            return (module, false);
-        }
-
-        let funcs_len = module
-            .function_section()
-            .map(|funcs| funcs.entries().len() as u32)
-            .expect("unreachable until functions section is not empty");
-
-        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
-        (
-            self.gen_export_func_which_call_func_no(module, "init", func_no),
-            true,
-        )
     }
 
     fn insert_calls(
@@ -903,8 +766,17 @@ pub fn gen_gear_program_module<'a>(
 
         // Instantiate memory generator and generate memory import
         let mem_config = gear_wasm_generator_config.memory_config;
-        let (DisabledMemoryGenerator(wasm_module), _mem_import_gen_proof) =
+        let (disable_mem_gen, _mem_import_gen_proof) =
             MemoryGenerator::new(wasm_module, mem_config).generate_memory();
+
+        // Instantiate entry points generator and generate entry points
+        let entry_points_config = gear_wasm_generator_config.entry_points_config;
+        let (disabled_ep_gen, _ep_gen_proof) =
+            EntryPointsGenerator::new(disable_mem_gen.into(), entry_points_config, u)
+                .generate_entry_points()
+                .unwrap();
+
+        let wasm_module = Into::<ModuleWithCallIndexes>::into(disabled_ep_gen).into_wasm_module();
 
         let memory_pages = wasm_module
             .initial_mem_size()
@@ -914,17 +786,7 @@ pub fn gen_gear_program_module<'a>(
     };
 
     let mut gen = WasmGen::new(&module, u, gear_wasm_generator_config);
-    let (module, has_init) = gen.gen_init(module);
-    if !has_init {
-        return gen.resolves_calls_indexes(module);
-    }
-
-    let (module, _has_handle) = gen.gen_handle(module);
-
-    let (module, _has_handle_reply) = gen.gen_handle_reply(module);
-
     let (module, mut syscall_data) = gen.gen_syscall_imports(module);
-
     let (module, send_from_reservation_call_data) =
         gen.gen_send_from_reservation(module, &syscall_data, memory_pages);
     if let Some(send_from_reservation_call_data) = send_from_reservation_call_data {

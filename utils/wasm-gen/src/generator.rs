@@ -22,9 +22,35 @@ use crate::{GearWasmGeneratorConfig, WasmModule};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::elements::Module;
 
+mod entry_points;
 mod memory;
 
+pub use entry_points::*;
 pub use memory::*;
+
+/// Module and it's call indexes carrier.
+///
+/// # Rationale:
+/// Some of generators can be instantiated from "scratch", by just calling
+/// "new" (or other instantiator function), which accepts params, that are
+/// essential for the generator. `WasmModule` and `CallIndexes` have an implicit
+/// relationship: newly added imports and functions can be included to the wasm,
+/// but not in the call indexes (if we forgot to do that). Although, adding call indexes
+/// is controlled in the generator, some other generator can be instantiated with wasm
+/// module and call indexes being unrelated to each other. So this carrier is used to
+/// control wasm module and call indexes value flow, so related values will always
+/// be delivered together.
+pub struct ModuleWithCallIndexes {
+    module: WasmModule,
+    call_indexes: CallIndexes,
+}
+
+impl ModuleWithCallIndexes {
+    /// Convert into inner wasm module
+    pub fn into_wasm_module(self) -> WasmModule {
+        self.module
+    }
+}
 
 /// General gear wasm generator, which works as a mediator
 /// controlling relations between various available in the
@@ -33,6 +59,7 @@ pub struct GearWasmGenerator<'a> {
     unstructured: &'a mut Unstructured<'a>,
     module: WasmModule,
     config: GearWasmGeneratorConfig,
+    call_indexes: CallIndexes,
 }
 
 impl<'a> GearWasmGenerator<'a> {
@@ -47,10 +74,13 @@ impl<'a> GearWasmGenerator<'a> {
         unstructured: &'a mut Unstructured<'a>,
         config: GearWasmGeneratorConfig,
     ) -> Self {
+        let call_indexes = CallIndexes::new(&module);
+
         Self {
             unstructured,
             module,
             config,
+            call_indexes,
         }
     }
 
@@ -58,8 +88,10 @@ impl<'a> GearWasmGenerator<'a> {
     pub fn generate(self) -> Result<Module> {
         let (disabled_mem_gen, frozen_gear_wasm_gen, _mem_imports_gen_proof) =
             self.generate_memory_export();
+        let (disabled_ep_gen, frozen_gear_wasm_gen, _ep_gen_proof) =
+            Self::from((disabled_mem_gen, frozen_gear_wasm_gen)).generate_entry_points()?;
 
-        Ok(Self::from((disabled_mem_gen, frozen_gear_wasm_gen))
+        Ok(Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
             .module
             .into_inner())
     }
@@ -79,10 +111,74 @@ impl<'a> GearWasmGenerator<'a> {
         (disabled_mem_gen, frozen_gear_wasm_gen, mem_import_gen_proof)
     }
 
+    /// Generate gear wasm gentry points using entry points generator.
+    pub fn generate_entry_points(
+        self,
+    ) -> Result<(
+        DisabledEntryPointsGenerator<'a>,
+        FrozenGearWasmGenerator<'a>,
+        GearEntryPointGenerationProof,
+    )> {
+        let (ep_gen, frozen_gear_wasm_gen): (EntryPointsGenerator, FrozenGearWasmGenerator) =
+            self.into();
+        let (disabled_ep_gen, ep_gen_proof) = ep_gen.generate_entry_points()?;
+
+        Ok((disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof))
+    }
+
     /// Disable current generator.
     pub fn disable(self) -> DisabledGearWasmGenerator {
         DisabledGearWasmGenerator(self.module)
     }
+}
+
+/// Type used to manage (mainly, add and resolve) indexes
+/// of the wasm module calls, which are, mostly, import functions
+/// and internal functions.
+struct CallIndexes {
+    inner: Vec<FunctionIndex>,
+}
+
+impl CallIndexes {
+    fn new(module: &WasmModule) -> Self {
+        let import_funcs = module.count_import_funcs();
+        let code_funcs = module.count_code_funcs();
+        let mut inner = Vec::with_capacity(import_funcs + code_funcs);
+        for i in 0..import_funcs {
+            inner.push(FunctionIndex::Import(i as u32));
+        }
+        for i in 0..code_funcs {
+            inner.push(FunctionIndex::Func(i as u32));
+        }
+
+        Self { inner }
+    }
+
+    pub(crate) fn get(&self, handle_idx: usize) -> Option<FunctionIndex> {
+        self.inner.get(handle_idx).copied()
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn add_func(&mut self, func_idx: usize) {
+        self.inner.push(FunctionIndex::Func(func_idx as u32));
+    }
+
+    fn add_import(&mut self, import_idx: usize) {
+        self.inner.push(FunctionIndex::Import(import_idx as u32));
+    }
+}
+
+/// Index of the function/call in the wasm module.
+///
+/// Enum variants give information on the type of the function:
+/// it's an import or internal function.
+#[derive(Debug, Clone, Copy)]
+enum FunctionIndex {
+    Import(u32),
+    Func(u32),
 }
 
 /// Frozen gear wasm generator.
@@ -93,6 +189,7 @@ impl<'a> GearWasmGenerator<'a> {
 /// to the gear wasm generator. So it mainly controls state machine flow.
 pub struct FrozenGearWasmGenerator<'a> {
     config: GearWasmGeneratorConfig,
+    call_indexes: Option<CallIndexes>,
     unstructured: Option<&'a mut Unstructured<'a>>,
 }
 
