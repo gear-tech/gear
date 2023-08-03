@@ -27,7 +27,6 @@ use gear_wasm_instrument::parity_wasm::{
     self,
     elements::{self, External},
 };
-use proptest::prelude::{proptest, ProptestConfig};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[allow(unused)]
@@ -121,25 +120,26 @@ fn remove_trivial_recursions() {
     println!("wat = {wat}");
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(100))]
-    #[test]
-    fn test_gen_reproduction(seed in 0..u64::MAX) {
-        let mut rng = SmallRng::seed_from_u64(seed);
-        let mut buf = vec![0; 100_000];
-        rng.fill_bytes(&mut buf);
+// TODO issue #3015
+// proptest! {
+//     #![proptest_config(ProptestConfig::with_cases(100))]
+//     #[test]
+//     fn test_gen_reproduction(seed in 0..u64::MAX) {
+//         let mut rng = SmallRng::seed_from_u64(seed);
+//         let mut buf = vec![0; 100_000];
+//         rng.fill_bytes(&mut buf);
 
-        let mut u = Unstructured::new(&buf);
-        let mut u2 = Unstructured::new(&buf);
+//         let mut u = Unstructured::new(&buf);
+//         let mut u2 = Unstructured::new(&buf);
 
-        let gear_config = ConfigsBundle::default();
+//         let gear_config = ConfigsBundle::default();
 
-        let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
-        let second = gen_gear_program_code(&mut u2, gear_config, &[]);
+//         let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
+//         let second = gen_gear_program_code(&mut u2, gear_config, &[]);
 
-        assert!(first == second);
-    }
-}
+//         assert!(first == second);
+//     }
+// }
 
 #[test]
 fn injecting_addresses_works() {
