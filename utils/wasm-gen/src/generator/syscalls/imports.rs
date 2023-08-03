@@ -43,10 +43,6 @@ pub struct SysCallsImportsGenerator<'a> {
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
-    // This collcetion of sys-calls imports data has an `Option` as a key.
-    // That's done intentionally and has the following semantics: `Some` is
-    // used for sys-calls which are invoked with semi-randomly generated params
-    // from params config. `None` is for all sys-calls which have
     sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
