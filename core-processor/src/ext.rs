@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PageCosts};
+use crate::{
+    configs::{BlockInfo, PageCosts},
+    executor::{PrepareMemoryError, SystemPrepareMemoryError},
+    ActorPrepareMemoryError,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
@@ -115,14 +119,21 @@ pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
-    /// Protect and save storage keys for pages which has no data
-    fn lazy_pages_init_for_program(
+    /// Check initial pages data.
+    fn check_init_pages_data(
+        initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+    ) -> Result<(), SystemPrepareMemoryError>;
+
+    /// Initialize pages for program.
+    fn init_pages_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
+        pages_data: &mut BTreeMap<GearPage, PageBuf>,
+        static_pages: WasmPage,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
-    );
+    ) -> Result<(), PrepareMemoryError>;
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
@@ -271,14 +282,49 @@ impl ProcessorExternalities for Ext {
         }
     }
 
-    fn lazy_pages_init_for_program(
-        _mem: &mut impl Memory,
+    fn check_init_pages_data(
+        _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+    ) -> Result<(), SystemPrepareMemoryError> {
+        Ok(())
+    }
+
+    fn init_pages_for_program(
+        mem: &mut impl Memory,
         _prog_id: ProgramId,
-        _stack_end: Option<WasmPage>,
+        stack_end: Option<WasmPage>,
+        pages_data: &mut BTreeMap<GearPage, PageBuf>,
+        static_pages: WasmPage,
         _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,
-    ) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    ) -> Result<(), PrepareMemoryError> {
+        // If we executes without lazy pages, then we have to save all initial data for static pages,
+        // in order to be able to identify pages, which has been changed during execution.
+        // Skip stack page if they are specified.
+        let begin = stack_end.unwrap_or_default();
+
+        if pages_data.keys().any(|&p| p < begin.to_page()) {
+            return Err(ActorPrepareMemoryError::StackPagesHaveInitialData.into());
+        }
+
+        let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
+            unreachable!(
+                "We have already checked that `stack_end` is <= `static_pages`, but get: {}",
+                err
+            )
+        });
+
+        for page in non_stack_pages.flat_map(|p| p.to_pages_iter()) {
+            if pages_data.contains_key(&page) {
+                // This page already has initial data
+                continue;
+            }
+            let mut data = PageBuf::new_zeroed();
+            mem.read(page.offset(), &mut data)
+                .map_err(|err| SystemPrepareMemoryError::InitialMemoryReadFailed(page, err))?;
+            pages_data.insert(page, data);
+        }
+
+        Ok(())
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {

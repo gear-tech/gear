@@ -37,7 +37,9 @@ mod processing;
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
-pub use executor::{execute_wasm, ActorPrepareMemoryError};
+pub use executor::{
+    execute_wasm, ActorPrepareMemoryError, PrepareMemoryError, SystemPrepareMemoryError,
+};
 pub use ext::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,

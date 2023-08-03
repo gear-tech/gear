@@ -60,7 +60,7 @@ actor_system_error! {
     pub type PrepareMemoryError = ActorSystemError<ActorPrepareMemoryError, SystemPrepareMemoryError>;
 }
 
-/// Prepare memory error
+/// Actor's prepare memory error.
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
 pub enum ActorPrepareMemoryError {
@@ -75,6 +75,7 @@ pub enum ActorPrepareMemoryError {
     StackIsNotAligned(u32),
 }
 
+/// System's prepare memory error.
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
 pub enum SystemPrepareMemoryError {
     /// Mem size less then static pages num
@@ -121,15 +122,6 @@ fn check_memory<'a>(
     Ok(())
 }
 
-fn lazy_pages_check_initial_data(
-    initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-) -> Result<(), SystemPrepareMemoryError> {
-    initial_pages_data
-        .is_empty()
-        .then_some(())
-        .ok_or(SystemPrepareMemoryError::InitialPagesContainsDataInLazyPagesMode)
-}
-
 /// Writes initial pages data to memory and prepare memory for execution.
 fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     mem: &mut EnvMem,
@@ -164,43 +156,18 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
             .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
-    if ProcessorExt::LAZY_PAGES_ENABLED {
-        lazy_pages_check_initial_data(pages_data)?;
+    ProcessorExt::check_init_pages_data(pages_data)?;
 
-        ProcessorExt::lazy_pages_init_for_program(
-            mem,
-            program_id,
-            stack_end,
-            globals_config,
-            lazy_pages_weights,
-        );
-    } else {
-        // If we executes without lazy pages, then we have to save all initial data for static pages,
-        // in order to be able to identify pages, which has been changed during execution.
-        // Skip stack page if they are specified.
-        let begin = stack_end.unwrap_or_default();
+    ProcessorExt::init_pages_for_program(
+        mem,
+        program_id,
+        stack_end,
+        pages_data,
+        static_pages,
+        globals_config,
+        lazy_pages_weights,
+    )?;
 
-        if pages_data.keys().any(|&p| p < begin.to_page()) {
-            return Err(ActorPrepareMemoryError::StackPagesHaveInitialData.into());
-        }
-
-        let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
-            unreachable!(
-                "We have already checked that `stack_end` is <= `static_pages`, but get: {}",
-                err
-            )
-        });
-        for page in non_stack_pages.flat_map(|p| p.to_pages_iter()) {
-            if pages_data.contains_key(&page) {
-                // This page already has initial data
-                continue;
-            }
-            let mut data = PageBuf::new_zeroed();
-            mem.read(page.offset(), &mut data)
-                .map_err(|err| SystemPrepareMemoryError::InitialMemoryReadFailed(page, err))?;
-            pages_data.insert(page, data);
-        }
-    }
     Ok(())
 }
 
@@ -402,10 +369,8 @@ where
         .into_ext_info(&memory)
         .map_err(SystemExecutionError::IntoExtInfo)?;
 
-    if E::Ext::LAZY_PAGES_ENABLED {
-        lazy_pages_check_initial_data(&pages_initial_data)
-            .map_err(SystemExecutionError::PrepareMemory)?;
-    }
+    E::Ext::check_init_pages_data(&pages_initial_data)
+        .map_err(SystemExecutionError::PrepareMemory)?;
 
     // Parsing outcome.
     let kind = match termination {
@@ -625,13 +590,22 @@ mod tests {
             Self
         }
 
-        fn lazy_pages_init_for_program(
+        fn check_init_pages_data(
+            _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+        ) -> Result<(), SystemPrepareMemoryError> {
+            Ok(())
+        }
+
+        fn init_pages_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
+            _pages_data: &mut BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
             _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
-        ) {
+        ) -> Result<(), PrepareMemoryError> {
+            Ok(())
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
@@ -647,13 +621,22 @@ mod tests {
             Self
         }
 
-        fn lazy_pages_init_for_program(
+        fn check_init_pages_data(
+            _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+        ) -> Result<(), SystemPrepareMemoryError> {
+            Ok(())
+        }
+
+        fn init_pages_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
+            _pages_data: &mut BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
             _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
-        ) {
+        ) -> Result<(), PrepareMemoryError> {
+            Ok(())
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}

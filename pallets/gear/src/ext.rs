@@ -39,13 +39,14 @@ mod lazy_pages {
         env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
         gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
         ids::{MessageId, ProgramId, ReservationId},
-        memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
+        memory::{GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf},
         message::{HandlePacket, InitPacket, ReplyPacket},
         pages::{GearPage, PageU32Size, WasmPage},
     };
     use gear_core_errors::{ReplyCode, SignalCode};
     use gear_lazy_pages_common as lazy_pages;
     use gear_wasm_instrument::syscalls::SysCallName;
+    use std::collections::BTreeMap;
 
     /// Ext with lazy pages support.
     pub struct LazyPagesExt {
@@ -90,13 +91,25 @@ mod lazy_pages {
             }
         }
 
-        fn lazy_pages_init_for_program(
+        fn check_init_pages_data(
+            initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+        ) -> Result<(), core_processor::SystemPrepareMemoryError> {
+            initial_pages_data.is_empty().then_some(()).ok_or(
+                core_processor::SystemPrepareMemoryError::InitialPagesContainsDataInLazyPagesMode,
+            )
+        }
+
+        fn init_pages_for_program(
             mem: &mut impl Memory,
             prog_id: ProgramId,
             stack_end: Option<WasmPage>,
+            pages_data: &mut BTreeMap<GearPage, PageBuf>,
+            _static_pages: WasmPage,
             globals_config: GlobalsAccessConfig,
             lazy_pages_weights: LazyPagesWeights,
-        ) {
+        ) -> Result<(), core_processor::PrepareMemoryError> {
+            Self::check_init_pages_data(pages_data)?;
+
             lazy_pages::init_for_program(
                 mem,
                 prog_id,
@@ -104,6 +117,8 @@ mod lazy_pages {
                 globals_config,
                 lazy_pages_weights,
             );
+
+            Ok(())
         }
 
         fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
