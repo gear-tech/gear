@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::queue::QueueStep;
+use crate::{pages::PagesManager, queue::QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
@@ -99,7 +99,7 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
-        let lazy_pages_enabled = Self::enable_lazy_pages();
+        let pages_manager = PagesManager::enable();
 
         let mut min_limit = 0;
         let mut reserved = 0;
@@ -141,7 +141,7 @@ where
 
             let step = QueueStep {
                 block_config: &block_config,
-                lazy_pages_enabled,
+                pages_manager: &pages_manager,
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch: queued_dispatch,

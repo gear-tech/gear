@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::pages::PagesManager;
 use core_processor::{common::PrechargedDispatch, ContextChargedForInstrumentation};
 
 pub(crate) struct QueueStep<'a, T: Config, F> {
     pub block_config: &'a BlockConfig,
-    pub lazy_pages_enabled: bool,
+    pub pages_manager: &'a PagesManager<T>,
     pub ext_manager: &'a mut ExtManager<T>,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
@@ -46,7 +47,7 @@ where
     pub(crate) fn execute(self) -> Result<Vec<JournalNote>, QueueStepError> {
         let Self {
             block_config,
-            lazy_pages_enabled,
+            pages_manager,
             ext_manager,
             gas_limit,
             dispatch,
@@ -136,13 +137,13 @@ where
         };
 
         // Load program memory pages.
-        let memory_pages = Pallet::<T>::get_and_track_memory_pages(
-            ext_manager,
-            program_id,
-            &context.actor_data().pages_with_data,
-            lazy_pages_enabled,
-        )
-        .ok_or(QueueStepError::NoMemoryPages)?;
+        let memory_pages = pages_manager
+            .get_and_track_memory_pages(
+                ext_manager,
+                program_id,
+                &context.actor_data().pages_with_data,
+            )
+            .ok_or(QueueStepError::NoMemoryPages)?;
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
@@ -175,7 +176,7 @@ where
             T::DebugInfo::remap_id();
         }
 
-        let lazy_pages_enabled = Self::enable_lazy_pages();
+        let pages_manager = PagesManager::enable();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
@@ -226,7 +227,7 @@ where
 
             let step = QueueStep {
                 block_config: &block_config,
-                lazy_pages_enabled,
+                pages_manager: &pages_manager,
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch,
