@@ -3668,7 +3668,7 @@ version = "0.2.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
- "gstack-buffer",
+ "gear-stack-buffer",
  "gsys",
  "hex-literal 0.3.4",
  "parity-scale-codec",
@@ -4281,6 +4281,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-stack-buffer"
+version = "0.2.2"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
@@ -4618,13 +4625,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.25",
-]
-
-[[package]]
-name = "gstack-buffer"
-version = "0.2.2"
-dependencies = [
- "cc",
 ]
 
 [[package]]
