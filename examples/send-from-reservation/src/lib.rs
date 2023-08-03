@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {

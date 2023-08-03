@@ -18,8 +18,8 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::LockId;
 use gear_core::{
+    gas::LockId,
     ids::*,
     memory::PageBuf,
     pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},

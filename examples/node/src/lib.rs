@@ -21,8 +21,8 @@
 extern crate alloc;
 
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
 use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
