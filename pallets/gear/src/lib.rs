@@ -24,9 +24,7 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(feature = "lazy-pages")]
 mod ext;
-
 mod internal;
 mod pages_manager;
 mod queue;
@@ -50,7 +48,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use crate::pages_manager::PagesManager;
+use crate::{ext::Ext, pages_manager::PagesManager};
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
@@ -91,12 +89,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use ext::LazyPagesExt as Ext;
-
-#[cfg(not(feature = "lazy-pages"))]
-use core_processor::Ext;
 
 #[cfg(feature = "std")]
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;

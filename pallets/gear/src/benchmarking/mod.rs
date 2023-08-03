@@ -54,11 +54,12 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    ext::Ext as Externalities,
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
+    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, GasHandlerOf,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
     ResumeMinimalPeriodOf, Schedule,
 };
 use ::alloc::{

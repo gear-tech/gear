@@ -16,352 +16,371 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{
-    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
-    UnrecoverableExtError,
-};
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
-    BackendExternalities, ExtInfo,
-};
-use gear_core::{
-    costs::RuntimeCosts,
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
-    ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
-    message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{GearPage, PageU32Size, WasmPage},
-};
-use gear_core_errors::{ReplyCode, SignalCode};
-use gear_lazy_pages_common as lazy_pages;
-use gear_wasm_instrument::syscalls::SysCallName;
+#[cfg(not(feature = "lazy-pages"))]
+pub(crate) type Ext = core_processor::Ext;
 
-/// Ext with lazy pages support.
-pub struct LazyPagesExt {
-    inner: Ext,
-}
+#[cfg(feature = "lazy-pages")]
+pub(crate) type Ext = lazy_pages::LazyPagesExt;
 
-impl BackendExternalities for LazyPagesExt {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                // Accessed pages are all pages, that had been released and are in allocations set or static.
-                let mut accessed_pages = lazy_pages::get_write_accessed_pages();
-                accessed_pages.retain(|p| {
-                    let wasm_page = p.to_page();
-                    wasm_page < static_pages || allocations.contains(&wasm_page)
-                });
-                log::trace!("accessed pages numbers = {:?}", accessed_pages);
-                accessed_pages
-            };
-        self.inner.into_ext_info_inner(memory, pages_for_data)
+#[cfg(feature = "lazy-pages")]
+mod lazy_pages {
+    use alloc::{collections::BTreeSet, vec::Vec};
+    use core_processor::{
+        AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+        UnrecoverableExtError,
+    };
+    use gear_backend_common::{
+        lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
+        memory::ProcessAccessError,
+        BackendExternalities, ExtInfo,
+    };
+    use gear_core::{
+        costs::RuntimeCosts,
+        env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+        gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
+        ids::{MessageId, ProgramId, ReservationId},
+        memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
+        message::{HandlePacket, InitPacket, ReplyPacket},
+        pages::{GearPage, PageU32Size, WasmPage},
+    };
+    use gear_core_errors::{ReplyCode, SignalCode};
+    use gear_lazy_pages_common as lazy_pages;
+    use gear_wasm_instrument::syscalls::SysCallName;
+
+    /// Ext with lazy pages support.
+    pub struct LazyPagesExt {
+        inner: Ext,
     }
 
-    fn gas_amount(&self) -> GasAmount {
-        self.inner.context.gas_counter.to_amount()
-    }
+    impl BackendExternalities for LazyPagesExt {
+        fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
+            let pages_for_data =
+                |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
+                    // Accessed pages are all pages, that had been released and are in allocations set or static.
+                    let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+                    accessed_pages.retain(|p| {
+                        let wasm_page = p.to_page();
+                        wasm_page < static_pages || allocations.contains(&wasm_page)
+                    });
+                    log::trace!("accessed pages numbers = {:?}", accessed_pages);
+                    accessed_pages
+                };
+            self.inner.into_ext_info_inner(memory, pages_for_data)
+        }
 
-    fn pre_process_memory_accesses(
-        reads: &[MemoryInterval],
-        writes: &[MemoryInterval],
-        gas_counter: &mut u64,
-    ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
-    }
-}
+        fn gas_amount(&self) -> GasAmount {
+            self.inner.context.gas_counter.to_amount()
+        }
 
-impl ProcessorExternalities for LazyPagesExt {
-    const LAZY_PAGES_ENABLED: bool = true;
-
-    fn new(context: ProcessorContext) -> Self {
-        Self {
-            inner: Ext::new(context),
+        fn pre_process_memory_accesses(
+            reads: &[MemoryInterval],
+            writes: &[MemoryInterval],
+            gas_counter: &mut u64,
+        ) -> Result<(), ProcessAccessError> {
+            lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
         }
     }
 
-    fn lazy_pages_init_for_program(
-        mem: &mut impl Memory,
-        prog_id: ProgramId,
-        stack_end: Option<WasmPage>,
-        globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
-    ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
-    }
+    impl ProcessorExternalities for LazyPagesExt {
+        const LAZY_PAGES_ENABLED: bool = true;
 
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        lazy_pages::remove_lazy_pages_prot(mem);
-    }
+        fn new(context: ProcessorContext) -> Self {
+            Self {
+                inner: Ext::new(context),
+            }
+        }
 
-    fn lazy_pages_status() -> Status {
-        lazy_pages::get_status()
-    }
-}
+        fn lazy_pages_init_for_program(
+            mem: &mut impl Memory,
+            prog_id: ProgramId,
+            stack_end: Option<WasmPage>,
+            globals_config: GlobalsAccessConfig,
+            lazy_pages_weights: LazyPagesWeights,
+        ) {
+            lazy_pages::init_for_program(
+                mem,
+                prog_id,
+                stack_end,
+                globals_config,
+                lazy_pages_weights,
+            );
+        }
 
-struct LazyGrowHandler {
-    old_mem_addr: Option<u64>,
-    old_mem_size: WasmPage,
-}
+        fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+            lazy_pages::remove_lazy_pages_prot(mem);
+        }
 
-impl GrowHandler for LazyGrowHandler {
-    fn before_grow_action(mem: &mut impl Memory) -> Self {
-        // New pages allocation may change wasm memory buffer location.
-        // So we remove protections from lazy-pages
-        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
-        let old_mem_addr = mem.get_buffer_host_addr();
-        lazy_pages::remove_lazy_pages_prot(mem);
-        Self {
-            old_mem_addr,
-            old_mem_size: mem.size(),
+        fn lazy_pages_status() -> Status {
+            lazy_pages::get_status()
         }
     }
 
-    fn after_grow_action(self, mem: &mut impl Memory) {
-        // Add new allocations to lazy pages.
-        // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
-            unreachable!("Memory size cannot be zero after grow is applied for memory")
-        });
-        lazy_pages::update_lazy_pages_and_protect_again(
-            mem,
-            self.old_mem_addr,
-            self.old_mem_size,
-            new_mem_addr,
-        );
-    }
-}
-
-impl CountersOwner for LazyPagesExt {
-    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        self.inner.charge_gas_runtime(cost)
+    struct LazyGrowHandler {
+        old_mem_addr: Option<u64>,
+        old_mem_size: WasmPage,
     }
 
-    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        self.inner.charge_gas_runtime_if_enough(cost)
+    impl GrowHandler for LazyGrowHandler {
+        fn before_grow_action(mem: &mut impl Memory) -> Self {
+            // New pages allocation may change wasm memory buffer location.
+            // So we remove protections from lazy-pages
+            // and then in `after_grow_action` we set protection back for new wasm memory buffer.
+            let old_mem_addr = mem.get_buffer_host_addr();
+            lazy_pages::remove_lazy_pages_prot(mem);
+            Self {
+                old_mem_addr,
+                old_mem_size: mem.size(),
+            }
+        }
+
+        fn after_grow_action(self, mem: &mut impl Memory) {
+            // Add new allocations to lazy pages.
+            // Protect all lazy pages including new allocations.
+            let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+                unreachable!("Memory size cannot be zero after grow is applied for memory")
+            });
+            lazy_pages::update_lazy_pages_and_protect_again(
+                mem,
+                self.old_mem_addr,
+                self.old_mem_size,
+                new_mem_addr,
+            );
+        }
     }
 
-    fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
-        self.inner.charge_gas_if_enough(amount)
+    impl CountersOwner for LazyPagesExt {
+        fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+            self.inner.charge_gas_runtime(cost)
+        }
+
+        fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+            self.inner.charge_gas_runtime_if_enough(cost)
+        }
+
+        fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
+            self.inner.charge_gas_if_enough(amount)
+        }
+
+        fn gas_left(&self) -> GasLeft {
+            self.inner.gas_left()
+        }
+
+        fn current_counter_type(&self) -> CounterType {
+            self.inner.current_counter_type()
+        }
+
+        fn decrease_current_counter_to(&mut self, amount: u64) {
+            self.inner.decrease_current_counter_to(amount)
+        }
+
+        fn define_current_counter(&mut self) -> u64 {
+            self.inner.define_current_counter()
+        }
     }
 
-    fn gas_left(&self) -> GasLeft {
-        self.inner.gas_left()
-    }
+    impl Externalities for LazyPagesExt {
+        type UnrecoverableError = UnrecoverableExtError;
+        type FallibleError = FallibleExtError;
+        type AllocError = AllocExtError;
 
-    fn current_counter_type(&self) -> CounterType {
-        self.inner.current_counter_type()
-    }
+        fn alloc(
+            &mut self,
+            pages_num: u32,
+            mem: &mut impl Memory,
+        ) -> Result<WasmPage, Self::AllocError> {
+            self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
+        }
 
-    fn decrease_current_counter_to(&mut self, amount: u64) {
-        self.inner.decrease_current_counter_to(amount)
-    }
+        fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+            self.inner.free(page)
+        }
 
-    fn define_current_counter(&mut self) -> u64 {
-        self.inner.define_current_counter()
-    }
-}
+        fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
+            self.inner.block_height()
+        }
 
-impl Externalities for LazyPagesExt {
-    type UnrecoverableError = UnrecoverableExtError;
-    type FallibleError = FallibleExtError;
-    type AllocError = AllocExtError;
+        fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
+            self.inner.block_timestamp()
+        }
 
-    fn alloc(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::AllocError> {
-        self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
-    }
+        fn send_init(&mut self) -> Result<u32, Self::FallibleError> {
+            self.inner.send_init()
+        }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.inner.free(page)
-    }
+        fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::FallibleError> {
+            self.inner.send_push(handle, buffer)
+        }
 
-    fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
-        self.inner.block_height()
-    }
+        fn send_push_input(
+            &mut self,
+            handle: u32,
+            offset: u32,
+            len: u32,
+        ) -> Result<(), Self::FallibleError> {
+            self.inner.send_push_input(handle, offset, len)
+        }
 
-    fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
-        self.inner.block_timestamp()
-    }
+        fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError> {
+            self.inner.reply_push(buffer)
+        }
 
-    fn send_init(&mut self) -> Result<u32, Self::FallibleError> {
-        self.inner.send_init()
-    }
+        fn send_commit(
+            &mut self,
+            handle: u32,
+            msg: HandlePacket,
+            delay: u32,
+        ) -> Result<MessageId, Self::FallibleError> {
+            self.inner.send_commit(handle, msg, delay)
+        }
 
-    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::FallibleError> {
-        self.inner.send_push(handle, buffer)
-    }
+        fn reservation_send_commit(
+            &mut self,
+            id: ReservationId,
+            handle: u32,
+            msg: HandlePacket,
+            delay: u32,
+        ) -> Result<MessageId, Self::FallibleError> {
+            self.inner.reservation_send_commit(id, handle, msg, delay)
+        }
 
-    fn send_push_input(
-        &mut self,
-        handle: u32,
-        offset: u32,
-        len: u32,
-    ) -> Result<(), Self::FallibleError> {
-        self.inner.send_push_input(handle, offset, len)
-    }
+        fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
+            self.inner.reply_commit(msg)
+        }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError> {
-        self.inner.reply_push(buffer)
-    }
+        fn reservation_reply_commit(
+            &mut self,
+            id: ReservationId,
+            msg: ReplyPacket,
+        ) -> Result<MessageId, Self::FallibleError> {
+            self.inner.reservation_reply_commit(id, msg)
+        }
 
-    fn send_commit(
-        &mut self,
-        handle: u32,
-        msg: HandlePacket,
-        delay: u32,
-    ) -> Result<MessageId, Self::FallibleError> {
-        self.inner.send_commit(handle, msg, delay)
-    }
+        fn reply_to(&self) -> Result<MessageId, Self::FallibleError> {
+            self.inner.reply_to()
+        }
 
-    fn reservation_send_commit(
-        &mut self,
-        id: ReservationId,
-        handle: u32,
-        msg: HandlePacket,
-        delay: u32,
-    ) -> Result<MessageId, Self::FallibleError> {
-        self.inner.reservation_send_commit(id, handle, msg, delay)
-    }
+        fn signal_from(&self) -> Result<MessageId, Self::FallibleError> {
+            self.inner.signal_from()
+        }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
-        self.inner.reply_commit(msg)
-    }
+        fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
+            self.inner.reply_push_input(offset, len)
+        }
 
-    fn reservation_reply_commit(
-        &mut self,
-        id: ReservationId,
-        msg: ReplyPacket,
-    ) -> Result<MessageId, Self::FallibleError> {
-        self.inner.reservation_reply_commit(id, msg)
-    }
+        fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+            self.inner.source()
+        }
 
-    fn reply_to(&self) -> Result<MessageId, Self::FallibleError> {
-        self.inner.reply_to()
-    }
+        fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError> {
+            self.inner.reply_code()
+        }
 
-    fn signal_from(&self) -> Result<MessageId, Self::FallibleError> {
-        self.inner.signal_from()
-    }
+        fn signal_code(&self) -> Result<SignalCode, Self::FallibleError> {
+            self.inner.signal_code()
+        }
 
-    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
-        self.inner.reply_push_input(offset, len)
-    }
+        fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
+            self.inner.message_id()
+        }
 
-    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
-        self.inner.source()
-    }
+        fn pay_program_rent(
+            &mut self,
+            program_id: ProgramId,
+            rent: u128,
+        ) -> Result<(u128, u32), Self::FallibleError> {
+            self.inner.pay_program_rent(program_id, rent)
+        }
 
-    fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError> {
-        self.inner.reply_code()
-    }
+        fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+            self.inner.program_id()
+        }
 
-    fn signal_code(&self) -> Result<SignalCode, Self::FallibleError> {
-        self.inner.signal_code()
-    }
+        fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
+            self.inner.debug(data)
+        }
 
-    fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
-        self.inner.message_id()
-    }
+        fn size(&self) -> Result<usize, Self::UnrecoverableError> {
+            self.inner.size()
+        }
 
-    fn pay_program_rent(
-        &mut self,
-        program_id: ProgramId,
-        rent: u128,
-    ) -> Result<(u128, u32), Self::FallibleError> {
-        self.inner.pay_program_rent(program_id, rent)
-    }
+        fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
+            self.inner.random()
+        }
 
-    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
-        self.inner.program_id()
-    }
+        fn reserve_gas(
+            &mut self,
+            amount: u64,
+            blocks: u32,
+        ) -> Result<ReservationId, Self::FallibleError> {
+            self.inner.reserve_gas(amount, blocks)
+        }
 
-    fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
-        self.inner.debug(data)
-    }
+        fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
+            self.inner.unreserve_gas(id)
+        }
 
-    fn size(&self) -> Result<usize, Self::UnrecoverableError> {
-        self.inner.size()
-    }
+        fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::FallibleError> {
+            self.inner.system_reserve_gas(amount)
+        }
 
-    fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
-        self.inner.random()
-    }
+        fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
+            self.inner.gas_available()
+        }
 
-    fn reserve_gas(
-        &mut self,
-        amount: u64,
-        blocks: u32,
-    ) -> Result<ReservationId, Self::FallibleError> {
-        self.inner.reserve_gas(amount, blocks)
-    }
+        fn value(&self) -> Result<u128, Self::UnrecoverableError> {
+            self.inner.value()
+        }
 
-    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
-        self.inner.unreserve_gas(id)
-    }
+        fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
+            self.inner.wait()
+        }
 
-    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::FallibleError> {
-        self.inner.system_reserve_gas(amount)
-    }
+        fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
+            self.inner.wait_for(duration)
+        }
 
-    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
-        self.inner.gas_available()
-    }
+        fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
+            self.inner.wait_up_to(duration)
+        }
 
-    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
-        self.inner.value()
-    }
+        fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
+            self.inner.wake(waker_id, delay)
+        }
 
-    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        self.inner.wait()
-    }
+        fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
+            self.inner.value_available()
+        }
 
-    fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
-        self.inner.wait_for(duration)
-    }
+        fn create_program(
+            &mut self,
+            packet: InitPacket,
+            delay: u32,
+        ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
+            self.inner.create_program(packet, delay)
+        }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
-        self.inner.wait_up_to(duration)
-    }
+        fn reply_deposit(
+            &mut self,
+            message_id: MessageId,
+            amount: u64,
+        ) -> Result<(), Self::FallibleError> {
+            self.inner.reply_deposit(message_id, amount)
+        }
 
-    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
-        self.inner.wake(waker_id, delay)
-    }
+        fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
+            &self.inner.context.forbidden_funcs
+        }
 
-    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
-        self.inner.value_available()
-    }
+        fn lock_payload(
+            &mut self,
+            at: u32,
+            len: u32,
+        ) -> Result<PayloadSliceLock, Self::FallibleError> {
+            self.inner.lock_payload(at, len)
+        }
 
-    fn create_program(
-        &mut self,
-        packet: InitPacket,
-        delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
-        self.inner.create_program(packet, delay)
-    }
-
-    fn reply_deposit(
-        &mut self,
-        message_id: MessageId,
-        amount: u64,
-    ) -> Result<(), Self::FallibleError> {
-        self.inner.reply_deposit(message_id, amount)
-    }
-
-    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
-        &self.inner.context.forbidden_funcs
-    }
-
-    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
-        self.inner.lock_payload(at, len)
-    }
-
-    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
-        self.inner.unlock_payload(payload_holder)
+        fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+            self.inner.unlock_payload(payload_holder)
+        }
     }
 }
