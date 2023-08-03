@@ -130,11 +130,7 @@ fn injecting_addresses_works() {
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
 
-    let addresses = NonEmpty::from_vec(vec![
-        [0; 32],
-        [1; 32],
-    ])
-    .expect("vec wasn't empty");
+    let addresses = NonEmpty::from_vec(vec![[0; 32], [1; 32]]).expect("vec wasn't empty");
     let config = GearWasmGeneratorConfigBuilder::new()
         .with_sys_calls_config(
             SysCallsConfigBuilder::new(Default::default())
