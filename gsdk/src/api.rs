@@ -52,21 +52,44 @@ impl Api {
     }
 
     /// Subscribe all blocks
+    ///
+    ///
+    /// ```ignore
+    /// let api = Api::new(None).await?;
+    /// let blocks = api.blocks().await?;
+    ///
+    /// while let Ok(block) = blocks.next().await {
+    ///   // ...
+    /// }
+    /// ```
     pub async fn blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized blocks
+    ///
+    /// Same as `blocks` but only finalized blocks.
     pub async fn finalized_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
-    /// Subscribe all events
+    /// Subscribe all events.
+    ///
+    /// ```ignore
+    /// let api = Api::new(None).await?;
+    /// let events = api.events().await?;
+    ///
+    /// while let Ok(evs) = events.next().await {
+    ///   // ...
+    /// }
+    /// ```
     pub async fn events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized events
+    ///
+    /// Same as `events` but only finalized events.
     pub async fn finalized_events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
