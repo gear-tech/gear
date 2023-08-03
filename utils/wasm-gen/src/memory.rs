@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{mem, slice};
-
 use super::*;
-use gear_wasm_instrument::parity_wasm::builder::ModuleBuilder;
+use gear_wasm_instrument::parity_wasm::{
+    builder::{self, ModuleBuilder},
+    elements::Instruction,
+};
 use gsys::HashWithValue;
+use std::{mem, slice};
 
 pub struct ModuleBuilderWithData {
     pub module_builder: ModuleBuilder,

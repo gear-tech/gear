@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::{
     new_test_ext, Airdrop, AirdropCall, AirdropError, Balances, RuntimeCall, RuntimeOrigin, Sudo,
-    Test, Vesting, ALICE, BOB, ROOT,
+    Test, Vesting, VestingError, ALICE, BOB, ROOT,
 };
 use frame_support::{assert_err, assert_noop, assert_ok};
 use frame_system::Config;
@@ -76,6 +76,18 @@ fn vesting_transfer_works() {
         assert_eq!(Balances::total_balance(&BOB), 100_000_000);
         assert_eq!(Balances::total_balance(&ROOT), 100_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
+
+        // Vesting must exist on the source account
+        assert_err!(
+            Airdrop::transfer_vested(RuntimeOrigin::root(), ALICE, BOB, 1, Some(200_000_000)),
+            VestingError::NotVesting
+        );
+
+        // Schedule must exist on the source account
+        assert_err!(
+            Airdrop::transfer_vested(RuntimeOrigin::root(), BOB, ALICE, 1, Some(200_000_000)),
+            VestingError::ScheduleIndexOutOfBounds
+        );
 
         // Amount can't be bigger than locked funds
         assert_err!(
