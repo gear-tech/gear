@@ -32,7 +32,7 @@ mod lazy_pages {
     use gear_backend_common::{
         lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
         memory::ProcessAccessError,
-        BackendExternalities, ExtInfo,
+        ActorTerminationReason, BackendExternalities, ExtInfo, TrapExplanation,
     };
     use gear_core::{
         costs::RuntimeCosts,
@@ -121,12 +121,21 @@ mod lazy_pages {
             Ok(())
         }
 
-        fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        fn pages_post_execution_actions(
+            mem: &mut impl Memory,
+            termination: &mut ActorTerminationReason,
+        ) {
             lazy_pages::remove_lazy_pages_prot(mem);
-        }
 
-        fn lazy_pages_status() -> Status {
-            lazy_pages::get_status()
+            match lazy_pages::get_status() {
+                Status::Normal => (),
+                Status::GasLimitExceeded => {
+                    *termination = ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
+                }
+                Status::GasAllowanceExceeded => {
+                    *termination = ActorTerminationReason::GasAllowanceExceeded;
+                }
+            }
         }
     }
 

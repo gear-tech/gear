@@ -332,11 +332,7 @@ where
 
             // released pages initial data will be added to `pages_initial_data` after execution.
             if E::Ext::LAZY_PAGES_ENABLED {
-                E::Ext::lazy_pages_post_execution_actions(&mut memory);
-
-                if !E::Ext::lazy_pages_status().is_normal() {
-                    termination = ext.current_counter_type().into()
-                }
+                E::Ext::pages_post_execution_actions(&mut memory, &mut termination);
             }
 
             (termination, memory, ext)
@@ -575,7 +571,6 @@ where
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use gear_backend_common::lazy_pages::Status;
     use gear_core::{
         memory::PageBufInner,
         pages::{PageNumber, WasmPage},
@@ -608,9 +603,10 @@ mod tests {
             Ok(())
         }
 
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
+        fn pages_post_execution_actions(
+            _mem: &mut impl Memory,
+            _reason: &mut ActorTerminationReason,
+        ) {
         }
     }
 
@@ -639,9 +635,10 @@ mod tests {
             Ok(())
         }
 
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
+        fn pages_post_execution_actions(
+            _mem: &mut impl Memory,
+            _reason: &mut ActorTerminationReason,
+        ) {
         }
     }
 

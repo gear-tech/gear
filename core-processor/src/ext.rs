@@ -26,7 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
@@ -136,10 +136,7 @@ pub trait ProcessorExternalities {
     ) -> Result<(), PrepareMemoryError>;
 
     /// Lazy pages contract post execution actions
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
-
-    /// Returns lazy pages status
-    fn lazy_pages_status() -> Status;
+    fn pages_post_execution_actions(mem: &mut impl Memory, reason: &mut ActorTerminationReason);
 }
 
 /// Infallible API error.
@@ -327,13 +324,7 @@ impl ProcessorExternalities for Ext {
         Ok(())
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
-    }
-
-    fn lazy_pages_status() -> Status {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
-    }
+    fn pages_post_execution_actions(_mem: &mut impl Memory, _reason: &mut ActorTerminationReason) {}
 }
 
 impl BackendExternalities for Ext {
