@@ -20,8 +20,8 @@
 
 use crate::{
     generator::{
-        CallIndexes, FrozenGearWasmGenerator, GearEntryPointGenerationProof, GearWasmGenerator,
-        MemoryImportGenerationProof, ModuleWithCallIndexes, CallIndexesHandle,
+        CallIndexes, CallIndexesHandle, FrozenGearWasmGenerator, GearEntryPointGenerationProof,
+        GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
     InvocableSysCall, SysCallsConfig,
@@ -184,7 +184,10 @@ impl<'a> SysCallsImportsGenerator<'a> {
     /// Returns [`Option`] which wraps the tuple of amount of sys-call further injections
     /// and handle in the call indexes collection, if amount is not zero. Otherwise returns
     /// None.
-    fn generate_sys_call_import(&mut self, sys_call: SysCallName) -> Result<Option<(u32, CallIndexesHandle)>> {
+    fn generate_sys_call_import(
+        &mut self,
+        sys_call: SysCallName,
+    ) -> Result<Option<(u32, CallIndexesHandle)>> {
         let sys_call_amount_range = self.config.injection_amounts(sys_call);
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
 

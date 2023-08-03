@@ -20,8 +20,8 @@
 
 use crate::{
     generator::{
-        AddressesInjectionOutcome, AddressesOffsets, CallIndexes, DisabledAdditionalDataInjector,
-        FunctionIndex, ModuleWithCallIndexes, CallIndexesHandle,
+        AddressesInjectionOutcome, AddressesOffsets, CallIndexes, CallIndexesHandle,
+        DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
     InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,

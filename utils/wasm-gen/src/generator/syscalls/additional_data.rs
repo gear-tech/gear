@@ -20,8 +20,8 @@
 
 use crate::{
     generator::{
-        CallIndexes, DisabledSysCallsImportsGenerator, ModuleWithCallIndexes,
-        SysCallsImportsGenerationProof, CallIndexesHandle,
+        CallIndexes, CallIndexesHandle, DisabledSysCallsImportsGenerator, ModuleWithCallIndexes,
+        SysCallsImportsGenerationProof,
     },
     utils, EntryPointName, InvocableSysCall, MessageDestination, SysCallsConfig, WasmModule,
 };
