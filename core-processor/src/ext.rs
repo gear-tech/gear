@@ -180,7 +180,11 @@ pub enum FallibleExtError {
 
 impl From<MessageError> for FallibleExtError {
     fn from(err: MessageError) -> Self {
-        Self::Core(FallibleExtErrorCore::Message(err))
+        if let MessageError::InvalidProgramId = err {
+            FallibleExtError::ForbiddenFunction
+        } else {
+            Self::Core(FallibleExtErrorCore::Message(err))
+        }
     }
 }
 
@@ -384,14 +388,6 @@ impl Ext {
         self.reduce_gas(gas_limit)?;
         self.charge_message_value(packet.value())?;
         Ok(())
-    }
-
-    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), FallibleExtError> {
-        if id == ProgramId::SYSTEM {
-            Err(FallibleExtError::ForbiddenFunction)
-        } else {
-            Ok(())
-        }
     }
 
     fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
@@ -904,7 +900,6 @@ impl Externalities for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
-        self.check_forbidden_destination(packet.destination())?;
         self.safe_gasfull_sends(&packet)?;
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
@@ -917,7 +912,7 @@ impl Externalities for Ext {
         let (mid, pid) = self
             .context
             .message_context
-            .init_program(packet, delay)
+            .init_program(packet, delay, &[ProgramId::SYSTEM])
             .map(|(init_msg_id, new_prog_id)| {
                 // Save a program candidate for this run
                 let entry = self

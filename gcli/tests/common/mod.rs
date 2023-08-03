@@ -102,7 +102,7 @@ pub fn login_as_alice() -> Result<()> {
 
 /// Generate program id from code id and salt
 pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-    ProgramId::generate(0u32, CodeId::generate(bin), salt)
+    ProgramId::generate(CodeId::generate(bin), salt, 0u32)
 }
 
 /// AccountId32 of `addr`

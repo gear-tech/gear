@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ProgramNonce},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
         StoredMessage, Value,
@@ -49,7 +49,7 @@ impl InitMessage {
     pub fn from_packet(id: MessageId, packet: InitPacket) -> Self {
         Self {
             id,
-            destination: packet.program_id,
+            destination: packet.destination(id),
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -115,8 +115,6 @@ impl InitMessage {
 /// This structure is preparation for future init message sending. Has no message id.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct InitPacket {
-    /// Newly created program id.
-    program_id: ProgramId,
     /// Code id.
     code_id: CodeId,
     /// Salt.
@@ -133,7 +131,6 @@ impl InitPacket {
     /// Create new InitPacket without gas.
     pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
         Self {
-            program_id: ProgramId::generate(0u32, code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -151,7 +148,6 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate(0u32, code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -161,8 +157,8 @@ impl InitPacket {
     }
 
     /// Packet destination (newly created program id).
-    pub fn destination(&self) -> ProgramId {
-        self.program_id
+    pub fn destination<T: ProgramNonce>(&self, nonce: T) -> ProgramId {
+        ProgramId::generate(self.code_id, self.salt.inner(), nonce)
     }
 
     /// Code id.

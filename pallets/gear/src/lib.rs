@@ -617,7 +617,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let program_id = packet.destination();
+            let program_id = packet.destination(0u32);
             // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
@@ -1204,7 +1204,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let program_id = packet.destination();
+            let program_id = packet.destination(0u32);
             // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
@@ -1233,13 +1233,13 @@ pub mod pallet {
             let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
-                packet.destination(),
+                packet.destination(message_id),
                 &code_info,
                 message_id,
                 expiration_block,
             );
 
-            let program_id = packet.destination();
+            let program_id = packet.destination(message_id);
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {

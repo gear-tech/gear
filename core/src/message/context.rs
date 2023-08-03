@@ -277,13 +277,8 @@ impl MessageContext {
         &mut self,
         packet: InitPacket,
         delay: u32,
+        invalid_program_ids: &[ProgramId],
     ) -> Result<(MessageId, ProgramId), Error> {
-        let program_id = packet.destination();
-
-        if self.store.initialized.contains(&program_id) {
-            return Err(Error::DuplicateInit);
-        }
-
         let last = self.store.outgoing.len() as u32;
 
         if last >= self.settings.outgoing_limit {
@@ -291,6 +286,17 @@ impl MessageContext {
         }
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
+
+        let program_id = packet.destination(message_id);
+
+        if invalid_program_ids.contains(&program_id) {
+            return Err(Error::InvalidProgramId);
+        }
+
+        if self.store.initialized.contains(&program_id) {
+            return Err(Error::DuplicateInit);
+        }
+
         let message = InitMessage::from_packet(message_id, packet);
 
         self.store.outgoing.insert(last, None);
@@ -587,6 +593,25 @@ mod tests {
     }
 
     #[test]
+    fn invalid_id() {
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let id = ProgramId::from([
+            0xed, 0x2f, 0x0a, 0x2f, 0xe4, 0xa6, 0x88, 0x60, 0x69, 0x4e, 0xb3, 0x58, 0x82, 0x9b,
+            0xde, 0xec, 0x48, 0x69, 0xa2, 0xef, 0x72, 0x2b, 0xa3, 0xd2, 0x13, 0x42, 0x52, 0x77,
+            0xee, 0x1b, 0xcb, 0xe6,
+        ]);
+        assert_err!(
+            message_context.init_program(Default::default(), 0, &[id]),
+            Error::InvalidProgramId
+        );
+    }
+
+    #[test]
     fn duplicated_init() {
         let mut message_context = MessageContext::new(
             Default::default(),
@@ -595,11 +620,11 @@ mod tests {
         );
 
         // first init to default ProgramId.
-        assert_ok!(message_context.init_program(Default::default(), 0));
+        assert_ok!(message_context.init_program(Default::default(), 0, &[]));
 
         // second init to same default ProgramId should get error.
         assert_err!(
-            message_context.init_program(Default::default(), 0),
+            message_context.init_program(Default::default(), 0, &[]),
             Error::DuplicateInit,
         );
     }
@@ -633,7 +658,7 @@ mod tests {
             );
 
             // we can't send messages in this MessageContext.
-            let limit_exceeded = message_context.init_program(Default::default(), 0);
+            let limit_exceeded = message_context.init_program(Default::default(), 0, &[]);
             assert_eq!(
                 limit_exceeded,
                 Err(Error::OutgoingMessagesAmountLimitExceeded)

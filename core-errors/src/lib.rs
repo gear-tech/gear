@@ -159,6 +159,10 @@ pub enum MessageError {
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 399,
+
+    /// An error when the program id is marked as invalid
+    #[display(fmt = "Program id is forbidden")]
+    InvalidProgramId = 400,
 }
 
 /// Reservation error.
