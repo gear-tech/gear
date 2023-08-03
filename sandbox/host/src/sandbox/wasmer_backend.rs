@@ -479,9 +479,9 @@ pub fn instantiate(
             };
             let len = u32::from_le_bytes(len.try_into().unwrap());
 
-            let Ok(result) = Bls12_381::final_exponentiation(MillerLoopOutput(target.0)) else {
+            let Some(result) = Bls12_381::final_exponentiation(MillerLoopOutput(target.0)) else {
                 return Ok(6);
-            }
+            };
 
             let result: ArkScale<PairingOutput<Bls12_381>> = result.into();
             let result = result.encode();
