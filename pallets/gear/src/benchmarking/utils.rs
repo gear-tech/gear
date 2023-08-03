@@ -21,7 +21,7 @@
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
-    pages::PagesManager,
+    pages_manager::PagesManager,
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
     RentCostPerBlockOf,
 };

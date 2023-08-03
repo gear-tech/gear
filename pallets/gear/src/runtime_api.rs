@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{pages::PagesManager, queue::QueueStep};
+use crate::{pages_manager::PagesManager, queue::QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::pages::WasmPage;

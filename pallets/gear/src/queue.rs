@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::pages::PagesManager;
+use crate::pages_manager::PagesManager;
 use core_processor::{common::PrechargedDispatch, ContextChargedForInstrumentation};
 
 pub(crate) struct QueueStep<'a, T: Config, F> {

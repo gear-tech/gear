@@ -28,7 +28,7 @@ mod benchmarking;
 mod ext;
 
 mod internal;
-mod pages;
+mod pages_manager;
 mod queue;
 mod runtime_api;
 mod schedule;
@@ -50,7 +50,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use crate::pages::PagesManager;
+use crate::pages_manager::PagesManager;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,

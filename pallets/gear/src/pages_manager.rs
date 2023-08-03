@@ -97,7 +97,7 @@ where
 
 #[cfg(feature = "lazy-pages")]
 mod lazy_pages {
-    use crate::{pages::PagesManagerDetails, Config, ProgramStorageOf};
+    use crate::{pages_manager::PagesManagerDetails, Config, ProgramStorageOf};
     use common::ProgramStorage;
     use core::marker::PhantomData;
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};

@@ -48,7 +48,7 @@ use crate::{
     RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
     ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
 };
-use crate::{pages::PagesManager, runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT};
+use crate::{pages_manager::PagesManager, runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT};
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
     LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
