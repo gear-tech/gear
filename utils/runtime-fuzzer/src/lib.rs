@@ -121,7 +121,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
 fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> ConfigsBundle {
     let sys_calls_config_builder = SysCallsConfigBuilder::new(Default::default())
         .with_log_info(format!("Gear program seed = '{seed}'"));
-    let sys_calls_config = if let Some(programs) = NonEmpty::collect(programs) {
+    let sys_calls_config = if let Some(programs) = NonEmpty::from_vec(programs) {
         sys_calls_config_builder
             .with_data_offset_msg_dest(programs)
             .build()

@@ -19,7 +19,8 @@
 //! Upload code args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed, GearWasmGenConfigsBundle,
+    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
+    Seed,
 };
 
 /// Upload code args
