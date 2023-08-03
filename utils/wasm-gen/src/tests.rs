@@ -200,3 +200,8 @@ proptest! {
         assert!(code_res.is_ok());
     }
 }
+
+// Additional tests
+// 1. call-indexes remain stable when you make transitions epGen -> memGen -> epGen
+// 2. Transition from memGen to epGen saves memory import. If no proof , then no mem import.
+// 3. Process sys-calls params works correctly.
