@@ -5610,16 +5610,11 @@ fn terminated_locking_funds() {
 }
 
 #[test]
-fn exit_init() {
-    use demo_constructor::{demo_exit_init, WASM_BINARY};
+fn pause_terminated_exited_program() {
+    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY};
 
-    init_logger();
-    new_test_ext().execute_with(|| {
+    let test = |program_id| {
         let code_id = CodeId::generate(WASM_BINARY);
-
-        let (_init_mid, program_id) =
-            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
-
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
@@ -5651,7 +5646,28 @@ fn exit_init() {
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
-    })
+    };
+
+    new_test_ext().execute_with(|| {
+        // exit init
+        let (_, exited_pid) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
+
+        test(exited_pid);
+    });
+
+    new_test_ext().execute_with(|| {
+        // failed in init
+        let init = Calls::builder().panic("panicked in init");
+        let (_, terminated_pid) = submit_constructor_with_args(
+            USER_1,
+            DEFAULT_SALT,
+            Scheme::predefined(init, Default::default(), Default::default()),
+            0,
+        );
+
+        test(terminated_pid);
+    });
 }
 
 #[test]
