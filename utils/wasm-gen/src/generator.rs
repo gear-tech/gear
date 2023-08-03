@@ -200,6 +200,9 @@ impl<'a> GearWasmGenerator<'a> {
     }
 }
 
+/// Index in call indexes collection.
+type CallIndexesHandle = usize;
+
 /// Type used to manage (mainly, add and resolve) indexes
 /// of the wasm module calls, which are, mostly, import functions
 /// and internal functions.
@@ -222,7 +225,7 @@ impl CallIndexes {
         Self { inner }
     }
 
-    pub(crate) fn get(&self, handle_idx: usize) -> Option<FunctionIndex> {
+    pub(crate) fn get(&self, handle_idx: CallIndexesHandle) -> Option<FunctionIndex> {
         self.inner.get(handle_idx).copied()
     }
 

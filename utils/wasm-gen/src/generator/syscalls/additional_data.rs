@@ -21,16 +21,16 @@
 use crate::{
     generator::{
         CallIndexes, DisabledSysCallsImportsGenerator, ModuleWithCallIndexes,
-        SysCallsImportsGenerationProof,
+        SysCallsImportsGenerationProof, CallIndexesHandle,
     },
-    utils, EntryPointName, MessageDestination, SysCallsConfig, WasmModule,
+    utils, EntryPointName, InvocableSysCall, MessageDestination, SysCallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SysCallName,
 };
-use std::{collections::BTreeMap, iter::Cycle, vec::IntoIter};
+use std::{collections::HashMap, iter::Cycle, vec::IntoIter};
 
 /// Cycled iterator over wasm module data offsets.
 ///
@@ -44,7 +44,7 @@ pub struct AddressesOffsets(Cycle<IntoIter<u32>>);
 
 impl AddressesOffsets {
     /// Get the next offset.
-    pub fn next(&mut self) -> u32 {
+    pub fn next_offset(&mut self) -> u32 {
         self.0
             .next()
             .expect("offsets is created only from non empty vec")
@@ -65,7 +65,7 @@ pub struct AdditionalDataInjector<'a> {
     last_offset: u32,
     module: WasmModule,
     addresses_offsets: Vec<u32>,
-    sys_calls_imports: BTreeMap<SysCallName, (u32, usize)>,
+    sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a>
@@ -143,10 +143,6 @@ impl<'a> AdditionalDataInjector<'a> {
             return None;
         };
 
-        if existing_addresses.is_empty() {
-            panic!("Invalid additional data config: existing addresses collection is empty");
-        }
-
         for address in existing_addresses {
             self.addresses_offsets.push(self.last_offset);
 
@@ -163,7 +159,7 @@ impl<'a> AdditionalDataInjector<'a> {
                 (module, ())
             });
 
-            self.last_offset = self.last_offset + data_len as u32;
+            self.last_offset += data_len as u32;
         }
 
         Some(AddressesOffsets(
@@ -194,7 +190,7 @@ impl<'a> AdditionalDataInjector<'a> {
 
         let debug_call_indexes_handle = self
             .sys_calls_imports
-            .get(&SysCallName::Debug)
+            .get(&InvocableSysCall::Loose(SysCallName::Debug))
             .map(|&(_, handle)| handle as u32)
             .expect("impossible by configs generation to have log info printing without debug sys-call generated");
 
@@ -251,7 +247,7 @@ pub struct DisabledAdditionalDataInjector<'a> {
     pub(super) unstructured: &'a mut Unstructured<'a>,
     pub(super) module: WasmModule,
     pub(super) call_indexes: CallIndexes,
-    pub(super) sys_calls_imports: BTreeMap<SysCallName, (u32, usize)>,
+    pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
     pub(super) config: SysCallsConfig,
 }
 

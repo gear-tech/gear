@@ -41,3 +41,37 @@ mod invocator;
 pub use additional_data::*;
 pub use imports::*;
 pub use invocator::*;
+
+use gear_wasm_instrument::syscalls::{SysCallName, SysCallSignature};
+
+/// Type of invocable sys-call.
+///
+/// Basically, there are 2 types of generated sys-calls:
+/// 1. Those invocation of which is done regardless of validity of call context (``).
+/// 2. Those which are invoked correctly with implenting all call context (`Precise`).
+///
+/// Clarifying that, `gr_reservation_send` requires an existing reservation id,
+/// which is pretty hard to predict beforehand with a generator. So this call context
+/// is created from scratch - first `gr_reserve_gas` is called and then it's result
+/// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum InvocableSysCall {
+    Loose(SysCallName),
+    Precise(SysCallSignature),
+}
+
+impl InvocableSysCall {
+    fn name(&self) -> Option<SysCallName> {
+        match self {
+            InvocableSysCall::Loose(name) => Some(*name),
+            InvocableSysCall::Precise(_) => None,
+        }
+    }
+
+    fn into_signature(self) -> SysCallSignature {
+        match self {
+            InvocableSysCall::Loose(name) => name.signature(),
+            InvocableSysCall::Precise(signature) => signature,
+        }
+    }
+}

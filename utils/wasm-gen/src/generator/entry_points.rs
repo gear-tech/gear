@@ -43,7 +43,7 @@ impl<'a> From<GearWasmGenerator<'a>> for (EntryPointsGenerator<'a>, FrozenGearWa
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
-            config: generator.config.entry_points_config.clone(),
+            config: generator.config.entry_points_config,
             call_indexes: generator.call_indexes,
         };
         let frozen = FrozenGearWasmGenerator {

@@ -374,7 +374,7 @@ impl From<ParamType> for ValueType {
 }
 
 /// Syscall signature.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SysCallSignature {
     pub params: Vec<ParamType>,
     pub results: Vec<ValueType>,

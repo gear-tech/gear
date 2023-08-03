@@ -19,7 +19,7 @@
 use std::mem;
 
 use crate::{
-    gen_gear_program_code, memory::ModuleBuilderWithData, utils, ConfigsBundle,
+    generate_gear_program_code, memory::ModuleBuilderWithData, utils, ConfigsBundle,
     GearWasmGeneratorConfigBuilder, ModuleWithDebug, SysCallsConfigBuilder,
 };
 use arbitrary::Unstructured;
@@ -43,7 +43,7 @@ fn gen_wasm_normal() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, ConfigsBundle::default(), &[]);
+        let code = generate_gear_program_code(&mut u, ConfigsBundle::default(), &[]);
         let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
@@ -66,7 +66,7 @@ fn gen_wasm_valid() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, config.clone(), &[]);
+        let code = generate_gear_program_code(&mut u, config.clone(), &[]);
         let _wat = wasmprinter::print_bytes(&code).unwrap();
         wasmparser::validate(&code).unwrap();
     }
@@ -134,8 +134,8 @@ proptest! {
 
         let gear_config = ConfigsBundle::default();
 
-        let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
-        let second = gen_gear_program_code(&mut u2, gear_config, &[]);
+        let first = generate_gear_program_code(&mut u, gear_config.clone(), &[]);
+        let second = generate_gear_program_code(&mut u2, gear_config, &[]);
 
         assert!(first == second);
     }
@@ -150,7 +150,7 @@ fn injecting_addresses_works() {
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
-    let code = gen_gear_program_code(&mut u, ConfigsBundle::default(), &[]);
+    let code = generate_gear_program_code(&mut u, ConfigsBundle::default(), &[]);
 
     let module: elements::Module = parity_wasm::deserialize_buffer(&code).unwrap();
     let memory_pages = module
@@ -200,8 +200,3 @@ fn injecting_addresses_works() {
     let wat = wasmprinter::print_bytes(code).unwrap();
     println!("wat = {wat}");
 }
-
-// Additional tests
-// 1. call-indexes remain stable when you make transitions epGen -> memGen -> epGen
-// 2. Transition from memGen to epGen saves memory import. If no proof , then no mem import.
-// 3. Process sys-calls params works correctly.

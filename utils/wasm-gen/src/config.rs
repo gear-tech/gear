@@ -71,9 +71,9 @@
 //! }
 //! ```
 
-pub mod generator;
-pub mod module;
-pub mod syscalls;
+mod generator;
+mod module;
+mod syscalls;
 
 pub use generator::*;
 pub use module::*;

@@ -19,20 +19,64 @@
 //! Sys-calls invocator module.
 
 use crate::{
-    config::syscalls::{self, ProcessedSysCallParams},
     generator::{
         AddressesInjectionOutcome, AddressesOffsets, CallIndexes, DisabledAdditionalDataInjector,
-        FunctionIndex, ModuleWithCallIndexes,
+        FunctionIndex, ModuleWithCallIndexes, CallIndexesHandle,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    SysCallsConfig,
+    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName},
 };
-use std::collections::BTreeMap;
+use std::{collections::HashMap, iter};
+
+#[derive(Debug)]
+pub(crate) enum ProcessedSysCallParams {
+    Alloc,
+    Value {
+        value_type: ValueType,
+        allowed_values: Option<SysCallParamAllowedValues>,
+    },
+    MemoryArray,
+    MemoryPtrValue,
+}
+
+pub(crate) fn process_sys_call_params(
+    params: &[ParamType],
+    params_config: &SysCallsParamsConfig,
+) -> Vec<ProcessedSysCallParams> {
+    let mut res = Vec::with_capacity(params.len());
+    let mut skip_next_param = false;
+    for &param in params {
+        if skip_next_param {
+            skip_next_param = false;
+            continue;
+        }
+        let processed_param = match param {
+            ParamType::Alloc => ProcessedSysCallParams::Alloc,
+            ParamType::Ptr(maybe_idx) => maybe_idx
+                .map(|_| {
+                    // skipping next as we don't need the following `Size` param,
+                    // because it will be chosen in accordance to the wasm module
+                    // memory pages config.
+                    skip_next_param = true;
+                    ProcessedSysCallParams::MemoryArray
+                })
+                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
+            _ => ProcessedSysCallParams::Value {
+                value_type: param.into(),
+                allowed_values: params_config.get_rule(&param),
+            },
+        };
+
+        res.push(processed_param);
+    }
+
+    res
+}
 
 /// Sys-calls invocator.
 ///
@@ -53,7 +97,7 @@ pub struct SysCallsInvocator<'a> {
     module: WasmModule,
     config: SysCallsConfig,
     offsets: Option<AddressesOffsets>,
-    sys_call_imports: BTreeMap<SysCallName, (u32, usize)>,
+    sys_call_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a>
@@ -85,10 +129,10 @@ impl<'a> SysCallsInvocator<'a> {
     /// The method builds instructions, which describe how each sys-call is called, and then
     /// insert these instructions into any random function. In the end, all call indexes are resolved.
     pub fn insert_invokes(mut self) -> Result<DisabledSysCallsInvocator> {
-        for (name, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
+        for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
             let instructions =
-                self.build_sys_call_invoke_instructions(name, call_indexes_handle)?;
-            for instructions in std::iter::repeat(&instructions).take(amount as usize) {
+                self.build_sys_call_invoke_instructions(invocable, call_indexes_handle)?;
+            for instructions in iter::repeat(&instructions).take(amount as usize) {
                 self.insert_sys_call_instructions(instructions)?;
             }
         }
@@ -103,10 +147,11 @@ impl<'a> SysCallsInvocator<'a> {
 
     fn build_sys_call_invoke_instructions(
         &mut self,
-        name: SysCallName,
+        invocable: InvocableSysCall,
         call_indexes_handle: usize,
     ) -> Result<Vec<Instruction>> {
-        let signature = name.signature();
+        let name = invocable.name();
+        let signature = invocable.into_signature();
         if self.is_not_send_sys_call(name) {
             return self.build_call(&signature.params, &signature.results, call_indexes_handle);
         }
@@ -119,7 +164,7 @@ impl<'a> SysCallsInvocator<'a> {
         let res = if self.config.sending_message_destination().is_source() {
             let gr_source_call_indexes_handle = self
                 .sys_call_imports
-                .get(&SysCallName::Source)
+                .get(&InvocableSysCall::Loose(SysCallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
 
@@ -155,7 +200,7 @@ impl<'a> SysCallsInvocator<'a> {
                         .sending_message_destination()
                         .is_existing_addresses());
 
-                    offsets.next()
+                    offsets.next_offset()
                 }
                 None => {
                     debug_assert!(self.config.sending_message_destination().is_random());
@@ -173,12 +218,13 @@ impl<'a> SysCallsInvocator<'a> {
         Ok(res)
     }
 
-    fn is_not_send_sys_call(&self, name: SysCallName) -> bool {
+    fn is_not_send_sys_call(&self, name: Option<SysCallName>) -> bool {
         ![
-            SysCallName::Send,
-            SysCallName::SendWGas,
-            SysCallName::SendInput,
-            SysCallName::SendInputWGas,
+            Some(SysCallName::Send),
+            Some(SysCallName::SendWGas),
+            Some(SysCallName::SendInput),
+            Some(SysCallName::SendInputWGas),
+            None,
         ]
         .contains(&name)
     }
@@ -201,9 +247,7 @@ impl<'a> SysCallsInvocator<'a> {
 
         // + 1 for call instruction.
         let mut instructions = Vec::with_capacity(params.len() * 2 + results.len() + 1);
-        for processed_param in
-            syscalls::process_sys_call_params(params, self.config.params_config())
-        {
+        for processed_param in process_sys_call_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSysCallParams::Alloc => {
                     let pages_to_alloc = self
@@ -223,17 +267,15 @@ impl<'a> SysCallsInvocator<'a> {
                         }
                     };
                     let instr = if let Some(allowed_values) = allowed_values {
-                        is_i32
-                            .then_some(Instruction::I32Const(
-                                allowed_values.get_i32(self.unstructured)?,
-                            ))
-                            .unwrap_or(Instruction::I64Const(
-                                allowed_values.get_i64(self.unstructured)?,
-                            ))
+                        if is_i32 {
+                            Instruction::I32Const(allowed_values.get_i32(self.unstructured)?)
+                        } else {
+                            Instruction::I64Const(allowed_values.get_i64(self.unstructured)?)
+                        }
+                    } else if is_i32 {
+                        Instruction::I32Const(self.unstructured.arbitrary()?)
                     } else {
-                        is_i32
-                            .then_some(Instruction::I32Const(self.unstructured.arbitrary()?))
-                            .unwrap_or(Instruction::I64Const(self.unstructured.arbitrary()?))
+                        Instruction::I64Const(self.unstructured.arbitrary()?)
                     };
 
                     instructions.push(instr);

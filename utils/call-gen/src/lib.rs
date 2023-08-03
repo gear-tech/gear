@@ -170,5 +170,5 @@ pub fn generate_gear_program<Rng: CallGenRng>(
         })
         .collect::<Vec<_>>();
 
-    gear_wasm_gen::gen_gear_program_code(&mut u, config, &addresses)
+    gear_wasm_gen::generate_gear_program_code(&mut u, config, &addresses)
 }

@@ -21,10 +21,10 @@
 use crate::{
     generator::{
         CallIndexes, FrozenGearWasmGenerator, GearEntryPointGenerationProof, GearWasmGenerator,
-        MemoryImportGenerationProof, ModuleWithCallIndexes,
+        MemoryImportGenerationProof, ModuleWithCallIndexes, CallIndexesHandle,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    SysCallsConfig,
+    InvocableSysCall, SysCallsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -35,7 +35,7 @@ use gear_wasm_instrument::{
     syscalls::{ParamType, SysCallName, SysCallSignature},
 };
 use gsys::{ErrorWithHash, HashWithValue, Length};
-use std::{collections::BTreeMap, mem};
+use std::{collections::HashMap, mem};
 
 /// Gear sys-calls imports generator.
 pub struct SysCallsImportsGenerator<'a> {
@@ -43,7 +43,11 @@ pub struct SysCallsImportsGenerator<'a> {
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
-    sys_call_imports: BTreeMap<SysCallName, (u32, usize)>,
+    // This collcetion of sys-calls imports data has an `Option` as a key.
+    // That's done intentionally and has the following semantics: `Some` is
+    // used for sys-calls which are invoked with semi-randomly generated params
+    // from params config. `None` is for all sys-calls which have
+    sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 /// Sys-calls imports generator instantiator.
@@ -89,7 +93,7 @@ impl<'a> From<SysCallsImportsGeneratorInstantiator<'a>>
             call_indexes: generator.call_indexes,
             module: generator.module,
             config: generator.config.sys_calls_config.clone(),
-            sys_call_imports: Default::default(),
+            sys_calls_imports: Default::default(),
         };
         let frozen = FrozenGearWasmGenerator {
             config: generator.config,
@@ -123,7 +127,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
             call_indexes,
             module,
             config,
-            sys_call_imports: Default::default(),
+            sys_calls_imports: Default::default(),
         }
     }
 
@@ -134,7 +138,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
             call_indexes: self.call_indexes,
             module: self.module,
             config: self.config,
-            sys_calls_imports: self.sys_call_imports,
+            sys_calls_imports: self.sys_calls_imports,
         }
     }
 
@@ -156,7 +160,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
             call_indexes: self.call_indexes,
             module: self.module,
             config: self.config,
-            sys_calls_imports: self.sys_call_imports,
+            sys_calls_imports: self.sys_calls_imports,
         };
 
         Ok((disabled, sys_calls_proof))
@@ -167,8 +171,8 @@ impl<'a> SysCallsImportsGenerator<'a> {
         for sys_call in SysCallName::instrumentable() {
             let sys_call_generation_data = self.generate_sys_call_import(sys_call)?;
             if let Some(sys_call_generation_data) = sys_call_generation_data {
-                self.sys_call_imports
-                    .insert(sys_call, sys_call_generation_data);
+                self.sys_calls_imports
+                    .insert(InvocableSysCall::Loose(sys_call), sys_call_generation_data);
             }
         }
 
@@ -177,30 +181,28 @@ impl<'a> SysCallsImportsGenerator<'a> {
 
     /// Generate import of the gear sys-call defined by `sys_call` param.
     ///
-    /// Returns `Some` which wraps the tuple of amount of sys-call to be generated further
+    /// Returns [`Option`] which wraps the tuple of amount of sys-call further injections
     /// and handle in the call indexes collection, if amount is not zero. Otherwise returns
     /// None.
-    fn generate_sys_call_import(&mut self, sys_call: SysCallName) -> Result<Option<(u32, usize)>> {
+    fn generate_sys_call_import(&mut self, sys_call: SysCallName) -> Result<Option<(u32, CallIndexesHandle)>> {
         let sys_call_amount_range = self.config.injection_amounts(sys_call);
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
 
-        Ok((sys_call_amount != 0)
-            .then_some(sys_call_amount)
-            .and_then(|non_zero_amount| {
-                let call_indexes_handle = self.insert_sys_call_import(sys_call);
-                Some((non_zero_amount, call_indexes_handle))
-            }))
+        Ok((sys_call_amount != 0).then(|| {
+            let call_indexes_handle = self.insert_sys_call_import(sys_call);
+            (sys_call_amount, call_indexes_handle)
+        }))
     }
 
     /// Inserts gear sys-call defined by the `sys_call` param.
-    fn insert_sys_call_import(&mut self, sys_call: SysCallName) -> usize {
+    fn insert_sys_call_import(&mut self, sys_call: SysCallName) -> CallIndexesHandle {
         let sys_call_import_idx = self.module.count_import_funcs();
 
         // Insert sys-call import to the module
         self.module.with(|module| {
             let mut module_builder = builder::from_module(module);
 
-            // Build signature acceptable by parity-wasm for the sys call
+            // Build signature applicable for the parity-wasm for the sys call
             let sys_call_signature = sys_call.signature().func_type();
             let signature_idx = module_builder.push_signature(
                 builder::signature()
@@ -231,22 +233,20 @@ impl<'a> SysCallsImportsGenerator<'a> {
 
 impl<'a> SysCallsImportsGenerator<'a> {
     /// Generates a function which calls "properly" the `gr_reservation_send`.
-    fn generate_send_from_reservation(&mut self) -> Option<usize> {
+    fn generate_send_from_reservation(&mut self) {
         let (reserve_gas_idx, reservation_send_idx) = {
             let maybe_reserve_gas = self
-                .sys_call_imports
-                .get(&SysCallName::ReserveGas)
+                .sys_calls_imports
+                .get(&InvocableSysCall::Loose(SysCallName::ReserveGas))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle);
             let maybe_reservation_send = self
-                .sys_call_imports
-                .get(&SysCallName::ReservationSend)
+                .sys_calls_imports
+                .get(&InvocableSysCall::Loose(SysCallName::ReservationSend))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle);
-            if let (Some(reserve_gas_idx), Some(reservation_send_idx)) =
-                (maybe_reserve_gas, maybe_reservation_send)
-            {
-                (reserve_gas_idx, reservation_send_idx)
-            } else {
-                return None;
+
+            match maybe_reserve_gas.zip(maybe_reservation_send) {
+                Some(indexes) => indexes,
+                None => return,
             }
         };
 
@@ -262,13 +262,12 @@ impl<'a> SysCallsImportsGenerator<'a> {
             results: Default::default(),
         };
 
-        let send_from_reservation_signature = send_from_reservation_signature.func_type();
+        let send_from_reservation_func_ty = send_from_reservation_signature.func_type();
         let func_signature = builder::signature()
-            .with_params(send_from_reservation_signature.params().iter().copied())
-            .with_results(send_from_reservation_signature.results().iter().copied())
+            .with_params(send_from_reservation_func_ty.params().iter().copied())
+            .with_results(send_from_reservation_func_ty.results().iter().copied())
             .build_sig();
 
-        // Pointer to the LengthWithHash struct
         let memory_size_in_bytes = {
             let initial_mem_size: WasmPageCount = self
                 .module
@@ -284,15 +283,24 @@ impl<'a> SysCallsImportsGenerator<'a> {
         let reservation_send_result_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
 
         let func_instructions = Instructions::new(vec![
-            Instruction::GetLocal(4),                      // Amount of gas to reserve
-            Instruction::GetLocal(5),                      // Duration of the reservation
-            Instruction::I32Const(reserve_gas_result_ptr), // Pointer to the LengthWithHash struct
+            // Amount of gas to reserve
+            Instruction::GetLocal(4),
+            // Duration of the reservation
+            Instruction::GetLocal(5),
+            // Pointer to the LengthWithHash struct
+            Instruction::I32Const(reserve_gas_result_ptr),
             Instruction::Call(reserve_gas_idx as u32),
-            Instruction::I32Const(reserve_gas_result_ptr), // Pointer to the LengthWithHash struct
-            Instruction::I32Load(2, 0),                    // Load LengthWithHash.length
-            Instruction::I32Eqz,                           // Check if LengthWithHash.length == 0
-            Instruction::If(BlockType::NoResult),          // If LengthWithHash.length == 0
-            Instruction::I32Const(pid_value_ptr), // Copy the HashWithValue struct (48 bytes) containing the recipient and value after the obtained reservation ID
+            // Pointer to the LengthWithHash struct
+            Instruction::I32Const(reserve_gas_result_ptr),
+            // Load LengthWithHash.length
+            Instruction::I32Load(2, 0),
+            // Check if LengthWithHash.length == 0
+            Instruction::I32Eqz,
+            // If LengthWithHash.length == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the HashWithValue struct (48 bytes) containing
+            // the recipient and value after the obtained reservation ID
+            Instruction::I32Const(pid_value_ptr),
             Instruction::GetLocal(0),
             Instruction::I64Load(3, 0),
             Instruction::I64Store(3, 0),
@@ -316,11 +324,16 @@ impl<'a> SysCallsImportsGenerator<'a> {
             Instruction::GetLocal(0),
             Instruction::I64Load(3, 40),
             Instruction::I64Store(3, 40),
-            Instruction::I32Const(rid_pid_value_ptr), // Pointer to reservation ID, recipient ID and value
-            Instruction::GetLocal(1),                 // Pointer to payload
-            Instruction::GetLocal(2),                 // Size of the payload
-            Instruction::GetLocal(3),                 // Number of blocks to delay the sending for
-            Instruction::I32Const(reservation_send_result_ptr), // Pointer to the result of the reservation send
+            // Pointer to reservation ID, recipient ID and value
+            Instruction::I32Const(rid_pid_value_ptr),
+            // Pointer to payload
+            Instruction::GetLocal(1),
+            // Size of the payload
+            Instruction::GetLocal(2),
+            // Number of blocks to delay the sending for
+            Instruction::GetLocal(3),
+            // Pointer to the result of the reservation send
+            Instruction::I32Const(reservation_send_result_ptr),
             Instruction::Call(reservation_send_idx as u32),
             Instruction::End,
             Instruction::End,
@@ -344,7 +357,10 @@ impl<'a> SysCallsImportsGenerator<'a> {
         self.call_indexes
             .add_func(send_from_reservation_func_idx.signature as usize);
 
-        Some(call_indexes_handle)
+        self.sys_calls_imports.insert(
+            InvocableSysCall::Precise(send_from_reservation_signature),
+            (1, call_indexes_handle),
+        );
     }
 }
 
@@ -360,7 +376,7 @@ pub struct DisabledSysCallsImportsGenerator<'a> {
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
     pub(super) config: SysCallsConfig,
-    pub(super) sys_calls_imports: BTreeMap<SysCallName, (u32, usize)>,
+    pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a> From<DisabledSysCallsImportsGenerator<'a>> for ModuleWithCallIndexes {
