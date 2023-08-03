@@ -350,7 +350,7 @@ where
         let new_node_id = new_node_id.into();
 
         // Check if there is no node with such key yet first.
-        // This also checks if key == new_node_key.
+        // This also checks if `node_id` == `new_node_id`.
         if StorageMap::contains_key(&new_node_id) {
             return Err(InternalError::node_already_exists().into());
         }
@@ -360,7 +360,7 @@ where
         )?;
         let value_node_id = value_node_id.unwrap_or(node_id);
 
-        // Check if the parent node is cut
+        // Check if the value node is cut
         if value_node.is_cut() {
             return Err(InternalError::forbidden().into());
         }

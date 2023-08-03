@@ -131,6 +131,7 @@ common::wrap_storage_map!(
 );
 
 pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
+
 impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
@@ -266,6 +267,7 @@ pub mod test_v2 {
     }
 
     #[test]
+    #[ignore = "Migration from v1 to v2 has been already done"]
     fn migration_to_v2_works() {
         let _ = env_logger::try_init();
         new_test_ext().execute_with(|| {
