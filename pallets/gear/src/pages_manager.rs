@@ -22,6 +22,7 @@ use common::Origin;
 use core::marker::PhantomData;
 use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
 
+/// Manager that handles memory pages of a program.
 pub(crate) struct PagesManager<T> {
     details: DefaultPagesManagerDetails<T>,
 }
@@ -31,12 +32,16 @@ where
     T: pallet::Config,
     T::AccountId: Origin,
 {
+    /// Enable pages management.
+    ///
+    /// Allowed to be called many times.
     pub(crate) fn enable() -> Self {
         Self {
             details: DefaultPagesManagerDetails::enable(),
         }
     }
 
+    /// Get memory pages of program.
     pub fn memory_pages(
         &self,
         program_id: ProgramId,
@@ -45,6 +50,7 @@ where
         self.details.memory_pages(program_id, pages_with_data)
     }
 
+    /// Get memory pages and track program in [`ExtManager`].
     pub(crate) fn get_and_track_memory_pages(
         &self,
         manager: &mut ExtManager<T>,
@@ -63,6 +69,7 @@ pub(crate) type DefaultPagesManagerDetails<T> = NoopPagesManager<T>;
 #[cfg(feature = "lazy-pages")]
 pub(crate) type DefaultPagesManagerDetails<T> = lazy_pages::LazyPagesManager<T>;
 
+/// Pages manager implementation details.
 trait PagesManagerDetails<T>
 where
     T: pallet::Config,
@@ -76,6 +83,7 @@ where
     ) -> Option<BTreeMap<GearPage, PageBuf>>;
 }
 
+/// Manager that literally does nothing.
 pub(crate) struct NoopPagesManager<T>(PhantomData<T>);
 
 impl<T> PagesManagerDetails<T> for NoopPagesManager<T>
@@ -103,6 +111,7 @@ mod lazy_pages {
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
     use std::collections::{BTreeMap, BTreeSet};
 
+    /// Manager that works with [`gear_lazy_pages_common`].
     pub(crate) struct LazyPagesManager<T>(PhantomData<T>);
 
     impl<T> PagesManagerDetails<T> for LazyPagesManager<T>
