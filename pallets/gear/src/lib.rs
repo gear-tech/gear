@@ -50,6 +50,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
+use crate::pages::PagesManager;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
@@ -90,9 +91,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use gear_lazy_pages_common as lazy_pages;
 
 #[cfg(feature = "lazy-pages")]
 use ext::LazyPagesExt as Ext;
@@ -729,14 +727,16 @@ pub mod pallet {
 
         pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
+            let pages_manager = PagesManager::enable();
 
-            Self::read_state_impl(program_id).map_err(String::into_bytes)
+            Self::read_state_impl(program_id, &pages_manager).map_err(String::into_bytes)
         }
 
         pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
+            let pages_manager = PagesManager::enable();
 
-            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id, &pages_manager).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]

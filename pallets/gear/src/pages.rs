@@ -37,13 +37,21 @@ where
         }
     }
 
+    pub fn memory_pages(
+        &self,
+        program_id: ProgramId,
+        pages_with_data: &BTreeSet<GearPage>,
+    ) -> Option<BTreeMap<GearPage, PageBuf>> {
+        self.details.memory_pages(program_id, pages_with_data)
+    }
+
     pub(crate) fn get_and_track_memory_pages(
         &self,
         manager: &mut ExtManager<T>,
         program_id: ProgramId,
         pages_with_data: &BTreeSet<GearPage>,
     ) -> Option<BTreeMap<GearPage, PageBuf>> {
-        let pages = self.details.memory_pages(program_id, pages_with_data);
+        let pages = self.memory_pages(program_id, pages_with_data);
         manager.insert_program_id_loaded_pages(program_id);
         pages
     }
@@ -55,7 +63,7 @@ pub(crate) type DefaultPagesManagerDetails<T> = NoopPagesManager<T>;
 #[cfg(feature = "lazy-pages")]
 pub(crate) type DefaultPagesManagerDetails<T> = lazy_pages::LazyPagesManager<T>;
 
-pub trait PagesManagerDetails<T>
+trait PagesManagerDetails<T>
 where
     T: pallet::Config,
 {

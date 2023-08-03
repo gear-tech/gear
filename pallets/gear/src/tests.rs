@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
@@ -49,6 +48,7 @@ use crate::{
     RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
     ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
 };
+use crate::{pages::PagesManager, runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT};
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
     LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
@@ -169,7 +169,8 @@ fn read_big_state() {
             run_to_next_block(None);
 
             assert_succeed(mid);
-            let state = Gear::read_state_impl(pid).expect("Failed to read state");
+            let pages_manager = PagesManager::enable();
+            let state = Gear::read_state_impl(pid, &pages_manager).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -1911,7 +1912,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res = Gear::read_state_impl(program_id).expect("Failed to read state");
+        let pages_manager = PagesManager::enable();
+        let res = Gear::read_state_impl(program_id, &pages_manager).expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
