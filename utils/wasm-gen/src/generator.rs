@@ -90,6 +90,30 @@ impl ModuleWithCallIndexes {
     }
 }
 
+/// Module and it's call indexes carrier.
+///
+/// # Rationale:
+/// Some of generators can be instantiated from "scratch", by just calling
+/// "new" (or other instantiator function), which accepts params, that are
+/// essential for the generator. `WasmModule` and `CallIndexes` have an implicit
+/// relationship: newly added imports and functions can be included to the wasm,
+/// but not in the call indexes (if we forgot to do that). Although, adding call indexes
+/// is controlled in the generator, some other generator can be instantiated with wasm
+/// module and call indexes being unrelated to each other. So this carrier is used to
+/// control wasm module and call indexes value flow, so related values will always
+/// be delivered together.
+pub struct ModuleWithCallIndexes {
+    module: WasmModule,
+    call_indexes: CallIndexes,
+}
+
+impl ModuleWithCallIndexes {
+    /// Convert into inner wasm module
+    pub fn into_wasm_module(self) -> WasmModule {
+        self.module
+    }
+}
+
 /// General gear wasm generator, which works as a mediator
 /// controlling relations between various available in the
 /// crate generators.
