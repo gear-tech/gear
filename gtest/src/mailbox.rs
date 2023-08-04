@@ -69,6 +69,7 @@ impl<'a> Mailbox<'a> {
         );
     }
 
+    #[track_caller]
     fn remove_message<T: Into<Log>>(&self, log: T) -> StoredMessage {
         let log = log.into();
         let mut manager = self.manager.borrow_mut();

@@ -305,6 +305,10 @@ case "$COMMAND" in
         header "Testing examples in docs"
         doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
+      time-consuming)
+        header "Running time consuming tests"
+        time_consuming_tests "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage

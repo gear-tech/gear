@@ -133,6 +133,7 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    #[track_caller]
     pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
@@ -143,6 +144,7 @@ impl System {
         self.0.borrow_mut().store_new_code(&code)
     }
 
+    #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
         if !self.0.borrow().is_user(&program_id) {
