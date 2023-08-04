@@ -103,6 +103,9 @@ pub enum SysCallName {
     UnreserveGas,
     SystemReserveGas,
     PayProgramRent,
+
+    Bls381MultiMillerLoop,
+    Bls381FinalExponentiation,
 }
 
 impl SysCallName {
@@ -164,6 +167,8 @@ impl SysCallName {
             SysCallName::WaitFor => "gr_wait_for",
             SysCallName::WaitUpTo => "gr_wait_up_to",
             SysCallName::Wake => "gr_wake",
+            SysCallName::Bls381MultiMillerLoop => "bls12_381_multi_miller_loop",
+            SysCallName::Bls381FinalExponentiation => "bls12_381_final_exponentiation",
         }
     }
 
@@ -296,6 +301,8 @@ impl SysCallName {
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
             Self::Random => SysCallSignature::gr([Ptr, Ptr]),
+            Self::Bls381MultiMillerLoop => SysCallSignature::system([Size, Ptr, Size, Ptr, Ptr, Ptr], [I32]),
+            Self::Bls381FinalExponentiation => SysCallSignature::system([Size, Ptr, Ptr, Ptr], [I32]),
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }

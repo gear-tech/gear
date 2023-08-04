@@ -532,6 +532,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per salt byte by `create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: Weight,
 
+    /// bls12_381_multi_miller_loop
+    pub bls12_381_multi_miller_loop: Weight,
+
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     pub _phantom: PhantomData<T>,
@@ -913,6 +916,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas_salt_per_byte: self
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time(),
+            bls12_381_multi_miller_loop: self.bls12_381_multi_miller_loop.ref_time(),
         }
     }
 }
@@ -1014,6 +1018,7 @@ impl<T: Config> Default for HostFnWeights<T> {
                 0,
                 1
             )),
+            bls12_381_multi_miller_loop: to_weight!(cost_batched!(bls12_381_multi_miller_loop)),
             _phantom: PhantomData,
         }
     }

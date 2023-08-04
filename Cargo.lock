@@ -7323,6 +7323,11 @@ dependencies = [
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-scale",
+ "ark-serialize",
+ "ark-std",
  "blake2-rfc",
  "demo-async",
  "demo-async-custom-entry",

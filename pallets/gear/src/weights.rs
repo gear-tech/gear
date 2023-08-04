@@ -37,6 +37,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_gear.
 pub trait WeightInfo {
+    fn bls12_381_multi_miller_loop(r: u32, ) -> Weight;
     fn db_write_per_kb(c: u32, ) -> Weight;
     fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
@@ -227,6 +228,16 @@ pub trait WeightInfo {
 /// Weights for pallet_gear using the Gear node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+    /// The range of component `r` is `[0, 20]`.
+    fn bls12_381_multi_miller_loop(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 116_140_000 picoseconds.
+        Weight::from_parts(117_593_000, 0)
+            // Standard Error: 13_270_965
+            .saturating_add(Weight::from_parts(38_244_792_562, 0).saturating_mul(r.into()))
+    }
     fn allocation_cost() -> Weight {
         // To be changed with the proper value.
         T::DbWeight::get().writes(1)
@@ -2098,6 +2109,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
+    /// The range of component `r` is `[0, 20]`.
+    fn bls12_381_multi_miller_loop(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 116_140_000 picoseconds.
+        Weight::from_parts(117_593_000, 0)
+            // Standard Error: 13_270_965
+            .saturating_add(Weight::from_parts(38_244_792_562, 0).saturating_mul(r.into()))
+    }
     fn allocation_cost() -> Weight {
         // To be changed with the proper value.
         RocksDbWeight::get().writes(1)

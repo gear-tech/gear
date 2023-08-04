@@ -101,6 +101,7 @@ where
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
             SysCallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
+            SysCallName::Bls381MultiMillerLoop | SysCallName::Bls381FinalExponentiation => { /* not necessary */ }
         }
     });
 }

@@ -337,8 +337,8 @@ pub fn instantiate(
 
             // log::info!("sha2_256; offset = {offset}, len = {len}, hash_offset = {hash_offset}");
 
-            // mocked value
-            const GAS_TO_CHARGE: u64 = 100_000_000_000;
+            // benchmarked on amd ryzen 3700x
+            const GAS_TO_CHARGE: u64 = 482_652_656;
 
             let gas = env.gas.as_ref().expect("gas global should be set");
             let gas_value = gas.get().i64().expect("global should be i64") as u64;
@@ -440,8 +440,8 @@ pub fn instantiate(
 
             // log::info!("sha2_256; offset = {offset}, len = {len}, hash_offset = {hash_offset}");
 
-            // mocked value
-            const GAS_TO_CHARGE: u64 = 100_000_000_000;
+            // benchmarked on amd ryzen 3700x
+            const GAS_TO_CHARGE: u64 = 666_015_059;
 
             let gas = env.gas.as_ref().expect("gas global should be set");
             let gas_value = gas.get().i64().expect("global should be i64") as u64;

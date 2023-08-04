@@ -681,6 +681,148 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
+    pub fn bls12_381_multi_miller_loop(
+        batches: u32,
+    ) -> Result<Exec<T>, &'static str> {
+        use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
+        use ark_ec::{Group, pairing::Pairing};
+        use ark_std::{ops::Mul, UniformRand};
+
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type ScalarField = <G2 as Group>::ScalarField;
+
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
+        let mut rng = ark_std::test_rng();
+
+        // message
+        let message: G1Affine = G1::rand(&mut rng).into();
+        let message: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
+        let encoded_message = message.encode();
+
+        let priv_key: ScalarField = UniformRand::rand(&mut rng);
+        let generator: G2 = G2::generator();
+        let pub_key: G2Affine = generator.mul(priv_key).into();
+        let pub_key: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
+        let encoded_pub_key = pub_key.encode();
+
+        const OUT_LENGTH: u32 = 1_000;
+        let message_offset = COMMON_OFFSET;
+        let pub_key_offset = message_offset + encoded_message.len() as u32;
+        let encoded = {
+            let mut v = Vec::with_capacity(encoded_message.len() + encoded_pub_key.len() + 4);
+            v.extend_from_slice(&encoded_message);
+            v.extend_from_slice(&encoded_pub_key);
+            v.extend_from_slice(&OUT_LENGTH.to_le_bytes());
+
+            v
+        };
+
+        let result_offset = message_offset + encoded.len() as u32;
+        let result_len_offset = result_offset - 4;
+
+        let mut instructions = vec![
+            Instruction::I32Const(encoded_message.len() as i32),
+            Instruction::I32Const(message_offset as i32),
+            Instruction::I32Const(encoded_pub_key.len() as i32),
+            Instruction::I32Const(pub_key_offset as i32),
+            Instruction::I32Const(result_len_offset as i32),
+            Instruction::I32Const(result_offset as i32),
+            Instruction::Call(0),
+            Instruction::I32Const(0),
+        ];
+
+        // if the syscall doesn't return 0 then it's an error
+        unreachable_condition(&mut instructions, Instruction::I32Ne);
+
+        // compose the module
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Bls381MultiMillerLoop],
+            data_segments: vec![DataSegment {
+                offset: message_offset,
+                value: encoded,
+            }],
+            handle_body: Some(body::repeated(
+                repetitions,
+                &instructions,
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn bls12_381_final_exponentiation(
+        batches: u32,
+    ) -> Result<Exec<T>, &'static str> {
+        use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
+        use ark_ec::{Group, pairing::Pairing};
+        use ark_std::{ops::Mul, UniformRand};
+
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type ScalarField = <G2 as Group>::ScalarField;
+
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
+        let mut rng = ark_std::test_rng();
+
+        // message
+        let message: G1Affine = G1::rand(&mut rng).into();
+
+        let priv_key: ScalarField = UniformRand::rand(&mut rng);
+        let generator: G2 = G2::generator();
+        let pub_key: G2Affine = generator.mul(priv_key).into();
+
+        let miller_loop = Bls12_381::miller_loop(message, pub_key);
+        let miller_loop: ArkScale<<Bls12_381 as Pairing>::TargetField> = miller_loop.0.into();
+        let encoded_miller_loop = miller_loop.encode();
+
+        const OUT_LENGTH: u32 = 1_000;
+        let miller_loop_offset = COMMON_OFFSET;
+        let encoded = {
+            let mut v = Vec::with_capacity(encoded_miller_loop.len() + 4);
+            v.extend_from_slice(&encoded_miller_loop);
+            v.extend_from_slice(&OUT_LENGTH.to_le_bytes());
+
+            v
+        };
+
+        let result_offset = miller_loop_offset + encoded.len() as u32;
+        let result_len_offset = result_offset - 4;
+
+        let mut instructions = vec![
+            Instruction::I32Const(encoded_miller_loop.len() as i32),
+            Instruction::I32Const(miller_loop_offset as i32),
+            Instruction::I32Const(result_len_offset as i32),
+            Instruction::I32Const(result_offset as i32),
+            Instruction::Call(0),
+            Instruction::I32Const(0),
+        ];
+
+        // if the syscall doesn't return 0 then it's an error
+        unreachable_condition(&mut instructions, Instruction::I32Ne);
+
+        // compose the module
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Bls381FinalExponentiation],
+            data_segments: vec![DataSegment {
+                offset: miller_loop_offset,
+                value: encoded,
+            }],
+            handle_body: Some(body::repeated(
+                repetitions,
+                &instructions,
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         assert!(repetitions <= MAX_REPETITIONS);

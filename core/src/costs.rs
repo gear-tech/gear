@@ -291,6 +291,9 @@ pub struct HostFnWeights {
 
     /// Weight per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: u64,
+
+    /// bls12_381_multi_miller_loop
+    pub bls12_381_multi_miller_loop: u64,
 }
 
 /// Token to consume gas amount.

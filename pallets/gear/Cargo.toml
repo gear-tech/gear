@@ -59,6 +59,12 @@ sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
 
+ark-std = { version = "0.4.0", default-features = false, optional = true }
+ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false, optional = true }
+ark-serialize = { version = "0.4", features = ["derive"], default-features = false, optional = true }
+ark-ec = { version = "0.4.2", default-features = false, optional = true }
+ark-scale = { version = "0.0.3", default-features = false, optional = true }
+
 [dev-dependencies]
 wabt.workspace = true
 hex.workspace = true
@@ -153,6 +159,11 @@ std = [
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
+	"ark-bls12-381?/std",
+	"ark-std?/std",
+	"ark-serialize?/std",
+	"ark-ec?/std",
+	"ark-scale?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -169,6 +180,11 @@ runtime-benchmarks = [
 	"test-syscalls/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
 	"gsys",
+	"ark-bls12-381",
+	"ark-std",
+	"ark-serialize",
+	"ark-ec",
+	"ark-scale",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
