@@ -24,7 +24,7 @@ test_usage() {
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
     docs           run doc tests
     validators     run validator checks
-
+    time-consuming run time consuming tests
 EOF
 }
 
@@ -99,4 +99,8 @@ doc_test() {
   shift
 
   __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+}
+
+time_consuming_tests() {
+  $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
 }

@@ -203,6 +203,8 @@ impl pallet_vesting::Config for Test {
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
+pub type VestingError = pallet_vesting::Error<Test>;
+
 impl pallet_airdrop::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();

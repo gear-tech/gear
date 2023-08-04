@@ -11,6 +11,10 @@ on:
 
   workflow_dispatch:
 
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
@@ -21,14 +25,8 @@ env:
 jobs:
   # TODO: add to specific branches.
   # spec_version:
-  #   runs-on: [self-hosted, epyc]
+  #   runs-on: [kuberunner]
   #   steps:
-  #     - name: Cancel Previous Runs
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.11.0
-  #       with:
-  #         access_token: ${{ github.token }}
-
   #     - name: "ACTIONS: Checkout"
   #       uses: actions/checkout@v3
 
@@ -39,19 +37,29 @@ jobs:
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
 
+  prepair:
+    runs-on: ubuntu-latest
+    outputs:
+      sccache_path: ${{ steps.sccache.outputs.sccache_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: "CACHE: Set sccache path"
+        id: sccache
+        run: |
+          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
+          echo "sccache_path=$sccache_path" >> $GITHUB_OUTPUT
+
   check:
     # needs: spec_version
-    needs: check-commit-message
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    needs: [prepair, check-commit-message]
+    runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -60,19 +68,6 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -99,27 +94,18 @@ jobs:
             exit 1
           fi
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
+      - run: sccache --show-stats
 
   build:
     # needs: spec_version
-    needs: [check-commit-message, check-labels]
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    needs: [prepair, check-commit-message, check-labels]
+    runs-on: [kuberunner, github-runner-02]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -132,13 +118,6 @@ jobs:
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
 
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
       - name: "Install: grcov"
         run: |
           curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-musl.tar.bz2 | tar jxf -
@@ -150,16 +129,10 @@ jobs:
           mv rust-covfix-linux-x86_64/rust-covfix ./
           ./rust-covfix --version
 
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
-
       - name: "ACTIONS: Setup environment variable"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
-        
+
       - name: "Buid: Init"
         run: ./scripts/gear.sh init cargo
 
@@ -256,13 +229,6 @@ jobs:
         if: github.event_name == 'push'
         run: cargo build -p gear-cli -F cli --profile production
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
-
       - name: Prepare artifacts
         if: github.event_name == 'push'
         run: |
@@ -287,6 +253,8 @@ jobs:
         with:
           path: artifact
 
+      - run: sccache --show-stats
+
   build-win-native:
     if: ${{ github.ref == 'refs/heads/master' }}
     needs: build
@@ -295,15 +263,8 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -377,21 +338,13 @@ jobs:
           --release
 
   build-win-cross:
-    needs: [check-commit-message, check-labels]
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    needs: [prepair, check-commit-message, check-labels]
+    runs-on: [kuberunner, github-runner-03]
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      CARGO_INCREMENTAL: 0
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -410,25 +363,13 @@ jobs:
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
 
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build
-
       - name: "Install: Wine"
         run: |
-          sudo dpkg --add-architecture i386
-          sudo mkdir -pm755 /etc/apt/keyrings
-          sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
-          sudo apt update
-          sudo apt install --install-recommends -y winehq-stable winetricks
           wineboot
           winetricks win10
 
       - name: "Install: LLVM"
         run: |
-          sudo apt install -y clang-12 clang-tools-12 llvm-12
           sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
 
       - name: "Install: binaryen"
@@ -440,12 +381,6 @@ jobs:
         run: |
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
@@ -472,12 +407,7 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
+      - run: sccache --show-stats
 
   build-macos-x86:
     if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
@@ -486,12 +416,6 @@ jobs:
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -532,15 +456,9 @@ jobs:
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: Download artifacts
         uses: actions/download-artifact@v3
 
@@ -566,16 +484,13 @@ jobs:
           files: artifact/*
 
   check-fuzzer:
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    needs: [prepair]
+    runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -585,18 +500,13 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
 
       - name: "Check fuzzer with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+      - run: sccache --show-stats
 
   check-commit-message:
     runs-on: ubuntu-latest

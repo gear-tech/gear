@@ -94,7 +94,7 @@ Metadata {
 
 #[test]
 fn test_command_program_metadata_works() -> Result<()> {
-    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+    let meta = env::wasm_bin("demo_new_meta.meta.txt");
     let args = Args::new("program").action("meta").meta(meta);
     let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
@@ -109,7 +109,7 @@ fn test_command_program_metadata_works() -> Result<()> {
 
 #[test]
 fn test_command_program_metadata_derive_works() -> Result<()> {
-    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+    let meta = env::wasm_bin("demo_new_meta.meta.txt");
     let args = Args::new("program")
         .action("meta")
         .meta(meta)

@@ -109,7 +109,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `TokensDeposited{ dest, amount }`
         #[pallet::call_index(0)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer(1))]
         pub fn transfer(
             origin: OriginFor<T>,
             source: T::AccountId,
@@ -146,7 +146,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `VestingScheduleRemoved{ who, schedule_index }`
         #[pallet::call_index(1)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_vested(1))]
         pub fn transfer_vested(
             origin: OriginFor<T>,
             source: T::AccountId,

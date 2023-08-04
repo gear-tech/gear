@@ -11,6 +11,7 @@ arbitrary = { workspace = true, features = ["derive"] }
 gear-wasm-instrument.workspace = true
 wasmprinter.workspace = true
 gsys.workspace = true
+gear-utils.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }

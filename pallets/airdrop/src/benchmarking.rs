@@ -23,7 +23,8 @@ use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;
-use sp_runtime::traits::UniqueSaturatedInto;
+use pallet_vesting::VestingInfo;
+use sp_runtime::traits::{StaticLookup, UniqueSaturatedInto};
 
 benchmarks! {
     where_clause { where
@@ -37,11 +38,32 @@ benchmarks! {
         <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
         let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
         // Keeping in mind the existential deposit
-        let amount = 100_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
+        let amount = 10_000_000_000_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
 
     }: _(RawOrigin::Root, source, recipient.clone(), amount.unique_saturated_into())
     verify {
         assert_eq!(pallet_balances::Pallet::<T>::total_balance(&recipient), amount.unique_saturated_into());
+    }
+
+    transfer_vested {
+        let q in 1 .. 256;
+
+        let source: T::AccountId = benchmarking::account("source", 0, 0);
+        let source_lookup = T::Lookup::unlookup(source.clone());
+        <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
+        let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
+        let amount = <T as pallet_vesting::Config>::MinVestedTransfer::get().saturating_mul(q.into());
+
+        // create vesting schedule amount * 2
+        let vested_amount = amount.saturating_mul(2u128.unique_saturated_into());
+        let vesting_schedule = VestingInfo::new(vested_amount.unique_saturated_into(), 10u128.unique_saturated_into(),  1000u32.into());
+        pallet_vesting::Pallet::<T>::vested_transfer(RawOrigin::Signed(source.clone()).into(), source_lookup, vesting_schedule)?;
+
+    }: _(RawOrigin::Root, source.clone(), recipient.clone(), 0, Some(amount))
+    verify {
+        // check that the total vested amount is halved between the source and the recipient
+        assert_eq!(pallet_vesting::Pallet::<T>::vesting_balance(&source), Some(amount));
+        assert_eq!(<T as pallet_vesting::Config>::Currency::free_balance(&recipient), amount);
     }
 }
 

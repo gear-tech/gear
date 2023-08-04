@@ -225,6 +225,8 @@ pub fn do_optimization(
         .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
+        .arg("-mvp")
+        .arg("--enable-sign-ext")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -277,6 +279,8 @@ pub fn do_optimization(
         "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
         _ => panic!("Invalid optimization level {}", optimization_level),
     }
+    .mvp_features_only()
+    .enable_feature(wasm_opt::Feature::SignExt)
     .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)

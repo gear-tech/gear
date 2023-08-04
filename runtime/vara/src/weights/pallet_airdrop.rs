@@ -43,7 +43,7 @@ pub trait WeightInfo {
 
 /// Weights for pallet_airdrop using the Gear node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Config> pallet_airdrop::WeightInfo for SubstrateWeight<T> {
     /// The range of component `q` is `[1, 256]`.
     fn transfer(_q: u32, ) -> Weight {
         // Proof Size summary in bytes:

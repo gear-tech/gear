@@ -71,6 +71,7 @@ impl TestActor {
 
     // # Panics
     // If actor is initialized or dormant
+    #[track_caller]
     fn set_initialized(&mut self) {
         assert!(
             self.is_uninitialized(),
@@ -229,6 +230,7 @@ pub(crate) struct ExtManager {
 }
 
 impl ExtManager {
+    #[track_caller]
     pub(crate) fn new() -> Self {
         Self {
             msg_nonce: 1,
@@ -323,6 +325,7 @@ impl ExtManager {
         }
     }
 
+    #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
             panic!(
@@ -362,6 +365,7 @@ impl ExtManager {
         self.run_dispatch(dispatch)
     }
 
+    #[track_caller]
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.prepare_for(&dispatch);
 
@@ -530,6 +534,7 @@ impl ExtManager {
         }
     }
 
+    #[track_caller]
     pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Balance) {
         if self.is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             panic!(
@@ -543,6 +548,7 @@ impl ExtManager {
         *actor_balance = balance;
     }
 
+    #[track_caller]
     pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> &BTreeMap<GearPage, PageBuf> {
         let program = &self
             .actors
@@ -562,6 +568,7 @@ impl ExtManager {
         }
     }
 
+    #[track_caller]
     pub(crate) fn override_memory_pages(
         &mut self,
         program_id: &ProgramId,
@@ -585,6 +592,7 @@ impl ExtManager {
         }
     }
 
+    #[track_caller]
     fn prepare_for(&mut self, dispatch: &Dispatch) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
@@ -608,6 +616,7 @@ impl ExtManager {
         }
     }
 
+    #[track_caller]
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
         let (actor, _) = self
             .actors
@@ -619,6 +628,7 @@ impl ExtManager {
         self.move_waiting_msgs_to_queue(message_id, program_id);
     }
 
+    #[track_caller]
     fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
         let (actor, _) = self
             .actors
@@ -640,6 +650,7 @@ impl ExtManager {
     }
 
     // When called for the `dispatch`, it must be in queue.
+    #[track_caller]
     fn check_is_for_wait_list(&self, dispatch: &StoredDispatch) -> bool {
         let (actor, _) = self
             .actors
@@ -769,6 +780,7 @@ impl ExtManager {
         self.process_dispatch(balance, None, Default::default(), dispatch);
     }
 
+    #[track_caller]
     fn process_dispatch(
         &mut self,
         balance: u128,
@@ -971,6 +983,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
+    #[track_caller]
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
@@ -988,6 +1001,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
+    #[track_caller]
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         let (actor, _) = self
             .actors
@@ -1021,6 +1035,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
+    #[track_caller]
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
         if value == 0 {
             // Nothing to do
@@ -1047,6 +1062,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
+    #[track_caller]
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
@@ -1081,6 +1097,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
+    #[track_caller]
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         panic!("Processing stopped. Used for on-chain logic only.")
     }
@@ -1103,6 +1120,7 @@ impl JournalHandler for ExtManager {
     ) {
     }
 
+    #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let block_height = self.block_info.height;
         let (actor, _) = self

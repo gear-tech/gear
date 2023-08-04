@@ -2,9 +2,12 @@ use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
-use gear_call_gen::GearProgGenConfig;
+use gear_call_gen::Seed;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
+use gear_wasm_gen::{
+    ConfigsBundle, EntryPointsSet, GearWasmGeneratorConfigBuilder, SysCallsConfigBuilder,
+};
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
@@ -35,7 +38,7 @@ pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
 pub fn dump_with_seed(seed: u64) -> Result<()> {
     let code = gear_call_gen::generate_gear_program::<SmallRng>(
         seed,
-        GearProgGenConfig::new_normal(),
+        ConfigsBundle::default(),
         Default::default(),
     );
 
@@ -201,4 +204,19 @@ pub fn err_waited_or_succeed_batch(
         })
         .flatten()
         .collect()
+}
+
+/// Returns configs bundle with a gear wasm generator config, which logs `seed`.
+pub fn get_config_with_seed_log(seed: Seed) -> ConfigsBundle {
+    ConfigsBundle {
+        gear_wasm_generator_config: GearWasmGeneratorConfigBuilder::new()
+            .with_entry_points_config(EntryPointsSet::InitHandleHandleReply)
+            .with_sys_calls_config(
+                SysCallsConfigBuilder::new(Default::default())
+                    .with_log_info(format!("Gear program seed = '{seed}'"))
+                    .build(),
+            )
+            .build(),
+        ..Default::default()
+    }
 }

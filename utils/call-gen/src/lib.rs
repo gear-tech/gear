@@ -40,7 +40,7 @@ pub use upload_program::UploadProgramArgs;
 pub struct GearCallConversionError(pub &'static str);
 
 pub type Seed = u64;
-pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
+pub type GearProgGenConfig = gear_wasm_gen::ConfigsBundle;
 
 /// This trait must be implemented for all argument types
 /// that are defined in [`GearCall`] variants.
@@ -149,7 +149,7 @@ macro_rules! impl_named_call_args {
 /// can be used for send-calls.
 pub fn generate_gear_program<Rng: CallGenRng>(
     seed: Seed,
-    mut config: GearProgGenConfig,
+    config: GearProgGenConfig,
     programs: Vec<ProgramId>,
 ) -> Vec<u8> {
     use arbitrary::Unstructured;
@@ -161,8 +161,6 @@ pub fn generate_gear_program<Rng: CallGenRng>(
     rng.fill_bytes(&mut buf);
 
     let mut u = Unstructured::new(&buf);
-
-    config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
 
     let addresses = programs
         .iter()

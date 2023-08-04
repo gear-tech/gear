@@ -292,7 +292,9 @@ where
             _ => {
                 // Reaching this branch is possible when init message was processed with failure,
                 // while other kind of messages were already in the queue/were added to the queue
-                // (for example. moved from wait list in case of async init)
+                // (for example. moved from wait list in case of async init).
+                // Also this branch is reachable when progam sends a message to a terminated
+                // program.
                 log::debug!("Program '{program_id:?}' is not active");
                 return ActorResult::Data(None);
             }
