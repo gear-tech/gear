@@ -180,11 +180,7 @@ pub enum FallibleExtError {
 
 impl From<MessageError> for FallibleExtError {
     fn from(err: MessageError) -> Self {
-        if let MessageError::InvalidProgramId = err {
-            FallibleExtError::ForbiddenFunction
-        } else {
-            Self::Core(FallibleExtErrorCore::Message(err))
-        }
+        Self::Core(FallibleExtErrorCore::Message(err))
     }
 }
 

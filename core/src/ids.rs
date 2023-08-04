@@ -18,7 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use alloc::slice;
+use alloc::{slice, vec::Vec};
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
@@ -208,7 +208,7 @@ impl ProgramId {
     pub fn generate<T: ProgramNonce>(code_id: CodeId, salt: &[u8], nonce: T) -> Self {
         const SALT: &[u8] = b"program";
 
-        let argument = [nonce.as_nonce().as_ref(), SALT, code_id.as_ref(), salt].concat();
+        let argument = [nonce.as_nonce(), SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
@@ -228,24 +228,25 @@ impl ReservationId {
 /// Trait representing the extra info needed for program id generation.
 /// This is usually a MessageId, but it can be a handle in the form of a u32 or u64.
 pub trait ProgramNonce {
-    fn as_nonce(&self) -> &[u8];
+    /// Turn the nonce into a vector of bytes to be used in the program id generation.
+    fn as_nonce(&self) -> Vec<u8>;
 }
 
 impl ProgramNonce for MessageId {
-    fn as_nonce(&self) -> &[u8] {
-        self.as_ref()
+    fn as_nonce(&self) -> Vec<u8> {
+        self.as_ref().to_vec()
     }
 }
 
 impl ProgramNonce for u32 {
-    fn as_nonce(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self as *const u32 as *const u8, 4) }
+    fn as_nonce(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
     }
 }
 
 impl ProgramNonce for u64 {
-    fn as_nonce(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self as *const u64 as *const u8, 8) }
+    fn as_nonce(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
     }
 }
 

@@ -290,7 +290,7 @@ impl MessageContext {
         let program_id = packet.destination(message_id);
 
         if invalid_program_ids.contains(&program_id) {
-            return Err(Error::InvalidProgramId);
+            return Err(Error::SyscallUsageError);
         }
 
         if self.store.initialized.contains(&program_id) {

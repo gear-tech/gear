@@ -160,9 +160,9 @@ pub enum MessageError {
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 399,
 
-    /// An error when the program id is marked as invalid
-    #[display(fmt = "Program id is forbidden")]
-    InvalidProgramId = 400,
+    /// An error when a syscall is used incorrectly
+    #[display(fmt = "Syscall was used incorrectly")]
+    SyscallUsageError = 400,
 }
 
 /// Reservation error.
