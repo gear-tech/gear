@@ -338,7 +338,6 @@ pub mod test_v3 {
                     }
                 };
 
-                log::info!("try to put node");
                 unhashed::put(key.as_slice(), &node);
                 gas_node_ids.push((node_id, node));
             }

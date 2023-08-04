@@ -547,6 +547,7 @@ pub mod runtime_types {
                         },
                         #[codec(index = 3)]
                         SpecifiedLocal {
+                            root: _1,
                             parent: _1,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
@@ -556,6 +557,7 @@ pub mod runtime_types {
                         },
                         #[codec(index = 4)]
                         UnspecifiedLocal {
+                            root: _1,
                             parent: _1,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
