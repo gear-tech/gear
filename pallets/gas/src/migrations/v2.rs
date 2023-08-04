@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::v1::GasNode as OldGasNode;
 use crate::{AccountIdOf, Balance, Config, Pallet};
 use common::{
     gas_provider::{ChildrenRefs, GasNodeId, NodeLock},
@@ -33,44 +34,7 @@ use sp_std::vec::Vec;
 pub(crate) type NodeId = GasNodeId<MessageId, ReservationId>;
 
 #[derive(Decode, Encode)]
-pub enum GasNodeV1<ExternalId, Id, Balance> {
-    External {
-        id: ExternalId,
-        value: Balance,
-        lock: NodeLock<Balance>,
-        system_reserve: Balance,
-        refs: ChildrenRefs,
-        consumed: bool,
-    },
-    Cut {
-        id: ExternalId,
-        value: Balance,
-        lock: NodeLock<Balance>,
-    },
-    Reserved {
-        id: ExternalId,
-        value: Balance,
-        lock: NodeLock<Balance>,
-        refs: ChildrenRefs,
-        consumed: bool,
-    },
-    SpecifiedLocal {
-        parent: Id,
-        value: Balance,
-        lock: NodeLock<Balance>,
-        system_reserve: Balance,
-        refs: ChildrenRefs,
-        consumed: bool,
-    },
-    UnspecifiedLocal {
-        parent: Id,
-        lock: NodeLock<Balance>,
-        system_reserve: Balance,
-    },
-}
-
-#[derive(Decode, Encode)]
-pub enum GasNodeV2<ExternalId, Id, Balance> {
+pub enum GasNode<ExternalId, Id, Balance> {
     External {
         id: ExternalId,
         value: Balance,
@@ -117,7 +81,7 @@ impl<T: Config> frame_support::traits::StorageInstance for GasNodesPrefix<T> {
 }
 
 pub type Key = GasNodeId<MessageId, ReservationId>;
-pub type NodeOf<T> = GasNodeV2<AccountIdOf<T>, Key, Balance>;
+pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
 
 // Private storage for missed blocks collection.
 pub type GasNodes<T> = StorageMap<GasNodesPrefix<T>, Identity, Key, NodeOf<T>>;
@@ -141,7 +105,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     }
 
     fn on_runtime_upgrade() -> Weight {
-        let current = Pallet::<T>::current_storage_version();
+        let current = StorageVersion::new(2);
         let onchain = Pallet::<T>::on_chain_storage_version();
 
         log::info!(
@@ -153,15 +117,15 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         let mut translated = 0_u64;
         let f = |_key, old_value| {
             let new_value = match old_value {
-                GasNodeV1::Cut { id, value, lock } => GasNodeV2::Cut { id, value, lock },
-                GasNodeV1::External {
+                OldGasNode::Cut { id, value, lock } => GasNode::Cut { id, value, lock },
+                OldGasNode::External {
                     id,
                     value,
                     lock,
                     system_reserve,
                     refs,
                     consumed,
-                } => GasNodeV2::External {
+                } => GasNode::External {
                     id,
                     value,
                     lock,
@@ -170,27 +134,27 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                     consumed,
                     deposit: false,
                 },
-                GasNodeV1::Reserved {
+                OldGasNode::Reserved {
                     id,
                     value,
                     lock,
                     refs,
                     consumed,
-                } => GasNodeV2::Reserved {
+                } => GasNode::Reserved {
                     id,
                     value,
                     lock,
                     refs,
                     consumed,
                 },
-                GasNodeV1::SpecifiedLocal {
+                OldGasNode::SpecifiedLocal {
                     parent,
                     value,
                     lock,
                     system_reserve,
                     refs,
                     consumed,
-                } => GasNodeV2::SpecifiedLocal {
+                } => GasNode::SpecifiedLocal {
                     parent,
                     value,
                     lock,
@@ -198,11 +162,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                     refs,
                     consumed,
                 },
-                GasNodeV1::UnspecifiedLocal {
+                OldGasNode::UnspecifiedLocal {
                     parent,
                     lock,
                     system_reserve,
-                } => GasNodeV2::UnspecifiedLocal {
+                } => GasNode::UnspecifiedLocal {
                     parent,
                     lock,
                     system_reserve,
@@ -214,7 +178,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         };
 
         if current == 2 && onchain == 1 {
-            GasNodes::<T>::translate::<GasNodeV1<AccountIdOf<T>, NodeId, Balance>, _>(f);
+            GasNodes::<T>::translate::<OldGasNode<AccountIdOf<T>, NodeId, Balance>, _>(f);
             current.put::<Pallet<T>>();
             log::info!(
                 "Upgraded {} gas nodes, storage to version {:?}",
@@ -243,7 +207,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     }
 }
 
-#[cfg(feature = "try-runtime")]
 #[cfg(test)]
 pub mod test_v2 {
     use super::*;
@@ -267,7 +230,6 @@ pub mod test_v2 {
     }
 
     #[test]
-    #[ignore = "Migration from v1 to v2 has been already done"]
     fn migration_to_v2_works() {
         let _ = env_logger::try_init();
         new_test_ext().execute_with(|| {
@@ -287,7 +249,7 @@ pub mod test_v2 {
                 let random_factor = u64::from_le_bytes(factor_bytes);
                 // Decide the node type
                 let node = match random_factor % 3 {
-                    0 => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::External {
+                    0 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::External {
                         id: 1_u64,
                         value: Balance::zero(),
                         lock: Zero::zero(),
@@ -295,7 +257,7 @@ pub mod test_v2 {
                         refs: Default::default(),
                         consumed: false,
                     },
-                    1 => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
+                    1 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
                         value: Balance::zero(),
                         lock: Zero::zero(),
@@ -303,7 +265,7 @@ pub mod test_v2 {
                         refs: Default::default(),
                         consumed: false,
                     },
-                    _ => GasNodeV1::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
+                    _ => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
                         lock: Zero::zero(),
                         system_reserve: Default::default(),
@@ -318,7 +280,7 @@ pub mod test_v2 {
             assert_ne!(weight.ref_time(), 0);
 
             for (_key, node) in GasNodes::<Test>::iter() {
-                if let GasNodeV2::External { deposit, .. } = node {
+                if let GasNode::External { deposit, .. } = node {
                     assert!(!deposit, "Incorrect migration");
                 }
             }
