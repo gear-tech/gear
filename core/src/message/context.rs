@@ -251,11 +251,6 @@ impl MessageContext {
         }
     }
 
-    /// Getter for dispatch kind.
-    pub fn dispatch_kind(&self) -> DispatchKind {
-        self.kind
-    }
-
     /// Getter for inner settings.
     pub fn settings(&self) -> &ContextSettings {
         &self.settings

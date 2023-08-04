@@ -738,14 +738,9 @@ impl Externalities for Ext {
 
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
         let program_id = self.program_id()?;
-        let dispatch_kind = self.context.message_context.dispatch_kind();
-        let entry_point = dispatch_kind.as_entry();
         let message_id = self.message_id()?;
 
-        log::trace!(target: "gwasm", "Program {program_id} executes {entry_point:?}");
-        log::trace!(target: "gwasm", "Current message id: {message_id}");
-
-        log::debug!(target: "gwasm", "DEBUG: {data}");
+        log::debug!(target: "gwasm", "DEBUG: [handle({message_id})] {program_id}: {data}");
 
         Ok(())
     }
