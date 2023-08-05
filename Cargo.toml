@@ -172,7 +172,7 @@ subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.28"
-thiserror = "1.0.40"
+thiserror = "1.0.44"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
 wat = "1.0.69"
