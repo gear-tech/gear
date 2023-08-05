@@ -18,21 +18,8 @@
 
 //! Utils for parsing input args
 
-use crate::{Block, BlockHashOrNumber, HashFor, NumberFor};
-
-pub(crate) fn hash(block_hash: &str) -> Result<String, usize> {
-    let (block_hash, offset) = if let Some(block_hash) = block_hash.strip_prefix("0x") {
-        (block_hash, 2)
-    } else {
-        (block_hash, 0)
-    };
-
-    if let Some(pos) = block_hash.chars().position(|c| !c.is_ascii_hexdigit()) {
-        Err(offset + pos)
-    } else {
-        Ok(block_hash.into())
-    }
-}
+use crate::{Block, BlockHashOrNumber, NumberFor};
+use hex::FromHexError;
 
 pub(crate) fn url(s: &str) -> Result<String, &'static str> {
     if s.starts_with("ws://") || s.starts_with("wss://") {
@@ -46,18 +33,29 @@ pub(crate) fn block(block_hash_or_number: &str) -> Result<BlockHashOrNumber<Bloc
     if let Ok(block_number) = block_hash_or_number.parse::<NumberFor<Block>>() {
         Ok(BlockHashOrNumber::Number(block_number))
     } else {
-        let block_hash = hash(block_hash_or_number).map_err(|e| {
-            format!("Expected block hash or number, found illegal hex character at position {e}")
-        })?;
-        if block_hash.len() != 64 {
+        // Check that the hexadecimal input is, in fact, a hex string
+        let block_hash_bytes =
+            hex::decode(block_hash_or_number.trim_start_matches("0x")).map_err(|e| match e {
+                FromHexError::InvalidHexCharacter { c, index } => {
+                    format!("invalid hex character '{}' at position {}", c, index)
+                }
+                FromHexError::OddLength => "hex string has an odd number of characters".to_string(),
+                _ => {
+                    format!("failed to parse block hash: {e}")
+                }
+            })?;
+
+        // Check the length is correct
+        if block_hash_bytes.len() != 32 {
             return Err(format!(
                 "Expected block hash or number, found a hex string of length {}",
-                block_hash.len()
+                block_hash_bytes.len() * 2
             ));
-        };
-        block_hash
-            .parse::<HashFor<Block>>()
-            .map(BlockHashOrNumber::Hash)
-            .map_err(|e| format!("Failed to parse block hash: {e}"))
+        }
+
+        let mut block_hash = [0; 32];
+        block_hash.copy_from_slice(&block_hash_bytes);
+
+        Ok(BlockHashOrNumber::Hash(block_hash.into()))
     }
 }

@@ -104,12 +104,33 @@ Another difference from the `try-runtime` API is that in `gear-replay-cli` the b
 
 In order to use the native runtime build make sure the node is built with the Runtime spec version that matches the one currently uploaded on chain.
 
-- Replay a block on Vara live chain
+General command format and available subcommand are:
+
+```bash
+    gear-replay-cli -h 
+    Commands of `gear-reply` CLI
+
+    Usage: gear-replay-cli [OPTIONS] <COMMAND>
+
+    Commands:
+    replay-block  Replay block subcommand
+    gear-run      GearRun subcommand
+    help          Print this message or the help of the given subcommand(s)
+
+    Options:
+    -u, --uri <URI>            The RPC url [default: wss://archive-rpc.vara-network.io:443]
+    -l, --log [<NODE_LOG>...]  Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lsync=debug
+    -h, --help                 Print help (see more with '--help')
+```
+
+Currently supported cases include:
+
+- Replaying a block on a live chain
 
   - current latest finalized block on Vara chain
 
     ```bash
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime=debug -lpallet_gear,gear_common,pallet_gear_scheduler=debug
+    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common,pallet_gear_scheduler=debug replay-block
     ```
 
   - block with `$HASH` or `$BLOCK_NUM`
@@ -118,8 +139,8 @@ In order to use the native runtime build make sure the node is built with the Ru
     export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
     export BLOCK_NUM=2000000
 
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 --block "$HASH" -lgear::runtime=debug -lpallet_gear,gear_common=debug
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM" -lgear::runtime=debug -lpallet_gear,gear_common=debug
+    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$HASH"
+    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$BLOCK_NUM"
     ```
 
 <br/>

@@ -4035,6 +4035,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "hex",
  "log",
  "parity-scale-codec",
  "sc-cli",
