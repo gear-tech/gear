@@ -2117,7 +2117,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "hex-literal 0.4.1",
+ "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -2127,7 +2127,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "hex-literal 0.3.4",
+ "hex-literal",
 ]
 
 [[package]]
@@ -3649,7 +3649,7 @@ dependencies = [
  "gsdk",
  "gstd",
  "hex",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3669,7 +3669,7 @@ dependencies = [
  "galloc",
  "gear-core-errors",
  "gsys",
- "hex-literal 0.3.4",
+ "hex-literal",
  "parity-scale-codec",
  "static_assertions",
 ]
@@ -3842,7 +3842,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "hex",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "path-clean",
  "primitive-types",
@@ -4065,7 +4065,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-babe",
@@ -4218,7 +4218,7 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "jsonrpsee",
  "log",
  "pallet-gear-rpc",
@@ -4788,12 +4788,6 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
 
 [[package]]
 name = "hex-literal"
@@ -7303,7 +7297,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -13257,7 +13251,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-airdrop",
  "pallet-authority-discovery",
