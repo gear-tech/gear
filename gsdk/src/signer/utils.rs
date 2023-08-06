@@ -51,7 +51,7 @@ impl SignerInner {
     ///
     /// # You may not need this.
     ///
-    /// Read the docs of [`Signer`] to checkout the wrappred transactions,
+    /// Read the docs of [`Signer`](`super::Signer`) to checkout the wrappred transactions,
     /// we need this function only when we want to execute a transaction
     /// which has not been wrapped in `gsdk`.
     ///
