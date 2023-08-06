@@ -18,14 +18,16 @@
 
 //! RPC calls with signer
 #![allow(clippy::too_many_arguments)]
-use crate::{result::Result, signer::Signer, types::GasInfo};
+use crate::{result::Result, types::GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 
-impl Signer {
+use super::SignerRpc;
+
+impl SignerRpc {
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
+        AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
     }
 
     /// gear_calculateInitCreateGas
@@ -38,7 +40,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_create_gas(
                 origin.unwrap_or_else(|| self.source()),
                 code_id,
@@ -60,7 +63,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_upload_gas(
                 origin.unwrap_or_else(|| self.source()),
                 code,
@@ -82,7 +86,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_handle_gas(
                 origin.unwrap_or_else(|| self.source()),
                 destination,
@@ -104,7 +109,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_reply_gas(
                 origin.unwrap_or_else(|| self.source()),
                 message_id,

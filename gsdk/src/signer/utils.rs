@@ -18,28 +18,33 @@
 
 //! Utils
 
-use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, types::InBlock, Error,
-};
+use super::{SignerBalance, SignerInner};
+use crate::{config::GearConfig, metadata::CallInfo, result::Result, types::InBlock, Error};
 use scale_value::Composite;
 use subxt::blocks::ExtrinsicEvents;
 
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-impl Signer {
-    /// Get self balance
-    pub async fn balance(&self) -> Result<u128> {
-        self.api().get_balance(&self.address()).await
+impl SignerBalance {
+    /// Get self balance.
+    pub async fn get(&self) -> Result<u128> {
+        self.0
+            .as_ref()
+            .api()
+            .get_balance(&self.0.as_ref().address())
+            .await
     }
 
     /// Logging balance spent
-    pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let after = before.saturating_sub(self.balance().await?);
+    pub async fn log_spent(&self, before: u128) -> Result<()> {
+        let after = before.saturating_sub(self.get().await?);
         log::info!("	Balance spent: {after}");
 
         Ok(())
     }
+}
 
+impl SignerInner {
     /// Run transaction.
     ///
     /// This function allows us to execute any transactions in gear.
@@ -74,7 +79,7 @@ impl Signer {
     /// // The code above euqals to:
     ///
     /// {
-    ///    let in_block = signer.transfer(dest, value).await?;
+    ///    let in_block = signer.balance.transfer(dest, value).await?;
     /// }
     ///
     /// // ...

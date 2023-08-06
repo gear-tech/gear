@@ -50,6 +50,7 @@ impl Transfer {
         println!("Value: {}", self.value);
 
         signer
+            .balance
             .transfer(AccountId32::from_ss58check(&self.destination)?, self.value)
             .await?;
 
