@@ -352,7 +352,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
         }
     }
 
-    /// +_+_+
+    /// Returns root id if node is local, else returns None.
     pub fn root_id(&self) -> Option<Id> {
         match self {
             Self::External { .. } | Self::Cut { .. } | Self::Reserved { .. } => None,

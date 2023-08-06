@@ -365,7 +365,7 @@ where
             return Err(InternalError::forbidden().into());
         }
 
-        // `parent_node` is guaranteed to have inner_value here, because
+        // `value_node` is guaranteed to have inner_value here, because
         // it was queried after `Self::node_with_value` call.
         if value_node
             .value()
@@ -484,7 +484,7 @@ where
             GasNode::External { id, .. }
             | GasNode::Cut { id, .. }
             | GasNode::Reserved { id, .. } => Ok((id, node_id)),
-            _ => unreachable!("+_+_+"),
+            _ => unreachable!("`root_id()` must return node, which can be root."),
         }
     }
 
