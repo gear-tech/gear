@@ -22,7 +22,7 @@ use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::{RunFallibleError, Runtime},
     syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
-    BackendSyscallError, MessageWaitedType, TerminationReason, TrapExplanation,
+    BackendSyscallError, MessageWaitedType, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -33,6 +33,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
+    gas::CounterType,
     message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -253,7 +254,9 @@ where
     #[host(cost = RuntimeCosts::Free)]
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
         let page = WasmPage::new(page_no).map_err(|_| {
-            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
+            UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                TrapExplanation::Unknown,
+            ))
         })?;
 
         let res = ctx.ext_mut().free(page);
@@ -646,18 +649,19 @@ where
     pub fn out_of_gas(ctx: &mut R) -> Result<(), R::Error> {
         syscall_trace!("out_of_gas");
 
-        ctx.set_termination_reason(
-            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
-        );
+        let ext = ctx.ext_mut();
+        let current_counter = ext.current_counter_type();
+        log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
 
-        Err(R::unreachable_error())
-    }
+        if current_counter == CounterType::GasAllowance {
+            // We manually decrease it to 0 because global won't be affected
+            // since it didn't pass comparison to argument of `gas_charge()`
+            ext.decrease_current_counter_to(0);
+        }
 
-    pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
-        syscall_trace!("out_of_allowance");
+        let termination_reason: ActorTerminationReason = current_counter.into();
 
-        ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
-
+        ctx.set_termination_reason(termination_reason.into());
         Err(R::unreachable_error())
     }
 }

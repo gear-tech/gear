@@ -505,7 +505,7 @@ pub enum SystemExecutionError {
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
-    TerminationReason(SystemTerminationReason),
+    UndefinedTerminationReason(SystemTerminationReason),
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
