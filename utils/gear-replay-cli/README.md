@@ -108,7 +108,7 @@ General command format and available subcommand are:
 
 ```bash
     gear-replay-cli -h 
-    Commands of `gear-reply` CLI
+    Commands of `gear-replay` CLI
 
     Usage: gear-replay-cli [OPTIONS] <COMMAND>
 

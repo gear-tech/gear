@@ -43,7 +43,7 @@ pub(crate) enum BlockHashOrNumber<B: BlockT> {
     Number(NumberFor<B>),
 }
 
-/// Commands of `gear-reply` CLI
+/// Commands of `gear-replay` CLI
 #[derive(Debug, Subcommand)]
 pub enum Command {
     ReplayBlock(replay_block::ReplayBlockCmd<Block>),
