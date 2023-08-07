@@ -14105,6 +14105,8 @@ mod utils {
         use crate::tests::new_test_ext;
         use demo_signal_entry::{HandleAction, WASM_BINARY};
 
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
         init_logger();
         new_test_ext().execute_with(|| {
             // Upload program
@@ -14113,7 +14115,7 @@ mod utils {
                 WASM_BINARY.to_vec(),
                 DEFAULT_SALT.to_vec(),
                 USER_1.encode(),
-                10_000_000_000,
+                GAS_LIMIT,
                 0,
             ));
 
@@ -14125,8 +14127,8 @@ mod utils {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
-                vec![],
-                10_000_000_000,
+                [].to_vec(),
+                GAS_LIMIT,
                 0,
             ));
 
@@ -14140,18 +14142,18 @@ mod utils {
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 HandleAction::SaveSignal(signal_code).encode(),
-                10_000_000_000,
+                GAS_LIMIT,
                 0,
             ));
 
-            // Send the action to trigger signal sending
             run_to_next_block(None);
 
+            // Send the action to trigger signal sending
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 action.encode(),
-                10_000_000_000,
+                GAS_LIMIT,
                 0,
             ));
 
@@ -14159,7 +14161,9 @@ mod utils {
 
             // Assert that system reserve gas node is removed
             assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
             run_to_next_block(None);
+
             assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
             // Ensure that signal code sent is signal code we saved
