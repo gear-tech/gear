@@ -376,6 +376,7 @@ fn dispatch_function(
 
             let serialized_result = serialized_result?;
 
+            // TODO #3038
             // dispatch_thunk returns pointer to serialized arguments.
             // Unpack pointer and len of the serialized result data.
             let (serialized_result_val_ptr, serialized_result_val_len) = {

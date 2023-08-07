@@ -18,8 +18,6 @@
 
 //! Syscall implementations generic over wasmi and sandbox backends.
 
-#![allow(clippy::too_many_arguments)]
-
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::{RunFallibleError, Runtime},
@@ -79,6 +77,8 @@ where
             .map_err(RunFallibleError::FallibleExt)
     }
 
+    // TODO #3037
+    #[allow(clippy::too_many_arguments)]
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
     pub fn send(
         ctx: &mut R,
@@ -459,6 +459,7 @@ where
             .map_err(Into::into)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[host(fallible, wgas, cost = RuntimeCosts::SendInput)]
     pub fn send_input(
         ctx: &mut R,

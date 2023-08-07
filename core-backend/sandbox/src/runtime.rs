@@ -67,19 +67,18 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.prepare_run(gas);
-        (|| {
+
+        let run = || {
             self.ext.charge_gas_runtime(cost)?;
             f(self)
-        })()
-        .map_err(|err| {
-            self.set_termination_reason(err);
-            HostError
-        })
-        .map(|r| {
-            let gas_counter = self.ext.define_current_counter();
+        };
 
-            (r, gas_counter)
-        })
+        run()
+            .map_err(|err| {
+                self.set_termination_reason(err);
+                HostError
+            })
+            .map(|r| (r, self.ext.define_current_counter()))
     }
 
     fn run_fallible<T: Sized, F, R>(
