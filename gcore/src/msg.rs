@@ -190,7 +190,6 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
         let mut len = 0u32;
 
         if size > 0 {
-            // Fills uninitialized memory from `0` to `size`.
             unsafe {
                 gsys::gr_read(
                     0,
