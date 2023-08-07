@@ -33,7 +33,9 @@ This signal code is sent whenever runtime notices every Rust panic, including th
 
 > In fact, this signal code is sent whenever the executor catches a Trap and sends a `TrapExplanation::Panic`. The `TrapExplanation::Panic` is sent every time the `gr_panic` function is called inside the runtime. So to fully cover this case we need just to somehow call the `gr_panic` function – and it will cover all other cases where `gr_panic` may be called.
 
-##### Program to be uploaded
+<details>
+<summary>Program to be uploaded</summary>
+
 ```rust
 #![no_std]
 
@@ -48,7 +50,7 @@ extern "C" fn init() {
 
 #[no_mangle]
 extern "C" fn handle() {
-    panic!("Panic!");
+    panic!("Gotcha!");
 }
 
 #[no_mangle]
@@ -63,10 +65,13 @@ extern "C" fn handle_signal() {
         msg::send(unsafe { INITIATOR }, false, 0).unwrap();
     }
 }
-
 ```
 
-##### Test
+</details>
+
+<details>
+<summary>Test</summary>
+
 ```rust
 const USER_1: AccountId = 1;
 const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -127,6 +132,7 @@ fn test_userspace_panic_works() {
     assert_eq!(mail_msg.payload_bytes(), true.encode());
 }
 ```
+</details>
 
 #### Ran out of gas
 
