@@ -384,7 +384,6 @@ mod tests {
             if condition != 0 {
                 Ok(WasmReturnValue {
                     gas: 0,
-                    allowance: 0,
                     value: ReturnValue::Unit,
                 })
             } else {
@@ -399,7 +398,6 @@ mod tests {
             e.counter += inc_by as u32;
             Ok(WasmReturnValue {
                 gas: 0,
-                allowance: 0,
                 value: ReturnValue::Value(Value::I32(e.counter as i32)),
             })
         }
@@ -413,7 +411,6 @@ mod tests {
             }
             Ok(WasmReturnValue {
                 gas: 0,
-                allowance: 0,
                 value: ReturnValue::Value(args[0]),
             })
         }
@@ -529,7 +526,6 @@ mod tests {
         fn env_returns_i32(_e: &mut (), _args: &[Value]) -> Result<WasmReturnValue, HostError> {
             Ok(WasmReturnValue {
                 gas: 0,
-                allowance: 0,
                 value: ReturnValue::Value(Value::I32(42)),
             })
         }

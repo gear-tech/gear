@@ -62,12 +62,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         HostError
     }
 
-    fn run_any<T, F>(
-        &mut self,
-        gas: u64,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> Result<(T, u64), Self::Error>
+    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(T, u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {

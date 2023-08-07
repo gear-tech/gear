@@ -82,7 +82,7 @@ impl Clone for Env {
                 global.into_weak_instance_ref();
 
                 global
-            })
+            }),
         }
     }
 }
