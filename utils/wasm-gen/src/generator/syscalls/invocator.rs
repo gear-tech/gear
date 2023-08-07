@@ -148,7 +148,7 @@ impl<'a> SysCallsInvocator<'a> {
     fn build_sys_call_invoke_instructions(
         &mut self,
         invocable: InvocableSysCall,
-        call_indexes_handle: usize,
+        call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let name = invocable.name();
         let signature = invocable.into_signature();
@@ -233,7 +233,7 @@ impl<'a> SysCallsInvocator<'a> {
         &mut self,
         params: &[ParamType],
         results: &[ValueType],
-        call_indexes_handle: usize,
+        call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let results = results.iter().map(|_| Instruction::Drop);
 
@@ -309,6 +309,12 @@ impl<'a> SysCallsInvocator<'a> {
         let last_funcs_idx = self.module.count_code_funcs() - 1;
         let insert_into_func_no = self.unstructured.int_in_range(0..=last_funcs_idx)?;
 
+        // Do not insert into custom newly generated function, but only into pre-defined
+        // internal functions.
+        if self.call_indexes.is_custom_func(insert_into_func_no) {
+            return Ok(());
+        }
+
         self.module.with(|mut module| {
             let code = module
                 .code_section_mut()
@@ -319,7 +325,9 @@ impl<'a> SysCallsInvocator<'a> {
 
             let res = self
                 .unstructured
-                .int_in_range(0..=code.len() - 1)
+                // The end of insertion range is second-to-last index, as the last
+                // index is defined for `Instruction::End` of the function body.
+                .int_in_range(0..=code.len() - 2)
                 .map(|pos| {
                     code.splice(pos..pos, instructions.iter().cloned());
                 });
