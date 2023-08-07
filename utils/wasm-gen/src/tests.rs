@@ -18,6 +18,7 @@
 
 use super::*;
 use arbitrary::Unstructured;
+use gear_core::code::Code;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::parity_wasm::{
     self,
@@ -183,4 +184,23 @@ fn injecting_addresses_works() {
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
     assert_eq!(ptr, &size);
+}
+
+#[test]
+fn test_valid() {
+    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+
+    for seed in 0..u16::MAX {
+        let mut rng = SmallRng::seed_from_u64(seed as u64);
+
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
+        rng.fill_bytes(&mut buf);
+        let mut u = Unstructured::new(&buf);
+
+        println!("Seed - {seed}");
+
+        let raw_code = generate_gear_program_code(&mut u, ConfigsBundle::default())
+            .expect("failed generating wasm");
+        assert!(Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None).is_ok())
+    }
 }
