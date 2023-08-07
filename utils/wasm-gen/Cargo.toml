@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# wasm-smith = { path = "../../../wasm-tools/crates/wasm-smith" }
 wasm-smith.workspace = true
 arbitrary = { workspace = true, features = ["derive"] }
 gear-wasm-instrument.workspace = true
