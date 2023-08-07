@@ -20,7 +20,7 @@
 
 use crate::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExternalities, BackendState, BackendSyscallError, TerminationReason,
+    BackendExternalities, BackendState, BackendSyscallError, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_core_errors::ExtError as FallibleExtError;
@@ -28,7 +28,7 @@ use gear_core_errors::ExtError as FallibleExtError;
 /// Error returned from closure argument in [`Runtime::run_fallible`].
 #[derive(Debug, Clone)]
 pub enum RunFallibleError {
-    TerminationReason(TerminationReason),
+    UndefinedTerminationReason(UndefinedTerminationReason),
     FallibleExt(FallibleExtError),
 }
 
@@ -53,21 +53,19 @@ pub trait Runtime<Ext: BackendExternalities>:
     fn run_any<T, F>(
         &mut self,
         gas: u64,
-        allowance: u64,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(T, u64, u64), Self::Error>
+    ) -> Result<(T, u64), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>;
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>;
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,
         gas: u64,
-        allowance: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<((), u64, u64), Self::Error>
+    ) -> Result<((), u64), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized;

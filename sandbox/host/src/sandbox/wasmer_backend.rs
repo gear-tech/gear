@@ -72,28 +72,23 @@ impl Backend {
 #[derive(Default)]
 pub struct Env {
     gas: Option<wasmer::Global>,
-    allowance: Option<wasmer::Global>,
 }
 
 // WARNING: intentionally to avoid cyclic refs
 impl Clone for Env {
     fn clone(&self) -> Self {
-        let into_weak_instance_ref = |mut global: wasmer::Global| {
-            global.into_weak_instance_ref();
-
-            global
-        };
-
         Self {
-            gas: self.gas.clone().map(into_weak_instance_ref),
-            allowance: self.allowance.clone().map(into_weak_instance_ref),
+            gas: self.gas.clone().map(|mut global| {
+                global.into_weak_instance_ref();
+
+                global
+            })
         }
     }
 }
 
 // copypaste
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
-pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 
 impl wasmer::WasmerEnv for Env {
     fn init_with_instance(
@@ -102,11 +97,6 @@ impl wasmer::WasmerEnv for Env {
     ) -> std::result::Result<(), wasmer::HostEnvInitError> {
         let gas: wasmer::Global = instance.exports.get_with_generics_weak(GLOBAL_NAME_GAS)?;
         self.gas = Some(gas);
-
-        let allowance: wasmer::Global = instance
-            .exports
-            .get_with_generics_weak(GLOBAL_NAME_ALLOWANCE)?;
-        self.allowance = Some(allowance);
 
         Ok(())
     }
@@ -328,13 +318,8 @@ fn dispatch_function(
                 .as_ref()
                 .ok_or_else(|| RuntimeError::new("gas global should be set"))?;
 
-            let allowance = env
-                .allowance
-                .as_ref()
-                .ok_or_else(|| RuntimeError::new("allowance global should be set"))?;
-
             // Serialize arguments into a byte vector.
-            let invoke_args_data = [gas.get(), allowance.get()]
+            let invoke_args_data = [gas.get()]
                 .iter()
                 .chain(params.iter())
                 .map(|val| match val {
@@ -431,7 +416,6 @@ fn dispatch_function(
             };
 
             gas.set(wasmer::Val::I64(deserialized_result.gas))?;
-            allowance.set(wasmer::Val::I64(deserialized_result.allowance))?;
 
             Ok(result)
         })

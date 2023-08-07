@@ -77,7 +77,7 @@ impl Calls {
     }
 
     pub fn reply_code(self, key: impl AsRef<str>) -> Self {
-        self.add_call(Call::ReplyCode).store(key)
+        self.add_call(Call::ReplyCode).store_vec(key)
     }
 
     pub fn value(self, key: impl AsRef<str>) -> Self {

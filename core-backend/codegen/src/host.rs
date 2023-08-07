@@ -122,14 +122,14 @@ impl HostFn {
         let run: Expr = match self.meta.call_type {
             CallType::Any => {
                 parse_quote! {
-                    ctx.run_any(gas, allowance, #cost, |ctx| {
+                    ctx.run_any(gas, #cost, |ctx| {
                         #inner_block
                     })
                 }
             }
             CallType::Fallible => {
                 parse_quote! {
-                    ctx.run_fallible::<_, _, #err>(gas, allowance, err_mid_ptr, #cost, |ctx| {
+                    ctx.run_fallible::<_, _, #err>(gas, err_mid_ptr, #cost, |ctx| {
                         #inner_block
                     })
                 }

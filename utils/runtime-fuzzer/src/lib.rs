@@ -20,13 +20,16 @@ mod runtime;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{
-    CallGenRng, GearCall, GearProgGenConfig, GeneratableCallArgs, SendMessageArgs,
-    UploadProgramArgs,
+    CallGenRng, GearCall, GeneratableCallArgs, SendMessageArgs, UploadProgramArgs,
 };
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
+use gear_wasm_gen::{
+    ConfigsBundle, EntryPointsSet, GearWasmGeneratorConfigBuilder, SelectableParams,
+    SysCallsConfigBuilder,
+};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event;
@@ -87,7 +90,7 @@ pub fn run(seed: u64) {
 }
 
 fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> GearCall {
-    let config = fuzzer_config();
+    let config = fuzzer_config(seed);
     let mut rand = Rng::seed_from_u64(seed);
     let programs = context.lock().programs.clone();
 
@@ -116,12 +119,24 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     }
 }
 
-fn fuzzer_config() -> GearProgGenConfig {
-    let mut config = GearProgGenConfig::new_normal();
-    config.remove_recursion = (1, 1).into();
-    config.call_indirect_enabled = false; // TODO #2187, note on call_indirect disabling, (test performance)
+fn fuzzer_config(seed: u64) -> ConfigsBundle {
+    let generator_config = GearWasmGeneratorConfigBuilder::new()
+        .with_entry_points_config(EntryPointsSet::InitHandleHandleReply)
+        .with_sys_calls_config(
+            SysCallsConfigBuilder::new(Default::default())
+                .with_log_info(format!("Gear program seed = '{seed}'"))
+                .build(),
+        )
+        .with_recursions_removed(true)
+        .build();
+    let selectables_config = SelectableParams {
+        call_indirect_enabled: false,
+    };
 
-    config
+    ConfigsBundle {
+        gear_wasm_generator_config: generator_config,
+        module_selectables_config: selectables_config,
+    }
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {

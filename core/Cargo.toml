@@ -18,6 +18,7 @@ hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
 static_assertions.workspace = true
 paste = { workspace = true }
+enum-iterator.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_backend_common::{
-    BackendExternalities, BackendState, BackendTermination, TerminationReason,
+    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
 };
 
 pub(crate) type HostState<Ext> = Option<State<Ext>>;
@@ -25,11 +25,11 @@ pub(crate) type HostState<Ext> = Option<State<Ext>>;
 /// It's supposed that `E` implements [BackendExt]
 pub(crate) struct State<Ext> {
     pub ext: Ext,
-    pub termination_reason: TerminationReason,
+    pub termination_reason: UndefinedTerminationReason,
 }
 
 impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
-    fn into_parts(self) -> (Ext, (), TerminationReason) {
+    fn into_parts(self) -> (Ext, (), UndefinedTerminationReason) {
         let State {
             ext,
             termination_reason,
@@ -40,7 +40,7 @@ impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
 }
 
 impl<Ext> BackendState for State<Ext> {
-    fn set_termination_reason(&mut self, reason: TerminationReason) {
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.termination_reason = reason;
     }
 }

@@ -115,12 +115,11 @@ pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
 #[codec(crate = codec)]
 pub struct WasmReturnValue {
     pub gas: i64,
-    pub allowance: i64,
     pub value: ReturnValue,
 }
 
 impl WasmReturnValue {
-    pub const ENCODED_MAX_SIZE: usize = 16 + ReturnValue::ENCODED_MAX_SIZE;
+    pub const ENCODED_MAX_SIZE: usize = 8 + ReturnValue::ENCODED_MAX_SIZE;
 }
 
 #[cfg(test)]

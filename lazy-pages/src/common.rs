@@ -26,10 +26,7 @@ use gear_backend_common::{
 };
 use gear_core::gas::GasLeft;
 
-use crate::{
-    globals::{GlobalNo, GlobalsContext},
-    mprotect::MprotectError,
-};
+use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage};
 
 // TODO: investigate error allocations #2441
@@ -109,10 +106,11 @@ impl LazyPagesContext {
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
 pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
-pub(crate) type GlobalNames = [LimitedStr<'static>; GlobalNo::Amount as usize];
+pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
+    pub version: LazyPagesVersion,
     pub page_sizes: PageSizes,
     pub global_names: GlobalNames,
     pub pages_storage_prefix: Vec<u8>,
@@ -120,6 +118,9 @@ pub(crate) struct LazyPagesRuntimeContext {
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
+    /// Lazy-pages impl version.
+    pub version: LazyPagesVersion,
+    /// Lazy-pages page size.
     pub page_sizes: PageSizes,
     /// Lazy-pages accesses weights.
     pub weights: Weights,
@@ -146,9 +147,20 @@ pub(crate) struct LazyPagesExecutionContext {
     pub status: Status,
 }
 
-#[derive(Clone, Copy, Debug)]
+/// Lazy-pages version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LazyPagesVersion {
     Version1,
+    Version2,
+}
+
+impl LazyPagesVersion {
+    pub const fn globals_count(&self) -> usize {
+        match self {
+            Self::Version1 => 2,
+            Self::Version2 => 1,
+        }
+    }
 }
 
 impl SizeManager for LazyPagesExecutionContext {

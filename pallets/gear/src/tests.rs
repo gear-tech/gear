@@ -5610,16 +5610,11 @@ fn terminated_locking_funds() {
 }
 
 #[test]
-fn exit_init() {
-    use demo_constructor::{demo_exit_init, WASM_BINARY};
+fn pause_terminated_exited_program() {
+    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY};
 
-    init_logger();
-    new_test_ext().execute_with(|| {
+    let test = |program_id| {
         let code_id = CodeId::generate(WASM_BINARY);
-
-        let (_init_mid, program_id) =
-            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
-
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
@@ -5651,7 +5646,28 @@ fn exit_init() {
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
-    })
+    };
+
+    new_test_ext().execute_with(|| {
+        // exit init
+        let (_, exited_pid) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
+
+        test(exited_pid);
+    });
+
+    new_test_ext().execute_with(|| {
+        // failed in init
+        let init = Calls::builder().panic("panicked in init");
+        let (_, terminated_pid) = submit_constructor_with_args(
+            USER_1,
+            DEFAULT_SALT,
+            Scheme::predefined(init, Default::default(), Default::default()),
+            0,
+        );
+
+        test(terminated_pid);
+    });
 }
 
 #[test]
@@ -13167,6 +13183,80 @@ fn test_gas_allowance_exceed_with_context() {
 
         run_to_next_block(None);
         assert_succeed(handle1_mid);
+    })
+}
+
+/// Test that if a message is addressed to a terminated program (sent from program),
+/// then no panic occurs and the message is not executed.
+#[test]
+fn test_send_to_terminated_from_program() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let user_1_bytes = ProgramId::from_origin(USER_1.into_origin()).into_bytes();
+
+        // Dies in init
+        let init = Calls::builder().panic("Die in init");
+        // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
+        let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
+        let (_, pid_terminated) = utils::submit_constructor_with_args(
+            // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
+            USER_2,
+            b"salt1",
+            Scheme::predefined(init, handle, Calls::default()),
+            0,
+        );
+
+        // Check `pid_terminated` exists as an active program.
+        assert!(Gear::is_active(pid_terminated));
+
+        // Sends in handle message to the dead program
+        let handle = Calls::builder().send(pid_terminated.into_bytes(), []);
+        // Sends to USER_1 the error reply from the dead program
+        let handle_reply = Calls::builder()
+            .reply_code("err_reply")
+            .send(user_1_bytes, "err_reply");
+        let (_, proxy_pid) = utils::submit_constructor_with_args(
+            // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
+            USER_2,
+            b"salt2",
+            Scheme::predefined(Calls::default(), handle, handle_reply),
+            0,
+        );
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid_terminated));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy_pid,
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // No panic occurred.
+        // Need to check, that user has message in the mailbox with error reply (`InactiveProgram`).
+        // Also check that user hasn't received anything from the dead program.
+        let mut mails_from_proxy_iter = MailboxOf::<Test>::iter_key(USER_1)
+            .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg));
+        let mail_from_proxy = mails_from_proxy_iter
+            .next()
+            .expect("internal error: no message from proxy");
+        assert_eq!(
+            mail_from_proxy.payload_bytes().to_vec(),
+            ReplyCode::Error(ErrorReplyReason::InactiveProgram).encode()
+        );
+        assert_eq!(mails_from_proxy_iter.next(), None);
+
+        let mails_from_terminated_count = MailboxOf::<Test>::iter_key(USER_1)
+            .filter(|(msg, _)| msg.source() == pid_terminated)
+            .count();
+        assert_eq!(mails_from_terminated_count, 0);
     })
 }
 
