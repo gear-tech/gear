@@ -96,7 +96,7 @@ macro_rules! wrap_common_func_internal_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, args: &[Value]| -> Result<WasmReturnValue, HostError> {
             $func(ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*)
-            .map(|(r, gas)| WasmReturnValue {
+            .map(|(gas, r)| WasmReturnValue {
                 gas: gas as i64,
                 value: r.into_value().into(),
             })
@@ -108,7 +108,7 @@ macro_rules! wrap_common_func_internal_no_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, _args: &[Value]| -> Result<WasmReturnValue, HostError> {
             $func(ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*)
-            .map(|(_, gas)| WasmReturnValue {
+            .map(|(gas, _)| WasmReturnValue {
                 gas: gas as i64,
                 value: ReturnValue::Unit,
             })

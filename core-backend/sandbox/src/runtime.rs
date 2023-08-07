@@ -62,7 +62,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         HostError
     }
 
-    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(T, u64), Self::Error>
+    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
@@ -78,7 +78,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
                 self.set_termination_reason(err);
                 HostError
             })
-            .map(|r| (r, self.ext.define_current_counter()))
+            .map(|r| (self.ext.define_current_counter(), r))
     }
 
     fn run_fallible<T: Sized, F, R>(
@@ -87,7 +87,7 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<((), u64), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,

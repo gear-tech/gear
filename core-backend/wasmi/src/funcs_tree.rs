@@ -46,7 +46,7 @@ macro_rules! wrap_common_func_internal_ret {
             let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-                $func(&mut ctx, 0, $($arg_name,)*).map(|(r, ..)| (r,))
+                $func(&mut ctx, 0, $($arg_name,)*).map(|(_, r)| (r,))
             };
             Func::wrap(store, func)
         }
@@ -60,7 +60,7 @@ macro_rules! wrap_common_func_internal_no_ret {
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
                 $func(&mut ctx, 0, $($arg_name,)*)
-                .map(|(r, ..)| r)
+                .map(|(_, r)| r)
             };
             Func::wrap(store, func)
         }

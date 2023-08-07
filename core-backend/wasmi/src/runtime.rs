@@ -85,13 +85,13 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         _gas: u64,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(T, u64), Self::Error>
+    ) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
-            f(ctx).map(|r| (r, 0))
+            f(ctx).map(|r| (0, r))
         })
     }
 
@@ -102,7 +102,7 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<((), u64), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,

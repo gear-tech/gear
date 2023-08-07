@@ -55,7 +55,7 @@ pub trait Runtime<Ext: BackendExternalities>:
         gas: u64,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(T, u64), Self::Error>
+    ) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>;
 
@@ -65,7 +65,7 @@ pub trait Runtime<Ext: BackendExternalities>:
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<((), u64), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized;

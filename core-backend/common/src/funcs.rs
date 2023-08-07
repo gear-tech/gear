@@ -87,7 +87,7 @@ where
         payload_ptr: u32,
         len: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_hash_val = ctx.register_read_as(pid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let HashWithValue {
@@ -108,7 +108,7 @@ where
         handle: u32,
         pid_value_ptr: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_pid_value = ctx.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
@@ -125,7 +125,7 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::SendInit, err = ErrorWithHandle)]
-    pub fn send_init(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn send_init(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().send_init().map_err(Into::into)
     }
 
@@ -136,7 +136,7 @@ where
         handle: u32,
         payload_ptr: u32,
         len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
@@ -153,7 +153,7 @@ where
         payload_ptr: u32,
         len: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let TwoHashesWithValue {
@@ -179,7 +179,7 @@ where
         handle: u32,
         rid_pid_value_ptr: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
         let TwoHashesWithValue {
             hash1: reservation_id,
@@ -204,7 +204,7 @@ where
         at: u32,
         len: u32,
         buffer_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
         payload_lock
             .drop_with::<MemoryAccessError, _>(|payload_access| {
@@ -219,7 +219,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Size)]
-    pub fn size(ctx: &mut R, gas: u64, size_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn size(ctx: &mut R, gas: u64, size_ptr: u32) -> Result<(u64, ()), R::Error> {
         let size = ctx.ext_mut().size()? as u32;
 
         let write_size = ctx.register_write_as(size_ptr);
@@ -228,14 +228,14 @@ where
     }
 
     #[host(cost = RuntimeCosts::Exit)]
-    pub fn exit(ctx: &mut R, gas: u64, inheritor_id_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn exit(ctx: &mut R, gas: u64, inheritor_id_ptr: u32) -> Result<(u64, ()), R::Error> {
         let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
         let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithReplyCode)]
-    pub fn reply_code(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn reply_code(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .reply_code()
             .map(ReplyCode::to_bytes)
@@ -244,7 +244,7 @@ where
 
     // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithSignalCode)]
-    pub fn signal_code(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn signal_code(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .signal_code()
             .map(SignalCode::to_u32)
@@ -252,7 +252,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Alloc(pages))]
-    pub fn alloc(ctx: &mut R, gas: u64, pages: u32) -> Result<(u32, u64), R::Error> {
+    pub fn alloc(ctx: &mut R, gas: u64, pages: u32) -> Result<(u64, u32), R::Error> {
         let res = ctx.alloc(pages);
         let res = ctx.process_alloc_func_result(res)?;
 
@@ -270,7 +270,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Free)]
-    pub fn free(ctx: &mut R, gas: u64, page_no: u32) -> Result<(i32, u64), R::Error> {
+    pub fn free(ctx: &mut R, gas: u64, page_no: u32) -> Result<(u64, i32), R::Error> {
         let page = WasmPage::new(page_no).map_err(|_| {
             UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                 TrapExplanation::Unknown,
@@ -293,7 +293,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::BlockHeight)]
-    pub fn block_height(ctx: &mut R, gas: u64, height_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn block_height(ctx: &mut R, gas: u64, height_ptr: u32) -> Result<(u64, ()), R::Error> {
         let height = ctx.ext_mut().block_height()?;
 
         let write_height = ctx.register_write_as(height_ptr);
@@ -306,7 +306,7 @@ where
         ctx: &mut R,
         gas: u64,
         timestamp_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let timestamp = ctx.ext_mut().block_timestamp()?;
 
         let write_timestamp = ctx.register_write_as(timestamp_ptr);
@@ -320,7 +320,7 @@ where
         gas: u64,
         subject_ptr: u32,
         bn_random_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_subject = ctx.register_read_decoded(subject_ptr);
         let write_bn_random = ctx.register_write_as(bn_random_ptr);
 
@@ -343,7 +343,7 @@ where
         payload_ptr: u32,
         len: u32,
         value_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
@@ -354,7 +354,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn reply_commit(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<(u64, ()), R::Error> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -369,7 +369,7 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
         let HashWithValue {
@@ -388,7 +388,7 @@ where
         ctx: &mut R,
         gas: u64,
         rid_value_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {
             hash: reservation_id,
@@ -404,13 +404,13 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyTo)]
-    pub fn reply_to(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn reply_to(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
     // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
-    pub fn signal_from(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn signal_from(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)
     }
 
@@ -420,7 +420,7 @@ where
         gas: u64,
         payload_ptr: u32,
         len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
@@ -434,7 +434,7 @@ where
         offset: u32,
         len: u32,
         value_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
@@ -453,7 +453,7 @@ where
         gas: u64,
         offset: u32,
         len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .reply_push_input(offset, len)
             .map_err(Into::into)
@@ -468,7 +468,7 @@ where
         offset: u32,
         len: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         // Charge for `len` inside `send_push_input`
         let read_pid_value = ctx.register_read_as(pid_value_ptr);
         let HashWithValue {
@@ -496,7 +496,7 @@ where
         handle: u32,
         offset: u32,
         len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .send_push_input(handle, offset, len)
             .map_err(Into::into)
@@ -508,7 +508,7 @@ where
         gas: u64,
         data_ptr: u32,
         data_len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
         let data: RuntimeBuffer = ctx
             .read(read_data)?
@@ -532,7 +532,7 @@ where
         gas: u64,
         data_ptr: u32,
         data_len: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
         let data = ctx.read(read_data).unwrap_or_default();
 
@@ -542,7 +542,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Null)]
-    pub fn oom_panic(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn oom_panic(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
     }
 
@@ -552,7 +552,7 @@ where
         gas: u64,
         gas_value: u64,
         duration: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .reserve_gas(gas_value, duration)
             .map_err(Into::into)
@@ -564,7 +564,7 @@ where
         gas: u64,
         message_id_ptr: u32,
         gas_value: u64,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
@@ -578,7 +578,7 @@ where
         ctx: &mut R,
         gas: u64,
         reservation_id_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
         let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
@@ -592,14 +592,14 @@ where
         ctx: &mut R,
         gas: u64,
         gas_value: u64,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .system_reserve_gas(gas_value)
             .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::GasAvailable)]
-    pub fn gas_available(ctx: &mut R, gas: u64, gas_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn gas_available(ctx: &mut R, gas: u64, gas_ptr: u32) -> Result<(u64, ()), R::Error> {
         let gas_available = ctx.ext_mut().gas_available()?;
 
         let write_gas = ctx.register_write_as(gas_ptr);
@@ -608,7 +608,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::MsgId)]
-    pub fn message_id(ctx: &mut R, gas: u64, message_id_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn message_id(ctx: &mut R, gas: u64, message_id_ptr: u32) -> Result<(u64, ()), R::Error> {
         let message_id = ctx.ext_mut().message_id()?;
 
         let write_message_id = ctx.register_write_as(message_id_ptr);
@@ -617,7 +617,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::ProgramId)]
-    pub fn program_id(ctx: &mut R, gas: u64, program_id_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn program_id(ctx: &mut R, gas: u64, program_id_ptr: u32) -> Result<(u64, ()), R::Error> {
         let program_id = ctx.ext_mut().program_id()?;
 
         let write_program_id = ctx.register_write_as(program_id_ptr);
@@ -630,7 +630,7 @@ where
         ctx: &mut R,
         gas: u64,
         rent_pid_ptr: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
         let HashWithValue {
@@ -644,7 +644,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Source)]
-    pub fn source(ctx: &mut R, gas: u64, source_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn source(ctx: &mut R, gas: u64, source_ptr: u32) -> Result<(u64, ()), R::Error> {
         let source = ctx.ext_mut().source()?;
 
         let write_source = ctx.register_write_as(source_ptr);
@@ -653,7 +653,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::Value)]
-    pub fn value(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn value(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<(u64, ()), R::Error> {
         let value = ctx.ext_mut().value()?;
 
         let write_value = ctx.register_write_as(value_ptr);
@@ -662,7 +662,7 @@ where
     }
 
     #[host(cost = RuntimeCosts::ValueAvailable)]
-    pub fn value_available(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<((), u64), R::Error> {
+    pub fn value_available(ctx: &mut R, gas: u64, value_ptr: u32) -> Result<(u64, ()), R::Error> {
         let value_available = ctx.ext_mut().value_available()?;
 
         let write_value = ctx.register_write_as(value_ptr);
@@ -671,24 +671,24 @@ where
     }
 
     #[host(cost = RuntimeCosts::Leave)]
-    pub fn leave(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn leave(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         Err(ActorTerminationReason::Leave.into())
     }
 
     #[host(cost = RuntimeCosts::Wait)]
-    pub fn wait(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn wait(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().wait()?;
         Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
     }
 
     #[host(cost = RuntimeCosts::WaitFor)]
-    pub fn wait_for(ctx: &mut R, gas: u64, duration: u32) -> Result<((), u64), R::Error> {
+    pub fn wait_for(ctx: &mut R, gas: u64, duration: u32) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().wait_for(duration)?;
         Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
     }
 
     #[host(cost = RuntimeCosts::WaitUpTo)]
-    pub fn wait_up_to(ctx: &mut R, gas: u64, duration: u32) -> Result<((), u64), R::Error> {
+    pub fn wait_up_to(ctx: &mut R, gas: u64, duration: u32) -> Result<(u64, ()), R::Error> {
         let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
             MessageWaitedType::WaitUpToFull
         } else {
@@ -703,7 +703,7 @@ where
         gas: u64,
         message_id_ptr: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
@@ -721,7 +721,7 @@ where
         payload_ptr: u32,
         payload_len: u32,
         delay: u32,
-    ) -> Result<((), u64), R::Error> {
+    ) -> Result<(u64, ()), R::Error> {
         let read_cid_value = ctx.register_read_as(cid_value_ptr);
         let read_salt = ctx.register_read(salt_ptr, salt_len);
         let read_payload = ctx.register_read(payload_ptr, payload_len);
@@ -737,7 +737,7 @@ where
             .map_err(Into::into)
     }
 
-    pub fn forbidden(ctx: &mut R, gas: u64) -> Result<((), u64), R::Error> {
+    pub fn forbidden(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         syscall_trace!("forbidden");
 
         ctx.run_any(gas, RuntimeCosts::Null, |_| {
@@ -745,7 +745,7 @@ where
         })
     }
 
-    pub fn out_of_gas(ctx: &mut R, _gas: u64) -> Result<((), u64), R::Error> {
+    pub fn out_of_gas(ctx: &mut R, _gas: u64) -> Result<(u64, ()), R::Error> {
         syscall_trace!("out_of_gas");
 
         let ext = ctx.ext_mut();
