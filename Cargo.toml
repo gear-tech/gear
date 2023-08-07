@@ -130,7 +130,7 @@ futures-timer = "3.0.2"
 futures-util = "0.3.28"
 hashbrown = "0.13.2"
 hex = { version = "0.4.3", default-features = false }
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
@@ -171,8 +171,8 @@ static_assertions = "1"
 subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-syn = "2.0.15"
-thiserror = "1.0.40"
+syn = "2.0.28"
+thiserror = "1.0.44"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
 wat = "1.0.69"
