@@ -883,7 +883,8 @@ where
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
 
-    let tester_pid = ProgramId::generate_with_nonce(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"", 0u32);
+    let tester_pid =
+        ProgramId::generate_with_nonce(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"", 0u32);
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);

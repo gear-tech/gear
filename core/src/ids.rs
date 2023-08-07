@@ -212,7 +212,7 @@ impl ProgramId {
     pub fn generate_with_nonce<T: ProgramNonce>(code_id: CodeId, salt: &[u8], nonce: T) -> Self {
         const SALT: &[u8] = b"program";
 
-        let argument = [nonce.as_nonce(), SALT, code_id.as_ref(), salt].concat();
+        let argument = [nonce.as_nonce().as_ref(), SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
