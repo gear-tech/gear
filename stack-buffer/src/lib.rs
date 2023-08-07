@@ -50,7 +50,7 @@ extern "C" {
 /// This is a polyfill function that is used when the native library is unavailable.
 /// The maximum size that can be allocated on the stack is limited
 /// by the [`MAX_BUFFER_SIZE`] constant.
-#[cfg(all(not(feature = "compile-alloca"), not(target_arch = "wasm32")))]
+#[cfg(not(any(feature = "compile-alloca", target_arch = "wasm32")))]
 unsafe extern "C" fn c_with_alloca(_size: usize, callback: Callback, data: *mut c_void) {
     // Same as `MaybeUninit::uninit_array()`.
     // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
