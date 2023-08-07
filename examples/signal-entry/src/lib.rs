@@ -259,9 +259,9 @@ mod wasm {
                     .expect("Unsupported code");
 
                 if signal_received == *signal_saved {
-                    msg::send(unsafe { INITIATOR }, b"handle_signal_equal", 0).unwrap();
+                    msg::send(unsafe { INITIATOR }, true, 0).unwrap();
                 } else {
-                    msg::send(unsafe { INITIATOR }, b"handle_signal_not_equal", 0).unwrap();
+                    msg::send(unsafe { INITIATOR }, false, 0).unwrap();
                 }
             }
         }

@@ -14145,7 +14145,7 @@ mod utils {
             assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
             let mail_msg = get_last_mail(USER_1);
-            assert_eq!(mail_msg.payload_bytes(), b"handle_signal_equal");
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
         });
     }
 }
