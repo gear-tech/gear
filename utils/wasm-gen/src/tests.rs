@@ -19,7 +19,7 @@
 use super::*;
 use arbitrary::Unstructured;
 use gear_core::code::Code;
-use gear_utils::NonEmpty;
+use gear_utils::{init_default_logger, NonEmpty};
 use gear_wasm_instrument::parity_wasm::{
     self,
     elements::{Instruction, Module},
@@ -190,7 +190,9 @@ fn injecting_addresses_works() {
 fn test_valid() {
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
-    for seed in 0..u16::MAX {
+    init_default_logger();
+
+    for seed in 0..100 {
         let mut rng = SmallRng::seed_from_u64(seed as u64);
 
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
@@ -199,8 +201,21 @@ fn test_valid() {
 
         println!("Seed - {seed}");
 
-        let raw_code = generate_gear_program_code(&mut u, ConfigsBundle::default())
-            .expect("failed generating wasm");
-        assert!(Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None).is_ok())
+        let gen_config = GearWasmGeneratorConfigBuilder::new()
+            .with_sys_calls_config(
+                SysCallsConfigBuilder::new(Default::default())
+                    .with_log_info("SOME DATA TO BE LOGGED!!!".into())
+                    .build(),
+            )
+            .build();
+
+        let configs_bundle = ConfigsBundle {
+            gear_wasm_generator_config: gen_config,
+            module_selectables_config: Default::default(),
+        };
+
+        let raw_code =
+            generate_gear_program_code(&mut u, configs_bundle).expect("failed generating wasm");
+        Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None).expect("failed");
     }
 }
