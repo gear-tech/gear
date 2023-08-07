@@ -201,7 +201,7 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
             }
         }
 
-        // Same as `MaybeUninit::slice_assume_init_mut(&mut buffer[..size])`.
+        // SAFETY: same as `MaybeUninit::slice_assume_init_mut(&mut buffer[..size])`.
         // It takes the slice `&mut buffer[..size]` and says that it was
         // previously initialized with the `gr_read` system call.
         f(SyscallError(len)
