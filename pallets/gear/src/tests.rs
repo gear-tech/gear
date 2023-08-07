@@ -14107,6 +14107,7 @@ mod utils {
 
         init_logger();
         new_test_ext().execute_with(|| {
+            // Upload program
             assert_ok!(Gear::upload_program(
                 RuntimeOrigin::signed(USER_1),
                 WASM_BINARY.to_vec(),
@@ -14116,10 +14117,25 @@ mod utils {
                 0,
             ));
 
+            // Ensure that program is uploaded correctly
             let pid = get_last_program_id();
+            assert!(Gear::is_active(pid));
 
-            run_to_block(2, None);
+            // Initialize program
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                vec![],
+                10_000_000_000,
+                0,
+            ));
 
+            run_to_next_block(None);
+
+            // Ensure that program is initialized correctly
+            assert!(Gear::is_initialized(pid));
+
+            // Save signal code to be compared with
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
@@ -14128,7 +14144,8 @@ mod utils {
                 0,
             ));
 
-            run_to_block(3, None);
+            // Send the action to trigger signal sending
+            run_to_next_block(None);
 
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
@@ -14140,10 +14157,12 @@ mod utils {
 
             let mid = get_last_message_id();
 
-            run_to_block(4, None);
-
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+            run_to_next_block(None);
             assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
+            // Ensure that signal code sent is signal code we saved
             let mail_msg = get_last_mail(USER_1);
             assert_eq!(mail_msg.payload_bytes(), true.encode());
         });
