@@ -11,7 +11,7 @@ on:
 
   workflow_dispatch:
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -37,7 +37,7 @@ jobs:
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
 
-  prepair:
+  prepare:
     runs-on: ubuntu-latest
     outputs:
       sccache_path: ${{ steps.sccache.outputs.sccache_path }}
@@ -53,12 +53,12 @@ jobs:
 
   check:
     # needs: spec_version
-    needs: [prepair, check-commit-message]
+    needs: [prepare, check-commit-message]
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: sccache
-      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
+      SCCACHE_DIR: ${{ needs.prepare.outputs.sccache_path }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
@@ -98,13 +98,13 @@ jobs:
 
   build:
     # needs: spec_version
-    needs: [prepair, check-commit-message, check-labels]
+    needs: [prepare, check-commit-message, check-labels]
     runs-on: [kuberunner, github-runner-02]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: sccache
-      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
+      SCCACHE_DIR: ${{ needs.prepare.outputs.sccache_path }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
@@ -338,7 +338,7 @@ jobs:
           --release
 
   build-win-cross:
-    needs: [prepair, check-commit-message, check-labels]
+    needs: [prepare, check-commit-message, check-labels]
     runs-on: [kuberunner, github-runner-03]
     env:
       XWIN_ARCH: x86_64
@@ -484,12 +484,12 @@ jobs:
           files: artifact/*
 
   check-fuzzer:
-    needs: [prepair]
+    needs: [prepare]
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: sccache
-      SCCACHE_DIR: ${{ needs.prepair.outputs.sccache_path }}
+      SCCACHE_DIR: ${{ needs.prepare.outputs.sccache_path }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
