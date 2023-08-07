@@ -266,11 +266,9 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if matches!(self.reply_code, Some(c) if c.is_success()) {
-            if let Some(payload) = &self.payload {
-                if payload.inner() != other.payload.inner() {
-                    return false;
-                }
+        if let Some(payload) = &self.payload {
+            if payload.inner() != other.payload.inner() {
+                return false;
             }
         }
 
