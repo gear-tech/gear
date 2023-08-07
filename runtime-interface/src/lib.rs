@@ -105,13 +105,27 @@ pub trait GearRI {
             .unwrap_or_else(|err| unreachable!("Cannot get lazy-pages status: {err}")),)
     }
 
-    /// Init lazy-pages.
-    /// Returns whether initialization was successful.
     fn init_lazy_pages(ctx: LazyPagesRuntimeContext) -> bool {
         use lazy_pages::LazyPagesVersion;
 
         lazy_pages::init(
             LazyPagesVersion::Version1,
+            ctx.page_sizes,
+            ctx.global_names,
+            ctx.pages_storage_prefix,
+        )
+        .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+        .is_ok()
+    }
+
+    /// Init lazy-pages.
+    /// Returns whether initialization was successful.
+    #[version(2)]
+    fn init_lazy_pages(ctx: LazyPagesRuntimeContext) -> bool {
+        use lazy_pages::LazyPagesVersion;
+
+        lazy_pages::init(
+            LazyPagesVersion::Version2,
             ctx.page_sizes,
             ctx.global_names,
             ctx.pages_storage_prefix,

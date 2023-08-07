@@ -44,7 +44,7 @@ use core::{
 };
 use gear_core::{
     env::Externalities,
-    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageBuf},
     message::{
@@ -70,7 +70,27 @@ pub enum TerminationReason {
     System(SystemTerminationReason),
 }
 
-impl From<ChargeError> for TerminationReason {
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
+pub enum UndefinedTerminationReason {
+    Actor(ActorTerminationReason),
+    System(SystemTerminationReason),
+    /// Undefined reason because we need access to counters owner trait for RI.
+    ProcessAccessErrorResourcesExceed,
+}
+
+impl UndefinedTerminationReason {
+    pub fn define(self, current_counter: CounterType) -> TerminationReason {
+        match self {
+            Self::Actor(r) => r.into(),
+            Self::System(r) => r.into(),
+            Self::ProcessAccessErrorResourcesExceed => {
+                ActorTerminationReason::from(current_counter).into()
+            }
+        }
+    }
+}
+
+impl From<ChargeError> for UndefinedTerminationReason {
     fn from(err: ChargeError) -> Self {
         match err {
             ChargeError::GasLimitExceeded => {
@@ -83,13 +103,13 @@ impl From<ChargeError> for TerminationReason {
     }
 }
 
-impl From<TrapExplanation> for TerminationReason {
+impl From<TrapExplanation> for UndefinedTerminationReason {
     fn from(trap: TrapExplanation) -> Self {
         ActorTerminationReason::Trap(trap).into()
     }
 }
 
-impl<E: BackendSyscallError> From<E> for TerminationReason {
+impl<E: BackendSyscallError> From<E> for UndefinedTerminationReason {
     fn from(err: E) -> Self {
         err.into_termination_reason()
     }
@@ -105,6 +125,15 @@ pub enum ActorTerminationReason {
     GasAllowanceExceeded,
     #[from]
     Trap(TrapExplanation),
+}
+
+impl From<CounterType> for ActorTerminationReason {
+    fn from(counter_type: CounterType) -> Self {
+        match counter_type {
+            CounterType::GasLimit => Self::Trap(TrapExplanation::GasLimitExceeded),
+            CounterType::GasAllowance => Self::GasAllowanceExceeded,
+        }
+    }
 }
 
 /// Non-actor related termination reason.
@@ -285,14 +314,14 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError>;
 }
 
 /// A trait for conversion of the externalities API error
-/// to `TerminationReason` and `RunFallibleError`.
+/// to `UndefinedTerminationReason` and `RunFallibleError`.
 pub trait BackendSyscallError: Sized {
-    fn into_termination_reason(self) -> TerminationReason;
+    fn into_termination_reason(self) -> UndefinedTerminationReason;
 
     fn into_run_fallible_error(self) -> RunFallibleError;
 }
@@ -389,20 +418,20 @@ where
 
 pub trait BackendState {
     /// Set termination reason
-    fn set_termination_reason(&mut self, reason: TerminationReason);
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason);
 
     /// Process fallible syscall function result
     fn process_fallible_func_result<T: Sized>(
         &mut self,
         res: Result<T, RunFallibleError>,
-    ) -> Result<Result<T, u32>, TerminationReason> {
+    ) -> Result<Result<T, u32>, UndefinedTerminationReason> {
         match res {
             Err(RunFallibleError::FallibleExt(ext_err)) => {
                 let code = ext_err.to_u32();
                 log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
                 Ok(Err(code))
             }
-            Err(RunFallibleError::TerminationReason(reason)) => Err(reason),
+            Err(RunFallibleError::UndefinedTerminationReason(reason)) => Err(reason),
             Ok(res) => Ok(Ok(res)),
         }
     }
@@ -411,7 +440,7 @@ pub trait BackendState {
     fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocSyscallError>(
         &mut self,
         res: Result<T, ExtAllocError>,
-    ) -> Result<Result<T, ExtAllocError>, TerminationReason> {
+    ) -> Result<Result<T, ExtAllocError>, UndefinedTerminationReason> {
         match res {
             Ok(t) => Ok(Ok(t)),
             Err(err) => match err.into_backend_error() {
@@ -430,7 +459,7 @@ pub trait BackendState {
 pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
     /// Transforms [`Self`] into tuple of externalities, memory and
     /// termination reason returned after the execution.
-    fn into_parts(self) -> (Ext, EnvMem, TerminationReason);
+    fn into_parts(self) -> (Ext, EnvMem, UndefinedTerminationReason);
 
     /// Terminates backend work after execution.
     ///
@@ -450,14 +479,14 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
     fn terminate<T: Debug, WasmCallErr: Debug>(
         self,
         res: Result<T, WasmCallErr>,
-        gas: i64,
-        allowance: i64,
+        gas: u64,
     ) -> (Ext, EnvMem, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();
+        let termination_reason = termination_reason.define(ext.current_counter_type());
 
-        ext.set_gas_left((gas, allowance).into());
+        ext.decrease_current_counter_to(gas);
 
         let termination_reason = if res.is_err() {
             if matches!(

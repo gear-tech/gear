@@ -93,7 +93,6 @@ pub enum SysCallName {
     Alloc,
     Free,
     OutOfGas,
-    OutOfAllowance,
 
     // Miscellaneous
     ReplyDeposit,
@@ -122,7 +121,6 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
