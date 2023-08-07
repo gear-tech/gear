@@ -323,14 +323,17 @@ impl<'a> SysCallsInvocator<'a> {
                 .code_mut()
                 .elements_mut();
 
-            let res = self
-                .unstructured
-                // The end of insertion range is second-to-last index, as the last
-                // index is defined for `Instruction::End` of the function body.
-                .int_in_range(0..=code.len() - 2)
-                .map(|pos| {
-                    code.splice(pos..pos, instructions.iter().cloned());
-                });
+            // The end of insertion range is second-to-last index, as the last
+            // index is defined for `Instruction::End` of the function body.
+            // But if there's only one instruction in the function, then `0`
+            // index is used as an insertion point.
+            let last = (code.len() > 1)
+                .then_some(code.len() - 2)
+                .unwrap_or_default();
+
+            let res = self.unstructured.int_in_range(0..=last).map(|pos| {
+                code.splice(pos..pos, instructions.iter().cloned());
+            });
 
             (module, res)
         })
