@@ -37,10 +37,7 @@ pub const MAX_BUFFER_SIZE: usize = 64 * 1024;
 /// a pointer to allocated stack memory.
 type Callback = unsafe extern "C" fn(ptr: *mut MaybeUninit<u8>, data: *mut c_void);
 
-#[cfg(any(
-    feature = "compile-alloca",
-    all(not(feature = "compile-alloca"), target_arch = "wasm32")
-))]
+#[cfg(any(feature = "compile-alloca", target_arch = "wasm32"))]
 extern "C" {
     /// Function from the native library that manipulates the stack pointer directly.
     /// Can be used to dynamically allocate stack space.
