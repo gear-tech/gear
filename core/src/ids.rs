@@ -204,8 +204,12 @@ impl ProgramId {
     /// System program ID
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
-    /// Generate ProgramId from given CodeId and salt
-    pub fn generate<T: ProgramNonce>(code_id: CodeId, salt: &[u8], nonce: T) -> Self {
+    pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
+        Self::generate_with_nonce(code_id, salt, 0u32)
+    }
+
+    /// Generate ProgramId from given CodeId, nonce and salt
+    pub fn generate_with_nonce<T: ProgramNonce>(code_id: CodeId, salt: &[u8], nonce: T) -> Self {
         const SALT: &[u8] = b"program";
 
         let argument = [nonce.as_nonce(), SALT, code_id.as_ref(), salt].concat();
@@ -255,7 +259,7 @@ fn formatting_test() {
     use alloc::format;
 
     let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate(code_id, &[2, 1, 0], 0u32);
+    let id = ProgramId::generate_with_nonce(code_id, &[2, 1, 0], 0u32);
 
     // `Debug`/`Display`.
     assert_eq!(

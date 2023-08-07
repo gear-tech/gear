@@ -135,7 +135,7 @@ where
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
             let program_id =
-                ProgramId::generate(CodeId::generate(code), b"bench_salt", root_message_id);
+                ProgramId::generate_with_nonce(CodeId::generate(code), b"bench_salt", root_message_id);
 
             let schedule = T::Schedule::get();
             let code = Code::try_new(
@@ -172,7 +172,7 @@ where
             )
         }
         HandleKind::InitByHash(code_id) => {
-            let program_id = ProgramId::generate(code_id, b"bench_salt", root_message_id);
+            let program_id = ProgramId::generate_with_nonce(code_id, b"bench_salt", root_message_id);
 
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);

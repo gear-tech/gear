@@ -150,8 +150,8 @@ fn debug_mode_works() {
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
-        let program_id_1 = ProgramId::generate(CodeId::generate(&code_1), DEFAULT_SALT, 0u32);
-        let program_id_2 = ProgramId::generate(CodeId::generate(&code_2), DEFAULT_SALT, 0u32);
+        let program_id_1 = ProgramId::generate_with_nonce(CodeId::generate(&code_1), DEFAULT_SALT, 0u32);
+        let program_id_2 = ProgramId::generate_with_nonce(CodeId::generate(&code_2), DEFAULT_SALT, 0u32);
 
         PalletGear::<Test>::upload_program(
             RuntimeOrigin::signed(1),
@@ -518,7 +518,7 @@ fn check_not_allocated_pages() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT, 0u32);
+        let program_id = ProgramId::generate_with_nonce(CodeId::generate(&code), DEFAULT_SALT, 0u32);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
@@ -737,7 +737,7 @@ fn check_changed_pages_in_storage() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT, 0u32);
+        let program_id = ProgramId::generate_with_nonce(CodeId::generate(&code), DEFAULT_SALT, 0u32);
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
@@ -874,7 +874,7 @@ fn check_gear_stack_end() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat.as_str());
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT, 0u32);
+        let program_id = ProgramId::generate_with_nonce(CodeId::generate(&code), DEFAULT_SALT, 0u32);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(

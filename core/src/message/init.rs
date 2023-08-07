@@ -158,7 +158,7 @@ impl InitPacket {
 
     /// Packet destination (newly created program id).
     pub fn destination<T: ProgramNonce>(&self, nonce: T) -> ProgramId {
-        ProgramId::generate(self.code_id, self.salt.inner(), nonce)
+        ProgramId::generate_with_nonce(self.code_id, self.salt.inner(), nonce)
     }
 
     /// Code id.
