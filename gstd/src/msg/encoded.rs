@@ -146,11 +146,11 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
             if end_offset > self.buffer.len() {
                 panic!("{ERROR_LOG}");
             }
-            // Same as `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset],
-            // bytes)`. This code transmutes `bytes: &[T]` to `bytes:
-            // &[MaybeUninit<T>]`. These types can be safely transmuted since
-            // they have the same layout. Then `bytes: &[MaybeUninit<T>]`
-            // is written to uninitialized memory via `copy_from_slice`.
+            // SAFETY: same as
+            // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.
+            // This code transmutes `bytes: &[T]` to `bytes: &[MaybeUninit<T>]`. These types
+            // can be safely transmuted since they have the same layout. Then `bytes:
+            // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
             let this = &mut self.buffer[self.offset..end_offset];
             this.copy_from_slice(unsafe { transmute(bytes) });
             self.offset = end_offset;
@@ -161,7 +161,7 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
         let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
         let ExternalBufferOutput { buffer, offset } = output;
-        // Same as `MaybeUninit::slice_assume_init_ref(&buffer[..offset])`.
+        // SAFETY: same as `MaybeUninit::slice_assume_init_ref(&buffer[..offset])`.
         // `ExternalBufferOutput` writes data to uninitialized memory. So we can take
         // slice `&buffer[..offset]` and say that it was initialized earlier
         // because the buffer from `0` to `offset` was initialized.
