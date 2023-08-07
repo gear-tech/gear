@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api calls
-use super::{SignerBalance, SignerCalls, SignerInner, SignerSudo};
+use super::{SignerCalls, SignerInner, SignerStorage};
 use crate::{
     config::GearConfig,
     metadata::{
@@ -33,6 +33,7 @@ use crate::{
         sudo::Event as SudoEvent,
         Event,
     },
+    signer::SignerRpc,
     types::{self, InBlock, TxStatus},
     utils::storage_address_bytes,
     Api, BlockNumber, Error,
@@ -60,7 +61,7 @@ type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 // pallet-balances
-impl SignerBalance {
+impl SignerCalls {
     /// `pallet_balances::transfer`
     pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> InBlock {
         self.0
@@ -235,7 +236,7 @@ impl SignerInner {
 }
 
 // pallet-system
-impl SignerSudo {
+impl SignerStorage {
     /// Sets storage values via calling sudo pallet
     pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> EventsResult {
         let metadata = self.0.api().metadata();
@@ -261,7 +262,7 @@ impl SignerSudo {
 }
 
 // pallet-gas
-impl SignerSudo {
+impl SignerStorage {
     /// Writes gas total issuance into storage.
     pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
         let addr = Api::storage_root(GearGasStorage::TotalIssuance);
@@ -284,7 +285,7 @@ impl SignerSudo {
 }
 
 // pallet-gear-program
-impl SignerSudo {
+impl SignerStorage {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
     pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
         let addr = Api::storage(
@@ -389,9 +390,9 @@ impl SignerInner {
     pub async fn process<'a>(&self, tx: DynamicPayload) -> InBlock {
         use subxt::tx::TxStatus::*;
 
-        let signer_balance = SignerBalance(Arc::new(self.clone()));
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let before = signer_rpc.get_balance().await?;
 
-        let before = signer_balance.get().await?;
         let mut process = self.sign_and_submit_then_watch(&tx).await?;
         let (pallet, name) = (tx.pallet_name(), tx.call_name());
 
@@ -410,11 +411,11 @@ impl SignerInner {
                         b.extrinsic_hash(),
                         b.block_hash()
                     );
-                    signer_balance.log_spent(before).await?;
+                    self.log_balance_spent(before).await?;
                     return Ok(b);
                 }
                 _ => {
-                    signer_balance.log_spent(before).await?;
+                    self.log_balance_spent(before).await?;
                     return Err(status.into());
                 }
             }

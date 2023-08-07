@@ -30,6 +30,15 @@ impl SignerRpc {
         AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
     }
 
+    /// Get self balance.
+    pub async fn get_balance(&self) -> Result<u128> {
+        self.0
+            .as_ref()
+            .api()
+            .get_balance(&self.0.as_ref().address())
+            .await
+    }
+
     /// gear_calculateInitCreateGas
     pub async fn calculate_create_gas(
         &self,

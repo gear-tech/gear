@@ -98,7 +98,7 @@ impl GearApi {
     pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
-        let tx = self.0.balance.transfer(destination, value).await?;
+        let tx = self.0.calls.transfer(destination, value).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
@@ -358,19 +358,19 @@ impl GearApi {
 
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_code_storage(src_code_id, &src_code)
             .await?;
 
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_code_len_storage(src_code_id, src_code_len)
             .await?;
 
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_gas_nodes(&src_program_reserved_gas_nodes)
             .await?;
 
@@ -415,7 +415,7 @@ impl GearApi {
 
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_total_issuance(
                 dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
             )
@@ -423,14 +423,14 @@ impl GearApi {
 
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
         src_program.expiration_block = dest_node_api.last_block_number().await?;
         dest_node_api
             .0
-            .sudo
+            .storage
             .set_gprog(dest_program_id, src_program)
             .await?;
 
@@ -520,7 +520,7 @@ impl GearApi {
         )
         .await?;
 
-        self.0.sudo.set_gpages(program_id, &pages).await?;
+        self.0.storage.set_gpages(program_id, &pages).await?;
 
         Ok(())
     }

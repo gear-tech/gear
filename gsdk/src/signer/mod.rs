@@ -37,33 +37,32 @@ mod utils;
 /// Signer representation that provides access to gear API.
 /// Implements low-level methods such as [`run_tx`](`SignerInner::run_tx`)
 /// and [`force_batch`](`SignerInner::force_batch`).
-/// Other higher-level calls are provided by [`Signer::sudo`],
-/// [`Signer::balance`], [`Signer::calls`], [`Signer::rpc`].
+/// Other higher-level calls are provided by [`Signer::storage`],
+/// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
 pub struct Signer {
     signer: Arc<SignerInner>,
-    /// Calls that require sudo.
-    pub sudo: SignerSudo,
-    /// Calls to interact with account balance.
-    pub balance: SignerBalance,
+    /// Calls that get or set storage.
+    pub storage: SignerStorage,
     /// Calls for interaction with on-chain programs.
     pub calls: SignerCalls,
     /// Calls to fetch data from node.
     pub rpc: SignerRpc,
 }
 
+/// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerSudo(Arc<SignerInner>);
+pub struct SignerStorage(Arc<SignerInner>);
 
-#[derive(Clone)]
-pub struct SignerBalance(Arc<SignerInner>);
-
+/// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
 pub struct SignerCalls(Arc<SignerInner>);
 
+/// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
 pub struct SignerRpc(Arc<SignerInner>);
 
+/// Implementation of low-level calls for [`Signer`].
 #[derive(Clone)]
 pub struct SignerInner {
     api: Api,
@@ -90,8 +89,7 @@ impl Signer {
         let signer = Arc::new(signer);
 
         Self {
-            sudo: SignerSudo(signer.clone()),
-            balance: SignerBalance(signer.clone()),
+            storage: SignerStorage(signer.clone()),
             calls: SignerCalls(signer.clone()),
             rpc: SignerRpc(signer.clone()),
             signer,
@@ -102,15 +100,13 @@ impl Signer {
     fn replace_inner(&mut self, inner: SignerInner) {
         let Signer {
             signer,
-            sudo,
-            balance,
+            storage,
             calls,
             rpc,
         } = self;
 
         *signer = Arc::new(inner);
-        *sudo = SignerSudo(signer.clone());
-        *balance = SignerBalance(signer.clone());
+        *storage = SignerStorage(signer.clone());
         *calls = SignerCalls(signer.clone());
         *rpc = SignerRpc(signer.clone());
     }
