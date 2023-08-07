@@ -47,7 +47,7 @@ use gear_wasm_instrument::syscalls::{SysCallName, SysCallSignature};
 /// Type of invocable sys-call.
 ///
 /// Basically, there are 2 types of generated sys-calls:
-/// 1. Those invocation of which is done regardless of validity of call context (``).
+/// 1. Those invocation of which is done regardless of validity of call context (`Loose`).
 /// 2. Those which are invoked correctly with implenting all call context (`Precise`).
 ///
 /// Clarifying that, `gr_reservation_send` requires an existing reservation id,
