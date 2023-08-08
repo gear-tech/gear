@@ -1,5 +1,7 @@
 [package]
 name = "gsys"
+version = "0.1.0"
+description = "System calls of gear program"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

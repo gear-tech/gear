@@ -1,9 +1,12 @@
 [package]
 name = "gear-backend-common"
 version = "0.1.0"
+description = "Common library for gear-core-backend"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true

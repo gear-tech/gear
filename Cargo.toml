@@ -3,6 +3,8 @@ version = "0.2.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
+homepage = "https://github.com/gear-tech/gear"
+repository = "https://github.com/gear-tech/gear"
 
 [workspace]
 resolver = "2"

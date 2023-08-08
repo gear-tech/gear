@@ -1,9 +1,12 @@
 [package]
 name = "gclient"
 version = "0.1.0"
+description = "API client for gear node in rust."
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-utils.workspace = true

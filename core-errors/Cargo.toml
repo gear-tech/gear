@@ -1,9 +1,12 @@
 [package]
 name = "gear-core-errors"
 version = "0.1.0"
+description = "Shared errors for gear core libraries"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }

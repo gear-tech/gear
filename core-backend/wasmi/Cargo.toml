@@ -1,9 +1,12 @@
 [package]
 name = "gear-backend-wasmi"
 version = "0.1.0"
+description = "Wasmi executor for the gear-backend"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true

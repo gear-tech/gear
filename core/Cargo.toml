@@ -1,9 +1,12 @@
 [package]
 name = "gear-core"
 version = "0.1.0"
+description = "Gear core library"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core-errors = { workspace = true, features = ["codec"] }
