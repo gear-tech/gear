@@ -73,7 +73,7 @@ impl InvocableSysCall {
                     ParamType::Gas,          // Amount of gas to reserve
                     ParamType::Duration,     // Duration of the reservation
                 ]),
-                _ => panic!("unknown implementation"),
+                _ => unimplemented!(),
             },
         }
     }
