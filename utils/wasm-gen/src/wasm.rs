@@ -55,9 +55,9 @@ impl WasmModule {
         config: WasmModuleConfig,
         u: &mut Unstructured<'_>,
     ) -> Result<Self> {
-        let mut pw_module = Self::generate_wasm_smith_module(config.clone(), u)?;
-        while pw_module.function_section().is_none() {
-            pw_module = Self::generate_wasm_smith_module(config.clone(), u)?;
+        let pw_module = Self::generate_wasm_smith_module(config.clone(), u)?;
+        if pw_module.function_section().is_none() {
+            panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
         }
 
         Ok(Self(pw_module))

@@ -78,6 +78,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_funcs,
             max_data_segments,
             min_data_segments,
+            max_types,
+            min_types,
         } = ConstantParams::default();
 
         let SelectableParams {
@@ -98,7 +100,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
@@ -107,7 +108,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
@@ -193,7 +193,6 @@ pub struct ArbitraryParams {
     max_nesting_depth: usize,
     max_tags: usize,
     max_type_size: u32,
-    max_types: usize,
     max_values: usize,
     memory_max_size_required: bool,
     memory_offset_choices: (u32, u32, u32),
@@ -202,7 +201,6 @@ pub struct ArbitraryParams {
     min_globals: usize,
     min_tables: u32,
     min_tags: usize,
-    min_types: usize,
     min_uleb_size: u8,
     threads_enabled: bool,
     max_table_elements: u32,
@@ -227,7 +225,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
@@ -236,7 +233,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
@@ -259,7 +255,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
@@ -268,7 +263,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
@@ -289,6 +283,7 @@ pub struct ConstantParams {
     max_data_segments: usize,
     max_exports: usize,
     max_imports: usize,
+    max_types: usize,
     max_instructions: usize,
     max_memories: usize,
     min_memories: u32,
@@ -308,6 +303,7 @@ pub struct ConstantParams {
     allowed_instructions: InstructionKinds,
     memory_grow_enabled: bool,
     min_funcs: usize,
+    min_types: usize,
 }
 
 impl Default for ConstantParams {
@@ -341,6 +337,8 @@ impl Default for ConstantParams {
             max_funcs: 100,
             max_data_segments: 0,
             min_data_segments: 0,
+            max_types: 100,
+            min_types: 5,
         }
     }
 }

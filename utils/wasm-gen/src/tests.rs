@@ -124,6 +124,7 @@ fn remove_multiple_recursions() {
 //     }
 // }
 
+// TODO should fail now
 #[test]
 fn injecting_addresses_works() {
     let mut rng = SmallRng::seed_from_u64(1234);
