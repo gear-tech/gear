@@ -158,7 +158,6 @@ where
         f.build(ReplyDeposit, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_deposit, (3) -> ())(store, forbidden, memory)),
         f.build(UnreserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::unreserve_gas, (2) -> ())(store, forbidden, memory)),
         f.build(OutOfGas, |_| wrap_common_func!(CommonFuncsHandler::out_of_gas, () -> ())(store, false, memory)),
-        f.build(OutOfAllowance, |_| wrap_common_func!(CommonFuncsHandler::out_of_allowance, () -> ())(store, false, memory)),
         f.build(SystemReserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::system_reserve_gas, (2) -> ())(store, forbidden, memory)),
     ]
     .into();

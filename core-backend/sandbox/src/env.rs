@@ -33,7 +33,6 @@ use gear_backend_common::{
     EnvironmentExecutionResult,
 };
 use gear_core::{
-    gas::GasLeft,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
@@ -44,7 +43,7 @@ use gear_sandbox::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -138,8 +137,6 @@ pub enum SandboxEnvironmentError {
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
-    #[display(fmt = "Allowance counter not found or has wrong type")]
-    WrongInjectedAllowance,
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -259,7 +256,6 @@ where
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
         builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
-        builder.add_func(OutOfAllowance, wrap_common_func!(FuncsHandler::out_of_allowance, () -> ()));
 
         builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (1) -> (1)));
         builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (1) -> (1)));
@@ -375,17 +371,13 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let GasLeft { gas, allowance } = runtime.ext.gas_left();
+        let gas = runtime.ext.define_current_counter();
 
+        // Setting initial value of global.
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
-
-        runtime
-            .globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsAccessConfig {
@@ -412,19 +404,14 @@ where
             .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
             .unwrap_or(Ok(ReturnValue::Unit));
 
+        // Fetching global value.
         let gas = runtime
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(runtime::as_i64)
+            .and_then(runtime::as_u64)
             .ok_or(System(WrongInjectedGas))?;
 
-        let allowance = runtime
-            .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(runtime::as_i64)
-            .ok_or(System(WrongInjectedAllowance))?;
-
-        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas);
 
         Ok(BackendReport {
             termination_reason,

@@ -114,7 +114,7 @@ async-trait = "0.1.68"
 base64 = "0.21.0"
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.2.1" }
+clap = { version = "4.3.19" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -130,7 +130,7 @@ futures-timer = "3.0.2"
 futures-util = "0.3.28"
 hashbrown = "0.13.2"
 hex = { version = "0.4.3", default-features = false }
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
@@ -171,11 +171,11 @@ static_assertions = "1"
 subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-syn = "2.0.15"
-thiserror = "1.0.40"
+syn = "2.0.28"
+thiserror = "1.0.44"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
-wat = "1.0.61"
+wat = "1.0.69"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -419,7 +419,7 @@ cfg-if = "1.0.0"                                                          # gear
 cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "1.9.3"                                                        # utils/weight-diff
+indexmap = "2.0.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
