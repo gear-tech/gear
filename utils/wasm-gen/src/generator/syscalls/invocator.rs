@@ -327,7 +327,7 @@ impl<'a> SysCallsInvocator<'a> {
             // index is defined for `Instruction::End` of the function body.
             // But if there's only one instruction in the function, then `0`
             // index is used as an insertion point.
-            let last = (code.len() > 1).then(|| code.len() - 2).unwrap_or_default();
+            let last = if code.len() > 1 { code.len() - 2 } else { 0 };
 
             let res = self.unstructured.int_in_range(0..=last).map(|pos| {
                 code.splice(pos..pos, instructions.iter().cloned());
