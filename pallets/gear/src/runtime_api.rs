@@ -112,7 +112,6 @@ where
 
         loop {
             if QueueProcessingOf::<T>::denied() {
-                log::trace!("Gas allowance is out");
                 return Err(
                     b"Calculation gas limit exceeded. Consider using custom built node.".to_vec(),
                 );
