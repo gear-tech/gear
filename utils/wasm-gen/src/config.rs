@@ -41,7 +41,6 @@
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
 //! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionAmounts::all_once())
-//!     .with_unchecked_memory_access(true)
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
@@ -71,9 +70,9 @@
 //! }
 //! ```
 
-pub mod generator;
-pub mod module;
-pub mod syscalls;
+mod generator;
+mod module;
+mod syscalls;
 
 pub use generator::*;
 pub use module::*;

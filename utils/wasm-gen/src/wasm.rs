@@ -152,7 +152,7 @@ impl From<u16> for Page {
 
 /// New-type to represent WASM memory pages count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PageCount(u32);
+pub(crate) struct PageCount(u32);
 
 impl From<u32> for PageCount {
     fn from(value: u32) -> Self {
@@ -164,10 +164,5 @@ impl PageCount {
     /// Calculate WASM memory size for this pages count.
     pub(crate) fn memory_size(&self) -> u32 {
         self.0 * PAGE_SIZE
-    }
-
-    /// Get WASM memory pages count as a number.
-    pub(crate) fn raw(&self) -> u32 {
-        self.0
     }
 }

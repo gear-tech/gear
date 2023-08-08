@@ -28,7 +28,6 @@ mod upload_program;
 
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
-use gear_core::ids::ProgramId;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
 pub use send_reply::SendReplyArgs;
@@ -40,7 +39,7 @@ pub use upload_program::UploadProgramArgs;
 pub struct GearCallConversionError(pub &'static str);
 
 pub type Seed = u64;
-pub type GearProgGenConfig = gear_wasm_gen::ConfigsBundle;
+pub type GearWasmGenConfigsBundle = gear_wasm_gen::ConfigsBundle;
 
 /// This trait must be implemented for all argument types
 /// that are defined in [`GearCall`] variants.
@@ -149,11 +148,9 @@ macro_rules! impl_named_call_args {
 /// can be used for send-calls.
 pub fn generate_gear_program<Rng: CallGenRng>(
     seed: Seed,
-    config: GearProgGenConfig,
-    programs: Vec<ProgramId>,
+    config: GearWasmGenConfigsBundle,
 ) -> Vec<u8> {
     use arbitrary::Unstructured;
-    use gear_wasm_gen::gsys;
 
     let mut rng = Rng::seed_from_u64(seed);
 
@@ -162,13 +159,6 @@ pub fn generate_gear_program<Rng: CallGenRng>(
 
     let mut u = Unstructured::new(&buf);
 
-    let addresses = programs
-        .iter()
-        .map(|pid| gsys::HashWithValue {
-            hash: pid.into_bytes(),
-            value: 0,
-        })
-        .collect::<Vec<_>>();
-
-    gear_wasm_gen::gen_gear_program_code(&mut u, config, &addresses)
+    gear_wasm_gen::generate_gear_program_code(&mut u, config)
+        .expect("failed generating gear program")
 }
