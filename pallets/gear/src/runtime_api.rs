@@ -124,8 +124,11 @@ where
                 );
             }
 
-            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
-                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+            let Some(queued_dispatch) =
+                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
+            else {
+                break;
+            };
 
             let actor_id = queued_dispatch.destination();
 

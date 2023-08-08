@@ -883,7 +883,8 @@ impl<'a> WasmGen<'a> {
         let reservation_send_call_data =
             call_data.get(&CallName::System(SysCallName::ReservationSend));
         let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
-            (reserve_gas_call_data, reservation_send_call_data) else {
+            (reserve_gas_call_data, reservation_send_call_data)
+        else {
             return (module, None);
         };
         let send_from_reservation_signature = SysCallSignature {

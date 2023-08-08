@@ -37,7 +37,10 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 pub use subxt::dynamic::Value;
-use subxt::{tx, OnlineClient};
+use subxt::{
+    tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
+    OnlineClient,
+};
 
 mod api;
 mod client;
@@ -89,13 +92,13 @@ pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
 pub type GearPages = HashMap<u32, Vec<u8>>;
 
 /// Transaction in block.
-pub type TxInBlock = tx::TxInBlock<GearConfig, OnlineClient<GearConfig>>;
+pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;
 
 /// Transaction in block with result wrapper.
 pub type TxInBlockResult = Result<TxInBlock>;
 
 /// Transaction status.
-pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
+pub type TxStatus = SubxtTxStatus<GearConfig, OnlineClient<GearConfig>>;
 
 /// Gear Program
 #[derive(Debug, Decode)]
