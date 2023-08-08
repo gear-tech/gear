@@ -56,6 +56,7 @@
 use crate::{utils, GearWasmGeneratorConfig, WasmModule};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::elements::Module;
+use std::collections::HashSet;
 
 mod entry_points;
 mod memory;
@@ -208,6 +209,20 @@ type CallIndexesHandle = usize;
 /// and internal functions.
 struct CallIndexes {
     inner: Vec<FunctionIndex>,
+    /// Indexes of wasm-module functions which were newly generated.
+    ///
+    /// These are indexes of functions which aren't generated from
+    /// `wasm-smith` but from the current crate generators. All gear
+    /// entry points ([`EntryPointsGenerator`]) and custom reservation send
+    /// function (generated in [`SysCallsImportsGenerator`]) are considered
+    /// to be "custom" functions.
+    ///
+    /// Separating "pre-defined" functions from newly generated ones is important
+    /// when sys-calls invocator inserts calls of generated sys-calls. For example,
+    /// calls must not be inserted in the custom function, which perofrms `gr_reservation_send`,
+    /// not to pollute it's internal instructions structure which is defined such that
+    /// semantically correct `gr_reservation_send` call is performed.
+    custom_funcs: HashSet<usize>,
 }
 
 impl CallIndexes {
@@ -222,11 +237,18 @@ impl CallIndexes {
             inner.push(FunctionIndex::Func(i as u32));
         }
 
-        Self { inner }
+        Self {
+            inner,
+            custom_funcs: HashSet::new(),
+        }
     }
 
     pub(crate) fn get(&self, handle_idx: CallIndexesHandle) -> Option<FunctionIndex> {
         self.inner.get(handle_idx).copied()
+    }
+
+    fn is_custom_func(&self, idx: usize) -> bool {
+        self.custom_funcs.contains(&idx)
     }
 
     fn len(&self) -> usize {
@@ -235,6 +257,9 @@ impl CallIndexes {
 
     fn add_func(&mut self, func_idx: usize) {
         self.inner.push(FunctionIndex::Func(func_idx as u32));
+        let is_new = self.custom_funcs.insert(func_idx);
+
+        debug_assert!(is_new, "same inner index is used");
     }
 
     fn add_import(&mut self, import_idx: usize) {
