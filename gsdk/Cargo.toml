@@ -1,7 +1,7 @@
 [package]
 name = "gsdk"
 version = "0.1.0"
-description = "Rust SDK of gear node"
+description = "Rust SDK of the gear network"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -4525,7 +4525,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.2.2"
+version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4652,7 +4652,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.2.2"
+version = "0.1.0"
 
 [[package]]
 name = "gtest"
