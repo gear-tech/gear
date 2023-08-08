@@ -26,10 +26,7 @@ use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
-use gear_wasm_gen::{
-    ConfigsBundle, EntryPointsSet, GearWasmGeneratorConfigBuilder, SelectableParams,
-    SysCallsConfigBuilder,
-};
+use gear_wasm_gen::{EntryPointsSet, ValidGearWasmConfigsBundle};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event;
@@ -98,17 +95,18 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     let gas_limit = rand.gen_range(0..=default_gas_limit).pow(3) / default_gas_limit.pow(2);
 
     match rand.gen_range(0..=1) {
-        0 => UploadProgramArgs::generate::<Rng>(
+        0 => UploadProgramArgs::generate::<Rng, _>(
             (rand.next_u64(), rand.next_u64()),
             (gas_limit, config),
         )
         .into(),
         1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
-            Some(existing_programs) => {
-                SendMessageArgs::generate::<Rng>((existing_programs, rand.next_u64()), (gas_limit,))
-                    .into()
-            }
-            None => UploadProgramArgs::generate::<Rng>(
+            Some(existing_programs) => SendMessageArgs::generate::<Rng, ()>(
+                (existing_programs, rand.next_u64()),
+                (gas_limit,),
+            )
+            .into(),
+            None => UploadProgramArgs::generate::<Rng, _>(
                 (rand.next_u64(), rand.next_u64()),
                 (gas_limit, config),
             )
@@ -118,30 +116,14 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     }
 }
 
-fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> ConfigsBundle {
-    let sys_calls_config_builder = SysCallsConfigBuilder::new(Default::default())
-        .with_log_info(format!("Gear program seed = '{seed}'"));
-    let sys_calls_config = if let Some(programs) = NonEmpty::from_vec(programs) {
-        sys_calls_config_builder
-            .with_data_offset_msg_dest(programs)
-            .build()
-    } else {
-        sys_calls_config_builder.with_source_msg_dest().build()
-    };
-
-    let generator_config = GearWasmGeneratorConfigBuilder::new()
-        .with_entry_points_config(EntryPointsSet::InitHandleHandleReply)
-        .with_sys_calls_config(sys_calls_config)
-        .with_recursions_removed(true)
-        .build();
-
-    let selectables_config = SelectableParams {
+fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> ValidGearWasmConfigsBundle<ProgramId> {
+    ValidGearWasmConfigsBundle {
+        log_info: Some(format!("Gear program seed = '{seed}'")),
+        existing_addresses: NonEmpty::from_vec(programs),
+        entry_points_set: EntryPointsSet::HandleHandleReply,
+        remove_recursion: true,
         call_indirect_enabled: false,
-    };
-
-    ConfigsBundle {
-        gear_wasm_generator_config: generator_config,
-        module_selectables_config: selectables_config,
+        ..Default::default()
     }
 }
 

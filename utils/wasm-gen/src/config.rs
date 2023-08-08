@@ -78,13 +78,77 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-/// United config for using the crate.
-///
-/// Uses [`SelectableParams`] instead of the [`WasmModuleConfig`], because
-/// the former one provides all required from the crate user configurations
-/// and all the other configurations are generated internally.
-#[derive(Debug, Clone, Default)]
-pub struct ConfigsBundle {
-    pub gear_wasm_generator_config: GearWasmGeneratorConfig,
-    pub module_selectables_config: SelectableParams,
+use gear_utils::NonEmpty;
+use gsys::Hash;
+
+pub trait ConfigsBundle {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams);
+}
+
+impl ConfigsBundle for () {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        unimplemented!("Mock")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
+    pub log_info: Option<String>,
+    pub existing_addresses: Option<NonEmpty<T>>,
+    pub remove_recursion: bool,
+    pub call_indirect_enabled: bool,
+    pub injection_amounts: SysCallsInjectionAmounts,
+    pub entry_points_set: EntryPointsSet,
+    pub memory_config: MemoryPagesConfig,
+}
+
+impl<T> Default for ValidGearWasmConfigsBundle<T> {
+    fn default() -> Self {
+        Self {
+            log_info: Some("Valid config".into()),
+            existing_addresses: None,
+            remove_recursion: false,
+            call_indirect_enabled: true,
+            injection_amounts: SysCallsInjectionAmounts::all_once(),
+            entry_points_set: Default::default(),
+            memory_config: Default::default(),
+        }
+    }
+}
+
+impl<T: Into<Hash>> ConfigsBundle for ValidGearWasmConfigsBundle<T> {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        let ValidGearWasmConfigsBundle {
+            log_info,
+            existing_addresses,
+            remove_recursion,
+            call_indirect_enabled,
+            injection_amounts,
+            entry_points_set,
+            memory_config,
+        } = self;
+
+        let selectable_params = SelectableParams {
+            call_indirect_enabled,
+        };
+
+        let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_amounts);
+        if let Some(log_info) = log_info {
+            sys_calls_config_builder = sys_calls_config_builder.with_log_info(log_info);
+        }
+        if let Some(addresses) = existing_addresses {
+            sys_calls_config_builder =
+                sys_calls_config_builder.with_data_offset_msg_dest(addresses);
+        } else {
+            sys_calls_config_builder = sys_calls_config_builder.with_source_msg_dest();
+        }
+        let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
+            .with_recursions_removed(remove_recursion)
+            .with_sys_calls_config(sys_calls_config_builder.build())
+            .with_entry_points_config(entry_points_set)
+            .with_memory_config(memory_config)
+            .build();
+
+        (gear_wasm_generator_config, selectable_params)
+    }
 }
