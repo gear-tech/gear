@@ -308,6 +308,15 @@ impl BackendExternalities for Ext {
 }
 
 impl Ext {
+
+    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), FallibleExtError> {
+        if id == ProgramId::SYSTEM {
+            Err(FallibleExtError::ForbiddenFunction)
+        } else {
+            Ok(())
+        }
+    }
+
     fn check_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
