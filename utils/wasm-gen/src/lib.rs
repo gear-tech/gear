@@ -55,9 +55,9 @@ pub fn generate_gear_program_code<'a>(
 /// Generate gear program as [`parity_wasm::elements::Module`](https://docs.rs/parity-wasm/latest/parity_wasm/elements/struct.Module.html)
 pub fn generate_gear_program_module<'a>(
     u: &'a mut Unstructured<'a>,
-    configs: impl ConfigsBundle,
+    configs_bundle: impl ConfigsBundle,
 ) -> Result<Module> {
-    let (gear_wasm_generator_config, module_selectables_config) = configs.into_parts();
+    let (gear_wasm_generator_config, module_selectables_config) = configs_bundle.into_parts();
 
     let arbitrary_params = u.arbitrary::<ArbitraryParams>()?;
     let wasm_module =

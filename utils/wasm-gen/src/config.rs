@@ -70,14 +70,14 @@
 //! }
 //! ```
 //!
-//! These kinds of config instatiations are helpful if you want to call generators
+//! These types of configs instatiations are helpful if you want to call generators
 //! manually with some special (maybe not) generators state transition flow. However,
-//! for the simplest usage with crate's entry point generation functions (like
+//! for the simplest usage with crate's main generation functions (like
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
-//! you'd need a configs bundle - type which implement [`ConfigsBundle`].
+//! you'd need a configs bundle - type which implements [`ConfigsBundle`].
 //!
-//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], using which will result
-//! in generation of always valid gear-wasm module.
+//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! in generation of valid (always) gear-wasm module.
 
 mod generator;
 mod module;
@@ -107,7 +107,7 @@ impl ConfigsBundle for () {
     }
 }
 
-/// Set of configuration data which is used to generate always
+/// Set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
 pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
@@ -119,7 +119,7 @@ pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
     pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
-    /// Flag which signals whether `call_indirect` instruction not be used
+    /// Flag which signals whether `call_indirect` instruction must not be used
     /// during wasm generation.
     pub call_indirect_enabled: bool,
     /// Injection amount ranges for each sys-call.
