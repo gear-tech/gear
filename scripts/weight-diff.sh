@@ -53,3 +53,4 @@ git checkout "$current_branch"
 
 cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
 cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
+cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "memory" $flag
