@@ -20,9 +20,9 @@
 
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
-    runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, MessageWaitedType, TerminationReason, TrapExplanation,
+    runtime::{RunFallibleError, Runtime},
+    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendSyscallError, MessageWaitedType, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -33,6 +33,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
+    gas::CounterType,
     message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -50,9 +51,9 @@ pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
 impl<Ext, R> FuncsHandler<Ext, R>
 where
     Ext: BackendExternalities + 'static,
-    Ext::UnrecoverableError: BackendExternalitiesError,
-    Ext::FallibleError: BackendExternalitiesError,
-    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::UnrecoverableError>,
+    Ext::UnrecoverableError: BackendSyscallError,
+    RunFallibleError: From<Ext::FallibleError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
     R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
@@ -69,12 +70,11 @@ where
     fn read_message_payload(
         ctx: &mut R,
         read_payload: WasmMemoryRead,
-    ) -> Result<Payload, TerminationReason> {
+    ) -> Result<Payload, RunFallibleError> {
         ctx.read(read_payload)?
             .try_into()
-            .map_err(|PayloadSizeError| {
-                TrapExplanation::FallibleExt(MessageError::MaxMessageSizeExceed.into()).into()
-            })
+            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+            .map_err(RunFallibleError::FallibleExt)
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
@@ -233,7 +233,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(cost = RuntimeCosts::Alloc)]
+    #[host(cost = RuntimeCosts::Alloc(pages))]
     pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {
         let res = ctx.alloc(pages);
         let res = ctx.process_alloc_func_result(res)?;
@@ -254,7 +254,9 @@ where
     #[host(cost = RuntimeCosts::Free)]
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
         let page = WasmPage::new(page_no).map_err(|_| {
-            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
+            UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                TrapExplanation::Unknown,
+            ))
         })?;
 
         let res = ctx.ext_mut().free(page);
@@ -647,18 +649,19 @@ where
     pub fn out_of_gas(ctx: &mut R) -> Result<(), R::Error> {
         syscall_trace!("out_of_gas");
 
-        ctx.set_termination_reason(
-            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
-        );
+        let ext = ctx.ext_mut();
+        let current_counter = ext.current_counter_type();
+        log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
 
-        Err(R::unreachable_error())
-    }
+        if current_counter == CounterType::GasAllowance {
+            // We manually decrease it to 0 because global won't be affected
+            // since it didn't pass comparison to argument of `gas_charge()`
+            ext.decrease_current_counter_to(0);
+        }
 
-    pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
-        syscall_trace!("out_of_allowance");
+        let termination_reason: ActorTerminationReason = current_counter.into();
 
-        ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
-
+        ctx.set_termination_reason(termination_reason.into());
         Err(R::unreachable_error())
     }
 }

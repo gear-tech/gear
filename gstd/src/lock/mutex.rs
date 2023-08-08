@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::MessageId;
+use super::access::AccessQueue;
+use crate::{exec, msg, MessageId};
 use core::{
     cell::UnsafeCell,
     future::Future,
@@ -24,8 +25,6 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-
-use super::access::AccessQueue;
 
 /// A mutual exclusion primitive useful for protecting shared data.
 ///
@@ -117,14 +116,43 @@ impl<T> Mutex<T> {
 /// [`lock`](Mutex::lock) method on [`Mutex`].
 pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
+    holder_msg_id: MessageId,
+}
+
+impl<'a, T> MutexGuard<'a, T> {
+    fn ensure_access_by_holder(&self) {
+        let current_msg_id = msg::id();
+        if self.holder_msg_id != current_msg_id {
+            panic!(
+                "Mutex guard held by message 0x{} is being accessed by message 0x{}",
+                hex::encode(self.holder_msg_id),
+                hex::encode(current_msg_id)
+            );
+        }
+    }
 }
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
+        self.ensure_access_by_holder();
         unsafe {
-            *self.mutex.locked.get() = None;
+            let locked_by = &mut *self.mutex.locked.get();
+            let owner_msg_id = locked_by.unwrap_or_else(|| {
+                panic!(
+                    "Mutex guard held by message 0x{} is being dropped for non-existing lock",
+                    hex::encode(self.holder_msg_id),
+                );
+            });
+            if owner_msg_id != self.holder_msg_id {
+                panic!(
+                    "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
+                    hex::encode(self.holder_msg_id),
+                    hex::encode(owner_msg_id),
+                );
+            }
+            *locked_by = None;
             if let Some(message_id) = self.mutex.queue.dequeue() {
-                crate::exec::wake(message_id).expect("Failed to wake the message");
+                exec::wake(message_id).expect("Failed to wake the message");
             }
         }
     }
@@ -132,12 +160,14 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
 
 impl<'a, T> AsRef<T> for MutexGuard<'a, T> {
     fn as_ref(&self) -> &'a T {
+        self.ensure_access_by_holder();
         unsafe { &*self.mutex.value.get() }
     }
 }
 
 impl<'a, T> AsMut<T> for MutexGuard<'a, T> {
     fn as_mut(&mut self) -> &'a mut T {
+        self.ensure_access_by_holder();
         unsafe { &mut *self.mutex.value.get() }
     }
 }
@@ -146,12 +176,14 @@ impl<T> Deref for MutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
+        self.ensure_access_by_holder();
         unsafe { &*self.mutex.value.get() }
     }
 }
 
 impl<T> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
+        self.ensure_access_by_holder();
         unsafe { &mut *self.mutex.value.get() }
     }
 }
@@ -193,18 +225,21 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
     // In case of locked mutex and an `.await`, function `poll` checks if the
     // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let current_msg_id = crate::msg::id();
+        let current_msg_id = msg::id();
         let lock = unsafe { &mut *self.mutex.locked.get() };
         if lock.is_none() {
             *lock = Some(current_msg_id);
-            Poll::Ready(MutexGuard { mutex: self.mutex })
+            Poll::Ready(MutexGuard {
+                mutex: self.mutex,
+                holder_msg_id: current_msg_id,
+            })
         } else {
             // If the message is already in the access queue, and we come here,
             // it means the message has just been woken up from the waitlist.
             // In that case we do not want to register yet another access attempt
             // and just go back to the waitlist.
             if !self.mutex.queue.contains(&current_msg_id) {
-                self.mutex.queue.enqueue(crate::msg::id());
+                self.mutex.queue.enqueue(current_msg_id);
             }
             Poll::Pending
         }

@@ -141,11 +141,11 @@ fn page_costs_heuristic_test() {
         lazy_pages_signal_write_after_read: 8_624_904.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
-        lazy_pages_host_func_write_after_read: 7_531_864.into(),
+        lazy_pages_host_func_write_after_read: 8_294_669.into(),
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 100.into(),
+        mem_grow: 276_000.into(),
         parachain_load_heuristic: 0.into(),
     };
 

@@ -31,16 +31,16 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    ActorTerminationReason, BackendExternalities, BackendExternalitiesError, BackendReport,
-    Environment, EnvironmentError, TerminationReason, TrapExplanation,
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
+    ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
+    EnvironmentError, TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, Memory, PageBuf},
+    memory::{AllocationsContext, Memory, MemoryError, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
@@ -49,7 +49,6 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::MemoryError;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -260,7 +259,7 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -370,15 +369,8 @@ where
             if E::Ext::LAZY_PAGES_ENABLED {
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                match E::Ext::lazy_pages_status() {
-                    Status::Normal => (),
-                    Status::GasLimitExceeded => {
-                        termination =
-                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
-                    }
-                    Status::GasAllowanceExceeded => {
-                        termination = ActorTerminationReason::GasAllowanceExceeded;
-                    }
+                if !E::Ext::lazy_pages_status().is_normal() {
+                    termination = ext.current_counter_type().into()
                 }
             }
 
@@ -473,7 +465,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
@@ -601,6 +593,11 @@ where
     let info = ext
         .into_ext_info(&memory)
         .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
+
+    log::debug!(
+        "[execute_for_reply] Gas burned: {}",
+        info.gas_amount.burned()
+    );
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {

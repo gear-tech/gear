@@ -10,5 +10,10 @@ hex = { workspace = true, features = ["alloc"] }
 gmeta-codegen = { path = "codegen", optional = true }
 derive_more.workspace = true
 
+[dev-dependencies]
+gear-wasm-builder.workspace = true
+gstd.workspace = true
+parity-scale-codec.workspace = true
+
 [features]
 codegen = ["gmeta-codegen"]

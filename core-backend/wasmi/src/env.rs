@@ -27,18 +27,18 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
+    runtime::RunFallibleError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
+    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
     env::Externalities,
-    gas::GasLeft,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -53,8 +53,6 @@ pub enum WasmiEnvironmentError {
     Linking(wasmi::errors::LinkerError),
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
-    #[display(fmt = "Allowance counter not found or has wrong type")]
-    WrongInjectedAllowance,
 }
 
 macro_rules! gas_amount {
@@ -96,7 +94,7 @@ impl<Ext: Externalities> GlobalsAccessProvider<Ext> {
 }
 
 impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
-    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_ref()?;
@@ -109,7 +107,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_mut()?;
@@ -126,9 +124,9 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
-    EnvExt::UnrecoverableError: BackendExternalitiesError,
-    EnvExt::FallibleError: BackendExternalitiesError,
-    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::UnrecoverableError>,
+    EnvExt::UnrecoverableError: BackendSyscallError,
+    RunFallibleError: From<EnvExt::FallibleError>,
+    EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
@@ -232,28 +230,18 @@ where
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<u32>());
 
-        let GasLeft { gas, allowance } = store
-            .state()
-            .as_ref()
+        let gas = store
+            .state_mut()
+            .as_mut()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
-            .gas_left();
+            .define_current_counter();
 
         let gear_gas = instance
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
             .ok_or(System(WrongInjectedGas))?;
-
-        let gear_allowance = instance
-            .get_export(&store, GLOBAL_NAME_ALLOWANCE)
-            .and_then(Extern::into_global)
-            .and_then(|g| {
-                g.set(&mut store, Value::I64(allowance as i64))
-                    .map(|_| g)
-                    .ok()
-            })
-            .ok_or(System(WrongInjectedAllowance))?;
 
         let mut globals_provider = GlobalsAccessProvider {
             instance,
@@ -327,17 +315,13 @@ where
             .get(&store)
             .try_into::<i64>()
             .ok_or(System(WrongInjectedGas))?;
-        let allowance = gear_allowance
-            .get(&store)
-            .try_into::<i64>()
-            .ok_or(System(WrongInjectedAllowance))?;
 
         let state = store
             .state_mut()
             .take()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
-        let (ext, _, termination_reason) = state.terminate(res, gas, allowance);
+        let (ext, _, termination_reason) = state.terminate(res, gas as u64);
 
         Ok(BackendReport {
             termination_reason,

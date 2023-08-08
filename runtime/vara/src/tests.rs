@@ -33,7 +33,7 @@ fn instruction_weights_heuristics_test() {
 
         i64const: 150,
         i64load: 7_000,
-        i32load: 7_000,
+        i32load: 8_000,
         i64store: 29_000,
         i32store: 20_000,
         select: 7_100,
@@ -145,7 +145,7 @@ fn page_costs_heuristic_test() {
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 100.into(),
+        mem_grow: 306_170.into(),
         parachain_load_heuristic: 0.into(),
     };
 

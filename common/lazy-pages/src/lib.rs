@@ -22,11 +22,11 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
 use core::fmt;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
+    LimitedStr,
 };
 use gear_common::Origin;
 use gear_core::{
@@ -36,7 +36,7 @@ use gear_core::{
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::GLOBAL_NAME_GAS;
 use sp_std::{vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
@@ -52,10 +52,7 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
     let ctx = LazyPagesRuntimeContext {
         page_sizes: vec![WasmPage::size(), GearPage::size()],
-        global_names: vec![
-            GLOBAL_NAME_GAS.to_string(),
-            GLOBAL_NAME_ALLOWANCE.to_string(),
-        ],
+        global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
         pages_storage_prefix: prefix.to_vec(),
     };
 
@@ -162,9 +159,14 @@ pub fn get_status() -> Status {
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-    gas_left: &mut GasLeft,
+    gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
-    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(reads, writes, (*gas_left,));
-    *gas_left = gas_left_new;
+    let gas_left = GasLeft {
+        gas: *gas_counter,
+        allowance: *gas_counter,
+    };
+    let (GasLeft { gas, allowance }, res) =
+        gear_ri::pre_process_memory_accesses(reads, writes, (gas_left,));
+    *gas_counter = gas.min(allowance);
     res
 }

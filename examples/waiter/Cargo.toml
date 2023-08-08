@@ -1,0 +1,28 @@
+[package]
+name = "demo-waiter"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../"
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+futures.workspace = true
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+gear-core.workspace = true
+demo-waiter = { path = ".", features = ["debug"] }
+
+[lib]
+
+[features]
+debug = ["gstd/debug"]
+wasm-wrapper = []
+std = ["parity-scale-codec/std", "wasm-wrapper"]
+default = ["std"]

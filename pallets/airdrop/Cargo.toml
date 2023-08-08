@@ -45,7 +45,7 @@ pallet-gear-gas = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 
 [features]
-default = ['std']
+default = ["std"]
 std = [
 	"common/std",
 	"parity-scale-codec/std",

@@ -18,8 +18,8 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::LockId;
 use gear_core::{
+    gas::LockId,
     ids::*,
     memory::PageBuf,
     pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
@@ -37,7 +37,10 @@ use gsdk::{
         gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_common::{
+                event::{CodeChangeKind, MessageEntry},
+                ActiveProgram,
+            },
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
@@ -57,6 +60,34 @@ use std::{
 use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
+    /// Returns original wasm code for the given `code_id` at specified
+    /// `at_block_hash`.
+    pub async fn original_code_at(
+        &self,
+        code_id: CodeId,
+        at_block_hash: Option<H256>,
+    ) -> Result<Vec<u8>> {
+        self.0
+            .api()
+            .original_code_storage_at(code_id, at_block_hash)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Returns `ActiveProgram` for the given `program_id` at specified
+    /// `at_block_hash`.
+    pub async fn program_at(
+        &self,
+        program_id: ProgramId,
+        at_block_hash: Option<H256>,
+    ) -> Result<ActiveProgram<u32>> {
+        self.0
+            .api()
+            .gprog_at(program_id, at_block_hash)
+            .await
+            .map_err(Into::into)
+    }
+
     /// Transfer `value` to `destination`'s account.
     ///
     /// Sends the

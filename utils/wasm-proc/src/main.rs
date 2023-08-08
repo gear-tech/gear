@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 62] = [
+const RT_ALLOWED_IMPORTS: [&str; 63] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -40,6 +40,7 @@ const RT_ALLOWED_IMPORTS: [&str; 62] = [
     "ext_gear_ri_lazy_pages_status_version_1",
     "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
+    "ext_gear_ri_init_lazy_pages_version_2",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
     "ext_gear_ri_mprotect_lazy_pages_version_1",

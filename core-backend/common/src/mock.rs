@@ -17,22 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExternalitiesError, BackendExternalities,
-    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
+    BackendExternalities, BackendSyscallError, ExtInfo, SystemReservationContext,
+    UndefinedTerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -47,13 +48,17 @@ impl fmt::Display for Error {
     }
 }
 
-impl BackendExternalitiesError for Error {
-    fn into_termination_reason(self) -> TerminationReason {
+impl BackendSyscallError for Error {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
+        unimplemented!()
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
         unimplemented!()
     }
 }
 
-impl BackendAllocExternalitiesError for Error {
+impl BackendAllocSyscallError for Error {
     type ExtError = Self;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
@@ -79,13 +84,18 @@ impl CountersOwner for MockExt {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: 0,
-            allowance: 0,
-        }
+        (0u64, 0u64).into()
     }
 
-    fn set_gas_left(&mut self, _gas_left: GasLeft) {}
+    fn current_counter_type(&self) -> CounterType {
+        CounterType::GasLimit
+    }
+
+    fn decrease_current_counter_to(&mut self, _amount: u64) {}
+
+    fn define_current_counter(&mut self) -> u64 {
+        0
+    }
 }
 
 impl Externalities for MockExt {
@@ -294,7 +304,7 @@ impl BackendExternalities for MockExt {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
@@ -353,18 +363,18 @@ impl Memory for MockMemory {
         self.write_attempt_count.set(self.write_attempt_count() + 1);
         let page_index = self
             .page_index(offset)
-            .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
+            .ok_or(MemoryError::AccessOutOfBounds)?;
         let page_offset = offset as usize % WASM_PAGE_SIZE;
 
         if page_offset + buffer.len() > WASM_PAGE_SIZE {
-            return Err(MemoryError::RuntimeAllocOutOfBounds);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         let page_start = page_index * WASM_PAGE_SIZE;
         let start = page_start + page_offset;
 
         if start + buffer.len() > self.pages.len() {
-            return Err(MemoryError::RuntimeAllocOutOfBounds);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         let dest = &mut self.pages[start..(start + buffer.len())];

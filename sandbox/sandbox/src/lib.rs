@@ -52,10 +52,10 @@ use sp_std::prelude::*;
 use sp_wasm_interface::HostPointer;
 pub use sp_wasm_interface::{ReturnValue, Value};
 
-#[cfg(not(all(feature = "host-sandbox", not(feature = "std"))))]
+#[cfg(feature = "std")]
 pub use self::embedded_executor as default_executor;
 pub use self::env::HostError;
-#[cfg(all(feature = "host-sandbox", not(feature = "std")))]
+#[cfg(not(feature = "std"))]
 pub use self::host_executor as default_executor;
 
 /// The target used for logging.

@@ -18,7 +18,10 @@
 
 //! Work with WASM program memory in backends.
 
-use crate::BackendExternalities;
+use crate::{
+    runtime::RunFallibleError, BackendExternalities, BackendSyscallError, TrapExplanation,
+    UndefinedTerminationReason, UnrecoverableMemoryError,
+};
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
@@ -30,10 +33,9 @@ use core::{
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
-    gas::GasLeft,
-    memory::{Memory, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::MemoryError as FallibleMemoryError;
 use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
@@ -47,22 +49,50 @@ pub enum ProcessAccessError {
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
-    #[from]
     Memory(MemoryError),
-    #[from]
+    ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
     // TODO: remove #2164
     Decode,
-    GasLimitExceeded,
-    GasAllowanceExceeded,
 }
 
-impl From<ProcessAccessError> for MemoryAccessError {
-    fn from(err: ProcessAccessError) -> Self {
-        match err {
-            ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
-            ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
-            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
+impl BackendSyscallError for MemoryAccessError {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
+        match self {
+            MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds)
+            | MemoryAccessError::Memory(MemoryError::AccessOutOfBounds) => {
+                TrapExplanation::UnrecoverableExt(
+                    UnrecoverableMemoryError::AccessOutOfBounds.into(),
+                )
+                .into()
+            }
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+                TrapExplanation::UnrecoverableExt(
+                    UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
+                )
+                .into()
+            }
+            // TODO: In facts thats legacy from lazy pages V1 implementation,
+            // previously it was able to figure out that gas ended up in
+            // pre-process charges: now we need actual counter type, so
+            // it will be parsed and handled further (issue #3018).
+            MemoryAccessError::ProcessAccess(
+                ProcessAccessError::GasLimitExceeded | ProcessAccessError::GasAllowanceExceeded,
+            ) => UndefinedTerminationReason::ProcessAccessErrorResourcesExceed,
+            MemoryAccessError::Decode => unreachable!(),
+        }
+    }
+
+    fn into_run_fallible_error(self) -> RunFallibleError {
+        match self {
+            MemoryAccessError::Memory(MemoryError::AccessOutOfBounds)
+            | MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
+                RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
+            }
+            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+                RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
+            }
+            e => RunFallibleError::UndefinedTerminationReason(e.into_termination_reason()),
         }
     }
 }
@@ -202,13 +232,13 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     pub(crate) fn pre_process_memory_accesses(
         &mut self,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
 
-        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
+        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, gas_counter);
 
         self.reads.clear();
         self.writes.clear();
@@ -222,9 +252,9 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         memory: &M,
         ptr: u32,
         buff: &mut [u8],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_left)?;
+        self.pre_process_memory_accesses(gas_counter)?;
         memory.read(ptr, buff).map_err(Into::into)
     }
 
@@ -233,13 +263,13 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         &mut self,
         memory: &M,
         read: WasmMemoryRead,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<Vec<u8>, MemoryAccessError> {
         let buff = if read.size == 0 {
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_counter)?;
             buff
         };
         Ok(buff)
@@ -250,14 +280,14 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         &mut self,
         memory: &M,
         read: WasmMemoryReadDecoded<T>,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<T, MemoryAccessError> {
         let size = T::max_encoded_len();
         let buff = if size == 0 {
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
-            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_counter)?;
             buff
         };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
@@ -269,9 +299,9 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         &mut self,
         memory: &M,
         read: WasmMemoryReadAs<T>,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<T, MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_left)?;
+        self.pre_process_memory_accesses(gas_counter)?;
         read_memory_as(memory, read.ptr).map_err(Into::into)
     }
 
@@ -281,7 +311,7 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         memory: &mut M,
         write: WasmMemoryWrite,
         buff: &[u8],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
@@ -289,7 +319,7 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         if write.size == 0 {
             Ok(())
         } else {
-            self.pre_process_memory_accesses(gas_left)?;
+            self.pre_process_memory_accesses(gas_counter)?;
             memory.write(write.ptr, buff).map_err(Into::into)
         }
     }
@@ -300,9 +330,9 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         memory: &mut M,
         write: WasmMemoryWriteAs<T>,
         obj: T,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_left)?;
+        self.pre_process_memory_accesses(gas_counter)?;
         write_memory_as(memory, write.ptr, obj).map_err(Into::into)
     }
 }

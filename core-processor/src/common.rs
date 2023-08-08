@@ -27,12 +27,12 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    SystemReservationContext, SystemTerminationReason, TrapExplanation, TrimmedString,
+    LimitedStr, SystemReservationContext, SystemTerminationReason, TrapExplanation,
 };
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::PageBuf,
+    memory::{MemoryError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
@@ -40,7 +40,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{MemoryError, SignalCode, SimpleExecutionError};
+use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
@@ -465,7 +465,7 @@ pub enum ActorExecutionErrorReplyReason {
     PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "Environment error: {_0}")]
-    Environment(TrimmedString),
+    Environment(LimitedStr<'static>),
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
@@ -484,9 +484,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
-                TrapExplanation::UnrecoverableExt(_) | TrapExplanation::FallibleExt(_) => {
-                    SimpleExecutionError::BackendError
-                }
+                TrapExplanation::UnrecoverableExt(_) => SimpleExecutionError::BackendError,
                 TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
@@ -507,7 +505,7 @@ pub enum SystemExecutionError {
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
-    TerminationReason(SystemTerminationReason),
+    UndefinedTerminationReason(SystemTerminationReason),
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
