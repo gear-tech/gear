@@ -18,7 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use alloc::{slice, vec::Vec};
+use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
@@ -204,6 +204,7 @@ impl ProgramId {
     /// System program ID
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
+    /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
         Self::generate_with_nonce(code_id, salt, 0u32)
     }
