@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::WASM_PAGE_SIZE;
+
 use super::*;
 use arbitrary::Unstructured;
 use gear_core::code::Code;
@@ -124,7 +126,6 @@ fn remove_multiple_recursions() {
 //     }
 // }
 
-// TODO should fail now
 #[test]
 fn injecting_addresses_works() {
     let mut rng = SmallRng::seed_from_u64(1234);
@@ -132,8 +133,14 @@ fn injecting_addresses_works() {
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
 
+    let stack_end_page = 16;
     let addresses = NonEmpty::from_vec(vec![[0; 32], [1; 32]]).expect("vec wasn't empty");
     let config = GearWasmGeneratorConfigBuilder::new()
+        .with_memory_config(MemoryPagesConfig {
+            initial_size: 17,
+            upper_limit: None,
+            stack_end_page: Some(stack_end_page),
+        })
         .with_sys_calls_config(
             SysCallsConfigBuilder::new(Default::default())
                 .with_data_offset_msg_dest(addresses)
@@ -172,7 +179,7 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(ptr, &0);
+    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE) as i32);
 
     let second_addr_offset = entries
         .get(1)
@@ -184,7 +191,7 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(ptr, &size);
+    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE) as i32);
 }
 
 #[test]

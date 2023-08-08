@@ -37,7 +37,7 @@
 //! let memory_pages_config = MemoryPagesConfig {
 //!     initial_size: 128,
 //!     upper_limit: None,
-//!     stack_end: Some(64),
+//!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
 //! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionAmounts::all_once())
