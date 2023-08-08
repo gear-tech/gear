@@ -21,7 +21,7 @@ use crate::wasm::WASM_PAGE_SIZE;
 use super::*;
 use arbitrary::Unstructured;
 use gear_core::code::Code;
-use gear_utils::{init_default_logger, NonEmpty};
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::parity_wasm::{
     self,
     elements::{Instruction, Module},
@@ -213,24 +213,21 @@ fn test_valid() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-
-        println!("Seed - {seed}");
-
-        let gen_config = GearWasmGeneratorConfigBuilder::new()
-            .with_sys_calls_config(
-                SysCallsConfigBuilder::new(Default::default())
-                    .with_log_info("SOME DATA TO BE LOGGED!!!".into())
-                    .build(),
-            )
-            .build();
-
-        let configs_bundle = ConfigsBundle {
-            gear_wasm_generator_config: gen_config,
-            module_selectables_config: Default::default(),
+        let configs_bundle: ValidGearWasmConfigsBundle = ValidGearWasmConfigsBundle {
+            log_info: Some("Some data".into()),
+            entry_points_set: EntryPointsSet::InitHandleHandleReply,
+            memory_config: MemoryPagesConfig {
+                initial_size: 100,
+                upper_limit: None,
+                stack_end_page: None
+            },
+            ..Default::default()
         };
 
-        let raw_code =
-            generate_gear_program_code(&mut u, configs_bundle).expect("failed generating wasm");
-        Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None).expect("failed");
+        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
+            .expect("failed generating wasm");
+
+        let code_res = Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None);
+        assert!(code_res.is_ok());
     }
 }
