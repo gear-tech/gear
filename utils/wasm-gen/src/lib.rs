@@ -45,9 +45,9 @@ use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 /// Generate gear program as raw bytes.
 pub fn generate_gear_program_code<'a>(
     u: &'a mut Unstructured<'a>,
-    configs: impl ConfigsBundle,
+    configs_bundle: impl ConfigsBundle,
 ) -> Result<Vec<u8>> {
-    let module = generate_gear_program_module(u, configs)?;
+    let module = generate_gear_program_module(u, configs_bundle)?;
 
     Ok(parity_wasm::serialize(module).expect("unable to serialize pw module"))
 }

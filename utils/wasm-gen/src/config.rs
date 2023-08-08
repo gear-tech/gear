@@ -69,6 +69,15 @@
 //!     WasmModuleConfig::arbitrary(u)
 //! }
 //! ```
+//!
+//! These kinds of config instatiations are helpful if you want to call generators
+//! manually with some special (maybe not) generators state transition flow. However,
+//! for the simplest usage with crate's entry point generation functions (like
+//! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
+//! you'd need a configs bundle - type which implement [`ConfigsBundle`].
+//!
+//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], using which will result
+//! in generation of always valid gear-wasm module.
 
 mod generator;
 mod module;
@@ -81,25 +90,42 @@ pub use syscalls::*;
 use gear_utils::NonEmpty;
 use gsys::Hash;
 
+/// Trait which describes a type that stores and manages data for generating
+/// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
+/// by [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`]
+/// to generate a gear wasm.
 pub trait ConfigsBundle {
+    /// Convert a "bundle" type into configs required for gear wasm creation
+    /// from [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`].
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams);
 }
 
+/// Mock implementation.
 impl ConfigsBundle for () {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         unimplemented!("Mock")
     }
 }
 
+/// Set of configuration data which is used to generate always
+/// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
 pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
+    /// Externalities to be logged.
     pub log_info: Option<String>,
+    /// Set of existing addresses, which will be used as message destinations.
+    ///
+    /// If is `None`, then `gr_source` result will be used as a message destination.
     pub existing_addresses: Option<NonEmpty<T>>,
+    /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
+    /// Flag which signals whether `call_indirect` instruction not be used
+    /// during wasm generation.
     pub call_indirect_enabled: bool,
+    /// Injection amount ranges for each sys-call.
     pub injection_amounts: SysCallsInjectionAmounts,
+    /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
-    pub memory_config: MemoryPagesConfig,
 }
 
 impl<T> Default for ValidGearWasmConfigsBundle<T> {
@@ -111,7 +137,6 @@ impl<T> Default for ValidGearWasmConfigsBundle<T> {
             call_indirect_enabled: true,
             injection_amounts: SysCallsInjectionAmounts::all_once(),
             entry_points_set: Default::default(),
-            memory_config: Default::default(),
         }
     }
 }
@@ -125,7 +150,6 @@ impl<T: Into<Hash>> ConfigsBundle for ValidGearWasmConfigsBundle<T> {
             call_indirect_enabled,
             injection_amounts,
             entry_points_set,
-            memory_config,
         } = self;
 
         let selectable_params = SelectableParams {
@@ -146,7 +170,6 @@ impl<T: Into<Hash>> ConfigsBundle for ValidGearWasmConfigsBundle<T> {
             .with_recursions_removed(remove_recursion)
             .with_sys_calls_config(sys_calls_config_builder.build())
             .with_entry_points_config(entry_points_set)
-            .with_memory_config(memory_config)
             .build();
 
         (gear_wasm_generator_config, selectable_params)

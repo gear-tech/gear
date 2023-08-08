@@ -190,11 +190,6 @@ proptest! {
         let configs_bundle: ValidGearWasmConfigsBundle = ValidGearWasmConfigsBundle {
             log_info: Some("Some data".into()),
             entry_points_set: EntryPointsSet::InitHandleHandleReply,
-            memory_config: MemoryPagesConfig {
-                initial_size: 100,
-                upper_limit: None,
-                stack_end_page: None
-            },
             ..Default::default()
         };
 
