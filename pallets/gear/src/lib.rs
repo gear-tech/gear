@@ -771,6 +771,9 @@ pub mod pallet {
             log::debug!("\n--- FIRST TRY ---\n");
 
             let calc_gas = |initial_gas| {
+                // `calculate_gas_info_impl` may change `GasAllowanceOf`. We don't
+                // wanna this behavior in tests, so restore old gas allowance value
+                // after gas calculation.
                 let gas_allowance = GasAllowanceOf::<T>::get();
                 let res = Self::calculate_gas_info_impl(
                     source,
