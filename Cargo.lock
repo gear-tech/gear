@@ -7284,6 +7284,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bank"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "pallet-authorship",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
