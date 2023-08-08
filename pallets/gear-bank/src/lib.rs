@@ -184,6 +184,7 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             amount: u64,
         ) -> Result<BalanceOf<T>, Error<T>> {
+            // TODO: delete account on withdrawals and optimize if not exist.
             let value = P::gas_price(amount);
 
             Self::ensure_bank_can_transfer(value)?;
@@ -279,6 +280,18 @@ pub mod pallet {
             Self::withdraw(destination, value).unwrap_or_else(|_| unreachable!("qed above"));
 
             Ok(())
+        }
+
+        pub fn get_account(account_id: &AccountIdOf<T>) -> BankAccount<BalanceOf<T>> {
+            Bank::<T>::get(account_id).unwrap_or_default()
+        }
+
+        pub fn get_account_gas(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            Self::get_account(account_id).gas
+        }
+
+        pub fn get_account_value(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            Self::get_account(account_id).value
         }
     }
 }
