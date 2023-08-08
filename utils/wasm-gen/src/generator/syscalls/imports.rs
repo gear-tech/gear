@@ -32,10 +32,10 @@ use gear_wasm_instrument::{
         builder,
         elements::{BlockType, Instruction, Instructions},
     },
-    syscalls::{ParamType, SysCallName, SysCallSignature},
+    syscalls::SysCallName,
 };
 use gsys::{ErrorWithHash, HashWithValue, Length};
-use std::{collections::HashMap, mem};
+use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
 pub struct SysCallsImportsGenerator<'a> {
@@ -43,7 +43,7 @@ pub struct SysCallsImportsGenerator<'a> {
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
-    sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 /// Sys-calls imports generator instantiator.
@@ -249,17 +249,8 @@ impl<'a> SysCallsImportsGenerator<'a> {
             }
         };
 
-        let send_from_reservation_signature = SysCallSignature {
-            params: vec![
-                ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                ParamType::Ptr(Some(2)), // Pointer to payload
-                ParamType::Size,         // Size of the payload
-                ParamType::Delay,        // Number of blocks to delay the sending for
-                ParamType::Gas,          // Amount of gas to reserve
-                ParamType::Duration,     // Duration of the reservation
-            ],
-            results: Default::default(),
-        };
+        let invocable_sys_call = InvocableSysCall::Precise(SysCallName::ReservationSend);
+        let send_from_reservation_signature = invocable_sys_call.into_signature();
 
         let send_from_reservation_func_ty = send_from_reservation_signature.func_type();
         let func_signature = builder::signature()
@@ -356,10 +347,8 @@ impl<'a> SysCallsImportsGenerator<'a> {
         self.call_indexes
             .add_func(send_from_reservation_func_idx.signature as usize);
 
-        self.sys_calls_imports.insert(
-            InvocableSysCall::Precise(send_from_reservation_signature),
-            (1, call_indexes_handle),
-        );
+        self.sys_calls_imports
+            .insert(invocable_sys_call, (1, call_indexes_handle));
     }
 }
 
@@ -375,7 +364,7 @@ pub struct DisabledSysCallsImportsGenerator<'a> {
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
     pub(super) config: SysCallsConfig,
-    pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    pub(super) sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a> From<DisabledSysCallsImportsGenerator<'a>> for ModuleWithCallIndexes {
