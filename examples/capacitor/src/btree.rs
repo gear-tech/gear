@@ -58,9 +58,9 @@ mod tests {
     extern crate std;
 
     use super::{Reply, Request};
+    use crate::InitMessage;
     use alloc::vec;
     use gtest::{Log, Program, System};
-    use crate::InitMessage;
 
     #[test]
     fn program_can_be_initialized() {

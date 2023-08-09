@@ -69,7 +69,6 @@ demo-async-init.workspace = true
 demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
-demo-btree.workspace = true
 demo-delayed-sender.workspace = true
 demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true

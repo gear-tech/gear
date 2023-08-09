@@ -36,7 +36,6 @@ hex-literal.workspace = true
 log.workspace = true
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
-demo-btree.workspace = true
 demo-calc-hash.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-capacitor.workspace = true
