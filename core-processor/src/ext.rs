@@ -308,7 +308,6 @@ impl BackendExternalities for Ext {
 }
 
 impl Ext {
-
     fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), FallibleExtError> {
         if id == ProgramId::SYSTEM {
             Err(FallibleExtError::ForbiddenFunction)
