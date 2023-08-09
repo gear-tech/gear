@@ -180,7 +180,6 @@ jobs:
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       WINEDEBUG: fixme-all
       CARGO_INCREMENTAL: 0
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
@@ -246,8 +245,6 @@ jobs:
           --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - run: sccache --show-stats
 
   macos-x86:
     if: ${{ always() && inputs.macos }}
