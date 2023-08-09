@@ -771,10 +771,11 @@ pub mod pallet {
             log::debug!("\n--- FIRST TRY ---\n");
 
             let calc_gas = |initial_gas| {
-                // `calculate_gas_info_impl` may change `GasAllowanceOf`. We don't
-                // wanna this behavior in tests, so restore old gas allowance value
+                // `calculate_gas_info_impl` may change `GasAllowanceOf` and `QueueProcessingOf`.
+                // We don't wanna this behavior in tests, so restore old gas allowance value
                 // after gas calculation.
                 let gas_allowance = GasAllowanceOf::<T>::get();
+                let queue_processing = QueueProcessingOf::<T>::allowed();
                 let res = Self::calculate_gas_info_impl(
                     source,
                     kind.clone(),
@@ -785,6 +786,11 @@ pub mod pallet {
                     allow_skip_zero_replies,
                 );
                 GasAllowanceOf::<T>::put(gas_allowance);
+                if queue_processing {
+                    QueueProcessingOf::<T>::allow();
+                } else {
+                    QueueProcessingOf::<T>::deny();
+                }
                 res
             };
 
