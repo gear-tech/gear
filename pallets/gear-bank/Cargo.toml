@@ -16,6 +16,7 @@ common.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 pallet-authorship.workspace = true
+sp-runtime.workspace = true
 
 [dev-dependencies]
 primitive-types.workspace = true
@@ -24,7 +25,6 @@ primitive-types.workspace = true
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
-sp-runtime = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']
@@ -33,4 +33,5 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
     "pallet-authorship/std",
+    "sp-runtime/std",
 ]

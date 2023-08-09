@@ -41,8 +41,10 @@ pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub mod pallet {
     use super::*;
     use common::GasPrice;
+    use core::ops::Add;
     use frame_support::{
-        pallet_prelude::StorageMap,
+        ensure,
+        pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::{traits::CheckedSub, Saturating},
         traits::{ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
         Identity,
@@ -50,6 +52,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
+    use sp_runtime::traits::Zero;
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -79,6 +82,9 @@ pub mod pallet {
         /// Insufficient bank account balance.
         /// **Must be unreachable in Gear main protocol.**
         InsufficientBankBalance,
+        /// Deposit of funds that will not keep bank account alive.
+        /// **Must be unreachable in Gear main protocol.**
+        InsufficientDeposit,
     }
 
     /// Type containing info of locked in special address funds of each account.
@@ -103,17 +109,55 @@ pub mod pallet {
         pub value: Balance,
     }
 
+    impl<Balance: Add<Output = Balance>> Add for BankAccount<Balance> {
+        type Output = Self;
+
+        fn add(self, rhs: Self) -> Self::Output {
+            Self {
+                gas: self.gas + rhs.gas,
+                value: self.value + rhs.value,
+            }
+        }
+    }
+
+    impl<Balance: Zero> Zero for BankAccount<Balance> {
+        fn zero() -> Self {
+            Self {
+                gas: Zero::zero(),
+                value: Zero::zero(),
+            }
+        }
+
+        fn is_zero(&self) -> bool {
+            self.gas.is_zero() && self.value.is_zero()
+        }
+    }
+
     // Private storage that keeps account bank details.
     #[pallet::storage]
+    #[pallet::getter(fn account)]
     pub type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
+
+    // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
+    #[pallet::storage]
+    #[pallet::getter(fn unused_value)]
+    pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
         fn deposit(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
+            let bank_address = T::BankAddress::get();
+
+            ensure!(
+                CurrencyOf::<T>::free_balance(&bank_address).saturating_add(value)
+                    >= CurrencyOf::<T>::minimum_balance(),
+                Error::InsufficientDeposit
+            );
+
             // Check on zero value is inside `pallet_balances` implementation.
             CurrencyOf::<T>::transfer(
                 account_id,
-                &T::BankAddress::get(),
+                &bank_address,
                 value,
                 ExistenceRequirement::AllowDeath,
             )
@@ -141,6 +185,18 @@ pub mod pallet {
 
         /// Transfers value from bank address to `account_id`.
         fn withdraw(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
+            Self::ensure_bank_can_transfer(value)?;
+
+            if CurrencyOf::<T>::free_balance(account_id).saturating_add(value)
+                < CurrencyOf::<T>::minimum_balance()
+            {
+                UnusedValue::<T>::mutate(|unused_value| {
+                    *unused_value = unused_value.saturating_add(value);
+                });
+
+                return Ok(());
+            }
+
             // Check on zero value is inside `pallet_balances` implementation.
             CurrencyOf::<T>::transfer(
                 &T::BankAddress::get(),
@@ -164,6 +220,10 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             amount: u64,
         ) -> Result<(), Error<T>> {
+            if amount.is_zero() {
+                return Ok(());
+            }
+
             let value = P::gas_price(amount);
 
             Self::deposit(account_id, value)?;
@@ -187,18 +247,35 @@ pub mod pallet {
             // TODO: delete account on withdrawals and optimize if not exist.
             let value = P::gas_price(amount);
 
+            ensure!(
+                Self::account_gas(account_id) >= value,
+                Error::<T>::InsufficientGasBalance
+            );
             Self::ensure_bank_can_transfer(value)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);
 
-                if let Some(new_gas) = details.gas.checked_sub(&value) {
-                    details.gas = new_gas;
-                    Ok(value)
-                } else {
-                    Err(Error::<T>::InsufficientGasBalance)
-                }
-            })
+                // Insufficient case checked above.
+                details.gas = details.gas.saturating_sub(value)
+            });
+
+            Ok(value)
+        }
+
+        pub fn withdraw_gas<P: GasPrice<Balance = BalanceOf<T>>>(
+            account_id: &AccountIdOf<T>,
+            amount: u64,
+        ) -> Result<(), Error<T>> {
+            if amount.is_zero() {
+                return Ok(());
+            }
+
+            let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
+
+            Self::withdraw(account_id, value).unwrap_or_else(|_| unreachable!("qed above"));
+
+            Ok(())
         }
 
         pub fn spend_gas<P: GasPrice<Balance = BalanceOf<T>>>(
@@ -208,17 +285,6 @@ pub mod pallet {
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
             Self::reward_block_author(value).unwrap_or_else(|_| unreachable!("qed above"));
-
-            Ok(())
-        }
-
-        pub fn withdraw_gas<P: GasPrice<Balance = BalanceOf<T>>>(
-            account_id: &AccountIdOf<T>,
-            amount: u64,
-        ) -> Result<(), Error<T>> {
-            let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
-
-            Self::withdraw(account_id, value).unwrap_or_else(|_| unreachable!("qed above"));
 
             Ok(())
         }
@@ -270,6 +336,7 @@ pub mod pallet {
             Ok(())
         }
 
+        // TODO: pay attention for cases when ED was increased for already existing messages.
         pub fn transfer_value<P: GasPrice<Balance = BalanceOf<T>>>(
             account_id: &AccountIdOf<T>,
             destination: &AccountIdOf<T>,
@@ -282,16 +349,12 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn get_account(account_id: &AccountIdOf<T>) -> BankAccount<BalanceOf<T>> {
-            Bank::<T>::get(account_id).unwrap_or_default()
+        pub fn account_gas(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            Self::account(account_id).unwrap_or_default().gas
         }
 
-        pub fn get_account_gas(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
-            Self::get_account(account_id).gas
-        }
-
-        pub fn get_account_value(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
-            Self::get_account(account_id).value
+        pub fn account_value(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            Self::account(account_id).unwrap_or_default().value
         }
     }
 }
