@@ -24,7 +24,8 @@
 //! actor can produce multiple derived actors with different input data.
 //!
 //! Firstly you need to upload a Wasm code of the future program(s) by calling
-//! `gear.uploadCode` extrinsic to obtain the corresponding [`CodeId`].
+//! `gear.uploadCode` extrinsic to obtain the corresponding
+//! [`CodeId`](crate::CodeId).
 //!
 //! You must also provide a unique byte sequence to create multiple program
 //! instances from the same code. This sequence is often referenced as _salt_.
