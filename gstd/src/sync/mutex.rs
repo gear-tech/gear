@@ -44,7 +44,7 @@ use core::{
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
 /// ```
-/// use gstd::{lock::Mutex, msg, ActorId};
+/// use gstd::{sync::Mutex, msg, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static MUTEX: Mutex<()> = Mutex::new(());
@@ -203,7 +203,7 @@ unsafe impl<T> Sync for Mutex<T> {}
 /// they can be inferred automatically.
 ///
 /// ```
-/// use gstd::lock::{Mutex, MutexGuard, MutexLockFuture};
+/// use gstd::sync::{Mutex, MutexGuard, MutexLockFuture};
 ///
 /// #[gstd::async_main]
 /// async fn main() {
