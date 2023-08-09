@@ -76,5 +76,6 @@ pub fn panic(panic_info: &PanicInfo) -> ! {
         _ => ext::panic("no info"),
     };
 
+    crate::debug!("panic occurred: {msg}");
     ext::panic(&msg)
 }
