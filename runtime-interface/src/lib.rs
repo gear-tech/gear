@@ -46,7 +46,7 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
 mod gear_sandbox;
 #[cfg(feature = "std")]
-pub use gear_sandbox::init as sandbox_init;
+pub use gear_sandbox::{init as sandbox_init, set_global_name_gas};
 pub use gear_sandbox::sandbox;
 
 static_assertions::const_assert!(

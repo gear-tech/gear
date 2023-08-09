@@ -26,6 +26,7 @@ mod wasmi_backend;
 use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
+use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
 use sp_wasm_interface::{Pointer, WordSize};
 
@@ -48,6 +49,16 @@ use self::{
 };
 
 pub use gear_sandbox_env as env;
+
+static mut GLOBAL_NAME_GAS: String = String::new();
+
+/// Sets name of the WASM-global used as a gas counter.
+pub fn set_global_name_gas(name: &str) {
+    unsafe {
+        GLOBAL_NAME_GAS.clear();
+        GLOBAL_NAME_GAS.push_str(name);
+    }
+}
 
 /// Index of a function inside the supervisor.
 ///
@@ -629,6 +640,7 @@ impl<DT: Clone> Store<DT> {
     /// Returns uninitialized sandboxed module instance or an instantiation error.
     pub fn instantiate(
         &mut self,
+        version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
         sandbox_context: &mut dyn SandboxContext,
@@ -637,7 +649,7 @@ impl<DT: Clone> Store<DT> {
             BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
 
             BackendContext::Wasmer(ref context) => {
-                wasmer_instantiate(context, wasm, guest_env, sandbox_context)?
+                wasmer_instantiate(version, context, wasm, guest_env, sandbox_context)?
             }
         };
 

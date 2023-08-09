@@ -25,6 +25,12 @@ use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;
 use sp_wasm_interface::ReturnValue;
 
+#[derive(Clone, Copy, Debug)]
+pub enum Instantiate {
+    Version1,
+    Version2,
+}
+
 /// Error error that can be returned from host function.
 #[derive(Encode, Decode, RuntimeDebug)]
 #[codec(crate = codec)]

@@ -19,7 +19,7 @@
 use core::cell::RefCell;
 
 use codec::{Decode, Encode};
-use gear_sandbox_host::sandbox as sandbox_env;
+use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
 use sp_wasm_interface::{
     util,
     wasmtime::{AsContext, AsContextMut, Func, Val},
@@ -57,6 +57,10 @@ pub fn init() {
     SANDBOXES.with(|sandboxes| {
         let _store = sandboxes.borrow_mut().get(0);
     })
+}
+
+pub fn set_global_name_gas(name: &str) {
+    gear_sandbox_host::sandbox::set_global_name_gas(name)
 }
 
 struct SandboxContext<'a, 'b> {
@@ -232,6 +236,7 @@ pub fn instantiate(
     wasm_code: &[u8],
     raw_env_def: &[u8],
     state_ptr: Pointer<u8>,
+    version: Instantiate,
 ) -> u32 {
     let mut method_result = u32::MAX;
 
@@ -271,6 +276,7 @@ pub fn instantiate(
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             SANDBOXES.with(|sandboxes| {
                 sandboxes.borrow_mut().get(store_data_key).instantiate(
+                    version,
                     wasm_code,
                     guest_env,
                     &mut SandboxContext {
