@@ -28,7 +28,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{debug, msg, prelude::*};
+    use gstd::{debug, msg, prelude::*, str::FromStr};
 
     static mut CHARGE: u32 = 0;
     static mut LIMIT: u32 = 0;

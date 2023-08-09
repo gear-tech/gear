@@ -140,12 +140,12 @@ mod async_runtime;
 mod common;
 mod config;
 pub mod exec;
-pub mod lock;
 mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
 mod reservations;
+pub mod sync;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};

@@ -19,25 +19,81 @@
 //! The `gstd` default prelude. Re-imports default `std` modules and traits.
 //! `std` can be safely replaced to `gstd` in the Rust programs.
 
-pub use core::prelude::v1::*;
+// Reexports from Rust's libraries
 
-// Public module re-exports
-pub use alloc::{borrow, boxed, collections, fmt, format, rc, slice, string, vec};
+pub use core::prelude::rust_2021::*;
+
+pub use ::alloc::alloc;
+pub use ::alloc::borrow;
+pub use ::alloc::boxed;
+pub use core::any;
+pub use core::array;
+pub use core::ascii;
+pub use core::cell;
+pub use core::char;
+pub use core::clone;
+pub use core::cmp;
+/// Collection types.
+///
+/// See [`alloc::collections`] & [`hashbrown`].
+///
+/// [`alloc::collections`]: ::alloc::collections
+pub mod collections {
+    pub use ::alloc::collections::*;
+    pub use ::hashbrown::{hash_map, hash_set, HashMap, HashSet};
+
+    /// Reexports from [`hashbrown`].
+    pub mod hashbrown {
+        pub use hashbrown::{Equivalent, TryReserveError};
+    }
+}
+pub use core::convert;
+pub use core::default;
+/// Utilities related to FFI bindings.
+///
+/// See [`alloc::ffi`] & [`core::ffi`].
+///
+/// [`alloc::ffi`]: ::alloc::ffi
+pub mod ffi {
+    pub use ::alloc::ffi::*;
+    pub use core::ffi::*;
+}
+pub use ::alloc::fmt;
+pub use ::alloc::rc;
+pub use ::alloc::str;
+pub use ::alloc::string;
+pub use ::alloc::vec;
+pub use core::future;
+pub use core::hash;
+pub use core::hint;
+pub use core::iter;
+pub use core::marker;
+pub use core::mem;
+pub use core::num;
+pub use core::ops;
+pub use core::option;
+pub use core::panic;
+pub use core::pin;
+pub use core::primitive;
+pub use core::ptr;
+pub use core::result;
+pub use core::slice;
+pub use core::task;
+pub use core::time;
+
+pub use ::alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 pub use core::{
-    any, cell, clone, cmp, convert, default, future, hash, hint, iter, marker, mem, ops, pin, ptr,
+    assert_eq, assert_ne, debug_assert, debug_assert_eq, debug_assert_ne, matches, todo,
+    unimplemented, unreachable, write, writeln,
 };
 
-// Re-exported types and traits
-pub use alloc::str::FromStr;
-pub use borrow::ToOwned;
-pub use boxed::Box;
-pub use collections::{BTreeMap, BTreeSet, VecDeque};
-pub use convert::{Into, TryInto};
-pub use hashbrown::HashMap;
-pub use scale_info::{
-    self,
-    scale::{self as codec, Decode, Encode},
-    TypeInfo,
-};
-pub use string::{String, ToString};
-pub use vec::Vec;
+// Reexports from third-party libraries
+
+pub use parity_scale_codec::{self as codec, Decode, Encode};
+pub use scale_info::{self, TypeInfo};
