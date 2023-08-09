@@ -31,8 +31,8 @@ use sp_runtime::{
     traits::{BlakeTwo256, ConstU32, IdentityLookup},
 };
 
-type AccountId = u8;
-type Balance = u128;
+pub type AccountId = u8;
+pub type Balance = u128;
 
 mod consts {
     #![allow(unused)]
@@ -46,7 +46,6 @@ mod consts {
     pub const BOB_BALANCE: Balance = 100_000_000;
 
     pub const BLOCK_AUTHOR: AccountId = 255;
-    pub const BLOCK_AUTHOR_BALANCE: Balance = 0;
 
     pub const BANK_ADDRESS: AccountId = 137;
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
@@ -67,6 +66,7 @@ construct_runtime!(
         UncheckedExtrinsic = MockUncheckedExtrinsic<Test>,
     {
         System: frame_system,
+        Authorship: pallet_authorship,
         Balances: pallet_balances,
         GearBank: pallet_gear_bank,
     }
@@ -134,15 +134,15 @@ pub fn new_test_ext() -> TestExternalities {
         .build_storage::<Test>()
         .unwrap();
 
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (ALICE, ALICE_BALANCE),
-            (BOB, BOB_BALANCE),
-            (BLOCK_AUTHOR, BLOCK_AUTHOR_BALANCE),
-        ],
-    }
-    .assimilate_storage(&mut storage)
-    .unwrap();
+    let balances = vec![
+        (ALICE, ALICE_BALANCE),
+        (BOB, BOB_BALANCE),
+        (BANK_ADDRESS, EXISTENTIAL_DEPOSIT),
+    ];
+
+    pallet_balances::GenesisConfig::<Test> { balances }
+        .assimilate_storage(&mut storage)
+        .unwrap();
 
     let mut ext = TestExternalities::new(storage);
     ext.execute_with(|| System::set_block_number(1));
