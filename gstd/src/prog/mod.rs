@@ -40,3 +40,6 @@ pub use generator::ProgramGenerator;
 
 mod basic;
 pub use basic::*;
+
+mod encoded;
+pub use encoded::*;
