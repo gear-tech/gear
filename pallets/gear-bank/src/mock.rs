@@ -138,6 +138,7 @@ pub fn new_test_ext() -> TestExternalities {
         (ALICE, ALICE_BALANCE),
         (BOB, BOB_BALANCE),
         (BANK_ADDRESS, EXISTENTIAL_DEPOSIT),
+        (BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT),
     ];
 
     pallet_balances::GenesisConfig::<Test> { balances }

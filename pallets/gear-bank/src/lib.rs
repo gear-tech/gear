@@ -282,6 +282,10 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             amount: u64,
         ) -> Result<(), Error<T>> {
+            if amount.is_zero() {
+                return Ok(());
+            }
+
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
             Self::reward_block_author(value).unwrap_or_else(|_| unreachable!("qed above"));
