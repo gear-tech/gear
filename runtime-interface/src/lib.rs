@@ -96,11 +96,7 @@ pub fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterva
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    fn pre_process_memory_accesses(
-        reads: &[u8],
-        writes: &[u8],
-        gas_couunter: u64,
-    ) -> (u64, Result<(), ProcessAccessError>) {
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_couunter: u64) -> (u64, u8) {
         let reads_len = reads.len();
         let writes_len = writes.len();
         assert!(reads_len % 8 == 0);
