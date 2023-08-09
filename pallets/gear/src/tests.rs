@@ -169,7 +169,8 @@ fn read_big_state() {
             run_to_next_block(None);
 
             assert_succeed(mid);
-            let state = Gear::read_state_impl(pid).expect("Failed to read state");
+            let state =
+                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -1911,7 +1912,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res = Gear::read_state_impl(program_id).expect("Failed to read state");
+        let res =
+            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
