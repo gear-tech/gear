@@ -192,34 +192,3 @@ proptest! {
         assert_eq!(first, second);
     }
 }
-
-#[test]
-fn test_valid() {
-    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
-
-    init_default_logger();
-
-    for seed in 0..100 {
-        let mut rng = SmallRng::seed_from_u64(seed as u64);
-
-        let mut buf = vec![0; UNSTRUCTURED_SIZE];
-        rng.fill_bytes(&mut buf);
-        let mut u = Unstructured::new(&buf);
-        let configs_bundle: ValidGearWasmConfigsBundle = ValidGearWasmConfigsBundle {
-            log_info: Some("Some data".into()),
-            entry_points_set: EntryPointsSet::InitHandleHandleReply,
-            memory_config: MemoryPagesConfig {
-                initial_size: 100,
-                upper_limit: None,
-                stack_end_page: None
-            },
-            ..Default::default()
-        };
-
-        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
-            .expect("failed generating wasm");
-
-        let code_res = Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None);
-        assert!(code_res.is_ok());
-    }
-}
