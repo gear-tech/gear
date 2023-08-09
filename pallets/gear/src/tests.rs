@@ -6119,16 +6119,16 @@ fn resume_session_init_works() {
 fn resume_session_push_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::Request;
+        use demo_capacitor::{btree::Request, InitMessage, WASM_BINARY};
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_2),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -6229,16 +6229,19 @@ fn resume_session_push_works() {
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::{Reply, Request};
+        use demo_capacitor::{
+            btree::{Reply, Request},
+            InitMessage, WASM_BINARY,
+        };
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -7438,7 +7441,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_btree::{Request, WASM_BINARY};
+    use demo_capacitor::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7448,7 +7451,7 @@ fn gas_spent_vs_balance() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -7479,7 +7482,7 @@ fn gas_spent_vs_balance() {
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             0,
             true,
             true,

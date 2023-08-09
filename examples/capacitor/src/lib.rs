@@ -18,6 +18,16 @@
 
 #![no_std]
 
+extern crate alloc;
+
+pub mod btree;
+pub mod capacitor;
+
+use btree::BTreeState;
+use capacitor::CapacitorState;
+use gstd::String;
+use parity_scale_codec::{Decode, Encode};
+
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -26,38 +36,51 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    use gstd::{debug, msg, prelude::*};
+#[derive(Decode, Encode)]
+pub enum InitMessage {
+    Capacitor(String),
+    BTree,
+}
 
-    static mut CHARGE: u32 = 0;
-    static mut LIMIT: u32 = 0;
-    static mut DISCHARGE_HISTORY: Vec<u32> = Vec::new();
+enum State {
+    Capacitor(CapacitorState),
+    BTree(BTreeState),
+}
+
+mod wasm {
+    use crate::{
+        btree::{handle_btree, init_btree, state_btree},
+        capacitor::{handle_capacitor, init_capacitor},
+        InitMessage, State,
+    };
+    use gstd::msg;
+
+    static mut STATE: Option<State> = None;
 
     #[no_mangle]
     extern "C" fn init() {
-        let initstr = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
-            .expect("Invalid message: should be utf-8");
-        let limit = u32::from_str(initstr.as_ref()).expect("Invalid number");
-        unsafe { LIMIT = limit };
-        debug!("Init capacitor with limit capacity {limit}, {initstr}");
+        let init_message: InitMessage = msg::load_on_stack().expect("Failed to load payload bytes");
+        let state = match init_message {
+            InitMessage::Capacitor(payload) => State::Capacitor(init_capacitor(payload)),
+            InitMessage::BTree => State::BTree(init_btree()),
+        };
+        unsafe { STATE = Some(state) };
     }
 
     #[no_mangle]
     extern "C" fn handle() {
-        let new_msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
-            .expect("Invalid message: should be utf-8");
-        let to_add = u32::from_str(new_msg.as_ref()).expect("Invalid number");
+        let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
+        match state {
+            State::Capacitor(state) => handle_capacitor(state),
+            State::BTree(state) => handle_btree(state),
+        }
+    }
 
-        unsafe {
-            CHARGE += to_add;
-            debug!("Charge capacitor with {to_add}, new charge {CHARGE}");
-            if CHARGE >= LIMIT {
-                debug!("Discharge #{CHARGE} due to limit {LIMIT}");
-                msg::send_bytes(msg::source(), format!("Discharged: {CHARGE}"), 0).unwrap();
-                DISCHARGE_HISTORY.push(CHARGE);
-                CHARGE = 0;
-            }
+    #[no_mangle]
+    extern "C" fn state() {
+        let state = unsafe { STATE.take().expect("State must be set in handle") };
+        if let State::BTree(state) = state {
+            state_btree(state);
         }
     }
 }

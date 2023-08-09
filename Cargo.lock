@@ -1894,6 +1894,8 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+ "gtest",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -7236,6 +7238,7 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
+ "demo-capacitor",
  "demo-compose",
  "demo-constructor",
  "demo-delayed-sender",
