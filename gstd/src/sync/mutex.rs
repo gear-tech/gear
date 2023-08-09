@@ -44,7 +44,7 @@ use core::{
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
 /// ```
-/// use gstd::{sync::Mutex, msg, ActorId};
+/// use gstd::{msg, sync::Mutex, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static MUTEX: Mutex<()> = Mutex::new(());

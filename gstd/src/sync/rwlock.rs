@@ -53,7 +53,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// case of the `inc` command.
 ///
 /// ```
-/// use gstd::{sync::RwLock, msg, ActorId};
+/// use gstd::{msg, sync::RwLock, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static RWLOCK: RwLock<u32> = RwLock::new(0);
