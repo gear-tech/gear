@@ -9,6 +9,7 @@ on:
       macos:
         type: boolean
         default: false
+  workflow_dispatch:
 
 env:
   CARGO_INCREMENTAL: 0
