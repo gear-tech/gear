@@ -74,7 +74,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use gstd::errors::Error as GstdError;
+use gstd::{errors::Error as GstdError, BTreeMap};
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
@@ -6112,6 +6112,53 @@ fn resume_session_init_works() {
         ));
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+    })
+}
+
+#[test]
+fn state_request() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_capacitor::{
+            btree::{Request, StateRequest},
+            InitMessage, WASM_BINARY,
+        };
+
+        let code = WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::BTree.encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        let data = [(0u32, 1u32), (2, 4), (7, 8)];
+        for (key, value) in data {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Request::Insert(key, value).encode(),
+                1_000_000_000,
+                0
+            ));
+        }
+
+        run_to_next_block(None);
+
+        for (key, value) in data {
+            let ret =
+                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            assert_eq!(Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(), value);
+        }
+
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
+        let expected: BTreeMap<u32, u32> = data.into_iter().collect();
+        assert_eq!(ret, expected);
     })
 }
 

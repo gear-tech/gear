@@ -18,6 +18,12 @@ pub enum Reply {
     List(Vec<(u32, u32)>),
 }
 
+#[derive(Debug, Encode, Decode)]
+pub enum StateRequest {
+    Full,
+    ForKey(u32),
+}
+
 pub(crate) type BTreeState = BTreeMap<u32, u32>;
 
 pub(crate) fn init_btree() -> BTreeState {
@@ -36,7 +42,11 @@ pub(crate) fn handle_btree(state: &mut BTreeState) {
 }
 
 pub(crate) fn state_btree(state: BTreeState) {
-    msg::reply(state, 0).unwrap();
+    let request: StateRequest = msg::load_on_stack().unwrap();
+    match request {
+        StateRequest::Full => msg::reply(state, 0).unwrap(),
+        StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
+    };
 }
 
 fn process(state: &mut BTreeState, request: Request) -> Reply {
