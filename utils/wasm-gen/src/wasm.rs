@@ -19,9 +19,12 @@
 use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use core::mem;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{External, Internal, Module},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{External, Instruction, Internal, Module},
+    },
+    STACK_END_EXPORT_NAME,
 };
 use wasm_smith::Module as WasmSmithModule;
 
@@ -52,9 +55,9 @@ impl WasmModule {
         config: WasmModuleConfig,
         u: &mut Unstructured<'_>,
     ) -> Result<Self> {
-        let mut pw_module = Self::generate_wasm_smith_module(config.clone(), u)?;
-        while pw_module.function_section().is_none() {
-            pw_module = Self::generate_wasm_smith_module(config.clone(), u)?;
+        let pw_module = Self::generate_wasm_smith_module(config, u)?;
+        if pw_module.function_section().is_none() {
+            panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
         }
 
         Ok(Self(pw_module))
@@ -87,6 +90,32 @@ impl WasmModule {
                     _ => None,
                 })
         })
+    }
+
+    pub fn get_stack_end_offset(&self) -> Option<i32> {
+        let stack_end_global_index = self
+            .0
+            .export_section()?
+            .entries()
+            .iter()
+            .find(|export| export.field() == STACK_END_EXPORT_NAME)
+            .and_then(|export_entry| match export_entry.internal() {
+                Internal::Global(idx) => Some(*idx),
+                _ => None,
+            })?;
+
+        let stack_end_init_expr = self
+            .0
+            .global_section()?
+            .entries()
+            .get(stack_end_global_index as usize)?
+            .init_expr()
+            .code();
+
+        match (&stack_end_init_expr[0], &stack_end_init_expr[1]) {
+            (Instruction::I32Const(offset), Instruction::End) => Some(*offset),
+            _ => None,
+        }
     }
 
     /// Gets the export function index of the gear entry point.
@@ -138,7 +167,7 @@ impl WasmModule {
 }
 
 /// WASM page has size of 64KiBs (65_536 bytes)
-pub(crate) const PAGE_SIZE: u32 = 0x10000;
+pub(crate) const WASM_PAGE_SIZE: u32 = 0x10000;
 
 /// Struct for indexing WASM memory page.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -163,6 +192,6 @@ impl From<u32> for PageCount {
 impl PageCount {
     /// Calculate WASM memory size for this pages count.
     pub(crate) fn memory_size(&self) -> u32 {
-        self.0 * PAGE_SIZE
+        self.0 * WASM_PAGE_SIZE
     }
 }

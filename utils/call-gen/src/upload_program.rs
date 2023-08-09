@@ -41,16 +41,16 @@ impl_convert_traits!(
 
 impl GeneratableCallArgs for UploadProgramArgs {
     type FuzzerArgs = (Seed, Seed);
-    type ConstArgs = (u64, GearWasmGenConfigsBundle);
+    type ConstArgs<C: GearWasmGenConfigsBundle> = (u64, C);
 
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
-    fn generate<Rng: CallGenRng>(
+    fn generate<Rng: CallGenRng, Config: GearWasmGenConfigsBundle>(
         (code_seed, rng_seed): Self::FuzzerArgs,
-        (gas_limit, config): Self::ConstArgs,
+        (gas_limit, config): Self::ConstArgs<Config>,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
-        let code = crate::generate_gear_program::<Rng>(code_seed, config);
+        let code = crate::generate_gear_program::<Rng, _>(code_seed, config);
 
         let mut salt = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut salt);
