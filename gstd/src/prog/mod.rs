@@ -71,22 +71,23 @@ use scale_info::scale::Decode;
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =
-///         prog::create_program(code_id, "salt", b"INIT", 0).expect("Unable to create a program");
+///         prog::create_program_bytes(code_id, "salt", b"INIT", 0)
+///             .expect("Unable to create a program");
 ///     msg::send_bytes(new_program_id, b"PING", 0).expect("Unable to send");
 /// }
 /// ```
 #[wait_create_program_for_reply]
-pub fn create_program(
+pub fn create_program_bytes(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     value: u128,
 ) -> Result<(MessageId, ActorId)> {
-    create_program_delayed(code_id, salt, payload, value, 0)
+    create_program_bytes_delayed(code_id, salt, payload, value, 0)
 }
 
-/// Same as [`create_program`], but creates a new program after the `delay`
-/// expressed in block count.
+/// Same as [`create_program_bytes`], but creates a new program after the
+/// `delay` expressed in block count.
 ///
 /// # Examples
 ///
@@ -100,12 +101,12 @@ pub fn create_program(
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =
-///         prog::create_program_delayed(code_id, "salt", b"INIT", 0, 100)
+///         prog::create_program_bytes_delayed(code_id, "salt", b"INIT", 0, 100)
 ///             .expect("Unable to create a program");
 ///     msg::send_bytes_delayed(new_program_id, b"PING", 0, 200).expect("Unable to send");
 /// }
 /// ```
-pub fn create_program_delayed(
+pub fn create_program_bytes_delayed(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
@@ -123,21 +124,21 @@ pub fn create_program_delayed(
     Ok((message_id.into(), program_id.into()))
 }
 
-/// Same as [`create_program`], but with an explicit gas limit.
+/// Same as [`create_program_bytes`], but with an explicit gas limit.
 #[wait_create_program_for_reply]
-pub fn create_program_with_gas(
+pub fn create_program_bytes_with_gas(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
 ) -> Result<(MessageId, ActorId)> {
-    create_program_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
+    create_program_bytes_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
 }
 
-/// Same as [`create_program_with_gas`], but creates a new program after the
-/// `delay` expressed in block count.
-pub fn create_program_with_gas_delayed(
+/// Same as [`create_program_bytes_with_gas`], but creates a new program after
+/// the `delay` expressed in block count.
+pub fn create_program_bytes_with_gas_delayed(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
