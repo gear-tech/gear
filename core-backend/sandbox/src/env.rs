@@ -98,7 +98,7 @@ macro_rules! wrap_common_func_internal_ret{
             $func(ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*)
             .map(|(gas, r)| WasmReturnValue {
                 gas: gas as i64,
-                value: r.into_value().into(),
+                inner: r.into_value().into(),
             })
         }
     }
@@ -110,7 +110,7 @@ macro_rules! wrap_common_func_internal_no_ret{
             $func(ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*)
             .map(|(gas, _)| WasmReturnValue {
                 gas: gas as i64,
-                value: ReturnValue::Unit,
+                inner: ReturnValue::Unit,
             })
         }
     }

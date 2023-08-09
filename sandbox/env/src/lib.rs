@@ -121,7 +121,7 @@ pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
 #[codec(crate = codec)]
 pub struct WasmReturnValue {
     pub gas: i64,
-    pub value: ReturnValue,
+    pub inner: ReturnValue,
 }
 
 impl WasmReturnValue {

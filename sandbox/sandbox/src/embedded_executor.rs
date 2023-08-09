@@ -137,7 +137,7 @@ impl<'a, T> Externals for GuestExternals<'a, T> {
 
         let result = (self.defined_host_functions.funcs[index])(self.state, &args);
         match result {
-            Ok(value) => Ok(match value.value {
+            Ok(value) => Ok(match value.inner {
                 ReturnValue::Value(v) => Some(to_wasmi(v)),
                 ReturnValue::Unit => None,
             }),
@@ -384,7 +384,7 @@ mod tests {
             if condition != 0 {
                 Ok(WasmReturnValue {
                     gas: 0,
-                    value: ReturnValue::Unit,
+                    inner: ReturnValue::Unit,
                 })
             } else {
                 Err(HostError)
@@ -398,7 +398,7 @@ mod tests {
             e.counter += inc_by as u32;
             Ok(WasmReturnValue {
                 gas: 0,
-                value: ReturnValue::Value(Value::I32(e.counter as i32)),
+                inner: ReturnValue::Value(Value::I32(e.counter as i32)),
             })
         }
         /// Function that takes one argument of any type and returns that value.
@@ -411,7 +411,7 @@ mod tests {
             }
             Ok(WasmReturnValue {
                 gas: 0,
-                value: ReturnValue::Value(args[0]),
+                inner: ReturnValue::Value(args[0]),
             })
         }
 
@@ -526,7 +526,7 @@ mod tests {
         fn env_returns_i32(_e: &mut (), _args: &[Value]) -> Result<WasmReturnValue, HostError> {
             Ok(WasmReturnValue {
                 gas: 0,
-                value: ReturnValue::Value(Value::I32(42)),
+                inner: ReturnValue::Value(Value::I32(42)),
             })
         }
 

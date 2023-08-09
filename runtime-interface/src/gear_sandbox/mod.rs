@@ -40,7 +40,14 @@ pub trait Sandbox {
         raw_env_def: &[u8],
         state_ptr: Pointer<u8>,
     ) -> u32 {
-        detail::instantiate(*self, dispatch_thunk_id, wasm_code, raw_env_def, state_ptr, Instantiate::Version1)
+        detail::instantiate(
+            *self,
+            dispatch_thunk_id,
+            wasm_code,
+            raw_env_def,
+            state_ptr,
+            Instantiate::Version1,
+        )
     }
 
     /// Instantiate a new sandbox instance with the given `wasm_code`.
@@ -52,7 +59,14 @@ pub trait Sandbox {
         raw_env_def: &[u8],
         state_ptr: Pointer<u8>,
     ) -> u32 {
-        detail::instantiate(*self, dispatch_thunk_id, wasm_code, raw_env_def, state_ptr, Instantiate::Version2)
+        detail::instantiate(
+            *self,
+            dispatch_thunk_id,
+            wasm_code,
+            raw_env_def,
+            state_ptr,
+            Instantiate::Version2,
+        )
     }
 
     /// Invoke `function` in the sandbox with `sandbox_idx`.

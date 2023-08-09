@@ -23,7 +23,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasmer::{Exportable, RuntimeError};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, WasmReturnValue, Instantiate};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
@@ -92,7 +92,9 @@ impl wasmer::WasmerEnv for Env {
         &mut self,
         instance: &wasmer::Instance,
     ) -> std::result::Result<(), wasmer::HostEnvInitError> {
-        let gas: wasmer::Global = instance.exports.get_with_generics_weak(unsafe { &super::GLOBAL_NAME_GAS })?;
+        let gas: wasmer::Global = instance
+            .exports
+            .get_with_generics_weak(unsafe { &super::GLOBAL_NAME_GAS })?;
         self.gas = Some(gas);
 
         Ok(())
@@ -272,8 +274,12 @@ pub fn instantiate(
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
                 let function = match version {
-                    Instantiate::Version1 => dispatch_function(supervisor_func_index, &context.store, func_ty),
-                    Instantiate::Version2 => dispatch_function2(supervisor_func_index, &context.store, func_ty),
+                    Instantiate::Version1 => {
+                        dispatch_function(supervisor_func_index, &context.store, func_ty)
+                    }
+                    Instantiate::Version2 => {
+                        dispatch_function2(supervisor_func_index, &context.store, func_ty)
+                    }
                 };
 
                 let exports = exports_map
@@ -315,7 +321,8 @@ fn dispatch_function(
     wasmer::Function::new(store, func_ty, move |params| {
         SandboxContextStore::with(|sandbox_context| {
             // Serialize arguments into a byte vector.
-            let invoke_args_data = params.iter()
+            let invoke_args_data = params
+                .iter()
                 .map(|val| match val {
                     wasmer::Val::I32(val) => Ok(Value::I32(*val)),
                     wasmer::Val::I64(val) => Ok(Value::I64(*val)),
@@ -517,7 +524,7 @@ fn dispatch_function2(
             .map_err(|_| RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!"))?
             .map_err(|_| RuntimeError::new("Supervisor function returned sandbox::HostError"))?;
 
-            let result = match deserialized_result.value {
+            let result = match deserialized_result.inner {
                 ReturnValue::Value(Value::I32(val)) => vec![wasmer::Val::I32(val)],
                 ReturnValue::Value(Value::I64(val)) => vec![wasmer::Val::I64(val)],
                 ReturnValue::Value(Value::F32(val)) => vec![wasmer::Val::F32(f32::from_bits(val))],

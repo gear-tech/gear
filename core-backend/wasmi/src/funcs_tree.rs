@@ -46,6 +46,8 @@ macro_rules! wrap_common_func_internal_ret {
             let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
                 $func(&mut ctx, 0, $($arg_name,)*).map(|(_, r)| (r,))
             };
             Func::wrap(store, func)
@@ -59,6 +61,8 @@ macro_rules! wrap_common_func_internal_no_ret {
             let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
                 $func(&mut ctx, 0, $($arg_name,)*)
                 .map(|(_, r)| r)
             };
