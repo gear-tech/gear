@@ -246,8 +246,6 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-      - run: sccache --show-stats
-
   macos-x86:
     if: ${{ always() && inputs.macos }}
     needs: linux
