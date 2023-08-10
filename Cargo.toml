@@ -183,6 +183,18 @@ which = "4.4.0"
 winapi = "0.3.9"
 paste = "1.0"
 
+# Published deps
+#
+# fork of `parity-wasm` with sign-ext enabled by default.
+#
+# https://github.com/gear-tech/parity-wasm/tree/v0.45.0-sign-ext
+# gear-wasm = "0.45.0"
+#
+# fork of `wasm-instrument`
+#
+# https://github.com/gear-tech/wasm-instrument/tree/v0.2.1-sign-ext
+gwasm-instrument = { version = "0.2.1", default-features = false }
+
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
@@ -240,8 +252,6 @@ service = { package = "gear-service", path = "node/service", default-features = 
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-
 validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary-no-sandbox', default-features = false }
 
 # Substrate deps
