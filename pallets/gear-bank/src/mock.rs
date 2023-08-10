@@ -48,6 +48,10 @@ mod consts {
     pub const BLOCK_AUTHOR: AccountId = 255;
 
     pub const BANK_ADDRESS: AccountId = 137;
+
+    pub const CHARLIE: AccountId = 3;
+    pub const EVE: AccountId = 4;
+
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
 }
 
@@ -139,6 +143,8 @@ pub fn new_test_ext() -> TestExternalities {
         (BOB, BOB_BALANCE),
         (BANK_ADDRESS, EXISTENTIAL_DEPOSIT),
         (BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT),
+        (CHARLIE, EXISTENTIAL_DEPOSIT),
+        (EVE, EXISTENTIAL_DEPOSIT),
     ];
 
     pallet_balances::GenesisConfig::<Test> { balances }

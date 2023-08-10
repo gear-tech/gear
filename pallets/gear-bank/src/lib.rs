@@ -352,7 +352,7 @@ pub mod pallet {
         }
 
         // TODO: pay attention for cases when ED was increased for already existing messages.
-        pub fn transfer_value<P: GasPrice<Balance = BalanceOf<T>>>(
+        pub fn transfer_value(
             account_id: &AccountIdOf<T>,
             destination: &AccountIdOf<T>,
             value: BalanceOf<T>,
