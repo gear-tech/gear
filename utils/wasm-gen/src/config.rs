@@ -37,7 +37,7 @@
 //! let memory_pages_config = MemoryPagesConfig {
 //!     initial_size: 128,
 //!     upper_limit: None,
-//!     stack_end: Some(64),
+//!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
 //! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionAmounts::all_once())
@@ -69,6 +69,15 @@
 //!     WasmModuleConfig::arbitrary(u)
 //! }
 //! ```
+//!
+//! These types of configs instatiations are helpful if you want to call generators
+//! manually with some special (maybe not) generators state transition flow. However,
+//! for the simplest usage with crate's main generation functions (like
+//! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
+//! you'd need a configs bundle - type which implements [`ConfigsBundle`].
+//!
+//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! in generation of valid (always) gear-wasm module.
 
 mod generator;
 mod module;
@@ -78,13 +87,91 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-/// United config for using the crate.
-///
-/// Uses [`SelectableParams`] instead of the [`WasmModuleConfig`], because
-/// the former one provides all required from the crate user configurations
-/// and all the other configurations are generated internally.
-#[derive(Debug, Clone, Default)]
-pub struct ConfigsBundle {
-    pub gear_wasm_generator_config: GearWasmGeneratorConfig,
-    pub module_selectables_config: SelectableParams,
+use gear_utils::NonEmpty;
+use gsys::Hash;
+
+/// Trait which describes a type that stores and manages data for generating
+/// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
+/// by [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`]
+/// to generate a gear wasm.
+pub trait ConfigsBundle {
+    /// Convert a "bundle" type into configs required for gear wasm creation
+    /// from [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`].
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams);
+}
+
+/// Mock implementation.
+impl ConfigsBundle for () {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        unimplemented!("Mock")
+    }
+}
+
+/// Set of configurational data which is used to generate always
+/// valid gear-wasm using generators of the current crate.
+#[derive(Debug, Clone)]
+pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
+    /// Externalities to be logged.
+    pub log_info: Option<String>,
+    /// Set of existing addresses, which will be used as message destinations.
+    ///
+    /// If is `None`, then `gr_source` result will be used as a message destination.
+    pub existing_addresses: Option<NonEmpty<T>>,
+    /// Flag which signals whether recursions must be removed.
+    pub remove_recursion: bool,
+    /// Flag which signals whether `call_indirect` instruction must not be used
+    /// during wasm generation.
+    pub call_indirect_enabled: bool,
+    /// Injection amount ranges for each sys-call.
+    pub injection_amounts: SysCallsInjectionAmounts,
+    /// Config of gear wasm call entry-points (exports).
+    pub entry_points_set: EntryPointsSet,
+}
+
+impl<T> Default for ValidGearWasmConfigsBundle<T> {
+    fn default() -> Self {
+        Self {
+            log_info: Some("Valid config".into()),
+            existing_addresses: None,
+            remove_recursion: false,
+            call_indirect_enabled: true,
+            injection_amounts: SysCallsInjectionAmounts::all_once(),
+            entry_points_set: Default::default(),
+        }
+    }
+}
+
+impl<T: Into<Hash>> ConfigsBundle for ValidGearWasmConfigsBundle<T> {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        let ValidGearWasmConfigsBundle {
+            log_info,
+            existing_addresses,
+            remove_recursion,
+            call_indirect_enabled,
+            injection_amounts,
+            entry_points_set,
+        } = self;
+
+        let selectable_params = SelectableParams {
+            call_indirect_enabled,
+        };
+
+        let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_amounts);
+        if let Some(log_info) = log_info {
+            sys_calls_config_builder = sys_calls_config_builder.with_log_info(log_info);
+        }
+        if let Some(addresses) = existing_addresses {
+            sys_calls_config_builder =
+                sys_calls_config_builder.with_data_offset_msg_dest(addresses);
+        } else {
+            sys_calls_config_builder = sys_calls_config_builder.with_source_msg_dest();
+        }
+        let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
+            .with_recursions_removed(remove_recursion)
+            .with_sys_calls_config(sys_calls_config_builder.build())
+            .with_entry_points_config(entry_points_set)
+            .build();
+
+        (gear_wasm_generator_config, selectable_params)
+    }
 }

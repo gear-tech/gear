@@ -20,6 +20,7 @@
 
 use crate::{
     generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
+    wasm::WASM_PAGE_SIZE,
     MemoryPagesConfig, WasmModule,
 };
 use gear_wasm_instrument::{
@@ -81,7 +82,7 @@ impl MemoryGenerator {
                 MemoryPagesConfig {
                     initial_size,
                     upper_limit,
-                    stack_end,
+                    stack_end_page,
                 },
         } = self;
 
@@ -97,7 +98,8 @@ impl MemoryGenerator {
                 .build();
 
             // Define optional stack-end
-            if let Some(stack_end) = stack_end {
+            if let Some(stack_end_page) = stack_end_page {
+                let stack_end = stack_end_page * WASM_PAGE_SIZE;
                 module = builder::from_module(module)
                     .global()
                     .value_type()

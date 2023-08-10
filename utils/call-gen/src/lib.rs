@@ -34,12 +34,13 @@ pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
+
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("Can't convert to gear call {0:?} call")]
 pub struct GearCallConversionError(pub &'static str);
 
 pub type Seed = u64;
-pub type GearWasmGenConfigsBundle = gear_wasm_gen::ConfigsBundle;
 
 /// This trait must be implemented for all argument types
 /// that are defined in [`GearCall`] variants.
@@ -71,10 +72,13 @@ pub trait GeneratableCallArgs {
     type FuzzerArgs;
     /// Describes arguments of the test environment,
     /// that are taken from the it's configuration.
-    type ConstArgs;
+    type ConstArgs<C: GearWasmGenConfigsBundle>;
 
     /// Generates random arguments for [`GearCall`] variant.
-    fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
+    fn generate<Rng: CallGenRng, Config: GearWasmGenConfigsBundle>(
+        _: Self::FuzzerArgs,
+        _: Self::ConstArgs<Config>,
+    ) -> Self;
 }
 
 /// Describes type that can tell for which `gear` call it carries arguments.
@@ -146,9 +150,9 @@ macro_rules! impl_named_call_args {
 /// Function generates WASM-binary of a Gear program with the
 /// specified `seed`. `programs` may specify addresses which
 /// can be used for send-calls.
-pub fn generate_gear_program<Rng: CallGenRng>(
+pub fn generate_gear_program<Rng: CallGenRng, C: gear_wasm_gen::ConfigsBundle>(
     seed: Seed,
-    config: GearWasmGenConfigsBundle,
+    config: C,
 ) -> Vec<u8> {
     use arbitrary::Unstructured;
 

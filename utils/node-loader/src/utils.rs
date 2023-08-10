@@ -6,9 +6,7 @@ use gear_call_gen::Seed;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
-use gear_wasm_gen::{
-    ConfigsBundle, EntryPointsSet, GearWasmGeneratorConfigBuilder, SysCallsConfigBuilder,
-};
+use gear_wasm_gen::{EntryPointsSet, ValidGearWasmConfigsBundle};
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
@@ -37,7 +35,10 @@ pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
     "Transaction finalization wait timeout is reached";
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = gear_call_gen::generate_gear_program::<SmallRng>(seed, ConfigsBundle::default());
+    let code = gear_call_gen::generate_gear_program::<SmallRng, ValidGearWasmConfigsBundle>(
+        seed,
+        ValidGearWasmConfigsBundle::default(),
+    );
 
     let mut file = File::create("out.wasm")?;
     file.write_all(&code)?;
@@ -204,25 +205,14 @@ pub fn err_waited_or_succeed_batch(
 }
 
 /// Returns configs bundle with a gear wasm generator config, which logs `seed`.
-pub fn get_config_with_seed_log(
+pub fn get_wasm_gen_config(
     seed: Seed,
     existing_programs: impl Iterator<Item = ProgramId>,
-) -> ConfigsBundle {
-    let sys_calls_config_builder = SysCallsConfigBuilder::new(Default::default())
-        .with_log_info(format!("Gear program seed = '{seed}'"));
-    let sys_calls_config = if let Some(existing_programs) = NonEmpty::collect(existing_programs) {
-        sys_calls_config_builder
-            .with_data_offset_msg_dest(existing_programs)
-            .build()
-    } else {
-        sys_calls_config_builder.with_source_msg_dest().build()
-    };
-
-    ConfigsBundle {
-        gear_wasm_generator_config: GearWasmGeneratorConfigBuilder::new()
-            .with_entry_points_config(EntryPointsSet::InitHandleHandleReply)
-            .with_sys_calls_config(sys_calls_config)
-            .build(),
+) -> ValidGearWasmConfigsBundle<ProgramId> {
+    ValidGearWasmConfigsBundle {
+        log_info: Some(format!("Gear program seed = '{seed}'")),
+        existing_addresses: NonEmpty::collect(existing_programs),
+        entry_points_set: EntryPointsSet::InitHandleHandleReply,
         ..Default::default()
     }
 }

@@ -80,10 +80,14 @@ impl<'a>
             SysCallsImportsGenerationProof,
         ),
     ) -> Self {
+        let data_offset = disabled_gen
+            .module
+            .get_stack_end_offset()
+            .unwrap_or_default();
         Self {
             unstructured: disabled_gen.unstructured,
             config: disabled_gen.config,
-            last_offset: 0,
+            last_offset: data_offset as u32,
             module: disabled_gen.module,
             addresses_offsets: Vec::new(),
             sys_calls_imports: disabled_gen.sys_calls_imports,

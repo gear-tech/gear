@@ -33,11 +33,14 @@ impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
 
 impl GeneratableCallArgs for UploadCodeArgs {
     type FuzzerArgs = Seed;
-    type ConstArgs = (GearWasmGenConfigsBundle,);
+    type ConstArgs<C: GearWasmGenConfigsBundle> = (C,);
 
     /// Generates `pallet_gear::Pallet::<T>::upload_code` call arguments.
-    fn generate<Rng: CallGenRng>(code_seed: Self::FuzzerArgs, (config,): Self::ConstArgs) -> Self {
-        let code = crate::generate_gear_program::<Rng>(code_seed, config);
+    fn generate<Rng: CallGenRng, Config: GearWasmGenConfigsBundle>(
+        code_seed: Self::FuzzerArgs,
+        (config,): Self::ConstArgs<Config>,
+    ) -> Self {
+        let code = crate::generate_gear_program::<Rng, _>(code_seed, config);
 
         let name = Self::name();
         log::debug!("Generated `{name}` with code from seed = {code_seed}");

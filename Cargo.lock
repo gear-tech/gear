@@ -4300,7 +4300,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.3.19",
  "env_logger",
- "futures-util",
+ "futures",
  "gsdk",
  "log",
  "parity-scale-codec",
@@ -4341,6 +4341,7 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",

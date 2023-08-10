@@ -32,9 +32,8 @@ use crate::{
         },
     },
     result::{Error, Result},
-    types,
     utils::storage_address_bytes,
-    Api, BlockNumber,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
@@ -108,7 +107,7 @@ impl Api {
     }
 
     /// Get program pages from program id.
-    pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
+    pub async fn program_pages(&self, pid: ProgramId) -> Result<GearPages> {
         let program = self.gprog(pid).await?;
         self.gpages(pid, &program).await
     }
@@ -183,9 +182,9 @@ impl Api {
     #[storage_fetch]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
+        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
         block_hash: Option<H256>,
-    ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
+    ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
         let gas_node_ids = gas_node_ids.as_ref();
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
@@ -299,7 +298,7 @@ impl Api {
         program_id: ProgramId,
         program: &ActiveProgram<BlockNumber>,
         block_hash: Option<H256>,
-    ) -> Result<types::GearPages> {
+    ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
         for page in &program.pages_with_data {
