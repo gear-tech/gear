@@ -1,7 +1,7 @@
 [package]
 name = "gear-common-codegen"
 version = "0.1.0"
-description = "Code generation library for the gear common library"
+description = "Code generation library for the Gear common library"
 keywords = ["gear", "wasm", "codegen"]
 categories = ["wasm"]
 authors.workspace = true

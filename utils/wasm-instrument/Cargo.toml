@@ -1,7 +1,7 @@
 [package]
 name = "gear-wasm-instrument"
 version = "0.1.0"
-description = "WASM instrument library for gear programs"
+description = "WASM instrument library for Gear programs"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 authors.workspace = true

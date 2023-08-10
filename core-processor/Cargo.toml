@@ -1,7 +1,7 @@
 [package]
 name = "gear-core-processor"
 version = "0.1.0"
-description = "The core processor for gear programs"
+description = "The core processor for Gear programs"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 authors.workspace = true

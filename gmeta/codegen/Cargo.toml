@@ -1,7 +1,7 @@
 [package]
 name = "gmeta-codegen"
 version = "0.1.0"
-description = "Code generation library for the metadata of gear program"
+description = "Code generation library for the metadata of Gear program"
 keywords = ["gear", "wasm", "codegen"]
 categories = ["wasm"]
 authors.workspace = true
