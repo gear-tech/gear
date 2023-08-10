@@ -583,6 +583,118 @@ fn spend_gas_insufficient_inexistent_gas_balance() {
     })
 }
 
+#[test]
+fn deposit_value_different_users() {
+    new_test_ext().execute_with(|| {
+        const ALICE_VALUE: Balance = 1_234_567_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, ALICE_VALUE));
+
+        assert_bank_balance(0, ALICE_VALUE);
+
+        assert_alice_dec(ALICE_VALUE);
+        assert_gas_value(&ALICE, 0, ALICE_VALUE);
+
+        const BOB_VALUE: Balance = 56_789_000;
+        assert_ok!(GearBank::deposit_value(&BOB, BOB_VALUE));
+
+        assert_bank_balance(0, ALICE_VALUE + BOB_VALUE);
+
+        assert_alice_dec(ALICE_VALUE);
+        assert_gas_value(&ALICE, 0, ALICE_VALUE);
+
+        assert_bob_dec(BOB_VALUE);
+        assert_gas_value(&BOB, 0, BOB_VALUE);
+    })
+}
+
+#[test]
+fn deposit_value_single_user() {
+    new_test_ext().execute_with(|| {
+        const VALUE_1: Balance = 123_456_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE_1));
+
+        assert_bank_balance(0, VALUE_1);
+
+        assert_alice_dec(VALUE_1);
+        assert_gas_value(&ALICE, 0, VALUE_1);
+
+        const VALUE_2: Balance = 67_890_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE_2));
+
+        assert_bank_balance(0, VALUE_1 + VALUE_2);
+
+        assert_alice_dec(VALUE_1 + VALUE_2);
+        assert_gas_value(&ALICE, 0, VALUE_1 + VALUE_2);
+    })
+}
+
+#[test]
+fn deposit_value_user_account_deleted() {
+    new_test_ext().execute_with(|| {
+        const ALICE_TO_DUST_BALANCE: Balance = EXISTENTIAL_DEPOSIT - 1;
+
+        const VALUE: Balance = ALICE_BALANCE - ALICE_TO_DUST_BALANCE;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_bank_balance(0, VALUE);
+
+        assert_balance(&ALICE, 0);
+        assert_gas_value(&ALICE, 0, VALUE);
+    })
+}
+
+#[test]
+fn deposit_value_zero() {
+    new_test_ext().execute_with(|| {
+        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+
+        assert_ok!(GearBank::deposit_value(&ALICE, 0));
+
+        assert_ok!(GearBank::deposit_value(&Zero::zero(), 0));
+
+        // No-op operation assertion.
+        assert_eq!(
+            h,
+            frame_support::storage_root(frame_support::StateVersion::V1),
+            "storage has been mutated"
+        );
+    })
+}
+
+#[test]
+fn deposit_value_insufficient_balance() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = Balance::MAX;
+
+        assert!(VALUE > Balances::free_balance(ALICE));
+
+        assert_noop!(
+            GearBank::deposit_value(&ALICE, VALUE),
+            Error::<Test>::InsufficientBalance
+        );
+    })
+}
+
+#[test]
+fn deposit_value_insufficient_deposit() {
+    // Unreachable case for Gear protocol.
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = EXISTENTIAL_DEPOSIT - 1;
+
+        assert_ok!(Balances::transfer_all(
+            RuntimeOrigin::signed(BANK_ADDRESS),
+            Zero::zero(),
+            false,
+        ));
+
+        assert_noop!(
+            GearBank::deposit_value(&ALICE, VALUE),
+            Error::<Test>::InsufficientDeposit
+        );
+    })
+}
+
 mod utils {
     use super::*;
 
