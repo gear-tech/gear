@@ -35,6 +35,7 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
+    "utils/runtime-fuzzer/fuzz"
 ]
 
 [workspace.dependencies]
