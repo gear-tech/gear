@@ -1450,6 +1450,13 @@ mod utils {
         }
     }
 
+    #[test]
+    fn __existential_deposit() {
+        new_test_ext().execute_with(|| {
+            assert_eq!(EXISTENTIAL_DEPOSIT, CurrencyOf::<Test>::minimum_balance());
+        })
+    }
+
     #[track_caller]
     pub fn assert_balance(account_id: &AccountId, value: Balance) {
         assert_eq!(Balances::total_balance(account_id), value);
