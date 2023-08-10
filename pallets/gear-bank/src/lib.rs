@@ -244,20 +244,26 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             amount: u64,
         ) -> Result<BalanceOf<T>, Error<T>> {
-            // TODO: delete account on withdrawals and optimize if not exist.
             let value = P::gas_price(amount);
 
+            let gas_balance = Self::account_gas(account_id);
+
             ensure!(
-                Self::account_gas(account_id) >= value,
+                gas_balance.is_some() && gas_balance.expect("Checked before") >= value,
                 Error::<T>::InsufficientGasBalance
             );
+
             Self::ensure_bank_can_transfer(value)?;
 
-            Bank::<T>::mutate(account_id, |details| {
-                let details = details.get_or_insert_with(Default::default);
+            Bank::<T>::mutate(account_id, |details_opt| {
+                let details = details_opt.as_mut().expect("Checked above");
 
                 // Insufficient case checked above.
-                details.gas = details.gas.saturating_sub(value)
+                details.gas = details.gas.saturating_sub(value);
+
+                if details.is_zero() {
+                    *details_opt = None;
+                }
             });
 
             Ok(value)
@@ -319,18 +325,24 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
         ) -> Result<(), Error<T>> {
+            let value_balance = Self::account_value(account_id);
+
             ensure!(
-                Self::account_value(account_id) >= value,
+                value_balance.is_some() && value_balance.expect("Checked before") >= value,
                 Error::<T>::InsufficientValueBalance
             );
 
             Self::ensure_bank_can_transfer(value)?;
 
-            Bank::<T>::mutate(account_id, |details| {
-                let details = details.get_or_insert_with(Default::default);
+            Bank::<T>::mutate(account_id, |details_opt| {
+                let details = details_opt.as_mut().expect("Checked above");
 
                 // Insufficient case checked above.
-                details.value = details.value.saturating_sub(value)
+                details.value = details.value.saturating_sub(value);
+
+                if details.is_zero() {
+                    *details_opt = None;
+                }
             });
 
             Ok(())
@@ -368,12 +380,12 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn account_gas(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
-            Self::account(account_id).unwrap_or_default().gas
+        pub fn account_gas(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {
+            Self::account(account_id).map(|v| v.gas)
         }
 
-        pub fn account_value(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
-            Self::account(account_id).unwrap_or_default().value
+        pub fn account_value(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {
+            Self::account(account_id).map(|v| v.value)
         }
     }
 }

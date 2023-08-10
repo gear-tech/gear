@@ -1305,6 +1305,75 @@ fn transfer_value_insufficient_inexistent_value_balance() {
     })
 }
 
+#[test]
+fn empty_accounts_deleted() {
+    new_test_ext().execute_with(|| {
+        assert!(GearBank::account(ALICE).is_none());
+
+        const GAS_AMOUNT: u64 = 123_456;
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert!(GearBank::account(ALICE).is_some());
+
+        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert!(GearBank::account(ALICE).is_none());
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert!(GearBank::account(ALICE).is_some());
+
+        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert!(GearBank::account(ALICE).is_none());
+
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+        assert!(GearBank::account(ALICE).is_some());
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+        assert!(GearBank::account(ALICE).is_none());
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+        assert!(GearBank::account(ALICE).is_some());
+
+        assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, VALUE));
+        assert!(GearBank::account(ALICE).is_none());
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+        assert!(GearBank::account(ALICE).is_some());
+
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
+        assert!(GearBank::account(ALICE).is_none());
+    })
+}
+
+#[test]
+fn empty_zero_accounts_deleted() {
+    new_test_ext().execute_with(|| {
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::withdraw_gas::<GC>(&Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::spend_gas::<GC>(&Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::deposit_value(&Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::withdraw_value(&Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::transfer_value(&Zero::zero(), &ALICE, 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+
+        assert_ok!(GearBank::transfer_value(&Zero::zero(), &Zero::zero(), 0));
+        assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+    })
+}
+
 mod utils {
     use super::*;
 
