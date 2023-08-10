@@ -26,7 +26,7 @@ use crate::{
     prog, ActorId, CodeId, MessageId,
 };
 use gstd_codegen::wait_create_program_for_reply;
-use scale_info::scale::{alloc::vec::Vec, Decode};
+use scale_info::scale::{alloc::vec::Vec, Decode, Encode};
 
 /// Helper to create programs without setting the salt manually.
 pub struct ProgramGenerator(u64);
@@ -136,6 +136,58 @@ impl ProgramGenerator {
             code_id,
             Self::get_salt(),
             payload,
+            gas_limit,
+            value,
+            delay,
+        )
+    }
+
+    /// Same as [`create_program_bytes`](Self::create_program_bytes), but allows
+    /// initialize program with the encodable payload.
+    #[wait_create_program_for_reply(Self)]
+    pub fn create_program<E: Encode>(
+        code_id: CodeId,
+        payload: E,
+        value: u128,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_bytes(code_id, payload.encode(), value)
+    }
+
+    /// Same as [`create_program`](Self::create_program), but creates a new
+    /// program after the `delay` expressed in block count.
+    pub fn create_program_delayed<E: Encode>(
+        code_id: CodeId,
+        payload: E,
+        value: u128,
+        delay: u32,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_bytes_delayed(code_id, payload.encode(), value, delay)
+    }
+
+    /// Same as [`create_program`](Self::create_program), but with an explicit
+    /// gas limit.
+    #[wait_create_program_for_reply(Self)]
+    pub fn create_programs_with_gas<E: Encode>(
+        code_id: CodeId,
+        payload: E,
+        gas_limit: u64,
+        value: u128,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_bytes_with_gas(code_id, payload.encode(), gas_limit, value)
+    }
+
+    /// Same as [`create_program_with_gas`](Self::create_program_with_gas), but
+    /// creates a new program after the `delay` expressed in block count.
+    pub fn create_program_with_gas_delayed<E: Encode>(
+        code_id: CodeId,
+        payload: E,
+        gas_limit: u64,
+        value: u128,
+        delay: u32,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_bytes_with_gas_delayed(
+            code_id,
+            payload.encode(),
             gas_limit,
             value,
             delay,
