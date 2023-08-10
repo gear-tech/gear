@@ -297,6 +297,10 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
         ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            }
+
             Self::deposit(account_id, value)?;
 
             Bank::<T>::mutate(account_id, |details| {
@@ -315,24 +319,31 @@ pub mod pallet {
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
         ) -> Result<(), Error<T>> {
+            ensure!(
+                Self::account_value(account_id) >= value,
+                Error::<T>::InsufficientValueBalance
+            );
+
             Self::ensure_bank_can_transfer(value)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);
 
-                if let Some(new_value) = details.value.checked_sub(&value) {
-                    details.value = new_value;
-                    Ok(())
-                } else {
-                    Err(Error::<T>::InsufficientValueBalance)
-                }
-            })
+                // Insufficient case checked above.
+                details.value = details.value.saturating_sub(value)
+            });
+
+            Ok(())
         }
 
         pub fn withdraw_value(
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
         ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            }
+
             Self::withdraw_value_no_transfer(account_id, value)?;
 
             Self::withdraw(account_id, value).unwrap_or_else(|_| unreachable!("qed above"));
@@ -346,6 +357,10 @@ pub mod pallet {
             destination: &AccountIdOf<T>,
             value: BalanceOf<T>,
         ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            }
+
             Self::withdraw_value_no_transfer(account_id, value)?;
 
             Self::withdraw(destination, value).unwrap_or_else(|_| unreachable!("qed above"));
