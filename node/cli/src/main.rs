@@ -18,6 +18,5 @@
 
 fn main() -> gear_cli::Result<()> {
     gear_runtime_interface::sandbox_init();
-    gear_runtime_interface::set_global_name_gas(gear_wasm_instrument::GLOBAL_NAME_GAS);
     gear_cli::run()
 }

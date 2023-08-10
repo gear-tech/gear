@@ -40,6 +40,7 @@ mod tests;
 pub mod rules;
 pub mod syscalls;
 
+// TODO #3057
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 

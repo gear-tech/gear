@@ -50,16 +50,6 @@ use self::{
 
 pub use gear_sandbox_env as env;
 
-static mut GLOBAL_NAME_GAS: String = String::new();
-
-/// Sets name of the WASM-global used as a gas counter.
-pub fn set_global_name_gas(name: &str) {
-    unsafe {
-        GLOBAL_NAME_GAS.clear();
-        GLOBAL_NAME_GAS.push_str(name);
-    }
-}
-
 /// Index of a function inside the supervisor.
 ///
 /// This is a typically an index in the default table of the supervisor, however

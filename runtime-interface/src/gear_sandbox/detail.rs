@@ -59,10 +59,6 @@ pub fn init() {
     })
 }
 
-pub fn set_global_name_gas(name: &str) {
-    gear_sandbox_host::sandbox::set_global_name_gas(name)
-}
-
 struct SandboxContext<'a, 'b> {
     caller: &'a mut Caller<'b, StoreData>,
     dispatch_thunk: Func,

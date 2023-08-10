@@ -3808,7 +3808,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
- "gear-wasm-instrument",
  "log",
  "mimalloc",
  "pallet-gear-payment",

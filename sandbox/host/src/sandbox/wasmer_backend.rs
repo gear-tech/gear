@@ -87,14 +87,15 @@ impl Clone for Env {
     }
 }
 
+// TODO #3057
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+
 impl wasmer::WasmerEnv for Env {
     fn init_with_instance(
         &mut self,
         instance: &wasmer::Instance,
     ) -> std::result::Result<(), wasmer::HostEnvInitError> {
-        let gas: wasmer::Global = instance
-            .exports
-            .get_with_generics_weak(unsafe { &super::GLOBAL_NAME_GAS })?;
+        let gas: wasmer::Global = instance.exports.get_with_generics_weak(GLOBAL_NAME_GAS)?;
         self.gas = Some(gas);
 
         Ok(())

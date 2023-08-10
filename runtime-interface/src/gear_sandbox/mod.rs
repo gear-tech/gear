@@ -27,7 +27,7 @@ use sp_wasm_interface::HostPointer;
 mod detail;
 
 #[cfg(feature = "std")]
-pub use detail::{init, set_global_name_gas};
+pub use detail::init;
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]
