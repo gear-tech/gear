@@ -2,6 +2,8 @@
 name = "gear-backend-common"
 version = "0.1.0"
 description = "Common library for gear-core-backend"
+keywords = ["gear", "wasm", "codegen"]
+categories = ["wasm"]
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -2,6 +2,7 @@
 name = "gcli"
 description = "Gear program cli"
 keywords = ["gear", "cli", "wasm"]
+categories = ["command-line-interface", "command-line-utilities", "wasm"]
 documentation = "https://docs.rs/gcli"
 version.workspace = true
 authors.workspace = true

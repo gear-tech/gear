@@ -2,6 +2,8 @@
 name = "gmeta"
 version = "0.1.0"
 description = "Metadata library for gear programs"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
