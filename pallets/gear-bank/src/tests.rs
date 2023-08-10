@@ -695,6 +695,204 @@ fn deposit_value_insufficient_deposit() {
     })
 }
 
+#[test]
+fn withdraw_value_different_users() {
+    new_test_ext().execute_with(|| {
+        const ALICE_VALUE: Balance = 1_234_567_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, ALICE_VALUE));
+
+        const BOB_VALUE: Balance = 56_789_000;
+        assert_ok!(GearBank::deposit_value(&BOB, BOB_VALUE));
+
+        const ALICE_WITHDRAW: Balance = ALICE_VALUE - 123_456_000;
+        assert_ok!(GearBank::withdraw_value(&ALICE, ALICE_WITHDRAW));
+
+        assert_bank_balance(0, ALICE_VALUE - ALICE_WITHDRAW + BOB_VALUE);
+
+        assert_alice_dec(ALICE_VALUE - ALICE_WITHDRAW);
+        assert_gas_value(&ALICE, 0, ALICE_VALUE - ALICE_WITHDRAW);
+
+        assert_bob_dec(BOB_VALUE);
+        assert_gas_value(&BOB, 0, BOB_VALUE);
+
+        const BOB_WITHDRAW: Balance = BOB_VALUE - 1_234_000;
+        assert_ok!(GearBank::withdraw_value(&BOB, BOB_WITHDRAW));
+
+        assert_bank_balance(0, ALICE_VALUE - ALICE_WITHDRAW + BOB_VALUE - BOB_WITHDRAW);
+
+        assert_alice_dec(ALICE_VALUE - ALICE_WITHDRAW);
+        assert_gas_value(&ALICE, 0, ALICE_VALUE - ALICE_WITHDRAW);
+
+        assert_bob_dec(BOB_VALUE - BOB_WITHDRAW);
+        assert_gas_value(&BOB, 0, BOB_VALUE - BOB_WITHDRAW);
+    })
+}
+
+#[test]
+fn withdraw_value_single_user() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        const WITHDRAW_1: Balance = VALUE - 23_456_000;
+        assert_ok!(GearBank::withdraw_value(&ALICE, WITHDRAW_1));
+
+        assert_bank_balance(0, VALUE - WITHDRAW_1);
+
+        assert_alice_dec(VALUE - WITHDRAW_1);
+        assert_gas_value(&ALICE, 0, VALUE - WITHDRAW_1);
+
+        const WITHDRAW_2: Balance = VALUE - WITHDRAW_1 - 10_000_000;
+        assert_ok!(GearBank::withdraw_value(&ALICE, WITHDRAW_2));
+
+        assert_bank_balance(0, VALUE - WITHDRAW_1 - WITHDRAW_2);
+
+        assert_alice_dec(VALUE - WITHDRAW_1 - WITHDRAW_2);
+        assert_gas_value(&ALICE, 0, VALUE - WITHDRAW_1 - WITHDRAW_2);
+    })
+}
+
+#[test]
+fn withdraw_value_all_balance() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+
+        assert_bank_balance(0, 0);
+
+        assert_alice_dec(0);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
+fn withdraw_value_all_balance_user_account_deleted() {
+    new_test_ext().execute_with(|| {
+        const ALICE_TO_DUST_BALANCE: Balance = EXISTENTIAL_DEPOSIT - 1;
+
+        const VALUE: Balance = ALICE_BALANCE - ALICE_TO_DUST_BALANCE;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+
+        assert_bank_balance(0, 0);
+
+        assert_alice_dec(ALICE_TO_DUST_BALANCE);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
+fn withdraw_value_small_amount() {
+    new_test_ext().execute_with(|| {
+        const VALUE: u128 = EXISTENTIAL_DEPOSIT - 1;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+
+        assert_bank_balance(0, 0);
+
+        assert_alice_dec(0);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
+fn withdraw_value_small_amount_user_account_deleted() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = EXISTENTIAL_DEPOSIT - 1;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(Balances::transfer_all(
+            RuntimeOrigin::signed(ALICE),
+            Zero::zero(),
+            false,
+        ));
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+
+        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
+
+        assert_bank_balance(0, 0);
+
+        assert_balance(&ALICE, 0);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
+fn withdraw_value_zero() {
+    new_test_ext().execute_with(|| {
+        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, 0));
+
+        assert_ok!(GearBank::withdraw_value(&Zero::zero(), 0));
+
+        // No-op operation assertion.
+        assert_eq!(
+            h,
+            frame_support::storage_root(frame_support::StateVersion::V1),
+            "storage has been mutated"
+        );
+    })
+}
+
+#[test]
+fn withdraw_value_insufficient_bank_balance() {
+    // Unreachable case for Gear protocol.
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(Balances::transfer_all(
+            RuntimeOrigin::signed(BANK_ADDRESS),
+            Zero::zero(),
+            false,
+        ));
+
+        assert_noop!(
+            GearBank::withdraw_value(&ALICE, VALUE),
+            Error::<Test>::InsufficientBankBalance
+        );
+    })
+}
+
+#[test]
+fn withdraw_value_insufficient_value_balance() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_noop!(
+            GearBank::withdraw_value(&ALICE, VALUE + 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+    })
+}
+
+#[test]
+fn withdraw_value_insufficient_inexistent_value_balance() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            GearBank::withdraw_value(&ALICE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::withdraw_value(&Zero::zero(), 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+    })
+}
+
 mod utils {
     use super::*;
 
