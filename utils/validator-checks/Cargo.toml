@@ -12,7 +12,7 @@ gsdk.workspace = true
 clap = { workspace = true, features = ["derive"] }
 subxt.workspace = true
 thiserror.workspace = true
-futures-util.workspace = true
+futures.workspace = true
 log.workspace = true
 env_logger.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
