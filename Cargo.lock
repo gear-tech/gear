@@ -2054,15 +2054,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-ncompose"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex",
-]
-
-[[package]]
 name = "demo-new-meta"
 version = "0.1.0"
 dependencies = [
@@ -2219,19 +2210,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-stack-allocations"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
- "rand 0.8.5",
- "rand_pcg",
- "static_assertions",
-]
-
-[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
@@ -2245,17 +2223,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
-]
-
-[[package]]
-name = "demo-syscall-error"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gsys",
- "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -5494,17 +5461,6 @@ version = "0.1.16"
 source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "libfuzzer-sys"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beb09950ae85a0a94b27676cccf37da5ff13f27076aa1adbc6545dd0d0e1bd4e"
-dependencies = [
- "arbitrary",
- "cc",
- "once_cell",
 ]
 
 [[package]]
@@ -9143,18 +9099,6 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-keyring",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
-]
-
-[[package]]
-name = "runtime-fuzzer-fuzz"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-utils",
- "libfuzzer-sys",
- "log",
- "once_cell",
- "runtime-fuzzer",
 ]
 
 [[package]]
