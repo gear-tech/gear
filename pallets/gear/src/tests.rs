@@ -6152,7 +6152,10 @@ fn state_request() {
         for (key, value) in data {
             let ret =
                 Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
-            assert_eq!(Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(), value);
+            assert_eq!(
+                Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
+                value
+            );
         }
 
         let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();

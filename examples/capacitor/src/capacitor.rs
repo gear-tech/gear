@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{debug, msg, prelude::*, String};
+// #[cfg(not(feature = "std"))]
+use gstd::{debug, msg, prelude::*, String, Vec};
 
+// #[cfg(not(feature = "std"))]
 #[derive(Default)]
 pub(crate) struct CapacitorState {
     charge: u32,
@@ -25,6 +27,7 @@ pub(crate) struct CapacitorState {
     discharge_history: Vec<u32>,
 }
 
+// #[cfg(not(feature = "std"))]
 pub(crate) fn init_capacitor(payload: String) -> CapacitorState {
     let limit = u32::from_str(payload.as_ref()).expect("Invalid number");
     debug!("Init capacitor with limit capacity {limit}, {payload}");
@@ -35,6 +38,7 @@ pub(crate) fn init_capacitor(payload: String) -> CapacitorState {
     }
 }
 
+// #[cfg(not(feature = "std"))]
 pub(crate) fn handle_capacitor(state: &mut CapacitorState) {
     let new_msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");

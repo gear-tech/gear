@@ -23,9 +23,7 @@ extern crate alloc;
 pub mod btree;
 pub mod capacitor;
 
-use btree::BTreeState;
-use capacitor::CapacitorState;
-use gstd::String;
+use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -42,18 +40,19 @@ pub enum InitMessage {
     BTree,
 }
 
-enum State {
-    Capacitor(CapacitorState),
-    BTree(BTreeState),
-}
-
+// #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::{
-        btree::{handle_btree, init_btree, state_btree},
-        capacitor::{handle_capacitor, init_capacitor},
-        InitMessage, State,
+        btree::{handle_btree, init_btree, state_btree, BTreeState},
+        capacitor::{handle_capacitor, init_capacitor, CapacitorState},
+        InitMessage,
     };
     use gstd::msg;
+
+    enum State {
+        Capacitor(CapacitorState),
+        BTree(BTreeState),
+    }
 
     static mut STATE: Option<State> = None;
 
