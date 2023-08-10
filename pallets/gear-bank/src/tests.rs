@@ -1374,6 +1374,55 @@ fn empty_zero_accounts_deleted() {
     })
 }
 
+#[test]
+fn empty_composite_accounts_deleted() {
+    new_test_ext().execute_with(|| {
+        const GAS_AMOUNT: u64 = 123_456;
+        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+
+        assert_bank_balance(GAS_AMOUNT, 0);
+
+        assert!(GearBank::account(ALICE).is_some());
+        assert_alice_dec(GasConverter::gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT, 0);
+
+        const VALUE: Balance = 234_567_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_bank_balance(GAS_AMOUNT, VALUE);
+
+        assert!(GearBank::account(ALICE).is_some());
+        assert_alice_dec(GasConverter::gas_price(GAS_AMOUNT) + VALUE);
+        assert_gas_value(&ALICE, GAS_AMOUNT, VALUE);
+
+        const GAS_BURN: u64 = GAS_AMOUNT / 2;
+
+        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_BURN));
+
+        assert_bank_balance(GAS_AMOUNT - GAS_BURN, VALUE);
+
+        assert!(GearBank::account(ALICE).is_some());
+        assert_alice_dec(GasConverter::gas_price(GAS_AMOUNT) + VALUE);
+        assert_gas_value(&ALICE, GAS_AMOUNT - GAS_BURN, VALUE);
+
+        assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
+
+        assert_bank_balance(GAS_AMOUNT - GAS_BURN, 0);
+
+        assert!(GearBank::account(ALICE).is_some());
+        assert_alice_dec(GasConverter::gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT - GAS_BURN, 0);
+
+        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT - GAS_BURN));
+
+        assert_bank_balance(0, 0);
+
+        assert!(GearBank::account(ALICE).is_none());
+        assert_alice_dec(GasConverter::gas_price(GAS_BURN));
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
 mod utils {
     use super::*;
 
