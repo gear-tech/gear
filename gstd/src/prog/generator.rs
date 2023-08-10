@@ -167,7 +167,7 @@ impl ProgramGenerator {
     /// Same as [`create_program`](Self::create_program), but with an explicit
     /// gas limit.
     #[wait_create_program_for_reply(Self)]
-    pub fn create_programs_with_gas<E: Encode>(
+    pub fn create_program_with_gas<E: Encode>(
         code_id: CodeId,
         payload: E,
         gas_limit: u64,
