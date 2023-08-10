@@ -336,12 +336,33 @@ fn withdraw_gas_insufficient_gas_balance() {
             GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
             Error::<Test>::InsufficientGasBalance
         );
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+
+        assert_noop!(
+            GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            Error::<Test>::InsufficientGasBalance
+        );
     })
 }
 
 #[test]
 fn withdraw_gas_insufficient_inexistent_gas_balance() {
     new_test_ext().execute_with(|| {
+        assert_noop!(
+            GearBank::withdraw_gas::<GC>(&ALICE, 1),
+            Error::<Test>::InsufficientGasBalance
+        );
+
+        assert_noop!(
+            GearBank::withdraw_gas::<GC>(&Zero::zero(), 1),
+            Error::<Test>::InsufficientGasBalance
+        );
+
+        const GAS_AMOUNT: u64 = 123_456;
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+
         assert_noop!(
             GearBank::withdraw_gas::<GC>(&ALICE, 1),
             Error::<Test>::InsufficientGasBalance
@@ -565,12 +586,32 @@ fn spend_gas_insufficient_gas_balance() {
             GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
             Error::<Test>::InsufficientGasBalance
         );
+
+        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+
+        assert_noop!(
+            GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            Error::<Test>::InsufficientGasBalance
+        );
     })
 }
 
 #[test]
 fn spend_gas_insufficient_inexistent_gas_balance() {
     new_test_ext().execute_with(|| {
+        assert_noop!(
+            GearBank::spend_gas::<GC>(&ALICE, 1),
+            Error::<Test>::InsufficientGasBalance
+        );
+
+        assert_noop!(
+            GearBank::spend_gas::<GC>(&Zero::zero(), 1),
+            Error::<Test>::InsufficientGasBalance
+        );
+
+        const GAS_AMOUNT: u64 = 123_456;
+        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+
         assert_noop!(
             GearBank::spend_gas::<GC>(&ALICE, 1),
             Error::<Test>::InsufficientGasBalance
@@ -875,12 +916,33 @@ fn withdraw_value_insufficient_value_balance() {
             GearBank::withdraw_value(&ALICE, VALUE + 1),
             Error::<Test>::InsufficientValueBalance
         );
+
+        assert_ok!(GearBank::deposit_value(&BOB, VALUE));
+
+        assert_noop!(
+            GearBank::withdraw_value(&ALICE, VALUE + 1),
+            Error::<Test>::InsufficientValueBalance
+        );
     })
 }
 
 #[test]
 fn withdraw_value_insufficient_inexistent_value_balance() {
     new_test_ext().execute_with(|| {
+        assert_noop!(
+            GearBank::withdraw_value(&ALICE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::withdraw_value(&Zero::zero(), 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&BOB, VALUE));
+
         assert_noop!(
             GearBank::withdraw_value(&ALICE, 1),
             Error::<Test>::InsufficientValueBalance
@@ -1098,12 +1160,33 @@ fn transfer_value_insufficient_value_balance() {
             GearBank::transfer_value(&ALICE, &CHARLIE, VALUE + 1),
             Error::<Test>::InsufficientValueBalance
         );
+
+        assert_ok!(GearBank::deposit_value(&BOB, VALUE));
+
+        assert_noop!(
+            GearBank::transfer_value(&ALICE, &CHARLIE, VALUE + 1),
+            Error::<Test>::InsufficientValueBalance
+        );
     })
 }
 
 #[test]
 fn transfer_value_insufficient_inexistent_value_balance() {
     new_test_ext().execute_with(|| {
+        assert_noop!(
+            GearBank::transfer_value(&ALICE, &CHARLIE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::transfer_value(&Zero::zero(), &CHARLIE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&BOB, VALUE));
+
         assert_noop!(
             GearBank::transfer_value(&ALICE, &CHARLIE, 1),
             Error::<Test>::InsufficientValueBalance

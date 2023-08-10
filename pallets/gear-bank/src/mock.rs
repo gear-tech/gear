@@ -43,7 +43,7 @@ mod consts {
     pub const ALICE_BALANCE: Balance = 100_000_000_000;
 
     pub const BOB: AccountId = 2;
-    pub const BOB_BALANCE: Balance = 100_000_000;
+    pub const BOB_BALANCE: Balance = 150_000_000;
 
     pub const BLOCK_AUTHOR: AccountId = 255;
 
