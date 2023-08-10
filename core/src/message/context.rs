@@ -607,7 +607,7 @@ mod tests {
         ]);
         assert_err!(
             message_context.init_program(Default::default(), 0, &[id]),
-            Error::InvalidProgramId
+            Error::SyscallUsageError
         );
     }
 
