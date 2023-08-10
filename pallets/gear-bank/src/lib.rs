@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # Gear Funds Pallet.
+//! # Gear Bank Pallet.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
