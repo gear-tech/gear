@@ -1022,6 +1022,30 @@ fn transfer_value_single_user() {
 }
 
 #[test]
+fn transfer_value_self() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        const TRANSFER_1: Balance = VALUE - 23_456_000;
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, TRANSFER_1));
+
+        assert_bank_balance(0, VALUE - TRANSFER_1);
+
+        assert_alice_dec(VALUE - TRANSFER_1);
+        assert_gas_value(&ALICE, 0, VALUE - TRANSFER_1);
+
+        const TRANSFER_2: Balance = VALUE - TRANSFER_1 - 10_000_000;
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, TRANSFER_2));
+
+        assert_bank_balance(0, VALUE - TRANSFER_1 - TRANSFER_2);
+
+        assert_alice_dec(VALUE - TRANSFER_1 - TRANSFER_2);
+        assert_gas_value(&ALICE, 0, VALUE - TRANSFER_1 - TRANSFER_2);
+    })
+}
+
+#[test]
 fn transfer_balance_all_balance() {
     new_test_ext().execute_with(|| {
         const VALUE: Balance = 123_456_000;
@@ -1058,6 +1082,28 @@ fn transfer_value_all_balance_destination_account_deleted() {
         assert_balance(&CHARLIE, VALUE);
 
         assert_alice_dec(VALUE);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
+fn transfer_value_all_balance_self_account_deleted() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = 123_456_000;
+
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(Balances::transfer_all(
+            RuntimeOrigin::signed(ALICE),
+            Zero::zero(),
+            false,
+        ));
+
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
+
+        assert_bank_balance(0, 0);
+
+        assert_balance(&ALICE, VALUE);
         assert_gas_value(&ALICE, 0, 0);
     })
 }
@@ -1107,10 +1153,35 @@ fn transfer_value_small_amount_destination_account_deleted() {
 }
 
 #[test]
+fn transfer_value_small_amount_self_account_deleted() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = EXISTENTIAL_DEPOSIT - 1;
+        assert_ok!(GearBank::deposit_value(&ALICE, VALUE));
+
+        assert_ok!(Balances::transfer_all(
+            RuntimeOrigin::signed(ALICE),
+            Zero::zero(),
+            false,
+        ));
+
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
+
+        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
+
+        assert_bank_balance(0, 0);
+
+        assert_balance(&ALICE, 0);
+        assert_gas_value(&ALICE, 0, 0);
+    })
+}
+
+#[test]
 fn transfer_value_zero() {
     new_test_ext().execute_with(|| {
         let h = frame_support::storage_root(frame_support::StateVersion::V1);
 
+        assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, 0));
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, 0));
         assert_ok!(GearBank::transfer_value(&ALICE, &Zero::zero(), 0));
 
@@ -1146,6 +1217,11 @@ fn transfer_value_insufficient_bank_balance() {
             GearBank::transfer_value(&ALICE, &CHARLIE, VALUE),
             Error::<Test>::InsufficientBankBalance
         );
+
+        assert_noop!(
+            GearBank::transfer_value(&ALICE, &ALICE, VALUE),
+            Error::<Test>::InsufficientBankBalance
+        );
     })
 }
 
@@ -1161,10 +1237,20 @@ fn transfer_value_insufficient_value_balance() {
             Error::<Test>::InsufficientValueBalance
         );
 
+        assert_noop!(
+            GearBank::transfer_value(&ALICE, &ALICE, VALUE + 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
         assert_ok!(GearBank::deposit_value(&BOB, VALUE));
 
         assert_noop!(
             GearBank::transfer_value(&ALICE, &CHARLIE, VALUE + 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::transfer_value(&ALICE, &ALICE, VALUE + 1),
             Error::<Test>::InsufficientValueBalance
         );
     })
@@ -1174,7 +1260,17 @@ fn transfer_value_insufficient_value_balance() {
 fn transfer_value_insufficient_inexistent_value_balance() {
     new_test_ext().execute_with(|| {
         assert_noop!(
+            GearBank::transfer_value(&ALICE, &ALICE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
             GearBank::transfer_value(&ALICE, &CHARLIE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::transfer_value(&Zero::zero(), &Zero::zero(), 1),
             Error::<Test>::InsufficientValueBalance
         );
 
@@ -1188,7 +1284,17 @@ fn transfer_value_insufficient_inexistent_value_balance() {
         assert_ok!(GearBank::deposit_value(&BOB, VALUE));
 
         assert_noop!(
+            GearBank::transfer_value(&ALICE, &ALICE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
             GearBank::transfer_value(&ALICE, &CHARLIE, 1),
+            Error::<Test>::InsufficientValueBalance
+        );
+
+        assert_noop!(
+            GearBank::transfer_value(&Zero::zero(), &Zero::zero(), 1),
             Error::<Test>::InsufficientValueBalance
         );
 
