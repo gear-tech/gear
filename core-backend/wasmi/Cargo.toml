@@ -1,9 +1,9 @@
 [package]
 name = "gear-backend-wasmi"
-version = "0.1.0"
 description = "Wasmi executor for the gear-backend"
 keywords = ["gear", "wasm", "wasm-executor"]
 categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

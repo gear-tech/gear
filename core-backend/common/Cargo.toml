@@ -1,9 +1,9 @@
 [package]
 name = "gear-backend-common"
-version = "0.1.0"
 description = "Common library for gear-core-backend"
 keywords = ["gear", "wasm", "codegen"]
 categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

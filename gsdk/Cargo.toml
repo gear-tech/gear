@@ -1,9 +1,9 @@
 [package]
 name = "gsdk"
-version = "0.1.0"
 keywords = ["gear", "api", "sdk"]
 categories = ["wasm", "api-bindings"]
 description = "Rust SDK of the Gear network"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
