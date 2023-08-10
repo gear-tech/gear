@@ -449,14 +449,30 @@ parameter_types! {
     pub const MailboxThreshold: u64 = 3000;
 }
 
+fn bank_address() -> AccountId {
+    let arr: [u8; 8] = [1, 5, 0, 8, 2, 0, 0, 1];
+    let mut addr = [0u8; 32];
+
+    for (pos, byte) in arr.into_iter().enumerate() {
+        addr[pos * 4..pos * 4 + 4].copy_from_slice(&byte.to_le_bytes());
+    }
+
+    addr.into()
+}
+
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+    pub BankAddress: AccountId = bank_address();
+}
+
+impl pallet_gear_bank::Config for Runtime {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
@@ -600,6 +616,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -635,6 +652,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
     }
 );
 

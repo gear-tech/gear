@@ -35,7 +35,7 @@ benchmarks! {
         let q in 1 .. 256;
 
         let source: T::AccountId = benchmarking::account("source", 0, 0);
-        <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
+        <T as pallet_gear_bank::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
         let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
         // Keeping in mind the existential deposit
         let amount = 10_000_000_000_000_u128.saturating_add(10_u128.saturating_mul(q.into()));
@@ -50,7 +50,7 @@ benchmarks! {
 
         let source: T::AccountId = benchmarking::account("source", 0, 0);
         let source_lookup = T::Lookup::unlookup(source.clone());
-        <T as pallet_gear::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
+        <T as pallet_gear_bank::Config>::Currency::deposit_creating(&source, (1u128 << 60).unique_saturated_into());
         let recipient: T::AccountId = benchmarking::account("recipient", 0, 0);
         let amount = <T as pallet_vesting::Config>::MinVestedTransfer::get().saturating_mul(q.into());
 

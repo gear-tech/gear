@@ -57,9 +57,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
-    ResumeMinimalPeriodOf, Schedule,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
+    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -317,8 +317,8 @@ where
         module: WasmModule<T>,
         data: Vec<u8>,
     ) -> Result<Program<T>, &'static str> {
-        let value = <T as pallet::Config>::Currency::minimum_balance();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let value = CurrencyOf::<T>::minimum_balance();
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
         let addr = ProgramId::generate(module.hash, &salt).into_origin();
 
@@ -445,16 +445,16 @@ benchmarks! {
 
     claim_value {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -475,8 +475,8 @@ benchmarks! {
 
     pay_program_rent {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -496,7 +496,7 @@ benchmarks! {
 
     resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -521,7 +521,7 @@ benchmarks! {
     resume_session_push {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -557,7 +557,7 @@ benchmarks! {
     resume_session_commit {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -603,9 +603,9 @@ benchmarks! {
     // `c`: Size of the code in kilobytes.
     upload_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
@@ -629,9 +629,9 @@ benchmarks! {
         Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
 
         let salt = vec![42u8; s as usize];
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
@@ -656,9 +656,9 @@ benchmarks! {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
         let salt = vec![42u8; s as usize];
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
@@ -671,8 +671,8 @@ benchmarks! {
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
@@ -688,8 +688,8 @@ benchmarks! {
         let p in 0 .. MAX_PAYLOAD_LEN;
 
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
@@ -697,7 +697,7 @@ benchmarks! {
 
         // Add voucher for the (caller, program_id) pair
         let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
-        <T as pallet::Config>::Currency::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
 
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
@@ -708,17 +708,17 @@ benchmarks! {
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -739,17 +739,17 @@ benchmarks! {
     send_reply_with_voucher {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         let program_id = ProgramId::from_origin(program_id.into_origin());
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
@@ -763,7 +763,7 @@ benchmarks! {
 
         // Add voucher for the (caller, program_id) pair
         let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
-        <T as pallet::Config>::Currency::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
 
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
@@ -776,7 +776,7 @@ benchmarks! {
         let q in 1 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
@@ -791,7 +791,7 @@ benchmarks! {
         let q in 0 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {

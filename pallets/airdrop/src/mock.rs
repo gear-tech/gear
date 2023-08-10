@@ -56,6 +56,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         Airdrop: pallet_airdrop,
         Vesting: pallet_vesting,
@@ -152,12 +153,17 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;

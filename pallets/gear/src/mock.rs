@@ -81,6 +81,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
         GearVoucher: pallet_gear_voucher,
@@ -205,10 +206,18 @@ impl Drop for DynamicScheduleReset {
     }
 }
 
+parameter_types! {
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
+}
+
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;

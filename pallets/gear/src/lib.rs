@@ -65,8 +65,8 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        ReservableCurrency, StorageVersion,
+        ConstBool, Currency, ExistenceRequirement, Get, Randomness, ReservableCurrency,
+        StorageVersion,
     },
     weights::Weight,
 };
@@ -105,9 +105,9 @@ type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironm
 #[cfg(not(feature = "std"))]
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
-pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
-pub(crate) type BalanceOf<T> =
-    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
@@ -183,7 +183,10 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
+        frame_system::Config
+        + pallet_authorship::Config
+        + pallet_timestamp::Config
+        + pallet_gear_bank::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>>
@@ -192,9 +195,6 @@ pub mod pallet {
 
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-
-        /// Balances management trait for gas/value migrations.
-        type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
@@ -1215,7 +1215,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             Ok(packet)

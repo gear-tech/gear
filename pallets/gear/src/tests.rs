@@ -13268,7 +13268,7 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, CurrencyOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
@@ -13411,7 +13411,7 @@ mod utils {
     }
 
     pub(super) fn get_ed() -> u128 {
-        <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
+        CurrencyOf::<Test>::minimum_balance().unique_saturated_into()
     }
 
     #[track_caller]

@@ -234,6 +234,7 @@ pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runt
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
 pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
 pallet-gear-voucher = { version = "1.0.0", path = "pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { version = "1.0.0", path = "pallets/gear-bank", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }

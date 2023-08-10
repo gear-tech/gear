@@ -4071,6 +4071,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
@@ -7026,6 +7027,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7257,6 +7259,7 @@ dependencies = [
  "page_size 0.5.0",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
@@ -7285,8 +7288,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
@@ -7318,6 +7322,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7348,7 +7353,6 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
@@ -7403,6 +7407,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7499,6 +7504,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -13278,6 +13284,7 @@ dependencies = [
  "pallet-conviction-voting",
  "pallet-election-provider-multi-phase",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",

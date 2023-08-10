@@ -20,6 +20,7 @@ log.workspace = true
 # Internal deps
 common.workspace = true
 pallet-gear.workspace = true
+pallet-gear-bank.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -58,6 +59,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-vesting/std",
 	"pallet-gear/std",
+	"pallet-gear-bank/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
