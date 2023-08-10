@@ -10,8 +10,6 @@ resolver = "2"
 default-members = ["node/cli"]
 
 members = [
-    "common",
-    "common/codegen",
     "core",
     "core-backend/codegen",
     "core-backend/common",
@@ -86,6 +84,7 @@ members = [
     "node/authorship",
     "node/testing",
     "pallets/*",
+    "pallets/common/codegen",
     "runtime/gear",
     "runtime/vara",
     "utils/bags-thresholds",
@@ -185,7 +184,7 @@ paste = "1.0"
 
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
-common = { package = "gear-common", path = "common", default-features = false }
+common = { package = "gear-common", path = "pallets/common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gcore = { path = "gcore" }
@@ -202,13 +201,13 @@ gear-backend-common = { path = "core-backend/common" }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
-gear-common = { path = "common", default-features = false }
-gear-common-codegen = { path = "common/codegen" }
+gear-common = { path = "pallets/common", default-features = false }
+gear-common-codegen = { path = "pallets/common/codegen" }
 gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
+gear-lazy-pages-common = { path = "pallets/common/lazy-pages", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
