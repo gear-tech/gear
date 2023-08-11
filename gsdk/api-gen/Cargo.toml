@@ -19,7 +19,7 @@ heck.workspace = true
 # NOTE: only required by this package.
 #
 # Same version from `/Cargo.lock`
-frame-metadata = "15.1.0"
+frame-metadata = "16.0.0"
 subxt-metadata.workspace = true
 subxt-codegen.workspace = true
 # TODO: inherit from workspace
