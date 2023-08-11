@@ -35,6 +35,7 @@ gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
+actor-system-error.workspace = true
 
 # Substrate deps
 frame-support.workspace = true

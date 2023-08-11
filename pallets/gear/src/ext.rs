@@ -24,6 +24,7 @@ pub(crate) type Ext = lazy_pages::LazyPagesExt;
 
 #[cfg(feature = "lazy-pages")]
 mod lazy_pages {
+    use actor_system_error::actor_system_error;
     use alloc::{
         collections::{BTreeMap, BTreeSet},
         vec::Vec,
@@ -49,6 +50,20 @@ mod lazy_pages {
     use gear_core_errors::{ReplyCode, SignalCode};
     use gear_lazy_pages_common as lazy_pages;
     use gear_wasm_instrument::syscalls::SysCallName;
+
+    actor_system_error! {
+        pub type LazyPagesError = ActorSystemError<ActorLazyPagesError, SystemLazyPagesError>;
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+    pub enum ActorLazyPagesError {}
+
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+    pub enum SystemLazyPagesError {
+        /// Initial pages data must be empty in lazy pages mode
+        #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
+        InitialPagesContainsData,
+    }
 
     /// Ext with lazy pages support.
     pub struct LazyPagesExt {
@@ -85,6 +100,9 @@ mod lazy_pages {
     }
 
     impl ProcessorExternalities for LazyPagesExt {
+        type ActorPagesError = ActorLazyPagesError;
+        type SystemPagesError = SystemLazyPagesError;
+
         fn new(context: ProcessorContext) -> Self {
             Self {
                 inner: Ext::new(context),
@@ -106,10 +124,12 @@ mod lazy_pages {
 
         fn check_init_pages_data(
             initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-        ) -> Result<(), core_processor::SystemPrepareMemoryError> {
-            initial_pages_data.is_empty().then_some(()).ok_or(
-                core_processor::SystemPrepareMemoryError::InitialPagesContainsDataInLazyPagesMode,
-            )
+        ) -> Result<(), Self::SystemPagesError> {
+            initial_pages_data
+                .is_empty()
+                .then_some(())
+                .ok_or(SystemLazyPagesError::InitialPagesContainsData)
+                .map_err(Into::into)
         }
 
         fn init_pages_for_program(
@@ -120,7 +140,7 @@ mod lazy_pages {
             _static_pages: WasmPage,
             globals_config: GlobalsAccessConfig,
             lazy_pages_weights: LazyPagesWeights,
-        ) -> Result<(), core_processor::PrepareMemoryError> {
+        ) -> Result<(), LazyPagesError> {
             Self::check_init_pages_data(pages_data)?;
 
             lazy_pages::init_for_program(

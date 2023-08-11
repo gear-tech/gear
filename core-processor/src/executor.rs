@@ -24,7 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
-use actor_system_error::actor_system_error;
+use actor_system_error::{actor_system_error, ResultExt};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     format,
@@ -67,12 +67,12 @@ pub enum ActorPrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
     /// Stack is not aligned to WASM page size
     #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
     StackIsNotAligned(u32),
+    /// Pages error.
+    #[display(fmt = "Pages error: {_0}")]
+    Pages(String),
 }
 
 /// System's prepare memory error.
@@ -84,15 +84,12 @@ pub enum SystemPrepareMemoryError {
     /// Page with data is not allocated for program
     #[display(fmt = "{_0:?} is not allocated for program")]
     PageIsNotAllocated(GearPage),
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(GearPage, MemoryError),
     /// Cannot write initial data to wasm memory.
     #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
     InitialDataWriteFailed(GearPage, MemoryError),
-    /// Initial pages data must be empty in lazy pages mode
-    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesContainsDataInLazyPagesMode,
+    /// Pages error.
+    #[display(fmt = "Pages error: {_0}")]
+    Pages(String),
 }
 
 /// Make checks that everything with memory goes well.
@@ -156,7 +153,8 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
             .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
-    ProcessorExt::check_init_pages_data(pages_data)?;
+    ProcessorExt::check_init_pages_data(pages_data)
+        .map_err(|err| SystemPrepareMemoryError::Pages(err.to_string()))?;
 
     ProcessorExt::init_pages_for_program(
         mem,
@@ -166,7 +164,9 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
         static_pages,
         globals_config,
         lazy_pages_weights,
-    )?;
+    )
+    .map_actor_err(|err| ActorPrepareMemoryError::Pages(err.to_string()))
+    .map_system_err(|err| SystemPrepareMemoryError::Pages(err.to_string()))?;
 
     Ok(())
 }
@@ -321,7 +321,7 @@ where
         .map_err(SystemExecutionError::IntoExtInfo)?;
 
     E::Ext::check_init_pages_data(&pages_initial_data)
-        .map_err(SystemExecutionError::PrepareMemory)?;
+        .map_err(|err| SystemExecutionError::CheckInitPagesData(err.to_string()))?;
 
     // Parsing outcome.
     let kind = match termination {
@@ -525,90 +525,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Ext;
     use alloc::vec::Vec;
     use gear_core::{
         memory::PageBufInner,
         pages::{PageNumber, WasmPage},
     };
-
-    struct TestExt;
-    struct LazyTestExt;
-
-    impl ProcessorExternalities for TestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn pages_to_be_updated(
-            _old_pages_data: BTreeMap<GearPage, PageBuf>,
-            _new_pages_data: BTreeMap<GearPage, PageBuf>,
-            _static_pages: WasmPage,
-        ) -> BTreeMap<GearPage, PageBuf> {
-            Default::default()
-        }
-
-        fn check_init_pages_data(
-            _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-        ) -> Result<(), SystemPrepareMemoryError> {
-            Ok(())
-        }
-
-        fn init_pages_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _pages_data: &mut BTreeMap<GearPage, PageBuf>,
-            _static_pages: WasmPage,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) -> Result<(), PrepareMemoryError> {
-            Ok(())
-        }
-
-        fn pages_post_execution_actions(
-            _mem: &mut impl Memory,
-            _reason: &mut ActorTerminationReason,
-        ) {
-        }
-    }
-
-    impl ProcessorExternalities for LazyTestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn pages_to_be_updated(
-            _old_pages_data: BTreeMap<GearPage, PageBuf>,
-            _new_pages_data: BTreeMap<GearPage, PageBuf>,
-            _static_pages: WasmPage,
-        ) -> BTreeMap<GearPage, PageBuf> {
-            Default::default()
-        }
-
-        fn check_init_pages_data(
-            _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-        ) -> Result<(), SystemPrepareMemoryError> {
-            Ok(())
-        }
-
-        fn init_pages_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _pages_data: &mut BTreeMap<GearPage, PageBuf>,
-            _static_pages: WasmPage,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) -> Result<(), PrepareMemoryError> {
-            Ok(())
-        }
-
-        fn pages_post_execution_actions(
-            _mem: &mut impl Memory,
-            _reason: &mut ActorTerminationReason,
-        ) {
-        }
-    }
 
     fn prepare_pages_and_allocs() -> (Vec<GearPage>, BTreeSet<WasmPage>) {
         let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
@@ -656,7 +578,7 @@ mod tests {
         let old_pages = prepare_pages();
         let mut new_pages = old_pages.clone();
         let static_pages = 4;
-        let res = TestExt::pages_to_be_updated(old_pages, new_pages.clone(), static_pages.into());
+        let res = Ext::pages_to_be_updated(old_pages, new_pages.clone(), static_pages.into());
         assert_eq!(res, Default::default());
 
         // Change static pages
@@ -669,7 +591,7 @@ mod tests {
             .into_iter()
             .take(WasmPage::from(static_pages).to_page::<GearPage>().raw() as _)
             .collect();
-        let res = TestExt::pages_to_be_updated(Default::default(), new_pages, static_pages.into());
+        let res = Ext::pages_to_be_updated(Default::default(), new_pages, static_pages.into());
         assert_eq!(res, Default::default());
     }
 
@@ -696,12 +618,11 @@ mod tests {
 
         // Change pages
         let static_pages = 4.into();
-        let res = crate::Ext::pages_to_be_updated(old_pages, new_pages.clone(), static_pages);
+        let res = Ext::pages_to_be_updated(old_pages, new_pages.clone(), static_pages);
         assert_eq!(res, changes);
 
         // There was no any old page
-        let res =
-            crate::Ext::pages_to_be_updated(Default::default(), new_pages.clone(), static_pages);
+        let res = Ext::pages_to_be_updated(Default::default(), new_pages.clone(), static_pages);
 
         // The result is all pages except the static ones
         for page in static_pages.to_page::<GearPage>().iter_from_zero() {

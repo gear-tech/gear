@@ -504,6 +504,9 @@ pub enum SystemExecutionError {
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
+    /// Error during `Ext::check_init_pages_data()` call
+    #[display(fmt = "`check_init_pages_data()` error: {_0}")]
+    CheckInitPagesData(String),
 }
 
 /// Actor.

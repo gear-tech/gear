@@ -16,15 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    configs::{BlockInfo, PageCosts},
-    executor::{PrepareMemoryError, SystemPrepareMemoryError},
-    ActorPrepareMemoryError,
-};
+use crate::configs::{BlockInfo, PageCosts};
+use actor_system_error::{actor_system_error, ActorSystemError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use core::fmt;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
     memory::ProcessAccessError,
@@ -113,6 +111,12 @@ pub struct ProcessorContext {
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
+    /// Actor pages error.
+    type ActorPagesError: fmt::Display;
+
+    /// System pages error.
+    type SystemPagesError: fmt::Display;
+
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
@@ -126,7 +130,7 @@ pub trait ProcessorExternalities {
     /// Check initial pages data.
     fn check_init_pages_data(
         initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-    ) -> Result<(), SystemPrepareMemoryError>;
+    ) -> Result<(), Self::SystemPagesError>;
 
     /// Initialize pages for program.
     fn init_pages_for_program(
@@ -137,7 +141,7 @@ pub trait ProcessorExternalities {
         static_pages: WasmPage,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
-    ) -> Result<(), PrepareMemoryError>;
+    ) -> Result<(), ActorSystemError<Self::ActorPagesError, Self::SystemPagesError>>;
 
     /// Pages contract post execution actions
     fn pages_post_execution_actions(mem: &mut impl Memory, reason: &mut ActorTerminationReason);
@@ -252,6 +256,24 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
+actor_system_error! {
+    pub type PagesError = ActorSystemError<ActorPagesError, SystemPagesError>;
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum ActorPagesError {
+    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
+    #[display(fmt = "Set initial data for stack pages is restricted")]
+    StackPagesHaveInitialData,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum SystemPagesError {
+    /// Cannot read initial memory data from wasm memory.
+    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
+    InitialMemoryReadFailed(GearPage, MemoryError),
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
@@ -266,6 +288,9 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExternalities for Ext {
+    type ActorPagesError = ActorPagesError;
+    type SystemPagesError = SystemPagesError;
+
     fn new(context: ProcessorContext) -> Self {
         let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
         {
@@ -315,7 +340,7 @@ impl ProcessorExternalities for Ext {
 
     fn check_init_pages_data(
         _initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-    ) -> Result<(), SystemPrepareMemoryError> {
+    ) -> Result<(), Self::SystemPagesError> {
         Ok(())
     }
 
@@ -327,14 +352,14 @@ impl ProcessorExternalities for Ext {
         static_pages: WasmPage,
         _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,
-    ) -> Result<(), PrepareMemoryError> {
+    ) -> Result<(), PagesError> {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
         // Skip stack page if they are specified.
         let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
-            return Err(ActorPrepareMemoryError::StackPagesHaveInitialData.into());
+            return Err(ActorPagesError::StackPagesHaveInitialData.into());
         }
 
         let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
@@ -351,7 +376,7 @@ impl ProcessorExternalities for Ext {
             }
             let mut data = PageBuf::new_zeroed();
             mem.read(page.offset(), &mut data)
-                .map_err(|err| SystemPrepareMemoryError::InitialMemoryReadFailed(page, err))?;
+                .map_err(|err| SystemPagesError::InitialMemoryReadFailed(page, err))?;
             pages_data.insert(page, data);
         }
 
