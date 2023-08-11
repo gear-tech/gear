@@ -24,7 +24,10 @@ pub(crate) type Ext = lazy_pages::LazyPagesExt;
 
 #[cfg(feature = "lazy-pages")]
 mod lazy_pages {
-    use alloc::{collections::BTreeSet, vec::Vec};
+    use alloc::{
+        collections::{BTreeMap, BTreeSet},
+        vec::Vec,
+    };
     use core_processor::{
         AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
         UnrecoverableExtError,
@@ -46,7 +49,6 @@ mod lazy_pages {
     use gear_core_errors::{ReplyCode, SignalCode};
     use gear_lazy_pages_common as lazy_pages;
     use gear_wasm_instrument::syscalls::SysCallName;
-    use std::collections::BTreeMap;
 
     /// Ext with lazy pages support.
     pub struct LazyPagesExt {

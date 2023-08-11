@@ -106,10 +106,10 @@ where
 #[cfg(feature = "lazy-pages")]
 mod lazy_pages {
     use crate::{pages_manager::PagesManagerDetails, Config, ProgramStorageOf};
+    use alloc::collections::{BTreeMap, BTreeSet};
     use common::ProgramStorage;
     use core::marker::PhantomData;
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
-    use std::collections::{BTreeMap, BTreeSet};
 
     /// Manager that works with [`gear_lazy_pages_common`].
     pub(crate) struct LazyPagesManagerDetails<T>(PhantomData<T>);
