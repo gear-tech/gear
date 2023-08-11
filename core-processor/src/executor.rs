@@ -32,8 +32,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    ActorEnvironmentError, ActorTerminationReason, BackendExternalities, BackendReport,
-    BackendSyscallError, Environment, TerminationReason,
+    ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
+    TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -253,13 +253,8 @@ where
         program.code().exports().clone(),
         memory_size,
     )
-    .map_actor_err(
-        |ActorEnvironmentError(gas_amount, err)| ActorExecutionError {
-            gas_amount,
-            reason: ActorExecutionErrorReplyReason::Environment(err.into()),
-        },
-    )
-    .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))?;
+    .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))
+    .map_err_into()?;
 
     prepare_memory(&mut env, program_id, &mut pages_initial_data, static_pages)
         .map_actor_err(|err| ActorExecutionError {
@@ -270,13 +265,8 @@ where
 
     let post_env = env.into();
     let report = E::execute(post_env)
-        .map_actor_err(
-            |ActorEnvironmentError(gas_amount, err)| ActorExecutionError {
-                gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment(err.into()),
-            },
-        )
-        .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))?;
+        .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))
+        .map_err_into()?;
 
     let BackendReport {
         termination_reason,

@@ -28,7 +28,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    LimitedStr, SystemReservationContext, SystemTerminationReason, TrapExplanation,
+    ActorEnvironmentError, LimitedStr, SystemReservationContext, SystemTerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
@@ -446,6 +447,15 @@ pub struct ActorExecutionError {
     pub gas_amount: GasAmount,
     /// Error text.
     pub reason: ActorExecutionErrorReplyReason,
+}
+
+impl From<ActorEnvironmentError> for ActorExecutionError {
+    fn from(ActorEnvironmentError(gas_amount, err): ActorEnvironmentError) -> Self {
+        Self {
+            gas_amount,
+            reason: ActorExecutionErrorReplyReason::Environment(err.into()),
+        }
+    }
 }
 
 /// Reason of execution error
