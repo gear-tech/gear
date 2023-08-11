@@ -41,8 +41,8 @@ pub struct MemoryGenerator {
     module: WasmModule,
 }
 
-impl<'a> From<GearWasmGenerator<'a>> for (MemoryGenerator, FrozenGearWasmGenerator<'a>) {
-    fn from(generator: GearWasmGenerator<'a>) -> Self {
+impl<'a, 'b> From<GearWasmGenerator<'a, 'b>> for (MemoryGenerator, FrozenGearWasmGenerator<'a, 'b>) {
+    fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
         let mem_generator = MemoryGenerator {
             config: generator.config.memory_config,
             module: generator.module,
@@ -173,11 +173,11 @@ impl From<DisabledMemoryGenerator> for ModuleWithCallIndexes {
     }
 }
 
-impl<'a> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a>)> for GearWasmGenerator<'a> {
+impl<'a, 'b> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a, 'b>)> for GearWasmGenerator<'a, 'b> {
     fn from(
         (disabled_mem_gen, frozen_gear_wasm_gen): (
             DisabledMemoryGenerator,
-            FrozenGearWasmGenerator<'a>,
+            FrozenGearWasmGenerator<'a, 'b>,
         ),
     ) -> Self {
         GearWasmGenerator {

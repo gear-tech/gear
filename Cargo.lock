@@ -9150,6 +9150,7 @@ name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "gear-call-gen",
  "gear-utils",
  "libfuzzer-sys",
  "log",

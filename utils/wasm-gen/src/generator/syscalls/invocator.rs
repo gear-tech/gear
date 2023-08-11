@@ -91,8 +91,8 @@ pub(crate) fn process_sys_call_params(
 /// additional data injector was disabled, before injecting addresses from the config. As a result,
 /// invocator would set un-intended by config values as messages destination. To avoid such
 /// inconsistency the [`AddressesInjectionOutcome`] gives additional required guarantees.
-pub struct SysCallsInvocator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct SysCallsInvocator<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
@@ -100,15 +100,15 @@ pub struct SysCallsInvocator<'a> {
     sys_call_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
-impl<'a>
+impl<'a, 'b>
     From<(
-        DisabledAdditionalDataInjector<'a>,
+        DisabledAdditionalDataInjector<'a, 'b>,
         AddressesInjectionOutcome,
-    )> for SysCallsInvocator<'a>
+    )> for SysCallsInvocator<'a, 'b>
 {
     fn from(
         (disabled_gen, outcome): (
-            DisabledAdditionalDataInjector<'a>,
+            DisabledAdditionalDataInjector<'a, 'b>,
             AddressesInjectionOutcome,
         ),
     ) -> Self {
@@ -123,12 +123,12 @@ impl<'a>
     }
 }
 
-impl<'a> SysCallsInvocator<'a> {
+impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Insert sys-calls invokes.
     ///
     /// The method builds instructions, which describe how each sys-call is called, and then
     /// insert these instructions into any random function. In the end, all call indexes are resolved.
-    pub fn insert_invokes(mut self) -> Result<DisabledSysCallsInvocator> {
+    pub fn insert_invokes(mut self) -> Result<DisabledSysCallsInvocator<'a, 'b>> {
         for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
             let instructions =
                 self.build_sys_call_invoke_instructions(invocable, call_indexes_handle)?;
@@ -142,6 +142,7 @@ impl<'a> SysCallsInvocator<'a> {
         Ok(DisabledSysCallsInvocator {
             module: self.module,
             call_indexes: self.call_indexes,
+            unstructured: self.unstructured,
         })
     }
 
@@ -393,13 +394,14 @@ impl<'a> SysCallsInvocator<'a> {
 ///
 /// This type signals that sys-calls imports generation, additional data injection and
 /// sys-calls invocation (with further call indexes resolution) is done.
-pub struct DisabledSysCallsInvocator {
+pub struct DisabledSysCallsInvocator<'a, 'b> {
     module: WasmModule,
     call_indexes: CallIndexes,
+    pub unstructured: &'b mut Unstructured<'a>,
 }
 
-impl From<DisabledSysCallsInvocator> for ModuleWithCallIndexes {
-    fn from(disabled_sys_calls_invocator: DisabledSysCallsInvocator) -> Self {
+impl<'a, 'b> From<DisabledSysCallsInvocator<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(disabled_sys_calls_invocator: DisabledSysCallsInvocator<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: disabled_sys_calls_invocator.module,
             call_indexes: disabled_sys_calls_invocator.call_indexes,

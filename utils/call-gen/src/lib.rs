@@ -18,6 +18,7 @@
 
 //! Generator of the `pallet-gear` calls.
 
+mod arbitrary_call;
 mod claim_value;
 mod create_program;
 mod rand_utils;
@@ -33,6 +34,7 @@ pub use send_message::SendMessageArgs;
 pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
+pub use arbitrary_call::GearCalls;
 
 pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
 
@@ -90,6 +92,7 @@ pub trait NamedCallArgs {
 }
 
 /// Set of `pallet_gear` calls supported by the crate.
+#[derive(Debug, Clone)]
 pub enum GearCall {
     /// Upload program call args.
     UploadProgram(UploadProgramArgs),

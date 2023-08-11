@@ -93,23 +93,23 @@ impl ModuleWithCallIndexes {
 /// General gear wasm generator, which works as a mediator
 /// controlling relations between various available in the
 /// crate generators.
-pub struct GearWasmGenerator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct GearWasmGenerator<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     module: WasmModule,
     config: GearWasmGeneratorConfig,
     call_indexes: CallIndexes,
 }
 
-impl<'a> GearWasmGenerator<'a> {
+impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     /// Create a new generator with a default config..
-    pub fn new(module: WasmModule, unstructured: &'a mut Unstructured<'a>) -> Self {
+    pub fn new(module: WasmModule, unstructured: &'b mut Unstructured<'a>) -> Self {
         Self::new_with_config(module, unstructured, GearWasmGeneratorConfig::default())
     }
 
     /// Create a new generator with a defined config.
     pub fn new_with_config(
         module: WasmModule,
-        unstructured: &'a mut Unstructured<'a>,
+        unstructured: &'b mut Unstructured<'a>,
         config: GearWasmGeneratorConfig,
     ) -> Self {
         let call_indexes = CallIndexes::new(&module);
@@ -126,12 +126,20 @@ impl<'a> GearWasmGenerator<'a> {
     pub fn generate(self) -> Result<Module> {
         let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
+        println!("UNSTRD len after mem-gen - {:?}", frozen_gear_wasm_gen.unstructured.as_ref().map(|f| f.len()));
+        
+        
         let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof) =
             Self::from((disabled_mem_gen, frozen_gear_wasm_gen)).generate_entry_points()?;
+        println!("UNSTRD len after ep-gen - {:?}", disabled_ep_gen.unstructured.len());
+        
+        
         let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
             Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
                 .generate_sys_calls(mem_imports_gen_proof, ep_gen_proof)?;
-
+        println!("UNSTRD len after invocations - {:?}", disabled_syscalls_invocator.unstructured.len());
+        
+        
         let config = frozen_gear_wasm_gen.melt();
         let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
             .into_wasm_module()
@@ -149,7 +157,7 @@ impl<'a> GearWasmGenerator<'a> {
         self,
     ) -> (
         DisabledMemoryGenerator,
-        FrozenGearWasmGenerator<'a>,
+        FrozenGearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
     ) {
         let (mem_gen, frozen_gear_wasm_gen): (MemoryGenerator, FrozenGearWasmGenerator) =
@@ -163,8 +171,8 @@ impl<'a> GearWasmGenerator<'a> {
     pub fn generate_entry_points(
         self,
     ) -> Result<(
-        DisabledEntryPointsGenerator<'a>,
-        FrozenGearWasmGenerator<'a>,
+        DisabledEntryPointsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
     )> {
         let (ep_gen, frozen_gear_wasm_gen): (EntryPointsGenerator, FrozenGearWasmGenerator) =
@@ -179,7 +187,7 @@ impl<'a> GearWasmGenerator<'a> {
         self,
         mem_import_gen_proof: MemoryImportGenerationProof,
         ep_gen_proof: GearEntryPointGenerationProof,
-    ) -> Result<(DisabledSysCallsInvocator, FrozenGearWasmGenerator<'a>)> {
+    ) -> Result<(DisabledSysCallsInvocator<'a, 'b>, FrozenGearWasmGenerator<'a, 'b>)> {
         let sys_calls_imports_gen_instantiator =
             SysCallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
         let (sys_calls_imports_gen, frozen_gear_wasm_gen) =
@@ -283,13 +291,13 @@ enum FunctionIndex {
 /// instance was converted to some other generator available in this crate.
 /// This type serves as an access/ticket for converting some generator back
 /// to the gear wasm generator. So it mainly controls state machine flow.
-pub struct FrozenGearWasmGenerator<'a> {
+pub struct FrozenGearWasmGenerator<'a, 'b> {
     config: GearWasmGeneratorConfig,
     call_indexes: Option<CallIndexes>,
-    unstructured: Option<&'a mut Unstructured<'a>>,
+    unstructured: Option<&'b mut Unstructured<'a>>,
 }
 
-impl<'a> FrozenGearWasmGenerator<'a> {
+impl<'a, 'b> FrozenGearWasmGenerator<'a, 'b> {
     /// Destroy the frozen generator and retrieve it's
     /// beneficial data.
     pub fn melt(self) -> GearWasmGeneratorConfig {

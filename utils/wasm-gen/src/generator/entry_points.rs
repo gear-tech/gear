@@ -31,15 +31,15 @@ use gear_wasm_instrument::parity_wasm::{
 /// Gear wasm entry points generator.
 ///
 /// Inserts gear wasm required export functions depending on the config.
-pub struct EntryPointsGenerator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct EntryPointsGenerator<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     module: WasmModule,
     config: EntryPointsSet,
     call_indexes: CallIndexes,
 }
 
-impl<'a> From<GearWasmGenerator<'a>> for (EntryPointsGenerator<'a>, FrozenGearWasmGenerator<'a>) {
-    fn from(generator: GearWasmGenerator<'a>) -> Self {
+impl<'a, 'b> From<GearWasmGenerator<'a, 'b>> for (EntryPointsGenerator<'a, 'b>, FrozenGearWasmGenerator<'a, 'b>) {
+    fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
@@ -56,12 +56,12 @@ impl<'a> From<GearWasmGenerator<'a>> for (EntryPointsGenerator<'a>, FrozenGearWa
     }
 }
 
-impl<'a> EntryPointsGenerator<'a> {
+impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Instantiate a new gear wasm entry points generator.
     pub fn new(
         module_with_indexes: ModuleWithCallIndexes,
         config: EntryPointsSet,
-        unstructured: &'a mut Unstructured<'a>,
+        unstructured: &'b mut Unstructured<'a>,
     ) -> Self {
         let ModuleWithCallIndexes {
             module,
@@ -77,7 +77,7 @@ impl<'a> EntryPointsGenerator<'a> {
     }
 
     /// Disable current generator.
-    pub fn disable(self) -> DisabledEntryPointsGenerator<'a> {
+    pub fn disable(self) -> DisabledEntryPointsGenerator<'a, 'b> {
         DisabledEntryPointsGenerator {
             unstructured: self.unstructured,
             module: self.module,
@@ -91,7 +91,7 @@ impl<'a> EntryPointsGenerator<'a> {
     pub fn generate_entry_points(
         mut self,
     ) -> Result<(
-        DisabledEntryPointsGenerator<'a>,
+        DisabledEntryPointsGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
     )> {
         if self.config.has_init() {
@@ -213,14 +213,14 @@ pub struct GearEntryPointGenerationProof(());
 ///
 /// Instance of this types signals that there was once active gear wasm
 /// entry points generator, but it ended up it's work.
-pub struct DisabledEntryPointsGenerator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct DisabledEntryPointsGenerator<'a, 'b> {
+    pub unstructured: &'b mut Unstructured<'a>,
     module: WasmModule,
     call_indexes: CallIndexes,
 }
 
-impl<'a> From<DisabledEntryPointsGenerator<'a>> for ModuleWithCallIndexes {
-    fn from(ep_gen: DisabledEntryPointsGenerator<'a>) -> Self {
+impl<'a, 'b> From<DisabledEntryPointsGenerator<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(ep_gen: DisabledEntryPointsGenerator<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: ep_gen.module,
             call_indexes: ep_gen.call_indexes,
@@ -228,16 +228,16 @@ impl<'a> From<DisabledEntryPointsGenerator<'a>> for ModuleWithCallIndexes {
     }
 }
 
-impl<'a>
+impl<'a, 'b>
     From<(
-        DisabledEntryPointsGenerator<'a>,
-        FrozenGearWasmGenerator<'a>,
-    )> for GearWasmGenerator<'a>
+        DisabledEntryPointsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
+    )> for GearWasmGenerator<'a, 'b>
 {
     fn from(
         (disabled_ep_gen, frozen_gear_wasm_gen): (
-            DisabledEntryPointsGenerator<'a>,
-            FrozenGearWasmGenerator<'a>,
+            DisabledEntryPointsGenerator<'a, 'b>,
+            FrozenGearWasmGenerator<'a, 'b>,
         ),
     ) -> Self {
         GearWasmGenerator {

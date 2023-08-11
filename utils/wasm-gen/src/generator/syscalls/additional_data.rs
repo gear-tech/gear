@@ -58,8 +58,8 @@ impl AddressesOffsets {
 ///
 /// The generator is instantiated only with having [`SysCallsImportsGenerationProof`], which gives a guarantee. that
 /// if log info should be injected, than `gr_debug` sys-call import is generated.
-pub struct AdditionalDataInjector<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct AdditionalDataInjector<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     config: SysCallsConfig,
     last_offset: u32,
@@ -68,15 +68,15 @@ pub struct AdditionalDataInjector<'a> {
     sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
-impl<'a>
+impl<'a, 'b>
     From<(
-        DisabledSysCallsImportsGenerator<'a>,
+        DisabledSysCallsImportsGenerator<'a, 'b>,
         SysCallsImportsGenerationProof,
-    )> for AdditionalDataInjector<'a>
+    )> for AdditionalDataInjector<'a, 'b>
 {
     fn from(
         (disabled_gen, _sys_calls_gen_proof): (
-            DisabledSysCallsImportsGenerator<'a>,
+            DisabledSysCallsImportsGenerator<'a, 'b>,
             SysCallsImportsGenerationProof,
         ),
     ) -> Self {
@@ -96,14 +96,14 @@ impl<'a>
     }
 }
 
-impl<'a> AdditionalDataInjector<'a> {
+impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
     /// Injects additional data from config to the wasm module.
     ///
     /// Returns disabled additional data injector and injection outcome.
     pub fn inject(
         mut self,
     ) -> (
-        DisabledAdditionalDataInjector<'a>,
+        DisabledAdditionalDataInjector<'a, 'b>,
         AddressesInjectionOutcome,
     ) {
         let offsets = self.inject_addresses();
@@ -122,7 +122,7 @@ impl<'a> AdditionalDataInjector<'a> {
     }
 
     /// Disable current generator.
-    pub fn disable(self) -> DisabledAdditionalDataInjector<'a> {
+    pub fn disable(self) -> DisabledAdditionalDataInjector<'a, 'b> {
         DisabledAdditionalDataInjector {
             module: self.module,
             call_indexes: self.call_indexes,
@@ -247,16 +247,16 @@ pub struct AddressesInjectionOutcome {
 ///
 /// Instance of this type signals that there was once active additional data injector,
 /// but it ended up it's work.
-pub struct DisabledAdditionalDataInjector<'a> {
-    pub(super) unstructured: &'a mut Unstructured<'a>,
+pub struct DisabledAdditionalDataInjector<'a, 'b> {
+    pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) module: WasmModule,
     pub(super) call_indexes: CallIndexes,
     pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
     pub(super) config: SysCallsConfig,
 }
 
-impl<'a> From<DisabledAdditionalDataInjector<'a>> for ModuleWithCallIndexes {
-    fn from(additional_data_inj: DisabledAdditionalDataInjector<'a>) -> Self {
+impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(additional_data_inj: DisabledAdditionalDataInjector<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: additional_data_inj.module,
             call_indexes: additional_data_inj.call_indexes,
