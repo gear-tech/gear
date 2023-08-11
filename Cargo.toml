@@ -443,7 +443,7 @@ page_size = { version = "0.5", default-features = false }                 # pall
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
 schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
+scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
 toml = "0.7.3"                                                            # utils/wasm-builder
