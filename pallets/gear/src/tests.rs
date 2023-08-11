@@ -899,7 +899,7 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use demo_backend_error::WASM_BINARY;
+    use demo_capacitor::{InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -907,7 +907,7 @@ fn backend_errors_handled_in_program() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BackendError.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));

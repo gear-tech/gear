@@ -23,7 +23,6 @@ members = [
     "examples/async-init",
     "examples/async-signal-entry",
     "examples/async-tester",
-    "examples/backend-error",
     "examples/calc-hash",
     "examples/capacitor",
     "examples/compose",
@@ -358,7 +357,6 @@ demo-async-init = { path = "examples/async-init" }
 demo-async-recursion = { path = "examples/async-recursion" }
 demo-async-signal-entry = { path = "examples/async-signal-entry" }
 demo-async-tester = { path = "examples/async-tester" }
-demo-backend-error = { path = "examples/backend-error" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }

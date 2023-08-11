@@ -24,20 +24,16 @@ pub enum StateRequest {
     ForKey(u32),
 }
 
-// #[cfg(not(feature = "std"))]
 use gstd::{debug, msg, prelude::*, BTreeMap};
 
-// #[cfg(not(feature = "std"))]
 pub(crate) type BTreeState = BTreeMap<u32, u32>;
 
-// #[cfg(not(feature = "std"))]
-pub(crate) fn init_btree() -> BTreeState {
+pub(crate) fn init() -> BTreeState {
     msg::reply((), 0).unwrap();
     BTreeMap::new()
 }
 
-// #[cfg(not(feature = "std"))]
-pub(crate) fn handle_btree(state: &mut BTreeState) {
+pub(crate) fn handle(state: &mut BTreeState) {
     let reply = msg::load_on_stack()
         .map(|request| process(state, request))
         .unwrap_or_else(|e| {
@@ -47,8 +43,7 @@ pub(crate) fn handle_btree(state: &mut BTreeState) {
     msg::reply(reply, 0).unwrap();
 }
 
-// #[cfg(not(feature = "std"))]
-pub(crate) fn state_btree(state: BTreeState) {
+pub(crate) fn state(state: BTreeState) {
     let request: StateRequest = msg::load_on_stack().unwrap();
     match request {
         StateRequest::Full => msg::reply(state, 0).unwrap(),
@@ -56,7 +51,6 @@ pub(crate) fn state_btree(state: BTreeState) {
     };
 }
 
-// #[cfg(not(feature = "std"))]
 fn process(state: &mut BTreeState, request: Request) -> Reply {
     use Request::*;
 

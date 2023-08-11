@@ -16,14 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// TODO: move here demo-vec, demo-ping, demo-distributor, demo-piggy-bank and others.
+// Also need to make realisation with dyn instead of using matches #+_+_+.
+
 #![no_std]
 
 extern crate alloc;
 
+pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
 
 use alloc::string::String;
+use backend_error::BackendErrorState;
+use btree::BTreeState;
+use capacitor::CapacitorState;
+use gstd::msg;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -38,48 +46,42 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub enum InitMessage {
     Capacitor(String),
     BTree,
+    BackendError,
 }
 
-// #[cfg(not(feature = "std"))]
-mod wasm {
-    use crate::{
-        btree::{handle_btree, init_btree, state_btree, BTreeState},
-        capacitor::{handle_capacitor, init_capacitor, CapacitorState},
-        InitMessage,
+enum State {
+    Capacitor(CapacitorState),
+    BTree(BTreeState),
+    BackendError(BackendErrorState),
+}
+
+static mut STATE: Option<State> = None;
+
+#[no_mangle]
+extern "C" fn init() {
+    let init_message: InitMessage = msg::load_on_stack().expect("Failed to load payload bytes");
+    let state = match init_message {
+        InitMessage::Capacitor(payload) => State::Capacitor(capacitor::init(payload)),
+        InitMessage::BTree => State::BTree(btree::init()),
+        InitMessage::BackendError => State::BackendError(backend_error::init()),
     };
-    use gstd::msg;
+    unsafe { STATE = Some(state) };
+}
 
-    enum State {
-        Capacitor(CapacitorState),
-        BTree(BTreeState),
+#[no_mangle]
+extern "C" fn handle() {
+    let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
+    match state {
+        State::Capacitor(state) => capacitor::handle(state),
+        State::BTree(state) => btree::handle(state),
+        _ => {}
     }
+}
 
-    static mut STATE: Option<State> = None;
-
-    #[no_mangle]
-    extern "C" fn init() {
-        let init_message: InitMessage = msg::load_on_stack().expect("Failed to load payload bytes");
-        let state = match init_message {
-            InitMessage::Capacitor(payload) => State::Capacitor(init_capacitor(payload)),
-            InitMessage::BTree => State::BTree(init_btree()),
-        };
-        unsafe { STATE = Some(state) };
-    }
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
-        match state {
-            State::Capacitor(state) => handle_capacitor(state),
-            State::BTree(state) => handle_btree(state),
-        }
-    }
-
-    #[no_mangle]
-    extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set in handle") };
-        if let State::BTree(state) = state {
-            state_btree(state);
-        }
+#[no_mangle]
+extern "C" fn state() {
+    let state = unsafe { STATE.take().expect("State must be set in handle") };
+    if let State::BTree(state) = state {
+        btree::state(state);
     }
 }

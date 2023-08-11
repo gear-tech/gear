@@ -87,8 +87,10 @@ async fn get_state_request() -> anyhow::Result<()> {
 
     let gas_limit = 100_000_000_000;
 
-    // let api = GearApi::dev_from_path("../target/release/gear").await?;
-    let api = GearApi::dev().await?.with("//Alice")?;
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
+
+    // Or use this comment to run test on custom node
+    // let api = GearApi::dev().await?.with("//Alice")?;
 
     // Subscribe to events
     let mut listener = api.subscribe().await?;

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    gear_wasm_builder::build();
+use gsys::{ErrorWithHash, HashWithValue};
+
+pub(crate) struct BackendErrorState;
+
+pub(crate) fn init() -> BackendErrorState {
+    // Code below is copied and simplified from `gcore::msg::send`.
+    let pid_value = HashWithValue {
+        hash: [0; 32],
+        value: 0,
+    };
+
+    let mut res: ErrorWithHash = Default::default();
+
+    // u32::MAX ptr + 42 len of the payload triggers error of payload read.
+    unsafe {
+        gsys::gr_send(
+            pid_value.as_ptr(),
+            u32::MAX as *const u8,
+            42,
+            0,
+            res.as_mut_ptr(),
+        )
+    };
+
+    assert!(res.error_code != 0);
+
+    BackendErrorState
 }

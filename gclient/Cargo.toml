@@ -35,7 +35,6 @@ env_logger.workspace = true
 hex-literal.workspace = true
 log.workspace = true
 demo-async-tester.workspace = true
-demo-backend-error.workspace = true
 demo-calc-hash.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-capacitor.workspace = true
