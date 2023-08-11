@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: move here demo-vec, demo-ping, demo-distributor, demo-piggy-bank and others.
-// Also need to make implementation with dyn instead of using matches #+_+_+.
+// TODO: #3058. Move here demo-vec, demo-ping, demo-distributor, demo-piggy-bank and others.
+// Also need to make implementation with dyn instead of using matches.
 
 #![no_std]
 
