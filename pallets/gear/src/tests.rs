@@ -899,7 +899,7 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use demo_capacitor::{InitMessage, WASM_BINARY};
+    use demo_collection::{InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6119,7 +6119,7 @@ fn resume_session_init_works() {
 fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_capacitor::{
+        use demo_collection::{
             btree::{Request, StateRequest},
             InitMessage, WASM_BINARY,
         };
@@ -6169,7 +6169,7 @@ fn state_request() {
 fn resume_session_push_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_capacitor::{btree::Request, InitMessage, WASM_BINARY};
+        use demo_collection::{btree::Request, InitMessage, WASM_BINARY};
 
         let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
@@ -6279,7 +6279,7 @@ fn resume_session_push_works() {
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_capacitor::{
+        use demo_collection::{
             btree::{Reply, Request},
             InitMessage, WASM_BINARY,
         };
@@ -7491,7 +7491,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_capacitor::{btree::Request, InitMessage, WASM_BINARY};
+    use demo_collection::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {

@@ -1870,7 +1870,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-capacitor"
+name = "demo-collection"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -3615,7 +3615,7 @@ dependencies = [
  "demo-async-tester",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
- "demo-capacitor",
+ "demo-collection",
  "demo-constructor",
  "demo-distributor",
  "demo-meta-io",
@@ -4665,7 +4665,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
- "demo-capacitor",
+ "demo-collection",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
@@ -7216,7 +7216,7 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
- "demo-capacitor",
+ "demo-collection",
  "demo-compose",
  "demo-constructor",
  "demo-delayed-sender",

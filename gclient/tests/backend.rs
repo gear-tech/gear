@@ -18,7 +18,7 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use demo_capacitor::{InitMessage, WASM_BINARY};
+use demo_collection::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
 use parity_scale_codec::Encode;
 

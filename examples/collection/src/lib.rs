@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // TODO: move here demo-vec, demo-ping, demo-distributor, demo-piggy-bank and others.
-// Also need to make realisation with dyn instead of using matches #+_+_+.
+// Also need to make implementation with dyn instead of using matches #+_+_+.
 
 #![no_std]
 
