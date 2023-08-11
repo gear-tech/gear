@@ -128,7 +128,7 @@ env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.28"
-hashbrown = "0.13.2"
+hashbrown = "0.14.0"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
