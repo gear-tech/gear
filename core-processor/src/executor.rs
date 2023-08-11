@@ -39,7 +39,7 @@ use gear_backend_common::{
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
-    gas::{CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, MemoryError, PageBuf},
     message::{
