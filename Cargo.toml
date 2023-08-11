@@ -114,7 +114,7 @@ async-trait = "0.1.68"
 base64 = "0.21.0"
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.3.19" }
+clap = { version = "4.3.21" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
