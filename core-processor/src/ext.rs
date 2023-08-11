@@ -24,9 +24,7 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
-    memory::ProcessAccessError,
-    runtime::RunFallibleError,
+    lazy_pages::GlobalsAccessConfig, memory::ProcessAccessError, runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
     ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
@@ -117,6 +115,9 @@ pub trait ProcessorExternalities {
     /// System pages error.
     type SystemPagesError: fmt::Display;
 
+    /// Initialization context for program pages.
+    type PagesInitContext;
+
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
@@ -132,6 +133,9 @@ pub trait ProcessorExternalities {
         initial_pages_data: &BTreeMap<GearPage, PageBuf>,
     ) -> Result<(), Self::SystemPagesError>;
 
+    /// Create [`Self::PagesInitContext`].
+    fn pages_init_context(&self, globals_config: GlobalsAccessConfig) -> Self::PagesInitContext;
+
     /// Initialize pages for program.
     fn init_pages_for_program(
         mem: &mut impl Memory,
@@ -139,8 +143,7 @@ pub trait ProcessorExternalities {
         stack_end: Option<WasmPage>,
         pages_data: &mut BTreeMap<GearPage, PageBuf>,
         static_pages: WasmPage,
-        globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
+        ctx: Self::PagesInitContext,
     ) -> Result<(), ActorSystemError<Self::ActorPagesError, Self::SystemPagesError>>;
 
     /// Pages contract post execution actions
@@ -290,6 +293,7 @@ pub struct Ext {
 impl ProcessorExternalities for Ext {
     type ActorPagesError = ActorPagesError;
     type SystemPagesError = SystemPagesError;
+    type PagesInitContext = ();
 
     fn new(context: ProcessorContext) -> Self {
         let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
@@ -344,14 +348,15 @@ impl ProcessorExternalities for Ext {
         Ok(())
     }
 
+    fn pages_init_context(&self, _globals_config: GlobalsAccessConfig) -> Self::PagesInitContext {}
+
     fn init_pages_for_program(
         mem: &mut impl Memory,
         _prog_id: ProgramId,
         stack_end: Option<WasmPage>,
         pages_data: &mut BTreeMap<GearPage, PageBuf>,
         static_pages: WasmPage,
-        _globals_config: GlobalsAccessConfig,
-        _lazy_pages_weights: LazyPagesWeights,
+        _ctx: (),
     ) -> Result<(), PagesError> {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.

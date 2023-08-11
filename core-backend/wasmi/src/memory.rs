@@ -73,8 +73,9 @@ impl<Ext: Externalities + 'static> MemoryWrap<Ext> {
     pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<Ext>>) -> Self {
         MemoryWrap { memory, store }
     }
-    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
-        self.store
+
+    pub(crate) fn into_parts(self) -> (WasmiMemory, Store<HostState<Ext>>) {
+        (self.memory, self.store)
     }
 }
 

@@ -65,6 +65,11 @@ mod lazy_pages {
         InitialPagesContainsData,
     }
 
+    pub struct LazyPagesInitContext {
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
+    }
+
     /// Ext with lazy pages support.
     pub struct LazyPagesExt {
         inner: Ext,
@@ -102,6 +107,7 @@ mod lazy_pages {
     impl ProcessorExternalities for LazyPagesExt {
         type ActorPagesError = ActorLazyPagesError;
         type SystemPagesError = SystemLazyPagesError;
+        type PagesInitContext = LazyPagesInitContext;
 
         fn new(context: ProcessorContext) -> Self {
             Self {
@@ -132,15 +138,29 @@ mod lazy_pages {
                 .map_err(Into::into)
         }
 
+        fn pages_init_context(
+            &self,
+            globals_config: GlobalsAccessConfig,
+        ) -> Self::PagesInitContext {
+            LazyPagesInitContext {
+                globals_config,
+                lazy_pages_weights: self.inner.context.page_costs.lazy_pages_weights(),
+            }
+        }
+
         fn init_pages_for_program(
             mem: &mut impl Memory,
             prog_id: ProgramId,
             stack_end: Option<WasmPage>,
             pages_data: &mut BTreeMap<GearPage, PageBuf>,
             _static_pages: WasmPage,
-            globals_config: GlobalsAccessConfig,
-            lazy_pages_weights: LazyPagesWeights,
+            ctx: Self::PagesInitContext,
         ) -> Result<(), LazyPagesError> {
+            let LazyPagesInitContext {
+                globals_config,
+                lazy_pages_weights,
+            } = ctx;
+
             Self::check_init_pages_data(pages_data)?;
 
             lazy_pages::init_for_program(

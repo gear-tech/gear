@@ -17,6 +17,7 @@ gear-sandbox.workspace = true
 log.workspace = true
 derive_more.workspace = true
 codec.workspace = true
+actor-system-error.workspace = true
 
 [features]
 default = ["std"]

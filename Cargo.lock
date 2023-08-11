@@ -3752,6 +3752,7 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "actor-system-error",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -3767,6 +3768,7 @@ dependencies = [
 name = "gear-backend-wasmi"
 version = "0.1.0"
 dependencies = [
+ "actor-system-error",
  "derive_more",
  "gear-backend-common",
  "gear-core",

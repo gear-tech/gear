@@ -23,13 +23,14 @@ use crate::{
     memory::MemoryWrap,
     state::{HostState, State},
 };
+use actor_system_error::ActorSystemError;
 use alloc::{collections::BTreeSet, format, string::ToString};
-use core::{any::Any, convert::Infallible, fmt::Display};
+use core::any::Any;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
+    ActorEnvironmentError, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendReport, BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
@@ -67,16 +68,65 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<Ext, EntryPoint = DispatchKind>
+pub struct WasmiEnvironment<'a, Ext, EntryPoint = DispatchKind>
 where
-    Ext: Externalities,
+    Ext: Externalities + 'static,
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
-    store: Store<HostState<Ext>>,
-    memory: Memory,
+    memory_wrap: MemoryWrap<Ext>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
+    stack_end: Option<u32>,
+    gear_gas: Global,
+    globals_config: GlobalsAccessConfig,
+    globals_provider: GlobalsAccessProvider<Ext>,
+    globals_provider_dyn_ref: &'a mut dyn GlobalsAccessor,
+}
+
+pub struct WasmiPostEnvironment<'a, Ext, EntryPoint = DispatchKind>
+where
+    Ext: Externalities + 'static,
+    EntryPoint: WasmEntryPoint,
+{
+    instance: Instance,
+    memory_wrap: MemoryWrap<Ext>,
+    entries: BTreeSet<DispatchKind>,
+    entry_point: EntryPoint,
+    gear_gas: Global,
+    globals_provider: GlobalsAccessProvider<Ext>,
+    globals_provider_dyn_ref: &'a mut dyn GlobalsAccessor,
+}
+
+impl<'a, Ext, EntryPoint> From<WasmiEnvironment<'a, Ext, EntryPoint>>
+    for WasmiPostEnvironment<'a, Ext, EntryPoint>
+where
+    Ext: Externalities + 'static,
+    EntryPoint: WasmEntryPoint,
+{
+    fn from(env: WasmiEnvironment<'a, Ext, EntryPoint>) -> Self {
+        let WasmiEnvironment {
+            instance,
+            memory_wrap,
+            entries,
+            entry_point,
+            stack_end: _,
+            gear_gas,
+            globals_config: _,
+            globals_provider,
+            globals_provider_dyn_ref,
+        } = env;
+
+        Self {
+            instance,
+            memory_wrap,
+            entries,
+            entry_point,
+            gear_gas,
+            globals_provider,
+            globals_provider_dyn_ref,
+        }
+    }
 }
 
 struct GlobalsAccessProvider<Ext: Externalities> {
@@ -121,7 +171,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
     }
 }
 
-impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, EntryPoint>
+impl<'a, EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<'a, EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
@@ -132,15 +182,16 @@ where
     type Ext = EnvExt;
     type Memory = MemoryWrap<EnvExt>;
     type SystemError = WasmiEnvironmentError;
+    type PostEnvironment = WasmiPostEnvironment<'a, EnvExt, EntryPoint>;
 
-    fn new(
+    fn prepare(
         ext: Self::Ext,
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
-        use EnvironmentError::*;
+    ) -> Result<Self, EnvironmentError<Self::SystemError>> {
+        use ActorSystemError::*;
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
@@ -176,7 +227,7 @@ where
                 .map_err(|e| System(Linking(e)))?;
         }
         let module = Module::new(store.engine(), binary)
-            .map_err(|e| Actor(ext.gas_amount(), e.to_string()))?;
+            .map_err(|e| ActorEnvironmentError(ext.gas_amount(), e.to_string()))?;
 
         let runtime = State {
             ext,
@@ -187,43 +238,11 @@ where
 
         let instance_pre = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| Actor(gas_amount!(store), e.to_string()))?;
+            .map_err(|e| ActorEnvironmentError(gas_amount!(store), e.to_string()))?;
 
         let instance = instance_pre
             .ensure_no_start(&mut store)
-            .map_err(|e| Actor(gas_amount!(store), e.to_string()))?;
-
-        Ok(Self {
-            instance,
-            store,
-            memory,
-            entries,
-            entry_point,
-        })
-    }
-
-    fn execute<PrepareMemory, PrepareMemoryError>(
-        self,
-        prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
-    where
-        PrepareMemory: FnOnce(
-            &mut Self::Memory,
-            Option<u32>,
-            GlobalsAccessConfig,
-        ) -> Result<(), PrepareMemoryError>,
-        PrepareMemoryError: Display,
-    {
-        use EnvironmentError::*;
-        use WasmiEnvironmentError::*;
-
-        let Self {
-            instance,
-            mut store,
-            memory,
-            entries,
-            entry_point,
-        } = self;
+            .map_err(|e| ActorEnvironmentError(gas_amount!(store), e.to_string()))?;
 
         let stack_end = instance
             .get_export(&store, STACK_END_EXPORT_NAME)
@@ -247,12 +266,9 @@ where
             instance,
             store: None,
         };
-        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
-
-        let needs_execution = entry_point
-            .try_into_kind()
-            .map(|kind| entries.contains(&kind))
-            .unwrap_or(true);
+        // TODO: resolve
+        let globals_provider_dyn_ref =
+            unsafe { core::mem::transmute(&mut globals_provider as &mut dyn GlobalsAccessor) };
 
         // Pointer to the globals access provider is valid until the end of `execute` method.
         // So, we can safely use it inside lazy-pages and be sure that it points to the valid object.
@@ -266,24 +282,74 @@ where
             access_mod: GlobalsAccessMod::NativeRuntime,
         };
 
-        let mut memory_wrap = MemoryWrap::new(memory, store);
-        prepare_memory(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
-            let store = &memory_wrap.store;
-            PrepareMemory(gas_amount!(store), e)
-        })?;
+        let memory_wrap = MemoryWrap::new(memory, store);
 
-        let mut store = memory_wrap.into_store();
+        Ok(Self {
+            instance,
+            memory_wrap,
+            entries,
+            entry_point,
+            stack_end,
+            gear_gas,
+            globals_config,
+            globals_provider,
+            globals_provider_dyn_ref,
+        })
+    }
+
+    fn ext(&self) -> &Self::Ext {
+        &self
+            .memory_wrap
+            .store
+            .state()
+            .as_ref()
+            .unwrap_or_else(|| unreachable!(""))
+            .ext
+    }
+
+    fn memory(&mut self) -> &mut Self::Memory {
+        &mut self.memory_wrap
+    }
+
+    fn stack_end(&self) -> Option<u32> {
+        self.stack_end
+    }
+
+    fn globals_config(&self) -> GlobalsAccessConfig {
+        self.globals_config.clone()
+    }
+
+    fn execute(env: Self::PostEnvironment) -> EnvironmentExecutionResult<Self, EntryPoint> {
+        use ActorSystemError::*;
+        use WasmiEnvironmentError::*;
+
+        let WasmiPostEnvironment {
+            instance,
+            memory_wrap,
+            entries,
+            entry_point,
+            gear_gas,
+            mut globals_provider,
+            globals_provider_dyn_ref,
+        } = env;
+
+        let needs_execution = entry_point
+            .try_into_kind()
+            .map(|kind| entries.contains(&kind))
+            .unwrap_or(true);
+
+        let (memory, mut store) = memory_wrap.into_parts();
         let res = if needs_execution {
             let func = instance
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
-                .ok_or(Actor(
+                .ok_or(ActorEnvironmentError(
                     gas_amount!(store),
                     format!("Entry export `{}` not found", entry_point.as_entry()),
                 ))?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                Actor(
+                ActorEnvironmentError(
                     gas_amount!(store),
                     format!("Wrong type of entry `{}`", entry_point.as_entry()),
                 )

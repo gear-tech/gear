@@ -15,6 +15,7 @@ codec.workspace = true
 derive_more.workspace = true
 log.workspace = true
 wasmi.workspace = true
+actor-system-error.workspace = true
 
 [dev-dependencies]
 gear-backend-common = { workspace = true, features = ["mock"] }

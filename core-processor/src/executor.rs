@@ -32,9 +32,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
-    ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
-    EnvironmentError, TerminationReason,
+    ActorEnvironmentError, ActorTerminationReason, BackendExternalities, BackendReport,
+    BackendSyscallError, Environment, TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -120,16 +119,18 @@ fn check_memory<'a>(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
-    mem: &mut EnvMem,
+fn prepare_memory<Env, EP>(
+    env: &mut Env,
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
-    stack_end: Option<u32>,
-    globals_config: GlobalsAccessConfig,
-    lazy_pages_weights: LazyPagesWeights,
-) -> Result<(), PrepareMemoryError> {
-    let stack_end = if let Some(stack_end) = stack_end {
+) -> Result<(), PrepareMemoryError>
+where
+    Env: Environment<EP>,
+    Env::Ext: ProcessorExternalities + BackendExternalities,
+    EP: WasmEntryPoint,
+{
+    let stack_end = if let Some(stack_end) = env.stack_end() {
         let stack_end = (stack_end % WasmPage::size() == 0)
             .then_some(WasmPage::from_offset(stack_end))
             .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
@@ -147,26 +148,22 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
         None
     };
 
+    let globals_config = env.globals_config();
+    let ctx = env.ext().pages_init_context(globals_config);
+    let mem = env.memory();
+
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data)
             .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
-    ProcessorExt::check_init_pages_data(pages_data)
+    Env::Ext::check_init_pages_data(pages_data)
         .map_err(|err| SystemPrepareMemoryError::Pages(err.to_string()))?;
 
-    ProcessorExt::init_pages_for_program(
-        mem,
-        program_id,
-        stack_end,
-        pages_data,
-        static_pages,
-        globals_config,
-        lazy_pages_weights,
-    )
-    .map_actor_err(|err| ActorPrepareMemoryError::Pages(err.to_string()))
-    .map_system_err(|err| SystemPrepareMemoryError::Pages(err.to_string()))?;
+    Env::Ext::init_pages_for_program(mem, program_id, stack_end, pages_data, static_pages, ctx)
+        .map_actor_err(|err| ActorPrepareMemoryError::Pages(err.to_string()))
+        .map_system_err(|err| SystemPrepareMemoryError::Pages(err.to_string()))?;
 
     Ok(())
 }
@@ -246,73 +243,53 @@ where
         rent_cost: settings.rent_cost,
     };
 
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
-
     // Creating externalities.
     let ext = E::Ext::new(context);
 
-    // Execute program in backend env.
-    let execute = || {
-        let env = E::new(
-            ext,
-            program.raw_code(),
-            kind,
-            program.code().exports().clone(),
-            memory_size,
-        )
-        .map_err(EnvironmentError::from_infallible)?;
-        env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<E::Ext, E::Memory>(
-                memory,
-                program_id,
-                &mut pages_initial_data,
-                static_pages,
-                stack_end,
-                globals_config,
-                lazy_pages_weights,
-            )
+    let mut env = E::prepare(
+        ext,
+        program.raw_code(),
+        kind,
+        program.code().exports().clone(),
+        memory_size,
+    )
+    .map_actor_err(
+        |ActorEnvironmentError(gas_amount, err)| ActorExecutionError {
+            gas_amount,
+            reason: ActorExecutionErrorReplyReason::Environment(err.into()),
+        },
+    )
+    .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))?;
+
+    prepare_memory(&mut env, program_id, &mut pages_initial_data, static_pages)
+        .map_actor_err(|err| ActorExecutionError {
+            gas_amount: env.ext().gas_amount(),
+            reason: ActorExecutionErrorReplyReason::PrepareMemory(err),
         })
-    };
-    let (termination, memory, ext) = match execute() {
-        Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                memory_wrap: mut memory,
-                ext,
-            } = report;
+        .map_err_into()?;
 
-            let mut termination = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(ExecutionError::System(reason.into()))
-                }
-            };
-
-            E::Ext::pages_post_execution_actions(&mut memory, &mut termination);
-
-            (termination, memory, ext)
-        }
-        Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(
-                e.to_string(),
-            )))
-        }
-        Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
-            return Err(ExecutionError::Actor(ActorExecutionError {
-                gas_amount,
-                reason: ActorExecutionErrorReplyReason::PrepareMemory(e),
-            }))
-        }
-        Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
-            return Err(ExecutionError::System(e.into()));
-        }
-        Err(EnvironmentError::Actor(gas_amount, err)) => {
-            return Err(ExecutionError::Actor(ActorExecutionError {
+    let post_env = env.into();
+    let report = E::execute(post_env)
+        .map_actor_err(
+            |ActorEnvironmentError(gas_amount, err)| ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReplyReason::Environment(err.into()),
-            }))
-        }
+            },
+        )
+        .map_system_err(|err| SystemExecutionError::Environment(err.to_string()))?;
+
+    let BackendReport {
+        termination_reason,
+        memory_wrap: mut memory,
+        ext,
+    } = report;
+
+    let mut termination = match termination_reason {
+        TerminationReason::Actor(reason) => reason,
+        TerminationReason::System(reason) => return Err(ExecutionError::System(reason.into())),
     };
+
+    E::Ext::pages_post_execution_actions(&mut memory, &mut termination);
 
     log::debug!("Termination reason: {:?}", termination);
 
@@ -441,35 +418,30 @@ where
         rent_cost: Default::default(),
     };
 
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
-
     // Creating externalities.
     let ext = E::Ext::new(context);
 
-    // Execute program in backend env.
-    let f = || {
-        let env = E::new(
-            ext,
-            program.raw_code(),
-            function,
-            program.code().exports().clone(),
-            memory_size,
-        )
-        .map_err(EnvironmentError::from_infallible)?;
-        env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<E::Ext, E::Memory>(
-                memory,
-                program.id(),
-                &mut pages_initial_data,
-                static_pages,
-                stack_end,
-                globals_config,
-                lazy_pages_weights,
-            )
-        })
-    };
+    let mut env = E::prepare(
+        ext,
+        program.raw_code(),
+        function,
+        program.code().exports().clone(),
+        memory_size,
+    )
+    .map_err(|err| err.to_string())?;
 
-    let (termination, memory, ext) = match f() {
+    prepare_memory(
+        &mut env,
+        program.id(),
+        &mut pages_initial_data,
+        static_pages,
+    )
+    .map_err(|err| err.to_string())?;
+
+    let post_env = env.into();
+    let exec_result = E::execute(post_env);
+
+    let (termination, memory, ext) = match exec_result {
         Ok(report) => {
             let BackendReport {
                 termination_reason,

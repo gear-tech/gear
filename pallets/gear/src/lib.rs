@@ -91,7 +91,8 @@ use sp_std::{
 };
 
 #[cfg(feature = "std")]
-type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;
+type ExecutionEnvironment<'a, EP = DispatchKind> =
+    gear_backend_wasmi::WasmiEnvironment<'a, Ext, EP>;
 
 #[cfg(not(feature = "std"))]
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;

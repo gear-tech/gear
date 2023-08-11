@@ -22,14 +22,14 @@ use crate::{
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
+use actor_system_error::ActorSystemError;
 use alloc::{collections::BTreeSet, format};
-use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
+    ActorEnvironmentError, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendReport, BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult,
 };
 use gear_core::{
@@ -149,6 +149,44 @@ where
     runtime: Runtime<Ext>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
+    stack_end: Option<u32>,
+    globals_config: GlobalsAccessConfig,
+}
+
+pub struct SandboxPostEnvironment<Ext, EntryPoint = DispatchKind>
+where
+    Ext: BackendExternalities,
+    EntryPoint: WasmEntryPoint,
+{
+    instance: Instance<Runtime<Ext>>,
+    runtime: Runtime<Ext>,
+    entries: BTreeSet<DispatchKind>,
+    entry_point: EntryPoint,
+}
+
+impl<Ext, EntryPoint> From<SandboxEnvironment<Ext, EntryPoint>>
+    for SandboxPostEnvironment<Ext, EntryPoint>
+where
+    Ext: BackendExternalities,
+    EntryPoint: WasmEntryPoint,
+{
+    fn from(env: SandboxEnvironment<Ext, EntryPoint>) -> Self {
+        let SandboxEnvironment {
+            instance,
+            runtime,
+            entries,
+            entry_point,
+            stack_end: _,
+            globals_config: _,
+        } = env;
+
+        Self {
+            instance,
+            runtime,
+            entries,
+            entry_point,
+        }
+    }
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -273,15 +311,16 @@ where
     type Ext = EnvExt;
     type Memory = MemoryWrap;
     type SystemError = SandboxEnvironmentError;
+    type PostEnvironment = SandboxPostEnvironment<EnvExt, EntryPoint>;
 
-    fn new(
+    fn prepare(
         ext: Self::Ext,
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
-        use EnvironmentError::*;
+    ) -> Result<Self, EnvironmentError<Self::SystemError>> {
+        use ActorSystemError::*;
         use SandboxEnvironmentError::*;
 
         let entry_forbidden = entry_point
@@ -329,38 +368,8 @@ where
             termination_reason: ActorTerminationReason::Success.into(),
         };
 
-        match Instance::new(binary, &env_builder, &mut runtime) {
-            Ok(instance) => Ok(Self {
-                instance,
-                runtime,
-                entries,
-                entry_point,
-            }),
-            Err(e) => Err(Actor(runtime.ext.gas_amount(), format!("{e:?}"))),
-        }
-    }
-
-    fn execute<PrepareMemory, PrepareMemoryError>(
-        self,
-        prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
-    where
-        PrepareMemory: FnOnce(
-            &mut Self::Memory,
-            Option<u32>,
-            GlobalsAccessConfig,
-        ) -> Result<(), PrepareMemoryError>,
-        PrepareMemoryError: Display,
-    {
-        use EnvironmentError::*;
-        use SandboxEnvironmentError::*;
-
-        let Self {
-            mut instance,
-            mut runtime,
-            entries,
-            entry_point,
-        } = self;
+        let instance = Instance::new(binary, &env_builder, &mut runtime)
+            .map_err(|e| ActorEnvironmentError(runtime.ext.gas_amount(), format!("{e:?}")))?;
 
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
@@ -388,12 +397,42 @@ where
             unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
-        match prepare_memory(&mut runtime.memory, stack_end, globals_config) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(PrepareMemory(runtime.ext.gas_amount(), e));
-            }
-        }
+        Ok(Self {
+            instance,
+            runtime,
+            entries,
+            entry_point,
+            stack_end,
+            globals_config,
+        })
+    }
+
+    fn ext(&self) -> &Self::Ext {
+        &self.runtime.ext
+    }
+
+    fn memory(&mut self) -> &mut Self::Memory {
+        &mut self.runtime.memory
+    }
+
+    fn stack_end(&self) -> Option<u32> {
+        self.stack_end
+    }
+
+    fn globals_config(&self) -> GlobalsAccessConfig {
+        self.globals_config.clone()
+    }
+
+    fn execute(env: Self::PostEnvironment) -> EnvironmentExecutionResult<Self, EntryPoint> {
+        use ActorSystemError::*;
+        use SandboxEnvironmentError::*;
+
+        let SandboxPostEnvironment {
+            mut instance,
+            mut runtime,
+            entries,
+            entry_point,
+        } = env;
 
         let needs_execution = entry_point
             .try_into_kind()

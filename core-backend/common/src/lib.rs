@@ -34,16 +34,13 @@ pub mod memory;
 pub mod runtime;
 
 use crate::runtime::RunFallibleError;
-use actor_system_error::actor_system_error;
+use actor_system_error::{actor_system_error, ActorSystemError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
-use core::{
-    convert::Infallible,
-    fmt::{Debug, Display},
-};
+use core::fmt::{Debug, Display};
 use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
@@ -343,34 +340,24 @@ where
     pub ext: Ext,
 }
 
-#[derive(Debug, derive_more::Display)]
-pub enum EnvironmentError<EnvSystemError: Display, PrepareMemoryError: Display> {
-    #[display(fmt = "Actor backend error: {_1}")]
-    Actor(GasAmount, String),
-    #[display(fmt = "System backend error: {_0}")]
-    System(EnvSystemError),
-    #[display(fmt = "Prepare error: {_1}")]
-    PrepareMemory(GasAmount, PrepareMemoryError),
-}
+pub type EnvironmentError<EnvSystemError> = ActorSystemError<ActorEnvironmentError, EnvSystemError>;
 
-impl<EnvSystemError: Display, PrepareMemoryError: Display>
-    EnvironmentError<EnvSystemError, PrepareMemoryError>
-{
-    pub fn from_infallible(err: EnvironmentError<EnvSystemError, Infallible>) -> Self {
-        match err {
-            EnvironmentError::System(err) => Self::System(err),
-            EnvironmentError::PrepareMemory(_, err) => match err {},
-            EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
-        }
+impl<EnvSystemError> From<ActorEnvironmentError> for EnvironmentError<EnvSystemError> {
+    fn from(err: ActorEnvironmentError) -> Self {
+        Self::Actor(err)
     }
 }
+
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{_1}")]
+pub struct ActorEnvironmentError(pub GasAmount, pub String);
 
 type EnvironmentBackendReport<Env, EntryPoint> =
     BackendReport<<Env as Environment<EntryPoint>>::Memory, <Env as Environment<EntryPoint>>::Ext>;
 
-pub type EnvironmentExecutionResult<PrepareMemoryError, Env, EntryPoint> = Result<
+pub type EnvironmentExecutionResult<Env, EntryPoint> = Result<
     EnvironmentBackendReport<Env, EntryPoint>,
-    EnvironmentError<<Env as Environment<EntryPoint>>::SystemError, PrepareMemoryError>,
+    EnvironmentError<<Env as Environment<EntryPoint>>::SystemError>,
 >;
 
 pub trait Environment<EntryPoint = DispatchKind>: Sized
@@ -388,30 +375,30 @@ where
     /// of wrapper over the underlying executor error.
     type SystemError: Debug + Display;
 
+    type PostEnvironment: From<Self>;
+
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
     /// 3) Runs `prepare_memory` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
-    fn new(
+    fn prepare(
         ext: Self::Ext,
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>>;
+    ) -> Result<Self, EnvironmentError<Self::SystemError>>;
+
+    fn ext(&self) -> &Self::Ext;
+
+    fn memory(&mut self) -> &mut Self::Memory;
+
+    fn stack_end(&self) -> Option<u32>;
+
+    fn globals_config(&self) -> GlobalsAccessConfig;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<PrepareMemory, PrepareMemoryError>(
-        self,
-        prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
-    where
-        PrepareMemory: FnOnce(
-            &mut Self::Memory,
-            Option<u32>,
-            GlobalsAccessConfig,
-        ) -> Result<(), PrepareMemoryError>,
-        PrepareMemoryError: Display;
+    fn execute(env: Self::PostEnvironment) -> EnvironmentExecutionResult<Self, EntryPoint>;
 }
 
 pub trait BackendState {
