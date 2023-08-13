@@ -60,6 +60,14 @@ use subxt::{
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
+/// Implementation of calls to programs/other users for [`Signer`].
+#[derive(Clone)]
+pub struct SignerCalls(Arc<SignerInner>);
+
+/// Implementation of storage calls for [`Signer`].
+#[derive(Clone)]
+pub struct SignerStorage(Arc<SignerInner>);
+
 // pallet-balances
 impl SignerCalls {
     /// `pallet_balances::transfer`

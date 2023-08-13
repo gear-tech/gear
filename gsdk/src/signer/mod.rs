@@ -23,8 +23,10 @@ use crate::{
     result::{Error, Result},
     Api,
 };
+use calls::{SignerCalls, SignerStorage};
 use core::ops::Deref;
 pub use pair_signer::PairSigner;
+use rpc::SignerRpc;
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
 use std::sync::Arc;
@@ -49,18 +51,6 @@ pub struct Signer {
     /// Calls to fetch data from node.
     pub rpc: SignerRpc,
 }
-
-/// Implementation of storage calls for [`Signer`].
-#[derive(Clone)]
-pub struct SignerStorage(Arc<SignerInner>);
-
-/// Implementation of calls to programs/other users for [`Signer`].
-#[derive(Clone)]
-pub struct SignerCalls(Arc<SignerInner>);
-
-/// Implementation of calls to node RPC for [`Signer`].
-#[derive(Clone)]
-pub struct SignerRpc(Arc<SignerInner>);
 
 /// Implementation of low-level calls for [`Signer`].
 #[derive(Clone)]

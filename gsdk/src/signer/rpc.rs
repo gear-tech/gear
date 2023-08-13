@@ -22,7 +22,9 @@ use crate::{result::Result, types::GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 
-use super::SignerRpc;
+/// Implementation of calls to node RPC for [`Signer`].
+#[derive(Clone)]
+pub struct SignerRpc(Arc<SignerInner>);
 
 impl SignerRpc {
     /// public key of the signer in H256
