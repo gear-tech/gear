@@ -137,7 +137,7 @@ jobs:
                 mergeFailedPRs.push(prString);
               }
             }
-            
+
             console.log('Creating combined PR');
             const combinedPRsString = combinedPRs.join('\n');
             let body = '✅ This PR was created by the Combine PRs action by combining the following PRs:\n' + combinedPRsString;
@@ -161,7 +161,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pull.number,
-                labels: [ "A4-insubstantial", "E1-forcewindows", "E2-forcemacos" ]
+                labels: [ "A4-insubstantial", "E2-forcemacos" ]
               });
             } catch (e) {
               console.log("Failed to add labels:", e);
