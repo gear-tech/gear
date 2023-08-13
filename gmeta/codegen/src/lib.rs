@@ -191,7 +191,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
     let Some((_, items)) = module.content else {
         return error(
             module_span,
-            "`#[metawasm]` doesn't work with modules without a body"
+            "`#[metawasm]` doesn't work with modules without a body",
         );
     };
 
@@ -252,7 +252,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
         let Item::Fn(function) = potential_function else {
             return error(
                 potential_function,
-                "rest of items in a module with `#[metawasm]` must be functions"
+                "rest of items in a module with `#[metawasm]` must be functions",
             );
         };
 

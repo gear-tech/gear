@@ -19,3 +19,4 @@ wasmparser.workspace = true
 wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
+gear-core.workspace = true

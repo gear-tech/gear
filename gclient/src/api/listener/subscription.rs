@@ -19,10 +19,10 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gsdk::metadata::{gear_runtime::RuntimeEvent, Event};
+use gsdk::Event;
 
 #[async_trait(?Send)]
-impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
+impl<I: IntoIterator<Item = Event> + Clone> EventProcessor for I {
     fn not_waited() -> Error {
         Error::EventNotFoundInIterator
     }

@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-wasm-instrument = { workspace = true, features = ["sign_ext"] }
+gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 enum-iterator.workspace = true
 
 [dev-dependencies]
@@ -20,6 +20,6 @@ gear-core.workspace = true
 default = ["std"]
 std = [
     "gear-backend-wasmi/std",
-    "wasm-instrument/std",
     "gear-backend-wasmi/std",
+    "gwasm-instrument/std",
 ]
