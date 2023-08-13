@@ -114,7 +114,7 @@ async-trait = "0.1.68"
 base64 = "0.21.0"
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.3.19" }
+clap = { version = "4.3.21" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -128,7 +128,7 @@ env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.28"
-hashbrown = "0.13.2"
+hashbrown = "0.14.0"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
@@ -443,7 +443,7 @@ page_size = { version = "0.5", default-features = false }                 # pall
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
 schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
+scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
 toml = "0.7.3"                                                            # utils/wasm-builder
