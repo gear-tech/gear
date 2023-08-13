@@ -83,7 +83,7 @@ impl SignerInner {
         &self,
         call: Call,
         fields: impl Into<Composite<()>>,
-    ) -> InBlock {
+    ) -> Result<TxInBlock> {
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await

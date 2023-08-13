@@ -49,7 +49,7 @@ use gsdk::{
         utility::Event as UtilityEvent,
         Convert, Event,
     },
-    types, Error as GsdkError,
+    Error as GsdkError, GearGasNode, GearGasNodeId,
 };
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
@@ -307,7 +307,7 @@ impl GearApi {
             .gpages_at(src_program_id, &src_program, src_block_hash)
             .await?;
 
-        let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
+        let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
             .map(|gr| gr.0.into())
@@ -322,7 +322,7 @@ impl GearApi {
         let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved {
+            if let GearGasNode::Reserved {
                 id, value, lock, ..
             } = &gas_node.1
             {

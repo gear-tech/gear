@@ -21,53 +21,8 @@
 //! Types here are used to create [`crate::SysCallsConfig`].
 
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::{parity_wasm::elements::ValueType, syscalls::ParamType};
+use gear_wasm_instrument::syscalls::ParamType;
 use std::{collections::HashMap, ops::RangeInclusive};
-
-#[derive(Debug)]
-pub(crate) enum ProcessedSysCallParams {
-    Alloc,
-    Value {
-        value_type: ValueType,
-        allowed_values: Option<SysCallParamAllowedValues>,
-    },
-    MemoryArray,
-    MemoryPtrValue,
-}
-
-pub(crate) fn process_sys_call_params(
-    params: &[ParamType],
-    params_config: &SysCallsParamsConfig,
-) -> Vec<ProcessedSysCallParams> {
-    let mut res = Vec::with_capacity(params.len());
-    let mut skip_next_param = false;
-    for &param in params {
-        if skip_next_param {
-            skip_next_param = false;
-            continue;
-        }
-        let processed_param = match param {
-            ParamType::Alloc => ProcessedSysCallParams::Alloc,
-            ParamType::Ptr(maybe_idx) => maybe_idx
-                .map(|_| {
-                    // skipping next as we don't need the following `Size` param,
-                    // because it will be chosen in accordance to the wasm module
-                    // memory pages config.
-                    skip_next_param = true;
-                    ProcessedSysCallParams::MemoryArray
-                })
-                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
-            _ => ProcessedSysCallParams::Value {
-                value_type: param.into(),
-                allowed_values: params_config.get_rule(&param),
-            },
-        };
-
-        res.push(processed_param);
-    }
-
-    res
-}
 
 /// Sys-calls params config.
 ///

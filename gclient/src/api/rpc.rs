@@ -19,7 +19,7 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use gsdk::{ext::sp_core::H256, types::GasInfo};
+use gsdk::{ext::sp_core::H256, GasInfo};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
 

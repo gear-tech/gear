@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! RPC calls with signer
-#![allow(clippy::too_many_arguments)]
-use crate::{result::Result, types::GasInfo};
+
+use crate::{result::Result, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 

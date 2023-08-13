@@ -20,7 +20,7 @@
 
 use crate::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExternalities, BackendState, BackendSyscallError, TerminationReason,
+    BackendExternalities, BackendState, BackendSyscallError, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_core_errors::ExtError as FallibleExtError;
@@ -28,7 +28,7 @@ use gear_core_errors::ExtError as FallibleExtError;
 /// Error returned from closure argument in [`Runtime::run_fallible`].
 #[derive(Debug, Clone)]
 pub enum RunFallibleError {
-    TerminationReason(TerminationReason),
+    UndefinedTerminationReason(UndefinedTerminationReason),
     FallibleExt(FallibleExtError),
 }
 
@@ -52,7 +52,7 @@ pub trait Runtime<Ext: BackendExternalities>:
 
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>;
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>;
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,

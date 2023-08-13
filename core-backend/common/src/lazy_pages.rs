@@ -100,6 +100,8 @@ pub trait GlobalsAccessor {
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
 #[codec(crate = scale)]
 #[repr(i64)]
+// TODO: consider removal of two exceed options in favor of one global (issue #3018).
+// Will require bump of many RI func's versions.
 pub enum Status {
     /// Lazy-pages works in normal mode.
     Normal = 0_i64,
@@ -107,4 +109,11 @@ pub enum Status {
     GasLimitExceeded,
     /// Skips signals processing until the end of execution, set termination reason as `gas allowance exceeded`.
     GasAllowanceExceeded,
+}
+
+impl Status {
+    /// Returns bool defining if status is `Normal`.
+    pub fn is_normal(&self) -> bool {
+        *self == Self::Normal
+    }
 }

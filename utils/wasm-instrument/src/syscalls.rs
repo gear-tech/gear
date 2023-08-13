@@ -93,7 +93,6 @@ pub enum SysCallName {
     Alloc,
     Free,
     OutOfGas,
-    OutOfAllowance,
 
     // Miscellaneous
     ReplyDeposit,
@@ -122,7 +121,6 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
@@ -351,7 +349,7 @@ impl SysCallName {
 /// optional index of the memory array size parameter. So if current sys-call
 /// doesn't accept any memory array as an argument, then pointer parameter will
 /// be `Ptr(None)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
     Size,               // i32 buffers size in memory
     Ptr(Option<usize>), // i32 pointer
@@ -374,21 +372,21 @@ impl From<ParamType> for ValueType {
 }
 
 /// Syscall signature.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SysCallSignature {
     pub params: Vec<ParamType>,
     pub results: Vec<ValueType>,
 }
 
 impl SysCallSignature {
-    fn gr<const N: usize>(params: [ParamType; N]) -> Self {
+    pub fn gr<const N: usize>(params: [ParamType; N]) -> Self {
         Self {
             params: params.to_vec(),
             results: Default::default(),
         }
     }
 
-    fn system<const N: usize, const M: usize>(
+    pub fn system<const N: usize, const M: usize>(
         params: [ParamType; N],
         results: [ValueType; M],
     ) -> Self {

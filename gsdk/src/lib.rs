@@ -17,17 +17,32 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear api
-use client::RpcClient;
-use config::GearConfig;
-use core::ops::{Deref, DerefMut};
-pub use result::{Error, Result};
-pub use signer::PairSigner;
-use signer::Signer;
-use std::sync::Arc;
+pub use crate::{
+    api::Api,
+    metadata::Event,
+    result::{Error, Result},
+    signer::PairSigner,
+    subscription::{Blocks, Events},
+};
+use crate::{
+    config::GearConfig,
+    metadata::runtime_types::gear_common::{
+        gas_provider::node::{GasNode, GasNodeId},
+        ActiveProgram,
+    },
+};
+use gear_core::ids::{MessageId, ReservationId};
+use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
+use sp_runtime::AccountId32;
+use std::collections::HashMap;
 pub use subxt::dynamic::Value;
-use subxt::OnlineClient;
-pub mod testing;
+use subxt::{
+    tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
+    OnlineClient,
+};
 
+mod api;
 mod client;
 pub mod config;
 mod constants;
@@ -37,8 +52,10 @@ pub mod result;
 mod rpc;
 pub mod signer;
 mod storage;
-pub mod types;
+pub mod subscription;
+pub mod testing;
 mod utils;
+
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
@@ -51,84 +68,41 @@ pub mod gp {
     };
 }
 
+/// Block number type
 pub type BlockNumber = u32;
 
-/// Gear api wrapper.
-#[derive(Clone)]
-pub struct Api {
-    /// How many times we'll retry when rpc requests failed.
-    pub retry: u16,
-    client: OnlineClient<GearConfig>,
+/// Information of gas
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GasInfo {
+    /// Represents minimum gas limit required for execution.
+    pub min_limit: u64,
+    /// Gas amount that we reserve for some other on-chain interactions.
+    pub reserved: u64,
+    /// Contains number of gas burned during message processing.
+    pub burned: u64,
 }
 
-impl Api {
-    /// Create new API client.
-    pub async fn new(url: Option<&str>) -> Result<Self> {
-        Self::new_with_timeout(url, None).await
-    }
+/// Gear gas node id.
+pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
 
-    /// Create new API client with timeout.
-    pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        Ok(Self {
-            // Retry our failed RPC requests for 5 times by default.
-            retry: 5,
-            client: OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?))
-                .await?,
-        })
-    }
+/// Gear gas node.
+pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
 
-    /// Setup retry times and return the API instance.
-    pub fn with_retry(mut self, retry: u16) -> Self {
-        self.retry = retry;
-        self
-    }
+/// Gear pages.
+pub type GearPages = HashMap<u32, Vec<u8>>;
 
-    /// Subscribe all blocks
-    ///
-    /// # Parse events from blocks
-    ///
-    /// ```ignore
-    /// use gsdk::metadata::{Event, system};
-    ///
-    /// let api = Api::new(None).await?;
-    /// let mut blocks = api.blocks().await?;
-    ///
-    /// while let Some(Ok(events)) = blocks.next_events().await {
-    ///   for event in events {
-    ///     let ev = event.as_root_event::<Event>();
-    ///
-    ///     // Match events here.
-    ///     matches!(ev, Event::System(system::Event::ExtrinsicSuccess(_)));
-    ///   }
-    /// }
-    /// ```
-    pub async fn blocks(&self) -> Result<types::Blocks> {
-        Ok(types::Blocks(self.client.blocks().subscribe_all().await?))
-    }
+/// Transaction in block.
+pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;
 
-    /// Subscribe finalized blocks
-    pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
-        Ok(types::Blocks(
-            self.client.blocks().subscribe_finalized().await?,
-        ))
-    }
+/// Transaction in block with result wrapper.
+pub type TxInBlockResult = Result<TxInBlock>;
 
-    /// New signer from api
-    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
-    }
-}
+/// Transaction status.
+pub type TxStatus = SubxtTxStatus<GearConfig, OnlineClient<GearConfig>>;
 
-impl Deref for Api {
-    type Target = OnlineClient<GearConfig>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
-    }
-}
-
-impl DerefMut for Api {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.client
-    }
+/// Gear Program
+#[derive(Debug, Decode)]
+pub enum Program {
+    Active(ActiveProgram<BlockNumber>),
+    Terminated,
 }
