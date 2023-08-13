@@ -22,8 +22,7 @@ use std::sync::Arc;
 
 use super::SignerInner;
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::SignerRpc, types::InBlock,
-    Error,
+    config::GearConfig, metadata::CallInfo, result::Result, signer::SignerRpc, Error, TxInBlock,
 };
 use scale_value::Composite;
 use subxt::blocks::ExtrinsicEvents;

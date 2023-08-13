@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api calls
-use super::{SignerCalls, SignerInner, SignerStorage};
+use super::SignerInner;
 use crate::{
     config::GearConfig,
     metadata::{
@@ -61,24 +61,25 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
-pub struct SignerCalls(Arc<SignerInner>);
+pub struct SignerCalls(pub(crate) Arc<SignerInner>);
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerStorage(Arc<SignerInner>);
+pub struct SignerStorage(pub(crate) Arc<SignerInner>);
 
 // pallet-balances
 impl SignerCalls {
     /// `pallet_balances::transfer`
     pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> Result<TxInBlock> {
-        self.run_tx(
-            BalancesCall::Transfer,
-            vec![
-                Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
-                Value::u128(value),
-            ],
-        )
-        .await
+        self.0
+            .run_tx(
+                BalancesCall::Transfer,
+                vec![
+                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+                    Value::u128(value),
+                ],
+            )
+            .await
     }
 }
 
@@ -93,22 +94,24 @@ impl SignerCalls {
         gas_limit: u64,
         value: u128,
     ) -> Result<TxInBlock> {
-        self.run_tx(
-            GearCall::CreateProgram,
-            vec![
-                Value::from_bytes(code_id),
-                Value::from_bytes(salt),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit as u128),
-                Value::u128(value),
-            ],
-        )
-        .await
+        self.0
+            .run_tx(
+                GearCall::CreateProgram,
+                vec![
+                    Value::from_bytes(code_id),
+                    Value::from_bytes(salt),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit as u128),
+                    Value::u128(value),
+                ],
+            )
+            .await
     }
 
     /// `pallet_gear::claim_value`
     pub async fn claim_value(&self, message_id: MessageId) -> Result<TxInBlock> {
-        self.run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
+        self.0
+            .run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
             .await
     }
 
@@ -120,16 +123,17 @@ impl SignerCalls {
         gas_limit: u64,
         value: u128,
     ) -> Result<TxInBlock> {
-        self.run_tx(
-            GearCall::SendMessage,
-            vec![
-                Value::from_bytes(destination),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit as u128),
-                Value::u128(value),
-            ],
-        )
-        .await
+        self.0
+            .run_tx(
+                GearCall::SendMessage,
+                vec![
+                    Value::from_bytes(destination),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit as u128),
+                    Value::u128(value),
+                ],
+            )
+            .await
     }
 
     /// `pallet_gear::send_reply`
@@ -140,21 +144,23 @@ impl SignerCalls {
         gas_limit: u64,
         value: u128,
     ) -> Result<TxInBlock> {
-        self.run_tx(
-            GearCall::SendReply,
-            vec![
-                Value::from_bytes(reply_to_id),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit as u128),
-                Value::u128(value),
-            ],
-        )
-        .await
+        self.0
+            .run_tx(
+                GearCall::SendReply,
+                vec![
+                    Value::from_bytes(reply_to_id),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit as u128),
+                    Value::u128(value),
+                ],
+            )
+            .await
     }
 
     /// `pallet_gear::upload_code`
     pub async fn upload_code(&self, code: Vec<u8>) -> Result<TxInBlock> {
-        self.run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
+        self.0
+            .run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
             .await
     }
 
@@ -167,17 +173,18 @@ impl SignerCalls {
         gas_limit: u64,
         value: u128,
     ) -> Result<TxInBlock> {
-        self.run_tx(
-            GearCall::UploadProgram,
-            vec![
-                Value::from_bytes(code),
-                Value::from_bytes(salt),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit as u128),
-                Value::u128(value),
-            ],
-        )
-        .await
+        self.0
+            .run_tx(
+                GearCall::UploadProgram,
+                vec![
+                    Value::from_bytes(code),
+                    Value::from_bytes(salt),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit as u128),
+                    Value::u128(value),
+                ],
+            )
+            .await
     }
 }
 

@@ -18,13 +18,14 @@
 
 //! RPC calls with signer
 
-use crate::{result::Result, GasInfo};
+use crate::{result::Result, signer::SignerInner, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
+use std::sync::Arc;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
-pub struct SignerRpc(Arc<SignerInner>);
+pub struct SignerRpc(pub(crate) Arc<SignerInner>);
 
 impl SignerRpc {
     /// public key of the signer in H256
