@@ -19,11 +19,14 @@
 //! Utility functions.
 
 pub use scale_info::MetaType;
-use scale_info::{scale::Output, PortableRegistry, Registry};
+use scale_info::{
+    scale::{Encode, MaxEncodedLen, Output},
+    PortableRegistry, Registry,
+};
 
 use crate::prelude::{
     mem::{transmute, MaybeUninit},
-    Box, Encode, MaxEncodedLen, String, Vec,
+    Box, String, Vec,
 };
 
 pub(crate) trait MaybeMaxEncodedLen: Encode {

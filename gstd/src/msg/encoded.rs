@@ -24,11 +24,12 @@ use crate::{
     async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{ops::RangeBounds, Decode, Encode},
+    prelude::ops::RangeBounds,
     util::with_optimized_encode,
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
+use scale_info::scale::{Decode, Encode};
 
 /// Get a payload of the message that is currently being processed.
 ///
