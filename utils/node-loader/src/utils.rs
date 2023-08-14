@@ -2,9 +2,11 @@ use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
-use gear_call_gen::GearProgGenConfig;
+use gear_call_gen::Seed;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
+use gear_utils::NonEmpty;
+use gear_wasm_gen::{EntryPointsSet, ValidGearWasmConfigsBundle};
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
@@ -33,10 +35,9 @@ pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
     "Transaction finalization wait timeout is reached";
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = gear_call_gen::generate_gear_program::<SmallRng>(
+    let code = gear_call_gen::generate_gear_program::<SmallRng, ValidGearWasmConfigsBundle>(
         seed,
-        GearProgGenConfig::new_normal(),
-        Default::default(),
+        ValidGearWasmConfigsBundle::default(),
     );
 
     let mut file = File::create("out.wasm")?;
@@ -201,4 +202,17 @@ pub fn err_waited_or_succeed_batch(
         })
         .flatten()
         .collect()
+}
+
+/// Returns configs bundle with a gear wasm generator config, which logs `seed`.
+pub fn get_wasm_gen_config(
+    seed: Seed,
+    existing_programs: impl Iterator<Item = ProgramId>,
+) -> ValidGearWasmConfigsBundle<ProgramId> {
+    ValidGearWasmConfigsBundle {
+        log_info: Some(format!("Gear program seed = '{seed}'")),
+        existing_addresses: NonEmpty::collect(existing_programs),
+        entry_points_set: EntryPointsSet::InitHandleHandleReply,
+        ..Default::default()
+    }
 }

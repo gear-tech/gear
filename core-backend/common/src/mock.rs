@@ -19,14 +19,14 @@
 use crate::{
     memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
     BackendExternalities, BackendSyscallError, ExtInfo, SystemReservationContext,
-    TerminationReason,
+    UndefinedTerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
@@ -49,7 +49,7 @@ impl fmt::Display for Error {
 }
 
 impl BackendSyscallError for Error {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         unimplemented!()
     }
 
@@ -84,13 +84,18 @@ impl CountersOwner for MockExt {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: 0,
-            allowance: 0,
-        }
+        (0u64, 0u64).into()
     }
 
-    fn set_gas_left(&mut self, _gas_left: GasLeft) {}
+    fn current_counter_type(&self) -> CounterType {
+        CounterType::GasLimit
+    }
+
+    fn decrease_current_counter_to(&mut self, _amount: u64) {}
+
+    fn define_current_counter(&mut self) -> u64 {
+        0
+    }
 }
 
 impl Externalities for MockExt {
@@ -299,7 +304,7 @@ impl BackendExternalities for MockExt {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }

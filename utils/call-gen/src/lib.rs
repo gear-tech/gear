@@ -28,19 +28,19 @@ mod upload_program;
 
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
-use gear_core::ids::ProgramId;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
 pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
+
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("Can't convert to gear call {0:?} call")]
 pub struct GearCallConversionError(pub &'static str);
 
 pub type Seed = u64;
-pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
 /// This trait must be implemented for all argument types
 /// that are defined in [`GearCall`] variants.
@@ -72,10 +72,13 @@ pub trait GeneratableCallArgs {
     type FuzzerArgs;
     /// Describes arguments of the test environment,
     /// that are taken from the it's configuration.
-    type ConstArgs;
+    type ConstArgs<C: GearWasmGenConfigsBundle>;
 
     /// Generates random arguments for [`GearCall`] variant.
-    fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
+    fn generate<Rng: CallGenRng, Config: GearWasmGenConfigsBundle>(
+        _: Self::FuzzerArgs,
+        _: Self::ConstArgs<Config>,
+    ) -> Self;
 }
 
 /// Describes type that can tell for which `gear` call it carries arguments.
@@ -147,13 +150,11 @@ macro_rules! impl_named_call_args {
 /// Function generates WASM-binary of a Gear program with the
 /// specified `seed`. `programs` may specify addresses which
 /// can be used for send-calls.
-pub fn generate_gear_program<Rng: CallGenRng>(
+pub fn generate_gear_program<Rng: CallGenRng, C: gear_wasm_gen::ConfigsBundle>(
     seed: Seed,
-    mut config: GearProgGenConfig,
-    programs: Vec<ProgramId>,
+    config: C,
 ) -> Vec<u8> {
     use arbitrary::Unstructured;
-    use gear_wasm_gen::gsys;
 
     let mut rng = Rng::seed_from_u64(seed);
 
@@ -162,15 +163,6 @@ pub fn generate_gear_program<Rng: CallGenRng>(
 
     let mut u = Unstructured::new(&buf);
 
-    config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
-
-    let addresses = programs
-        .iter()
-        .map(|pid| gsys::HashWithValue {
-            hash: pid.into_bytes(),
-            value: 0,
-        })
-        .collect::<Vec<_>>();
-
-    gear_wasm_gen::gen_gear_program_code(&mut u, config, &addresses)
+    gear_wasm_gen::generate_gear_program_code(&mut u, config)
+        .expect("failed generating gear program")
 }

@@ -23,16 +23,16 @@ extern crate alloc;
 
 use alloc::vec;
 
-use wasm_instrument::{
+use gwasm_instrument::{
     gas_metering::{self, Rules},
     parity_wasm::{
         builder,
-        elements::{self, Instruction, ValueType},
+        elements::{self, BlockType, ImportCountType, Instruction, Instructions, Local, ValueType},
     },
 };
 
 use crate::syscalls::SysCallName;
-pub use wasm_instrument::{self, parity_wasm};
+pub use gwasm_instrument::{self as wasm_instrument, parity_wasm};
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +41,6 @@ pub mod rules;
 pub mod syscalls;
 
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
-pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 
 /// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder,
@@ -57,9 +56,7 @@ pub fn inject<R: Rules>(
         .import_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.module() == gas_module_name
-                    && (entry.field() == SysCallName::OutOfGas.to_str()
-                        || entry.field() == SysCallName::OutOfAllowance.to_str())
+                entry.module() == gas_module_name && entry.field() == SysCallName::OutOfGas.to_str()
             })
         })
         .unwrap_or(false)
@@ -70,9 +67,10 @@ pub fn inject<R: Rules>(
     if module
         .export_section()
         .map(|section| {
-            section.entries().iter().any(|entry| {
-                entry.field() == GLOBAL_NAME_ALLOWANCE || entry.field() == GLOBAL_NAME_GAS
-            })
+            section
+                .entries()
+                .iter()
+                .any(|entry| entry.field() == GLOBAL_NAME_GAS)
         })
         .unwrap_or(false)
     {
@@ -81,7 +79,7 @@ pub fn inject<R: Rules>(
 
     let mut mbuilder = builder::from_module(module);
 
-    // fn out_of_...() -> ();
+    // fn out_of_gas() -> ();
     let import_sig = mbuilder.push_signature(builder::signature().build_sig());
 
     mbuilder.push_import(
@@ -93,25 +91,14 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    mbuilder.push_import(
-        builder::import()
-            .module(gas_module_name)
-            .field(SysCallName::OutOfAllowance.to_str())
-            .external()
-            .func(import_sig)
-            .build(),
-    );
-
     // back to plain module
     let module = mbuilder.build();
 
-    let import_count = module.import_count(elements::ImportCountType::Function);
-    let out_of_gas_index = import_count as u32 - 2;
-    let out_of_allowance_index = import_count as u32 - 1;
+    let import_count = module.import_count(ImportCountType::Function);
+    let out_of_gas_index = import_count as u32 - 1;
 
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
-    let allowance_index = gas_index + 1;
 
     let mut mbuilder = builder::from_module(module);
 
@@ -132,74 +119,39 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    mbuilder.push_global(
-        builder::global()
-            .value_type()
-            .i64()
-            .init_expr(Instruction::I64Const(0))
-            .mutable()
-            .build(),
-    );
-
-    mbuilder.push_export(
-        builder::export()
-            .field(GLOBAL_NAME_ALLOWANCE)
-            .internal()
-            .global(allowance_index)
-            .build(),
-    );
+    // This const is introduced to avoid future errors in code if some other
+    // `I64Const` instructions appear in gas charge function body.
+    const GAS_CHARGE_COST_PLACEHOLDER: i64 = 1248163264128;
 
     let mut elements = vec![
-        // check if there is enough gas
+        // I. Put global with value of current gas counter of any type.
         Instruction::GetGlobal(gas_index),
-        // total_gas_to_charge = gas_to_charge + cost_for_func
-        // {
+        // II. Calculating total gas to charge as sum of:
+        //  - `gas_charge(..)` argument;
+        //  - `gas_charge(..)` call cost.
+        //
+        // Setting the sum into local with index 1 with keeping it on stack.
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
+        Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER),
         Instruction::I64Add,
         Instruction::TeeLocal(1),
-        // }
-        // if gas < total_gas_to_charge
+        // III. Validating left amount of gas.
+        //
+        // In case of requested value is bigger than actual gas counter value,
+        // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
-        Instruction::If(elements::BlockType::NoResult),
+        Instruction::If(BlockType::NoResult),
         Instruction::Call(out_of_gas_index),
-        Instruction::Unreachable,
         Instruction::End,
-        // update gas
+        // IV. Calculating new global value by subtraction.
+        //
+        // Result is stored back into global.
         Instruction::GetGlobal(gas_index),
-        // total_gas_to_charge
-        // {
         Instruction::GetLocal(1),
-        // }
-        // gas -= total_gas_to_charge
-        // {
         Instruction::I64Sub,
         Instruction::SetGlobal(gas_index),
-        // }
-        // check if there is enough gas allowance
-        Instruction::GetGlobal(allowance_index),
-        // total_gas_to_charge
-        // {
-        Instruction::GetLocal(1),
-        // }
-        // if allowance < total_gas_to_charge
-        Instruction::I64LtU,
-        Instruction::If(elements::BlockType::NoResult),
-        Instruction::Call(out_of_allowance_index),
-        Instruction::Unreachable,
-        Instruction::End,
-        // update gas allowance
-        Instruction::GetGlobal(allowance_index),
-        // total_gas_to_charge
-        // {
-        Instruction::GetLocal(1),
-        // }
-        // allowance -= total_gas_to_charge
-        // {
-        Instruction::I64Sub,
-        Instruction::SetGlobal(allowance_index),
-        // }
+        // V. Ending `gas_charge()` function.
         Instruction::End,
     ];
 
@@ -241,6 +193,7 @@ pub fn inject<R: Rules>(
     let cost_local_var = rules.call_per_local_cost() as u64;
 
     let cost = cost_push_arg + cost_call + cost_local_var + cost_blocks;
+
     // the cost is added to gas_to_charge which cannot
     // exceed u32::MAX value. This check ensures
     // there is no u64 overflow.
@@ -249,12 +202,11 @@ pub fn inject<R: Rules>(
     }
 
     // update cost for 'gas_charge' function itself
-    for instruction in elements
+    let cost_instr = elements
         .iter_mut()
-        .filter(|i| matches!(i, Instruction::I64Const(_)))
-    {
-        *instruction = Instruction::I64Const(cost as i64);
-    }
+        .find(|i| **i == Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER))
+        .expect("Const for cost of the fn not found");
+    *cost_instr = Instruction::I64Const(cost as i64);
 
     // gas_charge function
     mbuilder.push_function(
@@ -263,8 +215,8 @@ pub fn inject<R: Rules>(
             .with_param(ValueType::I32)
             .build()
             .body()
-            .with_locals(vec![elements::Local::new(1, ValueType::I64)])
-            .with_instructions(elements::Instructions::new(elements))
+            .with_locals(vec![Local::new(1, ValueType::I64)])
+            .with_instructions(Instructions::new(elements))
             .build()
             .build(),
     );
@@ -272,5 +224,5 @@ pub fn inject<R: Rules>(
     // back to plain module
     let module = mbuilder.build();
 
-    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 2)
+    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 1)
 }

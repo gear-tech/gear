@@ -104,16 +104,21 @@ fn vec() {
         let program_details = &snapshot.programs[0];
         assert_eq!(program_details.id, vec_id);
 
-        let crate::ProgramState::Active(ref program_info) = program_details.state else { panic!("Inactive program") };
+        let crate::ProgramState::Active(ref program_info) = program_details.state else {
+            panic!("Inactive program")
+        };
         assert_eq!(program_info.code_hash, code_id.into_origin());
 
-        let pages = program_info.persistent_pages.keys().fold(BTreeSet::new(), |mut set, page| {
-            let page = page.to_page::<WasmPage>().raw();
-            if page >= static_pages {
-                set.insert(page);
-            }
-            set
-        });
+        let pages = program_info
+            .persistent_pages
+            .keys()
+            .fold(BTreeSet::new(), |mut set, page| {
+                let page = page.to_page::<WasmPage>().raw();
+                if page >= static_pages {
+                    set.insert(page);
+                }
+                set
+            });
 
         let pages = pages.into_iter().collect::<Vec<_>>();
         assert_eq!(pages, vec![17, 18]);

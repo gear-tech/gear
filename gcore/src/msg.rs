@@ -200,6 +200,9 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
             }
         }
 
+        // SAFETY: same as `MaybeUninit::slice_assume_init_mut(&mut buffer[..size])`.
+        // It takes the slice `&mut buffer[..size]` and says that it was
+        // previously initialized with the `gr_read` system call.
         f(SyscallError(len)
             .into_result()
             .map(|_| unsafe { &mut *(&mut buffer[..size] as *mut _ as *mut [u8]) }))

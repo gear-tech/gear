@@ -31,14 +31,14 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
     ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
-    EnvironmentError, TerminationReason, TrapExplanation,
+    EnvironmentError, TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, MemoryError, PageBuf},
     message::{
@@ -369,15 +369,8 @@ where
             if E::Ext::LAZY_PAGES_ENABLED {
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                match E::Ext::lazy_pages_status() {
-                    Status::Normal => (),
-                    Status::GasLimitExceeded => {
-                        termination =
-                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
-                    }
-                    Status::GasAllowanceExceeded => {
-                        termination = ActorTerminationReason::GasAllowanceExceeded;
-                    }
+                if !E::Ext::lazy_pages_status().is_normal() {
+                    termination = ext.current_counter_type().into()
                 }
             }
 

@@ -257,13 +257,17 @@ pub fn instantiate(
     }
 
     let instance = SandboxContextStore::using(sandbox_context, || {
-        wasmer::Instance::new(&module, &import_object).map_err(|error| match error {
-            wasmer::InstantiationError::Link(_) => InstantiationError::Instantiation,
-            wasmer::InstantiationError::Start(_) => InstantiationError::StartTrapped,
-            wasmer::InstantiationError::HostEnvInitialization(_) => {
-                InstantiationError::EnvironmentDefinitionCorrupted
+        wasmer::Instance::new(&module, &import_object).map_err(|error| {
+            log::trace!("Failed to call wasmer::Instance::new: {error:?}");
+
+            match error {
+                wasmer::InstantiationError::Link(_) => InstantiationError::Instantiation,
+                wasmer::InstantiationError::Start(_) => InstantiationError::StartTrapped,
+                wasmer::InstantiationError::HostEnvInitialization(_) => {
+                    InstantiationError::EnvironmentDefinitionCorrupted
+                }
+                wasmer::InstantiationError::CpuFeature(_) => InstantiationError::CpuFeature,
             }
-            wasmer::InstantiationError::CpuFeature(_) => InstantiationError::CpuFeature,
         })
     })?;
 

@@ -240,7 +240,8 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 None => return Err(Self::InternalError::resume_session_not_found().into()),
             };
 
-            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id) else {
+            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id)
+            else {
                 let result = ResumeResult {
                     end_block: session.end_block,
                     info: None,
@@ -250,7 +251,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 Self::SessionMemoryPages::remove(session_id);
                 *maybe_session = None;
 
-                return Ok(result)
+                return Ok(result);
             };
 
             if !Self::CodeStorage::exists(session.code_hash) {
