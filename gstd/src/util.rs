@@ -56,17 +56,13 @@ pub(crate) fn with_optimized_encode<T, E: MaybeMaxEncodedLen>(
 
     impl<'a> Output for ExternalBufferOutput<'a> {
         fn write(&mut self, bytes: &[u8]) {
-            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
-            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
-            if end_offset > self.buffer.len() {
-                panic!("{ERROR_LOG}");
-            }
             // SAFETY: same as
             // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.
             // This code transmutes `bytes: &[T]` to `bytes: &[MaybeUninit<T>]`. These types
             // can be safely transmuted since they have the same layout. Then `bytes:
             // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
-            let this = &mut self.buffer[self.offset..end_offset];
+            let end_offset = self.offset + bytes.len();
+            let this = unsafe { self.buffer.get_unchecked_mut(self.offset..end_offset) };
             this.copy_from_slice(unsafe { transmute(bytes) });
             self.offset = end_offset;
         }
