@@ -3674,6 +3674,7 @@ version = "0.2.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
+ "gear-stack-buffer",
  "gsys",
  "hex-literal",
  "parity-scale-codec",
@@ -4284,6 +4285,13 @@ dependencies = [
  "substrate-state-trie-migration-rpc",
  "try-runtime-cli",
  "vara-runtime",
+]
+
+[[package]]
+name = "gear-stack-buffer"
+version = "0.2.2"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

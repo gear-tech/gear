@@ -229,6 +229,7 @@ gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }
 gear-service = { path = "node/service", default-features = false }
+gear-stack-buffer = { path = "stack-buffer" }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
