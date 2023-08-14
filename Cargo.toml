@@ -204,7 +204,6 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
-gstack-buffer = { path = "gstack-buffer" }
 gstd = { path = "gstd" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
