@@ -24,52 +24,11 @@ use crate::{
     async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{
-        convert::AsRef,
-        mem::{transmute, MaybeUninit},
-        ops::RangeBounds,
-    },
+    prelude::{ops::RangeBounds, Decode, Encode},
+    util::with_optimized_encode,
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode, Output};
-
-fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -> T {
-    struct ExternalBufferOutput<'a> {
-        buffer: &'a mut [MaybeUninit<u8>],
-        offset: usize,
-    }
-
-    impl<'a> Output for ExternalBufferOutput<'a> {
-        fn write(&mut self, bytes: &[u8]) {
-            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
-            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
-            if end_offset > self.buffer.len() {
-                panic!("{ERROR_LOG}");
-            }
-            // SAFETY: same as
-            // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.
-            // This code transmutes `bytes: &[T]` to `bytes: &[MaybeUninit<T>]`. These types
-            // can be safely transmuted since they have the same layout. Then `bytes:
-            // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
-            let this = &mut self.buffer[self.offset..end_offset];
-            this.copy_from_slice(unsafe { transmute(bytes) });
-            self.offset = end_offset;
-        }
-    }
-
-    gcore::stack_buffer::with_byte_buffer(payload.encoded_size(), |buffer| {
-        let mut output = ExternalBufferOutput { buffer, offset: 0 };
-        payload.encode_to(&mut output);
-        let ExternalBufferOutput { buffer, offset } = output;
-        // SAFETY: same as `MaybeUninit::slice_assume_init_ref(&buffer[..offset])`.
-        // `ExternalBufferOutput` writes data to uninitialized memory. So we can take
-        // slice `&buffer[..offset]` and say that it was initialized earlier
-        // because the buffer from `0` to `offset` was initialized.
-        let payload = unsafe { &*(&buffer[..offset] as *const _ as *const [u8]) };
-        f(payload)
-    })
-}
 
 /// Get a payload of the message that is currently being processed.
 ///
