@@ -21,6 +21,7 @@ use crate::{
     common::errors::Result,
     msg::{CodecCreateProgramFuture, CreateProgramFuture},
     prelude::convert::AsRef,
+    util::with_optimized_encode,
     ActorId, CodeId, MessageId,
 };
 use gstd_codegen::wait_create_program_for_reply;
@@ -35,7 +36,9 @@ pub fn create_program<E: Encode>(
     payload: E,
     value: u128,
 ) -> Result<(MessageId, ActorId)> {
-    super::create_program_bytes(code_id, salt, payload.encode(), value)
+    with_optimized_encode(payload, |buffer| {
+        super::create_program_bytes(code_id, salt, buffer, value)
+    })
 }
 
 /// Same as [`create_program`], but creates a new program after the `delay`
@@ -47,7 +50,9 @@ pub fn create_program_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    super::create_program_bytes_delayed(code_id, salt, payload.encode(), value, delay)
+    with_optimized_encode(payload, |buffer| {
+        super::create_program_bytes_delayed(code_id, salt, buffer, value, delay)
+    })
 }
 
 /// Same as [`create_program`], but with an explicit gas limit.
@@ -59,7 +64,9 @@ pub fn create_program_with_gas<E: Encode>(
     gas_limit: u64,
     value: u128,
 ) -> Result<(MessageId, ActorId)> {
-    super::create_program_bytes_with_gas(code_id, salt, payload.encode(), gas_limit, value)
+    with_optimized_encode(payload, |buffer| {
+        super::create_program_bytes_with_gas(code_id, salt, buffer, gas_limit, value)
+    })
 }
 
 /// Same as [`create_program_with_gas`], but creates a new program after the
@@ -72,12 +79,7 @@ pub fn create_program_with_gas_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    super::create_program_bytes_with_gas_delayed(
-        code_id,
-        salt,
-        payload.encode(),
-        gas_limit,
-        value,
-        delay,
-    )
+    with_optimized_encode(payload, |buffer| {
+        super::create_program_bytes_with_gas_delayed(code_id, salt, buffer, gas_limit, value, delay)
+    })
 }
