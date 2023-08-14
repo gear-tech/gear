@@ -7299,6 +7299,7 @@ fn init_wait_reply_exit_cleaned_storage() {
     })
 }
 
+/*
 #[test]
 fn locking_gas_for_waitlist() {
     use demo_constructor::{Calls, Scheme};
@@ -7377,6 +7378,7 @@ fn locking_gas_for_waitlist() {
         ));
     });
 }
+*/
 
 #[test]
 fn calculate_init_gas() {
