@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-codegen"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3732,7 +3732,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-common"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -3764,7 +3764,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-wasmi"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "derive_more",
  "gear-backend-common",
@@ -3836,7 +3836,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3864,7 +3864,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "quote",
  "syn 2.0.28",
@@ -3872,7 +3872,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -3893,7 +3893,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3902,7 +3902,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -4376,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-backend-common",
@@ -4560,7 +4560,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4584,7 +4584,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -4635,7 +4635,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
