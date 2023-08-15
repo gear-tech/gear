@@ -41,7 +41,7 @@ use scale_info::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_COUNT: u16 = 512;
+pub const MAX_WASM_PAGE_COUNT: u16 = u16::MAX;
 
 /// Name of exports allowed on chain except execution kinds.
 pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];

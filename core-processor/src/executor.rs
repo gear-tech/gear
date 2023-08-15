@@ -215,9 +215,6 @@ fn get_pages_to_be_updated<ProcessorExt: ProcessorExternalities>(
     if ProcessorExt::LAZY_PAGES_ENABLED {
         // In lazy pages mode we update some page data in storage,
         // when it has been write accessed, so no need to compare old and new page data.
-        new_pages_data.keys().for_each(|page| {
-            log::trace!("{:?} has been write accessed, update it in storage", page)
-        });
         return new_pages_data;
     }
 

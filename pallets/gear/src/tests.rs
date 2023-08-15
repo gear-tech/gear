@@ -67,7 +67,8 @@ use gear_backend_common::{
     UnrecoverableWaitError,
 };
 use gear_core::{
-    code::{self, Code},
+    code,
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -9497,6 +9498,14 @@ fn missing_handle_is_not_executed() {
 
 #[test]
 fn invalid_memory_page_count_rejected() {
+    let invalid_pages_amount = match code::MAX_WASM_PAGE_COUNT.checked_add(1) {
+        Some(n) => n,
+        None => {
+            // In that case any u32 pages amount is valid.
+            return;
+        }
+    };
+
     let wat = format!(
         r#"
     (module
@@ -9504,7 +9513,7 @@ fn invalid_memory_page_count_rejected() {
         (export "init" (func $init))
         (func $init)
     )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+        invalid_pages_amount,
     );
 
     init_logger();
