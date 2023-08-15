@@ -231,6 +231,7 @@ pub struct MessageContext {
     outcome: ContextOutcome,
     store: ContextStore,
     settings: ContextSettings,
+    nonce: u32,
 }
 
 impl MessageContext {
@@ -248,6 +249,7 @@ impl MessageContext {
             current: message,
             store: store.unwrap_or_default(),
             settings,
+            nonce: 0,
         }
     }
 
@@ -297,7 +299,9 @@ impl MessageContext {
             return Err(Error::DuplicateInit);
         }
 
-        let message = InitMessage::from_packet(message_id, packet);
+        let message = InitMessage::from_packet(message_id, packet, self.nonce);
+
+        self.nonce += 1;
 
         self.store.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
