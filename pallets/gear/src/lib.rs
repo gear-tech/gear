@@ -662,7 +662,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0);
+            let message = InitMessage::from_packet(message_id, packet, 0u32);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
@@ -1254,7 +1254,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0);
+            let message = InitMessage::from_packet(message_id, packet, 0u32);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
