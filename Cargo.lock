@@ -189,6 +189,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -451,7 +457,7 @@ checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -462,7 +468,7 @@ checksum = "a564d521dd56509c4c47480d00b80ee55f7e385ae48db5744c67ad50c92d2ebf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1062,9 +1068,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.3.19"
+version = "4.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fd304a20bff958a57f04c4e96a2e7594cc4490a0e809cbd48bb6437edaa452d"
+checksum = "c27cdf28c0f604ba3f512b0c9a409f8de8513e4816705deb0498b627e7c3a3fd"
 dependencies = [
  "clap_builder",
  "clap_derive 4.3.12",
@@ -1073,9 +1079,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.3.19"
+version = "4.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01c6a3f08f1fe5662a35cfe393aec09c4df95f60ee93b7556505260f75eee9e1"
+checksum = "08a9f1ab5e9f01a9b81f202e8562eb9a10de70abf9eaeac1be465c28b75aa4aa"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1105,7 +1111,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1661,7 +1667,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scratch",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1678,7 +1684,7 @@ checksum = "81b2dab6991c7ab1572fea8cb049db819b1aeea1e2dac74c0869f244d9f21a7c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1726,7 +1732,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1748,7 +1754,7 @@ checksum = "29a358ff9f12ec09c3e61fef9b5a9902623a695a46a917b07f269bff1445611a"
 dependencies = [
  "darling_core 0.20.1",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -1938,7 +1944,7 @@ dependencies = [
  "gear-wasm-builder",
  "gmeta",
  "gstd",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "rand 0.8.5",
  "statrs",
  "tokio",
@@ -2117,7 +2123,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "hex-literal 0.4.1",
+ "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -2127,7 +2133,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "hex-literal 0.3.4",
+ "hex-literal",
 ]
 
 [[package]]
@@ -2393,7 +2399,7 @@ checksum = "53e0efad4403bfc52dc201159c4b842a246a14b98c64b55dfd0f2d89729dfeb8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2539,7 +2545,7 @@ checksum = "487585f4d0c6655fe74905e2504d8ad6908e4db67f744eb140876906c2f3175d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2772,7 +2778,7 @@ checksum = "eecf8589574ce9b895052fa12d69af7a233f99e6107f5cb8dd1044f2a17bfdcb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2813,7 +2819,7 @@ checksum = "5e9a1f9f7d83e59740248a6e14ecf93929ade55027844dfcea78beafccc15745"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2834,7 +2840,7 @@ dependencies = [
  "darling 0.20.1",
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2864,9 +2870,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "errno"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bcfec3a70f97c962c307b2d2c56e358cf1d00b558d74262b5f929ee8cc7e73a"
+checksum = "6b30f669a7961ef1631673d2766cc92f52d64f7ef354d4fe0ddfd30ed52f0f4f"
 dependencies = [
  "errno-dragonfly",
  "libc",
@@ -3128,7 +3134,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.3.19",
+ "clap 4.3.21",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3511,7 +3517,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -3583,7 +3589,7 @@ version = "0.2.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
- "clap 4.3.19",
+ "clap 4.3.21",
  "color-eyre",
  "demo-messager",
  "demo-new-meta",
@@ -3649,7 +3655,7 @@ dependencies = [
  "gsdk",
  "gstd",
  "hex",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3668,8 +3674,9 @@ version = "0.2.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
+ "gear-stack-buffer",
  "gsys",
- "hex-literal 0.3.4",
+ "hex-literal",
  "parity-scale-codec",
  "static_assertions",
 ]
@@ -3720,7 +3727,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -3774,7 +3781,7 @@ dependencies = [
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "generate-bags",
  "vara-runtime",
 ]
@@ -3798,7 +3805,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.2.2"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3843,7 +3850,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "hex",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "path-clean",
  "primitive-types",
@@ -3861,7 +3868,7 @@ name = "gear-common-codegen"
 version = "0.1.0"
 dependencies = [
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -3874,7 +3881,7 @@ dependencies = [
  "env_logger",
  "gear-core-errors",
  "gear-wasm-instrument",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "hex",
  "log",
  "parity-scale-codec",
@@ -3956,7 +3963,7 @@ version = "0.2.2"
 dependencies = [
  "anyhow",
  "arbitrary",
- "clap 4.3.19",
+ "clap 4.3.21",
  "dyn-clonable",
  "futures",
  "futures-timer",
@@ -4025,7 +4032,7 @@ dependencies = [
 name = "gear-replay-cli"
 version = "1.0.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-remote-externalities",
  "frame-system",
  "gear-runtime",
@@ -4066,7 +4073,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-babe",
@@ -4220,7 +4227,7 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "jsonrpsee",
  "log",
  "pallet-gear-rpc",
@@ -4283,6 +4290,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-stack-buffer"
+version = "0.2.2"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
@@ -4300,9 +4314,9 @@ dependencies = [
 name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "env_logger",
- "futures-util",
+ "futures",
  "gsdk",
  "log",
  "parity-scale-codec",
@@ -4311,6 +4325,12 @@ dependencies = [
  "thiserror",
  "tokio",
 ]
+
+[[package]]
+name = "gear-wasm"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f745ed9eb163f4509f01d5564e37db52ec43dd23569bafdba597a5f1e4c125c9"
 
 [[package]]
 name = "gear-wasm-builder"
@@ -4343,6 +4363,7 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4363,7 +4384,7 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
- "wasm-instrument 0.2.1",
+ "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
 ]
@@ -4372,7 +4393,7 @@ dependencies = [
 name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-support",
  "gear-runtime",
  "indexmap 2.0.0",
@@ -4549,7 +4570,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -4611,7 +4632,7 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "subxt-codegen",
  "subxt-metadata",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -4620,7 +4641,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -4633,7 +4654,7 @@ dependencies = [
  "gcore",
  "gear-core-errors",
  "gstd-codegen",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "hex",
  "parity-scale-codec",
  "primitive-types",
@@ -4648,7 +4669,7 @@ dependencies = [
  "gstd",
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
  "trybuild",
 ]
 
@@ -4681,6 +4702,15 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "gwasm-instrument"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcb127cb43d375de7cdacffd0e4e1c746e52381d11a0465909ae6fbecb99c6c3"
+dependencies = [
+ "gear-wasm",
 ]
 
 [[package]]
@@ -4763,6 +4793,10 @@ name = "hashbrown"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
+dependencies = [
+ "ahash 0.8.3",
+ "allocator-api2",
+]
 
 [[package]]
 name = "heck"
@@ -4790,12 +4824,6 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
 
 [[package]]
 name = "hex-literal"
@@ -5117,9 +5145,9 @@ checksum = "8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590"
 
 [[package]]
 name = "indicatif"
-version = "0.17.5"
+version = "0.17.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ff8cc23a7393a397ed1d7f56e6365cba772aba9f9912ab968b03043c395d057"
+checksum = "0b297dc40733f23a0e52728a58fa9489a5b7638a324932de16b41adc3ef80730"
 dependencies = [
  "console",
  "instant",
@@ -7305,7 +7333,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -7419,7 +7447,7 @@ version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -7430,7 +7458,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -8138,7 +8166,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -8179,7 +8207,7 @@ checksum = "ec2e072ecce94ec471b13398d5402c188e76ac03cf74dd1a975161b23a3f6d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -8837,7 +8865,7 @@ checksum = "68bf53dad9b6086826722cdc99140793afd9f62faa14a1ad07eb4f955e7a7216"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -8923,7 +8951,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -9124,7 +9152,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-support",
  "frame-system",
  "gear-call-gen",
@@ -9442,7 +9470,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.3.19",
+ "clap 4.3.21",
  "fdlimit",
  "futures",
  "libp2p",
@@ -9742,7 +9770,7 @@ dependencies = [
  "sp-maybe-compressed-blob",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "thiserror",
- "wasm-instrument 0.3.0",
+ "wasm-instrument",
  "wasmi 0.13.2",
 ]
 
@@ -10220,7 +10248,7 @@ name = "sc-storage-monitor"
 version = "0.1.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "fs4",
  "futures",
  "log",
@@ -10545,9 +10573,9 @@ checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
 
 [[package]]
 name = "scopeguard"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scratch"
@@ -10727,7 +10755,7 @@ checksum = "741e124f5485c7e60c03b043f79f320bff3527f4bbf12cf3831750dc46a0ec2c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -10749,7 +10777,7 @@ checksum = "1d89a8107374290037607734c0b73a85db7ed80cae314b3c5791f192a496e731"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -12350,7 +12378,7 @@ dependencies = [
  "quote",
  "scale-info",
  "subxt-metadata",
- "syn 2.0.25",
+ "syn 2.0.28",
  "thiserror",
  "tokio",
 ]
@@ -12363,7 +12391,7 @@ dependencies = [
  "darling 0.20.1",
  "proc-macro-error",
  "subxt-codegen",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -12391,9 +12419,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.25"
+version = "2.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e3fc8c0c74267e2df136e5e5fb656a464158aa57624053375eb9c8c6e25ae2"
+checksum = "04361975b3f5e348b2189d8dc55bc942f278b2d482a6a0365de5bdd62d351567"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12515,22 +12543,22 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35fc5b8971143ca348fa6df4f024d4d55264f3468c71ad1c2f365b0a4d58c42"
+checksum = "611040a08a0439f8248d1990b111c95baa9c704c805fa1f62104b39655fd7f90"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "463fe12d7993d3b327787537ce8dd4dfa058de32fc2b195ef3cde03dc4771e8f"
+checksum = "090198534930841fab3a5d1bb637cde49e339654e606195f8d9c76eeb081dc96"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -12678,7 +12706,7 @@ checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -12845,7 +12873,7 @@ checksum = "5f4f31f56159e98206da9efd823404b79b6ef3143b4a7ab76e67b1751b25a4ab"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -13023,7 +13051,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
 dependencies = [
  "async-trait",
- "clap 4.3.19",
+ "clap 4.3.21",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -13056,9 +13084,9 @@ dependencies = [
 
 [[package]]
 name = "trybuild"
-version = "1.0.81"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04366e99ff743345622cd00af2af01d711dc2d1ef59250d7347698d21b546729"
+checksum = "a84e0202ea606ba5ebee8507ab2bfbe89b98551ed9b8f0be198109275cff284b"
 dependencies = [
  "basic-toml",
  "dissimilar",
@@ -13259,7 +13287,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal 0.3.4",
+ "hex-literal",
  "log",
  "pallet-airdrop",
  "pallet-authority-discovery",
@@ -13445,7 +13473,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
  "wasm-bindgen-shared",
 ]
 
@@ -13479,7 +13507,7 @@ checksum = "54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -13511,16 +13539,8 @@ dependencies = [
 name = "wasm-info"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "hex",
- "parity-wasm 0.45.0",
-]
-
-[[package]]
-name = "wasm-instrument"
-version = "0.2.1"
-source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#756a8b92dab5a5fa841226eebbaf215812262e3b"
-dependencies = [
  "parity-wasm 0.45.0",
 ]
 
@@ -13577,7 +13597,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.19",
+ "clap 4.3.21",
  "env_logger",
  "gear-wasm-builder",
  "log",
@@ -14932,7 +14952,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.25",
+ "syn 2.0.28",
 ]
 
 [[package]]

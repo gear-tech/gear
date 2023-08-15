@@ -19,7 +19,8 @@
 //! Memory import generator module.
 
 use crate::{
-    generator::{FrozenGearWasmGenerator, GearWasmGenerator},
+    generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
+    wasm::WASM_PAGE_SIZE,
     MemoryPagesConfig, WasmModule,
 };
 use gear_wasm_instrument::{
@@ -49,6 +50,7 @@ impl<'a> From<GearWasmGenerator<'a>> for (MemoryGenerator, FrozenGearWasmGenerat
         let frozen = FrozenGearWasmGenerator {
             config: generator.config,
             unstructured: Some(generator.unstructured),
+            call_indexes: Some(generator.call_indexes),
         };
 
         (mem_generator, frozen)
@@ -80,7 +82,7 @@ impl MemoryGenerator {
                 MemoryPagesConfig {
                     initial_size,
                     upper_limit,
-                    stack_end,
+                    stack_end_page,
                 },
         } = self;
 
@@ -96,7 +98,8 @@ impl MemoryGenerator {
                 .build();
 
             // Define optional stack-end
-            if let Some(stack_end) = stack_end {
+            if let Some(stack_end_page) = stack_end_page {
+                let stack_end = stack_end_page * WASM_PAGE_SIZE;
                 module = builder::from_module(module)
                     .global()
                     .value_type()
@@ -157,7 +160,18 @@ pub struct MemoryImportGenerationProof(());
 ///
 /// Instance of this types signals that there was once active memory generator,
 /// but it ended up it's work.
-pub struct DisabledMemoryGenerator(pub WasmModule);
+pub struct DisabledMemoryGenerator(WasmModule);
+
+impl From<DisabledMemoryGenerator> for ModuleWithCallIndexes {
+    fn from(DisabledMemoryGenerator(module): DisabledMemoryGenerator) -> Self {
+        let call_indexes = CallIndexes::new(&module);
+
+        ModuleWithCallIndexes {
+            module,
+            call_indexes,
+        }
+    }
+}
 
 impl<'a> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a>)> for GearWasmGenerator<'a> {
     fn from(
@@ -171,6 +185,9 @@ impl<'a> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a>)> for GearWa
             config: frozen_gear_wasm_gen.config,
             unstructured: frozen_gear_wasm_gen
                 .unstructured
+                .expect("internal error: counterfeit frozen gear wasm gen is used"),
+            call_indexes: frozen_gear_wasm_gen
+                .call_indexes
                 .expect("internal error: counterfeit frozen gear wasm gen is used"),
         }
     }

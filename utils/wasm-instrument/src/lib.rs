@@ -23,7 +23,7 @@ extern crate alloc;
 
 use alloc::vec;
 
-use wasm_instrument::{
+use gwasm_instrument::{
     gas_metering::{self, Rules},
     parity_wasm::{
         builder,
@@ -32,7 +32,7 @@ use wasm_instrument::{
 };
 
 use crate::syscalls::SysCallName;
-pub use wasm_instrument::{self, parity_wasm};
+pub use gwasm_instrument::{self as wasm_instrument, parity_wasm};
 
 #[cfg(test)]
 mod tests;
