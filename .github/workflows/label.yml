@@ -10,19 +10,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  build:
+    # uses: ./.github/workflows/build.yml
+    # # TODO: dispatch this workflow with github action API
+    # # for more conditions. for example, if the there is
+    # # already a build check exist. (issue-2888)
+    # if: github.event.label.name == 'A0-pleasereview'
+    # with:
+    #   macos: ${{ github.event.label.name == 'E2-forcemacos' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+      - uses: actions/github-script@v6
         with:
-          access_token: ${{ github.token }}
+          script: |
+            const {
+              data: {
+                  check_runs
+              }
+            } = await github.rest.checks.listForRef({
+              owner: "gear-tech",
+              repo: "gear",
+              ref: "cl/issue-2888"
+            });
 
-  build:
-    uses: ./.github/workflows/build.yml
-    # TODO: dispatch this workflow with github action API
-    # for more conditions. for example, if the there is
-    # already a build check exist. (issue-2888)
-    if: github.event.label.name == 'A0-pleasereview'
-    with:
-      macos: ${{ github.event.label.name == 'E2-forcemacos' }}
+            console.log(check_runs);
