@@ -80,28 +80,35 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
     }
 
     #[track_caller]
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(
+        &mut self,
+        _gas: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
-            f(ctx)
+            f(ctx).map(|r| (0, r))
         })
     }
 
     #[track_caller]
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
         self.run_any(
+            gas,
             cost,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
