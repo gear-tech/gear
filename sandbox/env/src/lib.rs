@@ -27,7 +27,12 @@ use sp_wasm_interface::ReturnValue;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Instantiate {
+    /// The first version of instantiate method and syscalls.
     Version1,
+    /// The second version of syscalls changes their signatures to
+    /// accept global gas value as its first argument and return the remaining
+    /// gas value as its first result tuple element. The approach eliminates
+    /// redundant host calls to get/set WASM-global value.
     Version2,
 }
 

@@ -279,7 +279,7 @@ pub fn instantiate(
                         dispatch_function(supervisor_func_index, &context.store, func_ty)
                     }
                     Instantiate::Version2 => {
-                        dispatch_function2(supervisor_func_index, &context.store, func_ty)
+                        dispatch_function_v2(supervisor_func_index, &context.store, func_ty)
                     }
                 };
 
@@ -318,6 +318,7 @@ pub fn instantiate(
     })
 }
 
+// TODO #3067
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
     store: &wasmer::Store,
@@ -428,7 +429,8 @@ fn dispatch_function(
     })
 }
 
-fn dispatch_function2(
+// TODO #3067
+fn dispatch_function_v2(
     supervisor_func_index: SupervisorFuncIndex,
     store: &wasmer::Store,
     func_ty: &wasmer::FunctionType,
