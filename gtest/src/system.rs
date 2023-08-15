@@ -129,7 +129,7 @@ impl System {
     ///
     /// This method is mainly used for providing a proper program from program
     /// creation logic. In order to successfully create a new program with
-    /// `gstd::prog::create_program_with_gas` function, developer should
+    /// `gstd::prog::create_program_bytes_with_gas` function, developer should
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.

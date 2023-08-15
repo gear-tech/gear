@@ -50,7 +50,7 @@ use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
 
 use sp_wasm_interface::HostPointer;
-pub use sp_wasm_interface::{ReturnValue, Value};
+pub use sp_wasm_interface::{IntoValue, ReturnValue, Value};
 
 #[cfg(feature = "std")]
 pub use self::embedded_executor as default_executor;
@@ -89,7 +89,7 @@ impl From<Error> for HostError {
 /// supervisor in [`EnvironmentDefinitionBuilder`].
 ///
 /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
-pub type HostFuncType<T> = fn(&mut T, &[Value]) -> Result<ReturnValue, HostError>;
+pub type HostFuncType<T> = fn(&mut T, &[Value]) -> Result<env::WasmReturnValue, HostError>;
 
 /// Reference to a sandboxed linear memory, that
 /// will be used by the guest module.
@@ -161,6 +161,16 @@ pub trait SandboxEnvironmentBuilder<State, Memory>: Sized {
         N2: Into<Vec<u8>>;
 }
 
+/// Error that can occur while using this crate.
+#[derive(RuntimeDebug)]
+pub enum GlobalsSetError {
+    /// A global variable is not found.
+    NotFound,
+
+    /// A global variable is immutable or has a different type.
+    Other,
+}
+
 /// Sandboxed instance of a wasm module.
 ///
 /// This instance can be used for invoking exported functions.
@@ -170,9 +180,6 @@ pub trait SandboxInstance<State>: Sized {
 
     /// The environment builder used to construct this sandbox.
     type EnvironmentBuilder: SandboxEnvironmentBuilder<State, Self::Memory>;
-
-    /// The globals type used for this sandbox to change globals.
-    type InstanceGlobals: InstanceGlobals;
 
     /// Instantiate a module with the given [`EnvironmentDefinitionBuilder`]. It will
     /// run the `start` function (if it is present in the module) with the given `state`.
@@ -211,32 +218,9 @@ pub trait SandboxInstance<State>: Sized {
     /// Returns `Some(_)` if the global could be found.
     fn get_global_val(&self, name: &str) -> Option<Value>;
 
-    /// Get the instance providing access to exported globals.
-    ///
-    /// Returns `None` if the executor doesn't support the interface.
-    fn instance_globals(&self) -> Option<Self::InstanceGlobals>;
+    /// Set the value of a global with the given `name`.
+    fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
 
     /// Get raw pointer to the executor host sandbox instance.
     fn get_instance_ptr(&self) -> HostPointer;
-}
-
-/// Error that can occur while using this crate.
-#[derive(RuntimeDebug)]
-pub enum GlobalsSetError {
-    /// A global variable is not found.
-    NotFound,
-
-    /// A global variable is immutable or has a different type.
-    Other,
-}
-
-/// This instance can be used for changing exported globals.
-pub trait InstanceGlobals: Sized + Clone {
-    /// Get the value from a global with the given `name`.
-    ///
-    /// Returns `Some(_)` if the global could be found.
-    fn get_global_val(&self, name: &str) -> Option<Value>;
-
-    /// Set the value of a global with the given `name`.
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
 }

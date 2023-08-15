@@ -30,8 +30,7 @@ use gear_backend_common::{
     BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
-use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::GLOBAL_NAME_GAS;
+use gear_sandbox::{HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -48,7 +47,6 @@ pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
     pub termination_reason: UndefinedTerminationReason,
-    pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<Ext>,
 }
@@ -64,28 +62,37 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         HostError
     }
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
-        self.with_globals_update(|ctx| {
-            ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost)?;
-            f(ctx)
-        })
+        self.prepare_run(gas);
+
+        let run = || {
+            self.ext.charge_gas_runtime(cost)?;
+            f(self)
+        };
+
+        run()
+            .map_err(|err| {
+                self.set_termination_reason(err);
+                HostError
+            })
+            .map(|r| (self.ext.define_current_counter(), r))
     }
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx| {
+        self.run_any(gas, cost, |ctx| {
             let res = f(ctx);
             let res = ctx.process_fallible_func_result(res)?;
 
@@ -94,7 +101,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
             ctx.write_as(write_res, R::from(res)).map_err(Into::into)
         })
-        .map(|_| ())
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
@@ -104,41 +110,10 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
 impl<Ext: BackendExternalities> Runtime<Ext> {
     // Cleans `memory_manager`, updates ext counters based on globals.
-    fn prepare_run(&mut self) {
+    fn prepare_run(&mut self, gas: u64) {
         self.memory_manager = Default::default();
 
-        let gas = self
-            .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(as_u64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
         self.ext.decrease_current_counter_to(gas);
-    }
-
-    // Updates globals after execution.
-    fn update_globals(&mut self) {
-        let gas = self.ext.define_current_counter();
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-    }
-
-    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
-    {
-        let result = f(self).map_err(|err| {
-            self.set_termination_reason(err);
-            HostError
-        });
-
-        self.update_globals();
-
-        result
     }
 
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>

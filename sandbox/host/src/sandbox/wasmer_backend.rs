@@ -20,10 +20,10 @@
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use wasmer::RuntimeError;
+use wasmer::{Exportable, RuntimeError};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::HostError;
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
@@ -66,6 +66,39 @@ impl Backend {
         Backend {
             store: wasmer::Store::new(&wasmer::Universal::new(compiler).engine()),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct Env {
+    gas: Option<wasmer::Global>,
+}
+
+// WARNING: intentionally to avoid cyclic refs
+impl Clone for Env {
+    fn clone(&self) -> Self {
+        Self {
+            gas: self.gas.clone().map(|mut global| {
+                global.into_weak_instance_ref();
+
+                global
+            }),
+        }
+    }
+}
+
+// TODO #3057
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+
+impl wasmer::WasmerEnv for Env {
+    fn init_with_instance(
+        &mut self,
+        instance: &wasmer::Instance,
+    ) -> std::result::Result<(), wasmer::HostEnvInitError> {
+        let gas: wasmer::Global = instance.exports.get_with_generics_weak(GLOBAL_NAME_GAS)?;
+        self.gas = Some(gas);
+
+        Ok(())
     }
 }
 
@@ -152,6 +185,7 @@ fn try_to_store_module_in_cache(mut fs_cache: FileSystemCache, code_hash: Hash, 
 
 /// Instantiate a module within a sandbox context
 pub fn instantiate(
+    version: Instantiate,
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
@@ -240,7 +274,14 @@ pub fn instantiate(
                     .func_by_guest_index(guest_func_index)
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
-                let function = dispatch_function(supervisor_func_index, &context.store, func_ty);
+                let function = match version {
+                    Instantiate::Version1 => {
+                        dispatch_function(supervisor_func_index, &context.store, func_ty)
+                    }
+                    Instantiate::Version2 => {
+                        dispatch_function_v2(supervisor_func_index, &context.store, func_ty)
+                    }
+                };
 
                 let exports = exports_map
                     .entry(import.module().to_string())
@@ -277,6 +318,7 @@ pub fn instantiate(
     })
 }
 
+// TODO #3067
 fn dispatch_function(
     supervisor_func_index: SupervisorFuncIndex,
     store: &wasmer::Store,
@@ -341,6 +383,7 @@ fn dispatch_function(
 
             let serialized_result = serialized_result?;
 
+            // TODO #3038
             // dispatch_thunk returns pointer to serialized arguments.
             // Unpack pointer and len of the serialized result data.
             let (serialized_result_val_ptr, serialized_result_val_len) = {
@@ -379,6 +422,125 @@ fn dispatch_function(
 
                 ReturnValue::Unit => vec![],
             };
+
+            Ok(result)
+        })
+        .expect("SandboxContextStore is set when invoking sandboxed functions; qed")
+    })
+}
+
+// TODO #3067
+fn dispatch_function_v2(
+    supervisor_func_index: SupervisorFuncIndex,
+    store: &wasmer::Store,
+    func_ty: &wasmer::FunctionType,
+) -> wasmer::Function {
+    wasmer::Function::new_with_env(store, func_ty, Env::default(), move |env, params| {
+        SandboxContextStore::with(|sandbox_context| {
+            let gas = env
+                .gas
+                .as_ref()
+                .ok_or_else(|| RuntimeError::new("gas global should be set"))?;
+
+            // Serialize arguments into a byte vector.
+            let invoke_args_data = [gas.get()]
+                .iter()
+                .chain(params.iter())
+                .map(|val| match val {
+                    wasmer::Val::I32(val) => Ok(Value::I32(*val)),
+                    wasmer::Val::I64(val) => Ok(Value::I64(*val)),
+                    wasmer::Val::F32(val) => Ok(Value::F32(f32::to_bits(*val))),
+                    wasmer::Val::F64(val) => Ok(Value::F64(f64::to_bits(*val))),
+                    _ => Err(RuntimeError::new(format!(
+                        "Unsupported function argument: {:?}",
+                        val
+                    ))),
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()?
+                .encode();
+
+            // Move serialized arguments inside the memory, invoke dispatch thunk and
+            // then free allocated memory.
+            let invoke_args_len = invoke_args_data.len() as WordSize;
+            let invoke_args_ptr =
+                sandbox_context
+                    .allocate_memory(invoke_args_len)
+                    .map_err(|_| {
+                        RuntimeError::new("Can't allocate memory in supervisor for the arguments")
+                    })?;
+
+            let deallocate = |fe: &mut dyn SandboxContext, ptr, fail_msg| {
+                fe.deallocate_memory(ptr)
+                    .map_err(|_| RuntimeError::new(fail_msg))
+            };
+
+            if sandbox_context
+                .write_memory(invoke_args_ptr, &invoke_args_data)
+                .is_err()
+            {
+                deallocate(
+                    sandbox_context,
+                    invoke_args_ptr,
+                    "Failed dealloction after failed write of invoke arguments",
+                )?;
+
+                return Err(RuntimeError::new("Can't write invoke args into memory"));
+            }
+
+            // Perform the actuall call
+            let serialized_result = sandbox_context
+                .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
+                .map_err(|e| RuntimeError::new(e.to_string()));
+
+            deallocate(
+                sandbox_context,
+                invoke_args_ptr,
+                "Failed dealloction after invoke",
+            )?;
+
+            let serialized_result = serialized_result?;
+
+            // TODO #3038
+            // dispatch_thunk returns pointer to serialized arguments.
+            // Unpack pointer and len of the serialized result data.
+            let (serialized_result_val_ptr, serialized_result_val_len) = {
+                // Cast to u64 to use zero-extension.
+                let v = serialized_result as u64;
+                let ptr = (v >> 32) as u32;
+                let len = (v & 0xFFFFFFFF) as u32;
+                (Pointer::new(ptr), len)
+            };
+
+            let serialized_result_val = sandbox_context
+                .read_memory(serialized_result_val_ptr, serialized_result_val_len)
+                .map_err(|_| {
+                    RuntimeError::new("Can't read the serialized result from dispatch thunk")
+                });
+
+            deallocate(
+                sandbox_context,
+                serialized_result_val_ptr,
+                "Can't deallocate memory for dispatch thunk's result",
+            )?;
+
+            let serialized_result_val = serialized_result_val?;
+
+            let deserialized_result = std::result::Result::<WasmReturnValue, HostError>::decode(
+                &mut serialized_result_val.as_slice(),
+            )
+            .map_err(|_| RuntimeError::new("Decoding Result<WasmReturnValue, HostError> failed!"))?
+            .map_err(|_| RuntimeError::new("Supervisor function returned sandbox::HostError"))?;
+
+            let result = match deserialized_result.inner {
+                ReturnValue::Value(Value::I32(val)) => vec![wasmer::Val::I32(val)],
+                ReturnValue::Value(Value::I64(val)) => vec![wasmer::Val::I64(val)],
+                ReturnValue::Value(Value::F32(val)) => vec![wasmer::Val::F32(f32::from_bits(val))],
+                ReturnValue::Value(Value::F64(val)) => vec![wasmer::Val::F64(f64::from_bits(val))],
+
+                ReturnValue::Unit => vec![],
+            };
+
+            gas.set(wasmer::Val::I64(deserialized_result.gas))?;
 
             Ok(result)
         })
