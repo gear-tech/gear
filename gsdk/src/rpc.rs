@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! gear api rpc methods
-#![allow(clippy::too_many_arguments)]
-use crate::{result::Result, types::GasInfo, Api};
+//! Gear API RPC methods
+
+use crate::{result::Result, Api, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use subxt::rpc::rpc_params;

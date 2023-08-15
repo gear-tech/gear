@@ -30,7 +30,7 @@ use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SysCallName,
 };
-use std::{collections::HashMap, iter::Cycle, vec::IntoIter};
+use std::{collections::BTreeMap, iter::Cycle, vec::IntoIter};
 
 /// Cycled iterator over wasm module data offsets.
 ///
@@ -65,7 +65,7 @@ pub struct AdditionalDataInjector<'a, 'b> {
     last_offset: u32,
     module: WasmModule,
     addresses_offsets: Vec<u32>,
-    sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -251,7 +251,7 @@ pub struct DisabledAdditionalDataInjector<'a, 'b> {
     pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) module: WasmModule,
     pub(super) call_indexes: CallIndexes,
-    pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    pub(super) sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
     pub(super) config: SysCallsConfig,
 }
 

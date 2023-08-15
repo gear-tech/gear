@@ -31,7 +31,7 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName},
 };
-use std::{collections::HashMap, iter};
+use std::{collections::BTreeMap, iter};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -97,7 +97,7 @@ pub struct SysCallsInvocator<'a, 'b> {
     module: WasmModule,
     config: SysCallsConfig,
     offsets: Option<AddressesOffsets>,
-    sys_call_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    sys_call_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -151,9 +151,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         invocable: InvocableSysCall,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
-        let name = invocable.name();
         let signature = invocable.into_signature();
-        if self.is_not_send_sys_call(name) {
+        if self.is_not_send_sys_call(invocable) {
             return self.build_call(&signature.params, &signature.results, call_indexes_handle);
         }
 
@@ -219,15 +218,16 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(res)
     }
 
-    fn is_not_send_sys_call(&self, name: Option<SysCallName>) -> bool {
+    fn is_not_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
+        use InvocableSysCall::*;
         ![
-            Some(SysCallName::Send),
-            Some(SysCallName::SendWGas),
-            Some(SysCallName::SendInput),
-            Some(SysCallName::SendInputWGas),
-            None,
+            Loose(SysCallName::Send),
+            Loose(SysCallName::SendWGas),
+            Loose(SysCallName::SendInput),
+            Loose(SysCallName::SendInputWGas),
+            Precise(SysCallName::ReservationSend),
         ]
-        .contains(&name)
+        .contains(&sys_call)
     }
 
     fn build_call(

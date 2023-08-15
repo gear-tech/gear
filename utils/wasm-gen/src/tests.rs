@@ -91,27 +91,6 @@ fn remove_multiple_recursions() {
     println!("wat = {wat}");
 }
 
-// TODO issue #3015
-// proptest! {
-//     #![proptest_config(ProptestConfig::with_cases(100))]
-//     #[test]
-//     fn test_gen_reproduction(seed in 0..u64::MAX) {
-//         let mut rng = SmallRng::seed_from_u64(seed);
-//         let mut buf = vec![0; 100_000];
-//         rng.fill_bytes(&mut buf);
-
-//         let mut u = Unstructured::new(&buf);
-//         let mut u2 = Unstructured::new(&buf);
-
-//         let gear_config = ConfigsBundle::default();
-
-//         let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
-//         let second = gen_gear_program_code(&mut u2, gear_config, &[]);
-
-//         assert!(first == second);
-//     }
-// }
-
 #[test]
 fn injecting_addresses_works() {
     let mut rng = SmallRng::seed_from_u64(1234);
@@ -185,7 +164,7 @@ proptest! {
     #[test]
     // Test that valid config always generates a valid gear wasm.
     fn test_valid_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+        use gear_wasm_instrument::rules::CustomConstantCostRules;
         let mut u = Unstructured::new(&buf);
         let configs_bundle: ValidGearWasmConfigsBundle = ValidGearWasmConfigsBundle {
             log_info: Some("Some data".into()),
@@ -196,7 +175,20 @@ proptest! {
         let raw_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None);
+        let code_res = Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None);
         assert!(code_res.is_ok());
+    }
+
+    #[test]
+    fn test_reproduction(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        let mut u = Unstructured::new(&buf);
+        let mut u2 = Unstructured::new(&buf);
+
+        let gear_config = ValidGearWasmConfigsBundle::<[u8; 32]>::default();
+
+        let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
+        let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");
+
+        assert_eq!(first, second);
     }
 }

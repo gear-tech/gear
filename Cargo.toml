@@ -3,6 +3,8 @@ version = "0.2.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
+homepage = "https://www.gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
 
 [workspace]
 resolver = "2"
@@ -114,7 +116,7 @@ async-trait = "0.1.68"
 base64 = "0.21.0"
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.3.19" }
+clap = { version = "4.3.21" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -128,7 +130,7 @@ env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.28"
-hashbrown = "0.13.2"
+hashbrown = "0.14.0"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
@@ -183,6 +185,18 @@ which = "4.4.0"
 winapi = "0.3.9"
 paste = "1.0"
 
+# Published deps
+#
+# fork of `parity-wasm` with sign-ext enabled by default.
+#
+# https://github.com/gear-tech/parity-wasm/tree/v0.45.0-sign-ext
+# gear-wasm = "0.45.0"
+#
+# fork of `wasm-instrument`
+#
+# https://github.com/gear-tech/wasm-instrument/tree/v0.2.1-sign-ext
+gwasm-instrument = { version = "0.2.1", default-features = false }
+
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
@@ -217,6 +231,7 @@ gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }
 gear-service = { path = "node/service", default-features = false }
+gear-stack-buffer = { path = "stack-buffer" }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
@@ -240,8 +255,6 @@ service = { package = "gear-service", path = "node/service", default-features = 
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-
 validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary-no-sandbox', default-features = false }
 
 # Substrate deps
@@ -433,7 +446,7 @@ page_size = { version = "0.5", default-features = false }                 # pall
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
 schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
+scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
 toml = "0.7.3"                                                            # utils/wasm-builder
