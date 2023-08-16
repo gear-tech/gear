@@ -6,6 +6,12 @@ on:
       cache:
         type: string
         required: true
+      linux:
+        type: boolean
+        default: true
+      win:
+        type: boolean
+        default: true
       macos:
         type: boolean
         default: false
@@ -20,6 +26,7 @@ env:
 
 jobs:
   linux:
+    if: ${{ inputs.linux }}
     runs-on: [kuberunner, github-runner-02]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -177,6 +184,7 @@ jobs:
       - run: sccache --show-stats
 
   win-cross:
+    if: ${{ always() && inputs.win }}
     runs-on: [kuberunner, github-runner-03]
     env:
       XWIN_ARCH: x86_64
