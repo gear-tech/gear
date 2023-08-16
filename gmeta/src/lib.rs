@@ -263,7 +263,7 @@ pub struct MetadataRepr {
     /// Internal representation for [`Metadata::Signal`] type.
     pub signal: Option<u32>,
     /// Internal representation for [`Metadata::State`] type.
-    pub state: Option<u32>,
+    pub state: TypesRepr,
     /// Encoded registry of types.
     pub registry: Vec<u8>,
 }
