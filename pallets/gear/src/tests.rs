@@ -13266,36 +13266,7 @@ fn pause_waited_uninited_program() {
 
     init_logger();
 
-    // closure to get corresponding block numbers
-    let get_remove_block = |current_gas: u64| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            current_gas.to_le_bytes().to_vec(),
-            Vec::new(),
-            current_gas,
-            0u128
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_active(program_id));
-
-        run_to_next_block(None);
-
-        let (_, remove_from_waitlist_block) = get_last_message_waited();
-
-        let program = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-
-        (remove_from_waitlist_block, program.expiration_block)
-    };
-
-    // determine such gas value that init message will be removed
-    // before an execution of the PauseProgram task
-    let gas = new_test_ext().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let GasInfo {
             waited: init_waited,
             burned,
@@ -13312,20 +13283,8 @@ fn pause_waited_uninited_program() {
 
         assert!(init_waited);
 
-        let mut current_gas = 2 * burned;
+        let gas = burned + burned / 10_000 * 3;
 
-        let (mut remove_from_waitlist_block, mut expiration_block) = get_remove_block(current_gas);
-
-        while remove_from_waitlist_block >= expiration_block {
-            current_gas = (current_gas + burned) / 2;
-
-            (remove_from_waitlist_block, expiration_block) = get_remove_block(current_gas);
-        }
-
-        current_gas
-    });
-
-    new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -13344,23 +13303,26 @@ fn pause_waited_uninited_program() {
 
         let (_, remove_from_waitlist_block) = get_last_message_waited();
 
-        assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_active(program_id));
-
-        run_to_next_block(None);
-
-        System::set_block_number(remove_from_waitlist_block - 1);
-        Gear::set_block_number(remove_from_waitlist_block - 1);
-
-        run_to_next_block(None);
-
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
         let expiration_block = program.expiration_block;
 
-        System::set_block_number(expiration_block - 1);
-        Gear::set_block_number(expiration_block - 1);
+        let first_block = remove_from_waitlist_block.min(expiration_block);
+        let second_block = remove_from_waitlist_block.max(expiration_block);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        System::set_block_number(first_block - 1);
+        Gear::set_block_number(first_block - 1);
+
+        run_to_next_block(None);
+
+        System::set_block_number(second_block - 1);
+        Gear::set_block_number(second_block - 1);
 
         run_to_next_block(None);
     })
