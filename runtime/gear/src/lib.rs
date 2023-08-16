@@ -450,7 +450,7 @@ parameter_types! {
 }
 
 fn bank_address() -> AccountId {
-    let arr: [u8; 8] = [1, 5, 0, 8, 2, 0, 0, 1];
+    let arr: [u32; 8] = [1, 5, 0, 8, 2, 0, 0, 1];
     let mut addr = [0u8; 32];
 
     for (pos, byte) in arr.into_iter().enumerate() {
