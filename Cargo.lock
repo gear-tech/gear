@@ -1870,17 +1870,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-collection"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gsys",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -1896,6 +1885,17 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-custom"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gsys",
+ "gtest",
  "parity-scale-codec",
 ]
 
@@ -3615,8 +3615,8 @@ dependencies = [
  "demo-async-tester",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
- "demo-collection",
  "demo-constructor",
+ "demo-custom",
  "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",
@@ -4665,7 +4665,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
- "demo-collection",
+ "demo-custom",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
@@ -7216,9 +7216,9 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
- "demo-collection",
  "demo-compose",
  "demo-constructor",
+ "demo-custom",
  "demo-delayed-sender",
  "demo-distributor",
  "demo-futures-unordered",

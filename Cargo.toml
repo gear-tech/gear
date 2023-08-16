@@ -24,7 +24,7 @@ members = [
     "examples/async-signal-entry",
     "examples/async-tester",
     "examples/calc-hash",
-    "examples/collection",
+    "examples/custom",
     "examples/compose",
     "examples/constructor",
     "examples/delayed-sender",
@@ -360,7 +360,7 @@ demo-async-tester = { path = "examples/async-tester" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
-demo-collection = { path = "examples/collection" }
+demo-custom = { path = "examples/custom" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor" }
 demo-delayed-sender = { path = "examples/delayed-sender" }

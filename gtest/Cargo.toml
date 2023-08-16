@@ -26,7 +26,7 @@ gear-wasm-instrument.workspace = true
 log.workspace = true
 
 [dev-dependencies]
-demo-collection.workspace = true
+demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true

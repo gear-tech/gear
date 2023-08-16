@@ -713,7 +713,7 @@ mod tests {
 
     #[test]
     fn save_load_memory_dump() {
-        use demo_collection::{InitMessage, WASM_BINARY};
+        use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
         sys.init_logger();
 
@@ -736,7 +736,7 @@ mod tests {
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
         };
-        prog.save_memory_dump("./296c6962726/demo_collection.dump");
+        prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
         // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
@@ -748,7 +748,7 @@ mod tests {
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
 
-        prog.load_memory_dump("./296c6962726/demo_collection.dump");
+        prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
         // Charge capacitor with charge = 10
