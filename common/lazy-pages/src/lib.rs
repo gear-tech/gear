@@ -171,10 +171,12 @@ pub fn pre_process_memory_accesses(
     let serialized_reads = serialize_mem_intervals(reads);
     let serialized_writes = serialize_mem_intervals(writes);
 
-    let (gas, res) =
-        gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, *gas_counter);
+    let mut gas_bytes = gas_counter.to_le_bytes();
 
-    *gas_counter = gas;
+    let res =
+        gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, &mut gas_bytes);
+
+    *gas_counter = u64::from_le_bytes(gas_bytes);
 
     // if result can be converted to `ProcessAccessError` then it's an error
     if let Ok(err) = ProcessAccessError::try_from(res) {

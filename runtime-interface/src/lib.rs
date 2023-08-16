@@ -109,7 +109,7 @@ pub trait GearRI {
     }
 
     #[version(2)]
-    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_counter: u64) -> (u64, u8) {
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
         let mem_interval_size = size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
@@ -119,6 +119,8 @@ pub trait GearRI {
         deserialize_mem_intervals(reads, &mut reads_intervals);
         let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
+
+        let gas_counter = u64::from_le_bytes(*gas_bytes);
 
         let mut gas_left = GasLeft {
             gas: gas_counter,
@@ -133,7 +135,9 @@ pub trait GearRI {
             Err(err) => err.into(),
         };
         let GasLeft { gas, allowance } = gas_left;
-        (gas.min(allowance), res)
+        *gas_bytes = gas.min(allowance).to_le_bytes();
+
+        res
     }
 
     fn lazy_pages_status() -> (Status,) {
