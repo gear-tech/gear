@@ -10,21 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  status:
+  build:
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'A0-pleasereview' || github.event.label.name == 'E2-forcemacos'
-    outputs:
-      build: ${{ steps.label-checks.outputs.build }}
-      linux: ${{ steps.label-checks.outputs.linux }}
-      win: ${{ steps.label-checks.outputs.win }}
-      macos: ${{ steps.label-checks.outputs.macos }}
+    # if: github.event.label.name == 'A0-pleasereview' || github.event.label.name == 'E2-forcemacos'
     steps:
       - uses: actions/github-script@v6
         id: label-checks
         with:
           script: |
             const [owner, repo] = ["gear-tech", "gear"];
-            const { ref, payload: { number: issue_number } } = context;
+            // const { ref, payload: { number: issue_number } } = context;
+            const ref = "cl/issue-2888";
+            const issue_number = 3070;
 
             // List all labels of the current pull request.
             const { data: labelsArr } = await github.rest.issues.listLabelsOnIssue({
@@ -51,24 +48,28 @@ jobs:
             });
 
             for (run of check_runs) {
+              console.log(run.name);
               if (run.name === "build / linux") {
                  linux = false;
-              } else if (run.name === "build / macos-86") {
+              } else if (run.name === "build-macos / x86") {
                  macos = false;
               }
             }
 
-            core.setOutput("build", linux || macos);
-            core.setOutput("linux", linux);
-            core.setOutput("win", linux);
-            core.setOutput("macos", macos)
+            if (linux) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: "build.yml",
+                ref
+              });
+            }
 
-  build:
-    needs: status
-    uses: ./.github/workflows/build.yml
-    if: ${{ needs.status.outputs.build }}
-    with:
-      cache: true
-      linux: ${{ fromJSON(needs.status.outputs.linux) }}
-      win: ${{ fromJSON(needs.status.outputs.win) }}
-      macos: ${{ fromJSON(needs.status.outputs.macos) }}
+            if (macos) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: "build-macos.yml",
+                ref
+              });
+            }
