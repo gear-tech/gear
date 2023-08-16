@@ -468,7 +468,7 @@ pub trait Metadata {
     ///
     /// Use the type that you pass to the `msg::reply` function in the `state()`
     /// function or unit tuple `()` if no `state()` function is defined.
-    type State: Type;
+    type State: Types;
 
     /// Create metadata representation and register types in registry.
     fn repr() -> MetadataRepr {
