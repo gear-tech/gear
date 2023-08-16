@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
-use gmeta::{InOut, Out, Metadata};
+use gmeta::{InOut, Metadata, Out};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 

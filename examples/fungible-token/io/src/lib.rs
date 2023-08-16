@@ -19,7 +19,7 @@
 #![no_std]
 
 use core::ops::Range;
-use gmeta::{In, InOut, Out, Metadata};
+use gmeta::{In, InOut, Metadata, Out};
 use gstd::{codec::MaxEncodedLen, prelude::*, ActorId};
 
 pub struct FungibleTokenMetadata;
