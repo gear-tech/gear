@@ -13366,6 +13366,69 @@ fn pause_waited_uninited_program() {
     })
 }
 
+#[test]
+fn pay_rent_extrinsic_fails_for_uninited_program() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let GasInfo {
+            waited: init_waited,
+            min_limit,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            vec![],
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(init_waited);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            min_limit,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let (_, remove_from_waitlist_block) = get_last_message_waited();
+        assert_err!(
+            Gear::pay_program_rent(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                remove_from_waitlist_block + 1,
+            ),
+            Error::<Test>::UninitializedProgram,
+        );
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expiration_block = program.expiration_block;
+
+        assert!(expiration_block < remove_from_waitlist_block);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 

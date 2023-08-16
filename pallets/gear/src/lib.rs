@@ -477,6 +477,8 @@ pub mod pallet {
         ProgramNotFound,
         /// Voucher can't be redemmed
         FailureRedeemingVoucher,
+        /// Program has not initialized yet.
+        UninitializedProgram,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
