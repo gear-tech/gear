@@ -107,7 +107,7 @@ pub trait GearRI {
     }
 
     #[version(2)]
-    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_couunter: u64) -> (u64, u8) {
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_counter: u64) -> (u64, u8) {
         let reads_len = reads.len();
         let writes_len = writes.len();
         assert!(reads_len % 8 == 0);
@@ -118,8 +118,8 @@ pub trait GearRI {
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
         let mut gas_left = GasLeft {
-            gas: gas_couunter,
-            allowance: gas_couunter,
+            gas: gas_counter,
+            allowance: gas_counter,
         };
         let res = match lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
