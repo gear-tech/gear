@@ -1086,7 +1086,6 @@ impl JournalHandler for ExtManager {
             }
         } else {
             log::debug!(
-                target: "gtest",
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
