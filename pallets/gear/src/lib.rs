@@ -134,6 +134,7 @@ pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
+pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -467,8 +468,6 @@ pub mod pallet {
         ProgramConstructionFailed,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
-        /// Messages storage corrupted.
-        MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
@@ -624,12 +623,10 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
-
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_value(&who, value)?;
 
             let origin = who.clone().into_origin();
 
@@ -667,7 +664,8 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
 
             Self::deposit_event(Event::MessageQueued {
                 id: message_id,
@@ -1211,12 +1209,10 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
-
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_value(&who, value)?;
 
             Ok(packet)
         }
@@ -1266,7 +1262,8 @@ pub mod pallet {
                 entry: MessageEntry::Init,
             };
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
 
             let task = ScheduledTask::PauseProgram(program_id);
             TaskPoolOf::<T>::add(expiration_block, task)
@@ -1508,14 +1505,8 @@ pub mod pallet {
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
-                CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::InsufficientBalance)?;
-
-                let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
-
-                // First we reserve enough funds on the account to pay for `gas_limit`
-                CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::InsufficientBalance)?;
+                GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+                GearBank::<T>::deposit_value(&who, value)?;
 
                 Self::create(who.clone(), message.id(), gas_limit, false);
 
@@ -1528,7 +1519,8 @@ pub mod pallet {
                     entry: MessageEntry::Handle,
                 });
 
-                QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                QueueOf::<T>::queue(message)
+                    .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
                 let message: UserMessage = message
@@ -1542,8 +1534,7 @@ pub mod pallet {
                     ),
                     value.unique_saturated_into(),
                     ExistenceRequirement::AllowDeath,
-                )
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+                )?;
 
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
@@ -1607,15 +1598,12 @@ pub mod pallet {
                 gas_limit
             };
 
-            // Converting applied gas limit into value to reserve.
-            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
-
             // Reserving funds for gas limit and value sending.
             //
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
-            CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            GearBank::<T>::deposit_gas::<T::GasPrice>(&origin, gas_limit)?;
+            GearBank::<T>::deposit_value(&origin, value)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1890,8 +1878,7 @@ pub mod pallet {
                     &block_author,
                     rent_fee,
                     ExistenceRequirement::AllowDeath,
-                )
-                .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
+                )?;
 
                 Self::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -1904,6 +1891,7 @@ pub mod pallet {
             Ok(().into())
         }
 
+        // TODO (breathx): adjust all voucher stuff.
         /// Sends a message to a program using pre-allocated funds.
         ///
         /// The origin must be Signed and the sender must have been issued a `voucher` -
@@ -1957,8 +1945,7 @@ pub mod pallet {
             //
             // Note: reservaton is made from the user's account as voucher can only be used
             // to pay for gas or settle transaction fees, but not as source for value transfer.
-            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())?;
 
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
@@ -1990,7 +1977,8 @@ pub mod pallet {
                 entry: MessageEntry::Handle,
             });
 
-            QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            QueueOf::<T>::queue(message)
+                .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
 
             Ok(().into())
         }
@@ -2040,8 +2028,7 @@ pub mod pallet {
             //
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
-            CurrencyOf::<T>::reserve(&origin, value)
-                .map_err(|_| Error::<T>::InsufficientBalance)?;
+            CurrencyOf::<T>::reserve(&origin, value)?;
 
             let reply_id = MessageId::generate_reply(mailboxed.id());
 

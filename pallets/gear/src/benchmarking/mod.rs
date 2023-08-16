@@ -58,8 +58,8 @@ use crate::{
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
-    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
+    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -69,7 +69,7 @@ use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
+    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
 };
 use core_processor::{
@@ -80,7 +80,7 @@ use core_processor::{
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
     codec::Encode,
-    traits::{Currency, Get, Hooks, ReservableCurrency},
+    traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
@@ -454,7 +454,8 @@ benchmarks! {
         let gas_limit = 50000;
         let value = 10000u32.into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -718,7 +719,8 @@ benchmarks! {
         let gas_limit = 50000;
         let value = (p % 2).into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -749,7 +751,8 @@ benchmarks! {
         let gas_limit = 50000;
         let value = (p % 2).into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        CurrencyOf::<T>::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         let program_id = ProgramId::from_origin(program_id.into_origin());
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,

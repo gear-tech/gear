@@ -19,8 +19,8 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -31,7 +31,7 @@ use common::{
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
     sp_runtime::Saturating,
-    traits::{Currency, ExistenceRequirement, ReservableCurrency},
+    traits::{Currency, ExistenceRequirement},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -301,10 +301,11 @@ where
             );
 
             if dispatch.value() != 0 {
-                CurrencyOf::<T>::reserve(
+                GearBank::<T>::deposit_value(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                     dispatch.value().unique_saturated_into(),
-                ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
+                )
+                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
 
             match (gas_limit, reservation) {
@@ -443,7 +444,8 @@ where
         let from = <T::AccountId as Origin>::from_origin(from.into_origin());
         let value = value.unique_saturated_into();
 
-        Pallet::<T>::transfer_reserved(&from, &to, value);
+        GearBank::<T>::transfer_value(&from, &to, value)
+            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
