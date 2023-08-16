@@ -24,7 +24,6 @@
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
-    memory::ProcessAccessError,
     LimitedStr,
 };
 use gear_core::{
@@ -102,9 +101,9 @@ pub trait GearRI {
         assert!(reads_len % 8 == 0);
         assert!(writes_len % 8 == 0);
         let mut reads_intervals = Vec::with_capacity(reads_len / 8);
-        deserialize_mem_intervals(&reads, &mut reads_intervals);
+        deserialize_mem_intervals(reads, &mut reads_intervals);
         let mut writes_intervals = Vec::with_capacity(writes_len / 8);
-        deserialize_mem_intervals(&writes, &mut writes_intervals);
+        deserialize_mem_intervals(writes, &mut writes_intervals);
 
         let mut gas_left = GasLeft {
             gas: gas_couunter,
