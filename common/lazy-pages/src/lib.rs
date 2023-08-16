@@ -36,7 +36,7 @@ use gear_core::{
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
-use sp_std::{vec, vec::Vec};
+use sp_std::{mem::size_of, vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
     if mem.get_buffer_host_addr().is_none() {
@@ -155,7 +155,7 @@ pub fn get_status() -> Status {
 }
 
 fn serialize_mem_intervals(intervals: &[MemoryInterval]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(intervals.len() * 8);
+    let mut bytes = Vec::with_capacity(intervals.len() * size_of::<MemoryInterval>());
     for interval in intervals {
         bytes.extend_from_slice(&interval.to_bytes());
     }

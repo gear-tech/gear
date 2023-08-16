@@ -35,6 +35,7 @@ use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
+use sp_std::mem::size_of;
 
 extern crate alloc;
 use alloc::string::String;
@@ -87,7 +88,8 @@ impl PassBy for LazyPagesRuntimeContext {
 }
 
 pub fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-    for chunk in bytes.chunks(8) {
+    let mem_interval_size = size_of::<MemoryInterval>();
+    for chunk in bytes.chunks(mem_interval_size) {
         intervals.push(MemoryInterval::from_bytes(chunk));
     }
 }
@@ -108,13 +110,14 @@ pub trait GearRI {
 
     #[version(2)]
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_counter: u64) -> (u64, u8) {
+        let mem_interval_size = size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
-        assert!(reads_len % 8 == 0);
-        assert!(writes_len % 8 == 0);
-        let mut reads_intervals = Vec::with_capacity(reads_len / 8);
+        assert!(reads_len % mem_interval_size == 0);
+        assert!(writes_len % mem_interval_size == 0);
+        let mut reads_intervals = Vec::with_capacity(reads_len / mem_interval_size);
         deserialize_mem_intervals(reads, &mut reads_intervals);
-        let mut writes_intervals = Vec::with_capacity(writes_len / 8);
+        let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
         let mut gas_left = GasLeft {
