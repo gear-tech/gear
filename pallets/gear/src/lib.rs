@@ -1778,8 +1778,13 @@ pub mod pallet {
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
-                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
-                        .map_err(|_| Error::<T>::InsufficientBalance)
+                    match Self::pay_program_rent_impl(program_id, program, &who, block_count) {
+                        Ok(internal::PayRentStatus::UninitedProgram) => {
+                            Err(Error::<T>::UninitializedProgram)
+                        }
+                        Err(_) => Err(Error::<T>::InsufficientBalance),
+                        _ => Ok(()),
+                    }
                 },
             )??;
 

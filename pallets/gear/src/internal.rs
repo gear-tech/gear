@@ -193,6 +193,13 @@ where
     }
 }
 
+/// The enum represents successful codes of pay rent for a program.
+pub enum PayRentStatus {
+    Ok,
+    UninitedProgram,
+    ZeroBlocks,
+}
+
 // Internal functionality implementation.
 impl<T: Config> Pallet<T>
 where
@@ -1020,7 +1027,11 @@ where
         program: &mut ActiveProgram<BlockNumberFor<T>>,
         from: &T::AccountId,
         block_count: BlockNumberFor<T>,
-    ) -> Result<(), DispatchError> {
+    ) -> Result<PayRentStatus, DispatchError> {
+        if !matches!(program.state, common::ProgramState::Initialized) {
+            return Ok(PayRentStatus::UninitedProgram);
+        }
+
         let old_expiration_block = program.expiration_block;
         let (new_expiration_block, blocks_to_pay) = old_expiration_block
             .checked_add(&block_count)
@@ -1032,7 +1043,7 @@ where
             });
 
         if blocks_to_pay.is_zero() {
-            return Ok(());
+            return Ok(PayRentStatus::ZeroBlocks);
         }
 
         let block_author = Authorship::<T>::author()
@@ -1060,7 +1071,7 @@ where
             },
         });
 
-        Ok(())
+        Ok(PayRentStatus::Ok)
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas
