@@ -109,6 +109,12 @@ pub mod pallet {
         pub value: Balance,
     }
 
+    impl<Balance: Add<Output = Balance>> BankAccount<Balance> {
+        pub fn total(self) -> Balance {
+            self.gas + self.value
+        }
+    }
+
     impl<Balance: Add<Output = Balance>> Add for BankAccount<Balance> {
         type Output = Self;
 
@@ -279,7 +285,7 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
-            Self::withdraw(account_id, value).unwrap_or_else(|_| unreachable!("qed above"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
@@ -294,7 +300,7 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
-            Self::reward_block_author(value).unwrap_or_else(|_| unreachable!("qed above"));
+            Self::reward_block_author(value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
@@ -358,7 +364,7 @@ pub mod pallet {
 
             Self::withdraw_value_no_transfer(account_id, value)?;
 
-            Self::withdraw(account_id, value).unwrap_or_else(|_| unreachable!("qed above"));
+            Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
@@ -375,7 +381,7 @@ pub mod pallet {
 
             Self::withdraw_value_no_transfer(account_id, value)?;
 
-            Self::withdraw(destination, value).unwrap_or_else(|_| unreachable!("qed above"));
+            Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
@@ -386,6 +392,12 @@ pub mod pallet {
 
         pub fn account_value(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {
             Self::account(account_id).map(|v| v.value)
+        }
+
+        pub fn account_total(account_id: &AccountIdOf<T>) -> BalanceOf<T> {
+            Self::account(account_id)
+                .map(|v| v.total())
+                .unwrap_or_default()
         }
     }
 }
