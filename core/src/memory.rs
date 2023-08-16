@@ -46,6 +46,9 @@ pub struct MemoryInterval {
 }
 
 impl MemoryInterval {
+    /// Convert `MemoryInterval` to `[u8; 8]` bytes.
+    /// `0..4` - `offset`
+    /// `4..8` - `size`
     pub fn to_bytes(&self) -> [u8; 8] {
         let mut bytes = [0u8; 8];
         LittleEndian::write_u32(&mut bytes[0..4], self.offset);
@@ -53,6 +56,9 @@ impl MemoryInterval {
         bytes
     }
 
+    /// Convert `[u8; 8]` bytes to `MemoryInterval`.
+    /// `0..4` - `offset`
+    /// `4..8` - `size`
     pub fn from_bytes(bytes: &[u8]) -> Self {
         assert!(bytes.len() == 8);
         let offset = LittleEndian::read_u32(&bytes[0..4]);
