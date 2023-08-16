@@ -54,7 +54,7 @@
 //!
 //! ```
 //! #[no_std]
-//! use gmeta::{InOut, Metadata};
+//! use gmeta::{InOut, Metadata, Out};
 //! use gstd::prelude::*;
 //!
 //! // Message type for `handle()` function.
@@ -82,7 +82,7 @@
 //!     // The unit tuple is used as we don't process any signals in this contract.
 //!     type Signal = ();
 //!     // We return a counter value (`i32`) in the `state()` function in this contract.
-//!     type State = i32;
+//!     type State = Out<i32>;
 //! }
 //! ```
 //!
@@ -149,7 +149,7 @@
 //! using `build.rs`:
 //!
 //! ```
-//! use gmeta::Metadata;
+//! use gmeta::{Metadata, Out};
 //! # const IGNORE: &'static str = stringify! {
 //! use ping_io::ContractMetadata;
 //! # };
@@ -168,11 +168,11 @@
 //! #     type Others = ();
 //! #     type Reply = ();
 //! #     type Signal = ();
-//! #     type State = i32;
+//! #     type State = Out<i32>;
 //! # }
 //! #
 //! let metadata_hex = ContractMetadata::repr().hex();
-//! assert_eq!(metadata_hex.len(), 144);
+//! assert_eq!(metadata_hex.len(), 146);
 //! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
 //! ```
 //!
