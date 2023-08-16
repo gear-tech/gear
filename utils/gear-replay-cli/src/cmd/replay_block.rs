@@ -20,7 +20,7 @@
 
 use crate::{parse, util::*, BlockHashOrNumber, SharedParams, LOG_TARGET};
 use clap::Parser;
-use codec::Encode;
+use codec::{Decode, Encode};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
@@ -60,6 +60,14 @@ pub struct ReplayBlockCmd<Block: BlockT> {
     /// Otherwise, it must be enabled explicitly using this flag.
     #[arg(long)]
     child_tree: bool,
+
+    /// Forces `Gear::run()` inherent to be placed in the block.
+    ///
+    /// In case the `Gear::run()` extrinsic has been dropped from a block due to panic, this flag
+    /// can be used to force the `Gear::run()` inherent to be placed in the block to reproduce the
+    /// issue.
+    #[arg(long, short)]
+    force_run: bool,
 }
 
 pub(crate) async fn replay_block<Block>(
@@ -124,10 +132,28 @@ where
     log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
     let block = fetch_block::<Block>(&rpc, current_hash).await?;
 
+    let (mut header, mut extrinsics) = block.deconstruct();
+
     // A digest item gets added when the runtime is processing the block, so we need to pop
     // the last one to be consistent with what a gossiped block would contain.
-    let (mut header, extrinsics) = block.deconstruct();
     header.digest_mut().pop();
+
+    // In case the `Gear::run()` extrinsic has been dropped due to panic, we re-insert it here.
+    // Timestamp inherent is alwasy present hence `extrinsics` vector is not empty
+    assert!(!extrinsics.is_empty());
+
+    if command.force_run {
+        // Encoded `Gear::run` extrinsic: length byte 12 (3 << 2) + 104th pallet + 6th extrinsic
+        let gear_run_encoded = vec![12_u8, 4, 104, 6];
+        // `Gear::run()`, is present, is always the last in the block.
+        let maybe_gear_run_idx = extrinsics.len() - 1;
+        if extrinsics[maybe_gear_run_idx].encode() != gear_run_encoded {
+            let gear_run_tx = <Block as BlockT>::Extrinsic::decode(&mut &gear_run_encoded[..])
+                .expect("Failed to decode `Gear::run()` extrinsic");
+            extrinsics.push(gear_run_tx);
+        }
+    }
+
     let block = Block::new(header, extrinsics);
 
     // Create executor, suitable for usage in conjunction with the preferred execution strategy.

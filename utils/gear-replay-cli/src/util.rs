@@ -23,11 +23,11 @@ use crate::{HashFor, NumberFor, LOG_TARGET};
 use frame_remote_externalities::{
     Builder, Mode, OnlineConfig, RemoteExternalities, TestExternalities,
 };
-use sc_executor::WasmExecutor;
 #[cfg(feature = "always-wasm")]
-use sc_executor::{sp_wasm_interface::HostFunctions, WasmtimeInstantiationStrategy};
+use sc_executor::sp_wasm_interface::HostFunctions;
 #[cfg(not(feature = "always-wasm"))]
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::{WasmExecutor, WasmtimeInstantiationStrategy};
 use sp_core::{
     offchain::{
         testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -59,7 +59,9 @@ pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExec
     let runtime_cache_size = 2;
 
     NativeElseWasmExecutor::<D>::new_with_wasm_executor(WasmExecutor::new(
-        sc_executor::WasmExecutionMethod::Interpreted,
+        sc_executor::WasmExecutionMethod::Compiled {
+            instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
+        },
         heap_pages,
         max_runtime_instances,
         None,

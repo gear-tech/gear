@@ -20,7 +20,7 @@
 
 use crate::{parse, util::*, BlockHashOrNumber, SharedParams, LOG_TARGET};
 use clap::Parser;
-use codec::{Decode, Joiner};
+use codec::{Decode, Encode, Joiner};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
@@ -86,31 +86,29 @@ where
         }
     };
 
-    let (block_number, block_hash) = match block_hash_or_num {
+    let (current_number, current_hash) = match block_hash_or_num {
         BlockHashOrNumber::Number(n) => (n, block_number_to_hash::<Block>(&rpc, n).await?),
         BlockHashOrNumber::Hash(hash) => (block_hash_to_number::<Block>(&rpc, hash).await?, hash),
     };
 
-    // Get the state at the height corresponging to the requested block.
+    // Get the state at the height corresponging to previous block.
+    let previous_hash =
+        block_number_to_hash::<Block>(&rpc, current_number.saturating_sub(One::one())).await?;
     log::info!(
         target: LOG_TARGET,
         "Fetching state from {:?} at {:?}",
         shared.uri,
-        block_hash,
+        previous_hash,
     );
     let ext =
-        build_externalities::<Block>(shared.uri.clone(), Some(block_hash), vec![], true).await?;
+        build_externalities::<Block>(shared.uri.clone(), Some(previous_hash), vec![], true).await?;
 
-    let next_hash =
-        block_number_to_hash::<Block>(&rpc, block_number.saturating_add(One::one())).await?;
-    log::info!(target: LOG_TARGET, "Fetching block {:?} ", next_hash);
-    let block = fetch_block::<Block>(&rpc, next_hash).await?;
+    log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
+    let block = fetch_block::<Block>(&rpc, current_hash).await?;
 
     // A digest item gets added when the runtime is processing the block, so we need to pop
     // the last one to be consistent with what a gossiped block would contain.
-    let (mut header, extrinsics) = block.deconstruct();
-    header.digest_mut().pop();
-    let block = Block::new(header, extrinsics);
+    let (header, extrinsics) = block.deconstruct();
 
     // Create executor, suitable for usage in conjunction with the preferred execution strategy.
     #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
@@ -137,20 +135,43 @@ where
         &ext,
         &executor,
         "Core_initialize_block",
-        &vec![].and(block.header()),
+        &vec![].and(&header),
         full_extensions(),
         strategy,
     )?;
-    log::info!(target: LOG_TARGET, "Core_initialize_block completed");
+    log::info!(
+        target: LOG_TARGET,
+        "Core_initialize_block completed for block {:?}",
+        header.number()
+    );
 
-    // Encoded Gear::run() extrinsic
-    let tx = vec![4_u8, 104, 6];
+    // Encoded `Gear::run` extrinsic: length byte 12 (3 << 2) + 104th pallet + 6th extrinsic
+    let gear_run_tx = vec![12_u8, 4, 104, 6];
 
+    // Drop the timestamp extrinsic which is always the first in the block
+    let extrinsics = extrinsics.into_iter().skip(1).collect::<Vec<_>>();
+
+    for extrinsic in extrinsics {
+        let tx_encoded = extrinsic.encode();
+        if tx_encoded != gear_run_tx {
+            // Apply all extrinsics in the block except for the timestamp and gear::run
+            let _ = state_machine_call(
+                &ext,
+                &executor,
+                "BlockBuilder_apply_extrinsic",
+                &tx_encoded,
+                full_extensions(),
+                strategy,
+            )?;
+        }
+    }
+
+    // Applying the `gear_run()` in the end
     let (_changes, enc_res) = state_machine_call(
         &ext,
         &executor,
         "BlockBuilder_apply_extrinsic",
-        &vec![].and(&tx),
+        &gear_run_tx,
         full_extensions(),
         strategy,
     )?;

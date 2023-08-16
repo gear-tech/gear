@@ -93,6 +93,8 @@ impl ReplayCli {
 }
 
 pub async fn run() -> sc_cli::Result<()> {
+    gear_runtime_interface::sandbox_init();
+
     let options = ReplayCli::parse();
 
     options.init_logger()?;

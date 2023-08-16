@@ -7,10 +7,10 @@ license.workspace = true
 
 [dependencies]
 # Internal
-vara-runtime = { workspace = true, optional = true }
-gear-runtime = { workspace = true, optional = true }
-gear-runtime-interface = { workspace = true, features = ["std"], optional = true }
+gear-runtime-interface.workspace = true
 runtime-primitives.workspace = true
+gear-runtime = { workspace = true, optional = true }
+vara-runtime = { workspace = true, optional = true }
 service = { workspace = true, optional = true }
 
 # Substrate Primitives
@@ -53,12 +53,11 @@ std = [
     "sp-externalities/std",
     "sc-executor/std",
     "frame-system/std",
+    "gear-runtime-interface/std",
     "gear-runtime?/std",
     "vara-runtime?/std",
 ]
-always-wasm = [
-    "gear-runtime-interface",
-]
+always-wasm = []
 vara-native = [
     "service/vara-native",
     "vara-runtime",
