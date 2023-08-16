@@ -42,43 +42,47 @@ pub enum StateRequest {
     ForKey(u32),
 }
 
-use gstd::{debug, msg, prelude::*, BTreeMap};
+#[cfg(not(feature = "std"))]
+pub(crate) mod wasm {
+    use super::*;
+    use gstd::{debug, msg, prelude::*, BTreeMap};
 
-pub(crate) type BTreeState = BTreeMap<u32, u32>;
+    pub(crate) type State = BTreeMap<u32, u32>;
 
-pub(crate) fn init() -> BTreeState {
-    msg::reply((), 0).unwrap();
-    BTreeMap::new()
-}
+    pub(crate) fn init() -> State {
+        msg::reply((), 0).unwrap();
+        BTreeMap::new()
+    }
 
-pub(crate) fn handle(state: &mut BTreeState) {
-    let reply = msg::load_on_stack()
-        .map(|request| process(state, request))
-        .unwrap_or_else(|e| {
-            debug!("Error processing request: {e:?}");
-            Reply::Error
-        });
-    msg::reply(reply, 0).unwrap();
-}
+    pub(crate) fn handle(state: &mut State) {
+        let reply = msg::load_on_stack()
+            .map(|request| process(state, request))
+            .unwrap_or_else(|e| {
+                debug!("Error processing request: {e:?}");
+                Reply::Error
+            });
+        msg::reply(reply, 0).unwrap();
+    }
 
-pub(crate) fn state(state: BTreeState) {
-    let request: StateRequest = msg::load_on_stack().unwrap();
-    match request {
-        StateRequest::Full => msg::reply(state, 0).unwrap(),
-        StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
-    };
-}
+    pub(crate) fn state(state: State) {
+        let request: StateRequest = msg::load_on_stack().unwrap();
+        match request {
+            StateRequest::Full => msg::reply(state, 0).unwrap(),
+            StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
+        };
+    }
 
-fn process(state: &mut BTreeState, request: Request) -> Reply {
-    use Request::*;
+    fn process(state: &mut State, request: Request) -> Reply {
+        use Request::*;
 
-    match request {
-        Insert(key, value) => Reply::Value(state.insert(key, value)),
-        Remove(key) => Reply::Value(state.remove(&key)),
-        List => Reply::List(state.iter().map(|(k, v)| (*k, *v)).collect()),
-        Clear => {
-            state.clear();
-            Reply::None
+        match request {
+            Insert(key, value) => Reply::Value(state.insert(key, value)),
+            Remove(key) => Reply::Value(state.remove(&key)),
+            List => Reply::List(state.iter().map(|(k, v)| (*k, *v)).collect()),
+            Clear => {
+                state.clear();
+                Reply::None
+            }
         }
     }
 }

@@ -16,31 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsys::{ErrorWithHash, HashWithValue};
+#[cfg(not(feature = "std"))]
+pub(crate) mod wasm {
+    use gsys::{ErrorWithHash, HashWithValue};
 
-pub(crate) struct BackendErrorState;
+    pub(crate) struct State;
 
-pub(crate) fn init() -> BackendErrorState {
-    // Code below is copied and simplified from `gcore::msg::send`.
-    let pid_value = HashWithValue {
-        hash: [0; 32],
-        value: 0,
-    };
+    pub(crate) fn init() -> State {
+        // Code below is copied and simplified from `gcore::msg::send`.
+        let pid_value = HashWithValue {
+            hash: [0; 32],
+            value: 0,
+        };
 
-    let mut res: ErrorWithHash = Default::default();
+        let mut res: ErrorWithHash = Default::default();
 
-    // u32::MAX ptr + 42 len of the payload triggers error of payload read.
-    unsafe {
-        gsys::gr_send(
-            pid_value.as_ptr(),
-            u32::MAX as *const u8,
-            42,
-            0,
-            res.as_mut_ptr(),
-        )
-    };
+        // u32::MAX ptr + 42 len of the payload triggers error of payload read.
+        unsafe {
+            gsys::gr_send(
+                pid_value.as_ptr(),
+                u32::MAX as *const u8,
+                42,
+                0,
+                res.as_mut_ptr(),
+            )
+        };
 
-    assert!(res.error_code != 0);
+        assert!(res.error_code != 0);
 
-    BackendErrorState
+        State
+    }
 }
