@@ -20,8 +20,8 @@
 
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, QueueOf, SchedulingCostOf,
-    TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, ProgramStorageOf, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -33,7 +33,7 @@ use common::{
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    ActiveProgram, GasPrice, GasTree, LockId, LockableTree, Origin,
+    ActiveProgram, GasPrice, GasTree, LockId, LockableTree, Origin, ProgramStorage,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReplyReason;
@@ -429,7 +429,7 @@ where
         let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(dispatch.id()))
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        match reason {
+        let expected = match reason {
             Runtime(WaitForCalled | WaitUpToCalledFull) => {
                 let expected = hold.expected();
                 let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
@@ -438,26 +438,49 @@ where
                     TaskPoolOf::<T>::add(expected, task)
                         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
+
+                expected
             }
+
             Runtime(WaitCalled | WaitUpToCalled) | System(ProgramIsNotInitialized) => {
+                let expected = match dispatch.kind() {
+                    DispatchKind::Init => {
+                        let expiration_block =
+                            ProgramStorageOf::<T>::get_program(dispatch.destination())
+                                .and_then(|p| ActiveProgram::try_from(p).ok())
+                                .map(|p| p.expiration_block)
+                                .unwrap_or_else(|| {
+                                    unreachable!(
+                                        "Wait dispatch cannot be called in non-active program!"
+                                    )
+                                });
+
+                        log::debug!("Init called wait_dispatch: expiration_block = {expiration_block}, expected = {}", hold.expected());
+                        hold.expected().max(expiration_block + One::one())
+                    }
+                    _ => hold.expected(),
+                };
+
                 TaskPoolOf::<T>::add(
-                    hold.expected(),
+                    expected,
                     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
                 )
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                expected
             }
-        }
+        };
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
             origin: origin_msg.ne(&dispatch.id().into()).then_some(origin_msg),
-            expiration: hold.expected(),
+            expiration: expected,
             reason,
         });
 
         // Adding message in waitlist.
-        WaitlistOf::<T>::insert(dispatch, hold.expected())
+        WaitlistOf::<T>::insert(dispatch, expected)
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
     }
 
