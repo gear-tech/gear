@@ -13429,6 +13429,86 @@ fn pay_rent_extrinsic_fails_for_uninited_program() {
     })
 }
 
+#[test]
+fn pay_rent_syscall_skips_for_uninited_program() {
+    use demo_init_wait::WASM_BINARY;
+    use test_syscalls::{Kind, WASM_BINARY as TEST_SYSCALLS_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pay_rent_id = generate_program_id(TEST_SYSCALLS_BINARY, DEFAULT_SALT);
+
+        let program_value = 10_000_000;
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            TEST_SYSCALLS_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            pay_rent_id.into_bytes().to_vec(),
+            20_000_000_000,
+            program_value,
+        ));
+
+        run_to_next_block(None);
+
+        let GasInfo {
+            waited: init_waited,
+            min_limit,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_3.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            vec![],
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(init_waited);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            min_limit,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let (_, remove_from_waitlist_block) = get_last_message_waited();
+
+        let rent = RentCostPerBlockOf::<Test>::get() * u128::from(remove_from_waitlist_block + 1);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pay_rent_id,
+            vec![Kind::PayProgramRent(
+                program_id.into_origin().into(),
+                rent,
+                None
+            )]
+            .encode(),
+            20_000_000_000,
+            rent,
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expiration_block = program.expiration_block;
+
+        assert!(expiration_block < remove_from_waitlist_block);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
