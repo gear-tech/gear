@@ -10,33 +10,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  dispatch:
     runs-on: ubuntu-latest
-    # if: github.event.label.name == 'A0-pleasereview' || github.event.label.name == 'E2-forcemacos'
+    if: >-
+      github.event.label.name == 'A0-pleasereview'
+      || github.event.label.name == 'E2-forcemacos'
     steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/github-script@v6
-        id: label-checks
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABEL: ${{ github.event.label.name }}
+          REF: ${{ github.head_ref || github.ref_name }}
         with:
           script: |
+            const { LABEL, REF, HEAD_SHA } = process.env;
             const [owner, repo] = ["gear-tech", "gear"];
-            // const { ref, payload: { number: issue_number } } = context;
-            const ref = "cl/issue-2888";
-            const issue_number = 3070;
-
-            // List all labels of the current pull request.
-            const { data: labelsArr } = await github.rest.issues.listLabelsOnIssue({
-              owner,
-              repo,
-              issue_number,
-            });
-            const labels = labelsArr.map((label) => label.name);
-
-            let [linux, macos] = [
-              labels.includes("A0-pleasereview"),
-              labels.includes("E2-forcemacos")
-            ];
-
-            if (!(linux || macos)) return;
+            const linux = (LABEL === "A0-pleasereview");
 
             // List the latest check runs
             const {
@@ -44,32 +36,90 @@ jobs:
             } = await github.rest.checks.listForRef({
               owner,
               repo,
-              ref,
+              ref: REF,
             });
 
-            for (run of check_runs) {
-              console.log(run.name);
-              if (run.name === "build / linux") {
-                 linux = false;
-              } else if (run.name === "build-macos / x86") {
-                 macos = false;
+            // Filter the traget skipped workflow run.
+            const runs = linux
+              ?check_runs.filter((run) => run.name === "build")
+              :check_runs.filter((run) => run.name === "build / macox-x86")
+
+            if (runs.length === 0) return;
+            if (runs[0].conclusion !== "skipped") return;
+
+            /**
+             * The main logic starts from here.
+             **/
+
+            // Dispatch target workflow.
+            const workflow_id = linux
+              ?".github/workflows/build.yml"
+              :".github/workflows/build-macos.yml";
+
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id,
+              ref: REF,
+            });
+
+            await sleep(10000);
+
+            // Create check and update status
+            const { data: { workflow_runs } } = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id,
+              head_sha: HEAD_SHA,
+            });
+
+            console.log(workflow_runs);
+
+            if (workflow_runs.length != 1) {
+              core.setFailed(`Empty workflow runs`);
+              return;
+            }
+
+            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
+              owner,
+              repo,
+              run_id: workflow_runs[0].id
+            });
+
+            console.log(jobs);
+
+            if (jobs.length === 0) {
+              core.setFailed(`Empty jobs from dispatched workflow`);
+              return;
+            }
+
+            const checks = linux
+              ?["linux", "win-cross"]
+              :["macos-x86"];
+
+            for (check of checks) {
+              let runs = jobs.filter((run) => run.name === check);
+              if (runs.length !== 1) {
+                core.setFailed(`Could not find action ${check} from ${workflow_runs}`);
+                return;
               }
-            }
 
-            if (linux) {
-              await github.rest.actions.createWorkflowDispatch({
+              const {
+                status,
+                conclusion,
+                id: external_id,
+                started_at,
+                url: details_url,
+              } = runs[0];
+
+              const { data: res } = await github.rest.checks.create({
                 owner,
                 repo,
-                workflow_id: "build.yml",
-                ref
+                name: `build / ${check}`,
+                head_sha: HEAD_SHA,
+                details_url,
+                // external_id,
               });
-            }
-
-            if (macos) {
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id: "build-macos.yml",
-                ref
-              });
+              console.log(res);
             }
