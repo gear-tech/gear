@@ -227,7 +227,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ROOT, 100_000_000_u128), (BOB, 100_000_000_u128)],
+        balances: vec![
+            (ROOT, 100_000_000_u128),
+            (BOB, 100_000_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

@@ -309,6 +309,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
