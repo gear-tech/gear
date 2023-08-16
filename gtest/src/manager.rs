@@ -921,13 +921,13 @@ impl JournalHandler for ExtManager {
         _reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
-            log::debug!("[{}] new delayed dispatch#{}", message_id, dispatch.id());
+            log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
 
             self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
             return;
         }
 
-        log::debug!("[{}] new dispatch#{}", message_id, dispatch.id());
+        log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -976,7 +976,7 @@ impl JournalHandler for ExtManager {
         awakening_id: MessageId,
         _delay: u32,
     ) {
-        log::debug!("[{}] waked message#{}", message_id, awakening_id);
+        log::debug!("[{message_id}] waked message#{awakening_id}");
 
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
@@ -1081,14 +1081,11 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                 } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!("Program with id {candidate_id:?} already exists");
                 }
             }
         } else {
-            log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
-                code_id
-            );
+            log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
