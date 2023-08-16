@@ -24,6 +24,7 @@
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
+    memory::ProcessAccessError,
     LimitedStr,
 };
 use gear_core::{
@@ -95,6 +96,17 @@ pub fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterva
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    fn pre_process_memory_accesses(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_left: (GasLeft,),
+    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
+        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
+        (gas_left, res)
+    }
+
+    #[version(2)]
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_couunter: u64) -> (u64, u8) {
         let reads_len = reads.len();
         let writes_len = writes.len();
