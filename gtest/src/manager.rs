@@ -921,13 +921,13 @@ impl JournalHandler for ExtManager {
         _reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
-            log::debug!(target: "gwasm", "[{}] new delayed dispatch#{}", message_id, dispatch.id());
+            log::debug!(target: "gtest", "[{}] new delayed dispatch#{}", message_id, dispatch.id());
 
             self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
             return;
         }
 
-        log::debug!(target: "gwasm", "[{}] new dispatch#{}", message_id, dispatch.id());
+        log::debug!(target: "gtest", "[{}] new dispatch#{}", message_id, dispatch.id());
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -962,7 +962,7 @@ impl JournalHandler for ExtManager {
         _duration: Option<u32>,
         _: MessageWaitedType,
     ) {
-        log::debug!(target: "gwasm", "[{}] wait", dispatch.id());
+        log::debug!(target: "gtest", "[{}] wait", dispatch.id());
 
         self.message_consumed(dispatch.id());
         self.wait_list
@@ -976,7 +976,7 @@ impl JournalHandler for ExtManager {
         awakening_id: MessageId,
         _delay: u32,
     ) {
-        log::debug!(target: "gwasm", "[{}] waked message#{}", message_id, awakening_id);
+        log::debug!(target: "gtest", "[{}] waked message#{}", message_id, awakening_id);
 
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
@@ -1081,12 +1081,12 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                 } else {
-                    log::debug!(target: "gwasm", "Program with id {:?} already exists", candidate_id);
+                    log::debug!(target: "gtest", "Program with id {:?} already exists", candidate_id);
                 }
             }
         } else {
             log::debug!(
-                target: "gwasm",
+                target: "gtest",
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
