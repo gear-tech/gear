@@ -49,7 +49,7 @@ mod utils;
 
 use crate::{
     common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
-    globals::GlobalsContext,
+    globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
 
@@ -418,7 +418,7 @@ fn init_with_handler<H: UserSignalHandler>(
 
     // TODO: check globals from context issue #3057
     // we only need to check the globals that are used to keep the state consistent in older runtimes.
-    if !global_names.contains(&LimitedStr::from_small_str("gear_gas")) {
+    if global_names[GlobalNo::Gas as usize].as_str() != "gear_gas" {
         return Err(WrongGlobalNames("gear_gas".to_string()));
     }
 
