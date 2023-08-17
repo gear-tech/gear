@@ -21,6 +21,7 @@ use gear_runtime::{
     BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
     SudoConfig, SystemConfig, ValidatorSetConfig, WASM_BINARY,
 };
+use gear_runtime_common::constants::BANK_ADDRESS;
 use hex_literal::hex;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -64,6 +65,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
                     get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+                    BANK_ADDRESS.into(),
                 ],
                 true,
             )
@@ -116,6 +118,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+                    BANK_ADDRESS.into(),
                 ],
                 true,
             )
@@ -201,6 +204,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                 vec![
                     // root_key
                     hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
+                    // TODO: append here bank account
                 ],
                 true,
             )

@@ -61,6 +61,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
@@ -758,20 +759,9 @@ parameter_types! {
     pub const MailboxThreshold: u64 = 3000;
 }
 
-fn bank_address() -> AccountId {
-    let arr: [u32; 8] = [1, 5, 0, 8, 2, 0, 0, 1];
-    let mut addr = [0u8; 32];
-
-    for (pos, byte) in arr.into_iter().enumerate() {
-        addr[pos * 4..pos * 4 + 4].copy_from_slice(&byte.to_le_bytes());
-    }
-
-    addr.into()
-}
-
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub BankAddress: AccountId = bank_address();
+    pub BankAddress: AccountId = BANK_ADDRESS.into();
 }
 
 impl pallet_gear_bank::Config for Runtime {

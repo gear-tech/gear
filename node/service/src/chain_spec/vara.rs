@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
-use gear_runtime_common;
+use gear_runtime_common::{self, constants::BANK_ADDRESS};
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::Properties;
@@ -114,6 +114,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 vec![
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
+                    BANK_ADDRESS.into(),
                 ],
                 true,
             )
@@ -160,6 +161,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Dave"),
                     get_account_id_from_seed::<sr25519::Public>("Eve"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+                    BANK_ADDRESS.into(),
                 ],
                 true,
             )
@@ -521,6 +523,7 @@ pub fn main() -> Result<ChainSpec, String> {
                 vec![
                     // root_key
                     hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
+                    // TODO: append here bank account
                 ],
                 true,
             )

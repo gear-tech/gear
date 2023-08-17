@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
+log.workspace = true
 
 # Internal deps
 common.workspace = true
