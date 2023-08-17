@@ -30,7 +30,7 @@ async fn charge_10(
         .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
         .await?;
     let (message_id, _hash) = api
-        .send_message_bytes(program_id, payload, gas_info.min_limit, 0)
+        .send_message_bytes(program_id, payload, gas_info.min_limit, 0, false)
         .await?;
     assert!(listener.message_processed(message_id).await?.succeed());
 

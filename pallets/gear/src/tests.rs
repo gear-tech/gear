@@ -162,7 +162,8 @@ fn read_big_state() {
                 pid,
                 strings.encode(),
                 BlockGasLimitOf::<Test>::get(),
-                0
+                0,
+                false,
             ));
             let mid = get_last_message_id();
 
@@ -200,6 +201,7 @@ fn auto_reply_sent() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             10_000,
+            false,
         ));
 
         run_to_next_block(None);
@@ -229,6 +231,7 @@ fn auto_reply_sent() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         System::reset_events();
@@ -257,6 +260,7 @@ fn auto_reply_from_user_no_mailbox() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -281,6 +285,7 @@ fn auto_reply_from_user_no_mailbox() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -356,6 +361,7 @@ fn auto_reply_out_of_rent_waitlist() {
             Command::Wait(WaitSubcommand::Wait).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -404,6 +410,7 @@ fn auto_reply_out_of_rent_mailbox() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let message_id = utils::get_last_message_id();
@@ -467,6 +474,7 @@ fn reply_deposit_to_program() {
             10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -498,6 +506,7 @@ fn reply_deposit_to_user_auto_reply() {
             10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -529,6 +538,7 @@ fn reply_deposit_panic_in_handle_reply() {
             1u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -562,6 +572,7 @@ fn reply_deposit_to_user_reply() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -593,6 +604,7 @@ fn reply_deposit_to_user_reply() {
             vec![],
             BlockGasLimitOf::<Test>::get(),
             value,
+            false,
         ));
 
         assert_eq!(get_last_message_id(), reply_id);
@@ -637,6 +649,7 @@ fn reply_deposit_to_user_claim() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -703,6 +716,7 @@ fn reply_deposit_to_user_out_of_rent() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -776,6 +790,7 @@ fn reply_deposit_gstd_async() {
             hello.to_vec(),
             30_000_000_000,
             0,
+            false,
         ));
 
         let handle_id = get_last_message_id();
@@ -793,6 +808,7 @@ fn reply_deposit_gstd_async() {
             hello_reply.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -824,6 +840,7 @@ fn pseudo_duplicate_wake() {
                 calls.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
             let msg_id = get_last_message_id();
             run_to_next_block(None);
@@ -1039,6 +1056,7 @@ fn waited_with_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1085,6 +1103,7 @@ fn terminated_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1130,6 +1149,7 @@ fn exited_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1159,6 +1179,7 @@ fn delayed_user_replacement() {
             gas_limit_to_forward.encode(), // to be forwarded as gas limit
             gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
             100_000_000, // before fix to be forwarded as value
+            false,
         ));
 
         let message_id = utils::get_last_message_id();
@@ -1249,6 +1270,7 @@ fn delayed_send_user_message_payment() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy_msg_id = get_last_message_id();
@@ -1348,6 +1370,7 @@ fn delayed_send_user_message_with_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy_msg_id = get_last_message_id();
@@ -1456,6 +1479,7 @@ fn delayed_send_program_message_payment() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1557,6 +1581,7 @@ fn delayed_send_program_message_with_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1667,6 +1692,7 @@ fn delayed_send_program_message_with_low_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1867,6 +1893,7 @@ fn unstoppable_block_execution_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 gas_for_each_execution,
                 0,
+                false,
             ));
         }
 
@@ -2375,7 +2402,8 @@ fn mailbox_sending_instant_transfer() {
                 sender,
                 payload.request(USER_2.into_origin()).encode(),
                 gas_info.burned + gas_limit.unwrap_or_default(),
-                0
+                0,
+                false,
             ));
 
             utils::assert_balance(
@@ -2500,6 +2528,7 @@ fn send_message_works() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             mail_value,
+            false,
         ));
         let message_id = get_last_message_id();
 
@@ -2579,6 +2608,7 @@ fn mailbox_threshold_works() {
             (rent - 1).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         check_result(false);
 
@@ -2589,6 +2619,7 @@ fn mailbox_threshold_works() {
             (rent).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let message_id = check_result(true);
 
@@ -2599,6 +2630,7 @@ fn mailbox_threshold_works() {
             rent.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let message_id = check_result(true);
 
@@ -2609,6 +2641,7 @@ fn mailbox_threshold_works() {
             (rent - 1).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         check_result(false);
     });
@@ -2690,7 +2723,8 @@ fn send_message_expected_failure() {
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
             10,
-            value
+            value,
+            false,
         ));
 
         // And no message will be in mailbox
@@ -2711,7 +2745,8 @@ fn send_message_expected_failure() {
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
-                0
+                0,
+                false,
             ),
             Error::<Test>::GasLimitTooHigh
         );
@@ -2797,7 +2832,8 @@ fn unused_gas_released_back_works() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             huge_send_message_gas_limit,
-            0
+            0,
+            false,
         ));
 
         // Spends for submit program with default gas limit and sending default message with a huge gas limit
@@ -3082,6 +3118,7 @@ fn memory_access_cases() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         );
         assert_ok!(res);
 
@@ -3096,6 +3133,7 @@ fn memory_access_cases() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         );
         assert_ok!(res);
 
@@ -3182,6 +3220,7 @@ fn lazy_pages() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             1000,
+            false,
         );
         assert_ok!(res);
 
@@ -3437,7 +3476,8 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             gas1.min_limit - 1,
-            1000
+            1000,
+            false,
         ));
         let failed1 = get_last_message_id();
 
@@ -3446,7 +3486,8 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             gas1.min_limit,
-            1000
+            1000,
+            false,
         ));
         let succeed1 = get_last_message_id();
 
@@ -3455,7 +3496,8 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             gas2.min_limit - 1,
-            1000
+            1000,
+            false,
         ));
         let failed2 = get_last_message_id();
 
@@ -3464,7 +3506,8 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             gas2.min_limit,
-            1000
+            1000,
+            false,
         ));
         let succeed2 = get_last_message_id();
 
@@ -3494,7 +3537,8 @@ fn block_gas_limit_works() {
                 pid,
                 EMPTY_PAYLOAD.to_vec(),
                 gas.min_limit,
-                1000
+                1000,
+                false,
             ));
         };
 
@@ -3833,6 +3877,7 @@ fn send_reply_works() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
+            false,
         ));
         let expected_reply_message_id = get_last_message_id();
 
@@ -3867,7 +3912,8 @@ fn send_reply_failure_to_claim_from_mailbox() {
                 MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
-                0
+                0,
+                false,
             ),
             Error::<Test>::MessageNotFound
         );
@@ -3956,6 +4002,7 @@ fn send_reply_value_claiming_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 gas_limit_to_reply,
                 value_to_reply,
+                false,
             ));
 
             let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
@@ -4107,6 +4154,7 @@ fn uninitialized_program_zero_gas() {
             vec![],
             0, // that triggers unreachable code atm
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4171,6 +4219,7 @@ fn distributor_distribute() {
             Request::Receive(10).encode(),
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4368,7 +4417,8 @@ fn messages_to_uninitialized_program_wait() {
             program_id,
             vec![],
             10_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4417,6 +4467,7 @@ fn uninitialized_program_should_accept_replies() {
             b"PONG".to_vec(),
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4457,6 +4508,7 @@ fn defer_program_initialization() {
             b"PONG".to_vec(),
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4466,7 +4518,8 @@ fn defer_program_initialization() {
             program_id,
             vec![],
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(4, None);
@@ -4511,7 +4564,8 @@ fn wake_messages_after_program_inited() {
                 program_id,
                 vec![],
                 5_000_000_000u64,
-                0u128
+                0u128,
+                false,
             ));
         }
 
@@ -4528,6 +4582,7 @@ fn wake_messages_after_program_inited() {
             b"PONG".to_vec(),
             20_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(20, None);
@@ -4609,7 +4664,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_success = get_last_message_id();
@@ -4641,7 +4697,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_success = get_last_message_id();
@@ -4676,7 +4733,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_success = get_last_message_id();
@@ -4735,7 +4793,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_gas = get_last_message_id();
@@ -4771,7 +4830,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_gas = get_last_message_id();
@@ -4807,7 +4867,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_gas = get_last_message_id();
@@ -4844,7 +4905,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_arg = get_last_message_id();
@@ -4881,7 +4943,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_arg = get_last_message_id();
@@ -4924,7 +4987,8 @@ fn wait_after_reply() {
                 program_id,
                 Command::ReplyAndWait(subcommand).encode(),
                 BlockGasLimitOf::<Test>::get(),
-                0
+                0,
+                false,
             ));
 
             let message_id = utils::get_last_message_id();
@@ -4975,6 +5039,7 @@ fn test_requeue_after_wait_for_timeout() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         // Fast forward blocks.
@@ -5046,6 +5111,7 @@ fn test_sending_waits() {
             payload,
             25_000_000_000,
             0,
+            false,
         ));
 
         let wait_for = get_last_message_id();
@@ -5064,6 +5130,7 @@ fn test_sending_waits() {
             payload,
             25_000_000_000,
             0,
+            false,
         ));
 
         let wait_no_more = get_last_message_id();
@@ -5082,6 +5149,7 @@ fn test_sending_waits() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         let wait_wait = get_last_message_id();
@@ -5100,6 +5168,7 @@ fn test_sending_waits() {
             vec![],
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5141,6 +5210,7 @@ fn test_wait_timeout() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5154,6 +5224,7 @@ fn test_wait_timeout() {
             Command::Wake.encode(),
             10_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5197,6 +5268,7 @@ fn test_join_wait_timeout() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5255,6 +5327,7 @@ fn test_select_wait_timeout() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5300,6 +5373,7 @@ fn test_wait_lost() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5311,7 +5385,8 @@ fn test_wait_lost() {
                     msg.id(),
                     b"ping".to_vec(),
                     100_000_000,
-                    0
+                    0,
+                    false,
                 ));
 
                 true
@@ -5367,7 +5442,8 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            1_000
+            1_000,
+            false,
         ));
 
         let skipped_message_id = get_last_message_id();
@@ -5407,7 +5483,8 @@ fn exit_locking_funds() {
             program_id,
             calls.encode(),
             10_000_000_000,
-            value
+            value,
+            false,
         ));
         let message_1 = utils::get_last_message_id();
 
@@ -5417,7 +5494,8 @@ fn exit_locking_funds() {
             program_id,
             calls.encode(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
         let message_2 = utils::get_last_message_id();
 
@@ -5561,7 +5639,8 @@ fn terminated_locking_funds() {
             message_to_reply,
             EMPTY_PAYLOAD.to_vec(),
             gas_spent_reply,
-            0
+            0,
+            false,
         ));
 
         let reply_id = get_last_message_id();
@@ -5731,6 +5810,7 @@ fn test_create_program_works() {
             // Calculate the gas spent after #1242.
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5774,6 +5854,7 @@ fn test_create_program_no_code_hash() {
             CreateProgram::Default.encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(2, None);
 
@@ -5798,6 +5879,7 @@ fn test_create_program_no_code_hash() {
             .encode(),
             100_000_000_000,
             0,
+            false,
         ));
         run_to_block(3, None);
 
@@ -5828,6 +5910,7 @@ fn test_create_program_no_code_hash() {
             .encode(),
             100_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -5870,6 +5953,7 @@ fn test_create_program_simple() {
             CreateProgram::Default.encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(3, None);
 
@@ -5883,6 +5967,7 @@ fn test_create_program_simple() {
             .encode(),
             10_000_000_000,
             0,
+            false,
         ));
         run_to_block(4, None);
 
@@ -5904,6 +5989,7 @@ fn test_create_program_simple() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(5, None);
 
@@ -5918,6 +6004,7 @@ fn test_create_program_simple() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(6, None);
 
@@ -5962,6 +6049,7 @@ fn test_pausing_programs_works() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_next_block(None);
 
@@ -6137,7 +6225,8 @@ fn resume_session_push_works() {
             program_id,
             request,
             1_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6247,7 +6336,8 @@ fn resume_program_works() {
             program_id,
             request,
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6409,7 +6499,8 @@ fn resume_program_works() {
             program_id,
             request,
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6443,6 +6534,7 @@ fn test_no_messages_to_paused_program() {
             demo_wait_wake::Request::EchoWait(10).encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_next_block(None);
 
@@ -6543,6 +6635,7 @@ fn uninitialized_program_terminates_on_pause() {
             b"0123456789".to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6634,6 +6727,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6657,6 +6751,7 @@ fn pay_program_rent_syscall_works() {
             vec![Kind::PayProgramRent([0u8; 32], rent, None)].encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6675,6 +6770,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6720,6 +6816,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             Gear::rent_fee_for(u32::MAX),
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6756,6 +6853,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             required_value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6907,6 +7005,7 @@ fn test_create_program_duplicate() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(4, None);
 
@@ -6927,6 +7026,7 @@ fn test_create_program_duplicate() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(5, None);
 
@@ -6938,6 +7038,7 @@ fn test_create_program_duplicate() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(6, None);
 
@@ -6998,6 +7099,7 @@ fn test_create_program_duplicate_in_one_execution() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7017,6 +7119,7 @@ fn test_create_program_duplicate_in_one_execution() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -7086,6 +7189,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7103,6 +7207,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -7119,6 +7224,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(5, None);
@@ -7144,7 +7250,8 @@ fn exit_handle() {
             program_id,
             vec![],
             50_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7197,6 +7304,7 @@ fn no_redundant_gas_value_after_exiting() {
             EMPTY_PAYLOAD.to_vec(),
             gas_spent,
             0,
+            false,
         ));
 
         let msg_id = get_last_message_id();
@@ -7257,7 +7365,8 @@ fn init_wait_reply_exit_cleaned_storage() {
                 pid,
                 vec![],
                 10_000u64,
-                0u128
+                0u128,
+                false,
             ));
         }
 
@@ -7281,6 +7390,7 @@ fn init_wait_reply_exit_cleaned_storage() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000_000u64,
             0,
+            false,
         ));
 
         assert!(!Gear::is_initialized(pid));
@@ -7463,7 +7573,8 @@ fn gas_spent_vs_balance() {
             prog_id,
             request.clone(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7736,6 +7847,7 @@ fn test_two_contracts_composition_works() {
             100_u64.to_le_bytes().to_vec(),
             60_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -7953,6 +8065,7 @@ fn demo_constructor_works() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -7981,6 +8094,7 @@ fn demo_constructor_works() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -8032,6 +8146,7 @@ fn demo_constructor_value_eq() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8045,6 +8160,7 @@ fn demo_constructor_value_eq() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8094,6 +8210,7 @@ fn demo_constructor_is_demo_ping() {
                 b"PING".to_vec(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -8111,6 +8228,7 @@ fn demo_constructor_is_demo_ping() {
             vec![],
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let reply_id = get_last_message_id();
@@ -8146,6 +8264,7 @@ fn test_reply_to_terminated_program() {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
             value: 0,
+            prepaid: false,
         });
         assert_noop!(
             reply_call.dispatch(RuntimeOrigin::signed(USER_1)),
@@ -8262,7 +8381,8 @@ fn delayed_wake() {
             prog,
             vec![],
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -8281,7 +8401,8 @@ fn delayed_wake() {
             prog,
             delay.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8374,6 +8495,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             payload,
             gas_reserved,
             value,
+            false,
         ));
 
         let gas_to_spend = GasPrice::gas_price(gas_to_spend);
@@ -8559,6 +8681,7 @@ fn execution_over_blocks() {
             Package::new(128, src).encode(),
             block_gas_limit,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8571,6 +8694,7 @@ fn execution_over_blocks() {
             Package::new(17_384, src).encode(),
             block_gas_limit,
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -8611,6 +8735,7 @@ fn execution_over_blocks() {
             Method::Start { src, id, expected }.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8629,6 +8754,7 @@ fn execution_over_blocks() {
                 Method::Refuel(id).encode(),
                 block_gas_limit,
                 0,
+                false,
             ));
 
             count += 1;
@@ -8708,6 +8834,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
                 command.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             )
             .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
             let msg_id = get_last_message_id();
@@ -8787,6 +8914,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
                 command.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             )
             .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
             let msg_id = get_last_message_id();
@@ -8923,6 +9051,7 @@ fn async_sleep_for() {
                     command.encode(),
                     BlockGasLimitOf::<Test>::get(),
                     0,
+                    false,
                 )
                 .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
                 let msg_id = get_last_message_id();
@@ -9183,6 +9312,7 @@ fn test_async_messages() {
                 kind.encode(),
                 30_000_000_000u64,
                 0,
+                false,
             ));
 
             // check the message sent from the program
@@ -9198,6 +9328,7 @@ fn test_async_messages() {
                 EMPTY_PAYLOAD.to_vec(),
                 10_000_000_000u64,
                 0,
+                false,
             ));
 
             // check the reply from the program
@@ -9245,7 +9376,8 @@ fn program_generator_works() {
             generator_id,
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -9386,6 +9518,7 @@ fn missing_functions_are_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9412,6 +9545,7 @@ fn missing_functions_are_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
             reply_value,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9476,6 +9610,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         assert_ok!(Gear::send_message(
@@ -9484,6 +9619,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9556,7 +9692,8 @@ fn test_reinstrumentation_works() {
             pid,
             vec![],
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -9570,7 +9707,8 @@ fn test_reinstrumentation_works() {
             pid,
             vec![],
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -9665,6 +9803,7 @@ fn send_from_reservation() {
                 HandleAction::SendToUser.encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(3, None);
@@ -9689,6 +9828,7 @@ fn send_from_reservation() {
                 .encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9713,6 +9853,7 @@ fn send_from_reservation() {
                 HandleAction::SendToUserDelayed.encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(5, None);
@@ -9741,6 +9882,7 @@ fn send_from_reservation() {
                 .encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9798,6 +9940,7 @@ fn reply_from_reservation() {
                 HandleAction::ReplyToUser.encode(),
                 30_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(3, None);
@@ -9822,6 +9965,7 @@ fn reply_from_reservation() {
                 .encode(),
                 30_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9867,6 +10011,7 @@ fn signal_recursion_not_occurs() {
             HandleAction::PanicInSignal.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9936,6 +10081,7 @@ fn signal_during_precharge() {
             HandleAction::WaitWithReserveAmountAndPanic(1).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9951,7 +10097,8 @@ fn signal_during_precharge() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10005,6 +10152,7 @@ fn signal_during_prepare() {
             HandleAction::WaitWithReserveAmountAndPanic(program_gas).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10020,7 +10168,8 @@ fn signal_during_prepare() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10083,6 +10232,7 @@ fn signal_async_wait_works() {
             EMPTY_PAYLOAD.to_vec(),
             gas_spent,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10142,6 +10292,7 @@ fn signal_gas_limit_exceeded_works() {
             HandleAction::OutOfGas.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10193,6 +10344,7 @@ fn system_reservation_unreserve_works() {
             HandleAction::Simple.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10234,6 +10386,7 @@ fn few_system_reservations_across_waits_works() {
             HandleAction::AcrossWaits.encode(),
             30_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10251,7 +10404,8 @@ fn few_system_reservations_across_waits_works() {
                 reply_to_id,
                 EMPTY_PAYLOAD.to_vec(),
                 30_000_000_000,
-                0
+                0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -10284,6 +10438,7 @@ fn system_reservation_panic_works() {
             HandleAction::Panic.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10323,6 +10478,7 @@ fn system_reservation_exit_works() {
             HandleAction::Exit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10364,6 +10520,7 @@ fn system_reservation_wait_and_panic_works() {
             HandleAction::WaitAndPanic.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10379,7 +10536,8 @@ fn system_reservation_wait_and_panic_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10413,6 +10571,7 @@ fn system_reservation_wait_works() {
             HandleAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10472,6 +10631,7 @@ fn system_reservation_wait_and_exit_works() {
             HandleAction::WaitAndExit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10487,7 +10647,8 @@ fn system_reservation_wait_and_exit_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10525,6 +10686,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             HandleAction::WaitAndReserveWithPanic.encode(),
             30_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10542,7 +10704,8 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10580,6 +10743,7 @@ fn system_reservation_accumulate_works() {
             HandleAction::Accumulate.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10617,6 +10781,7 @@ fn system_reservation_zero_amount_panics() {
             HandleAction::ZeroReserve.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10676,7 +10841,8 @@ fn gas_reservation_works() {
             pid,
             HandleAction::Unreserve.encode(),
             spent_gas,
-            0
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10717,7 +10883,8 @@ fn gas_reservation_works() {
             pid,
             HandleAction::Exit.encode(),
             50_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(2 + 4, None);
@@ -10766,6 +10933,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
             ReplyAction::Panic.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10815,6 +10983,7 @@ fn gas_reservation_wait_wake_exit() {
             ReplyAction::Exit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10903,7 +11072,8 @@ fn gas_reservations_existing_reserve_unreserve() {
             pid,
             HandleAction::SendFromReservationAndUnreserve.encode(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10941,6 +11111,7 @@ fn custom_async_entrypoint_works() {
             EMPTY_PAYLOAD.to_vec(),
             30_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10953,7 +11124,8 @@ fn custom_async_entrypoint_works() {
             msg.id(),
             EMPTY_PAYLOAD.to_vec(),
             30_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10991,6 +11163,7 @@ fn dispatch_kind_forbidden_function() {
             HandleAction::ForbiddenCallInSignal(USER_1.into_origin().into()).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -11070,6 +11243,7 @@ fn system_reservation_gas_allowance_rollbacks() {
             HandleAction::Simple.encode(),
             min_limit,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -11105,6 +11279,7 @@ fn system_reservation_wait_and_exit_across_executions() {
             HandleAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid_wait = get_last_message_id();
@@ -11119,6 +11294,7 @@ fn system_reservation_wait_and_exit_across_executions() {
             HandleAction::Exit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid_exit = get_last_message_id();
@@ -11187,6 +11363,7 @@ fn signal_on_uninitialized_program() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let reply_mid = get_last_message_id();
@@ -11217,7 +11394,8 @@ fn missing_block_tasks_handled() {
             pid,
             vec![],
             100_000_000,
-            1000
+            1000,
+            false,
         ));
 
         run_to_block(N - 1, None);
@@ -11291,6 +11469,7 @@ fn async_does_not_duplicate_sync() {
             b"async".to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -12056,6 +12235,7 @@ fn check_random_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 50_000_000_000,
                 0,
+                false,
             ));
 
             let output: ([u8; 32], BlockNumber) =
@@ -12118,6 +12298,7 @@ fn reply_with_small_non_zero_gas() {
             payload.to_vec(),
             DEFAULT_GAS_LIMIT * 10,
             0,
+            false,
         ));
 
         let message_id = utils::get_last_message_id();
@@ -12158,7 +12339,8 @@ fn replies_denied_in_handle_reply() {
             proxy,
             vec![],
             50_000_000_000,
-            0
+            0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -12173,6 +12355,7 @@ fn replies_denied_in_handle_reply() {
             vec![],
             50_000_000_000,
             0,
+            false,
         ));
 
         let reply_id = get_last_message_id();
@@ -12230,6 +12413,7 @@ fn relay_messages() {
                     payload.to_vec(),
                     DEFAULT_GAS_LIMIT * 10,
                     0,
+                    false,
                 )
                 .is_ok(),
                 "{}",
@@ -12633,6 +12817,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
                     .encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             )
             .expect("Making reservation failed");
         }
@@ -12685,6 +12870,7 @@ fn reservation_manager() {
                 payload.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -12776,7 +12962,7 @@ fn check_mutable_global_exports_restriction() {
 }
 
 #[test]
-fn send_message_with_voucher_works() {
+fn send_gasless_message_works() {
     init_logger();
 
     let minimal_weight = mock::get_min_weight();
@@ -12794,15 +12980,16 @@ fn send_message_with_voucher_works() {
             res.expect("submit result was asserted")
         };
 
-        // Test 1: USER_2 sends a message to the program with a voucher
-        // Expect failure because USER_2 has no voucher
+        // Test 1: USER_2 sends a gasless message to the program (intending to use a voucher).
+        // Expect failure because USER_2 has no voucher.
         assert_noop!(
-            Gear::send_message_with_voucher(
+            Gear::send_message(
                 RuntimeOrigin::signed(USER_2),
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0,
+                true,
             ),
             Error::<Test>::FailureRedeemingVoucher
         );
@@ -12834,14 +13021,15 @@ fn send_message_with_voucher_works() {
             GasPrice::gas_price(DEFAULT_GAS_LIMIT)
         );
 
-        // Test 2: USER_2 sends a message to the program with a voucher
-        // Now that voucher is issued, the message should be sent successfully
-        assert_ok!(Gear::send_message_with_voucher(
+        // Test 2: USER_2 sends a gasless message to the program (intending to use a voucher).
+        // Now that voucher is issued, the message should be sent successfully.
+        assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             1_000_000_u128,
+            true,
         ));
 
         // Balances check
@@ -12881,7 +13069,7 @@ fn send_message_with_voucher_works() {
 }
 
 #[test]
-fn send_reply_with_voucher_works() {
+fn send_gasless_reply_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // USER_2 uploads a program and sends message to it which leads to
@@ -12917,14 +13105,15 @@ fn send_reply_with_voucher_works() {
             GasPrice::gas_price(DEFAULT_GAS_LIMIT)
         );
 
-        // USER_1 sends a reply using the voucher
+        // USER_1 sends a gasless reply using a voucher
         let gas_limit = 10_000_000_u64;
-        assert_ok!(Gear::send_reply_with_voucher(
+        assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             gas_limit,
             1000, // `prog_id` sent message with value of 1000 (see program code)
+            true,
         ));
         let expected_reply_message_id = get_last_message_id();
 
@@ -12990,6 +13179,7 @@ fn double_read_works() {
             b"PAYLOAD".to_vec(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
+            false,
         ));
 
         run_to_next_block(None);
@@ -13084,6 +13274,7 @@ fn test_gas_allowance_exceed_with_context() {
                 calls.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
             let msg_id = get_last_message_id();
             run_to_next_block(allowance);
@@ -13235,6 +13426,7 @@ fn test_send_to_terminated_from_program() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -13402,7 +13594,8 @@ mod utils {
             destination,
             payload,
             limit,
-            value
+            value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -13498,6 +13691,7 @@ mod utils {
             Vec::new(),
             gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -13595,6 +13789,7 @@ mod utils {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
+            false,
         )
     }
 
@@ -13604,6 +13799,7 @@ mod utils {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,
             value: 0,
+            prepaid: false,
         })
     }
 
@@ -14074,6 +14270,7 @@ mod utils {
                     payload,
                     BlockGasLimitOf::<Test>::get(),
                     0,
+                    false,
                 ));
 
                 get_last_message_id()

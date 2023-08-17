@@ -520,21 +520,39 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// TODO: in case of the `send_reply_with_voucher` call we have to iterate through the
+// TODO: in case of the `send_reply` call we have to iterate through the
 // user's mailbox to dig out the stored message source `program_id` to check if it has
 // issued a voucher to pay for the reply extrinsic transaction fee.
 // Isn't there a better way to do that?
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
-                destination, ..
-            }) => Some(GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
-                reply_to_id, ..
-            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
-            ),
+            RuntimeCall::Gear(pallet_gear::Call::send_message {
+                destination,
+                prepaid,
+                ..
+            }) => {
+                if *prepaid {
+                    Some(GearVoucher::voucher_account_id(who, destination))
+                } else {
+                    None
+                }
+            }
+            RuntimeCall::Gear(pallet_gear::Call::send_reply {
+                reply_to_id,
+                prepaid,
+                ..
+            }) => {
+                if *prepaid {
+                    <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                        |stored_message| {
+                            GearVoucher::voucher_account_id(who, &stored_message.source())
+                        },
+                    )
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }

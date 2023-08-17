@@ -73,14 +73,16 @@ where
                     })?;
             }
             HandleKind::Handle(destination) => {
-                Self::send_message(who.into(), destination, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_message failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_message(who.into(), destination, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
-                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_reply failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());

@@ -141,13 +141,14 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
             )
         }
         GearCall::SendMessage(args) => {
-            let SendMessageArgs((destination, payload, gas_limit, value)) = args;
+            let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
                 payload,
                 gas_limit,
                 value,
+                prepaid,
             )
         }
         _ => unreachable!("Unsupported currently."),
