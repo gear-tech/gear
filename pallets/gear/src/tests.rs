@@ -47,8 +47,8 @@ use crate::{
     runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
     BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event, GasAllowanceOf,
     GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf, ProgramStorageOf, QueueOf,
-    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
-    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
+    RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule,
+    TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -6231,6 +6231,7 @@ fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_btree::{Reply, Request};
+        use frame_support::traits::ReservableCurrency;
 
         let code = demo_btree::WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);

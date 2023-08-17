@@ -27,6 +27,8 @@ use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 use sp_runtime::traits::UniqueSaturatedInto;
 
+pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
+
 benchmarks! {
     where_clause { where
         T::AccountId: Origin,
@@ -34,7 +36,7 @@ benchmarks! {
 
     issue {
         let issuer = benchmarking::account::<T::AccountId>("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(
+        CurrencyOf::<T>::deposit_creating(
             &issuer,
             100_000_000_000_000_u128.unique_saturated_into()
         );

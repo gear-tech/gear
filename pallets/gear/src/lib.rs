@@ -64,10 +64,7 @@ use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
-    traits::{
-        ConstBool, Currency, ExistenceRequirement, Get, Randomness, ReservableCurrency,
-        StorageVersion,
-    },
+    traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
@@ -1943,26 +1940,22 @@ pub mod pallet {
             // transferred. That's because destination can fail to be initialized by the time
             // this dispatch message is next in the queue.
             //
-            // Note: reservaton is made from the user's account as voucher can only be used
+            // Note: reservation is made from the user's account as voucher can only be used
             // to pay for gas or settle transaction fees, but not as source for value transfer.
-            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())?;
-
-            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+            GearBank::<T>::deposit_value(&who, value.unique_saturated_into())?;
 
             // We attempt to reserve enough funds using the voucher that should have been issued
             // for the transaction sender to pay for the gas. If no such voucher exists, the call
             // will fail.
             // If successful, Currency will be reserved on the voucher's account.
-            let voucher_id =
-                VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
-                    .map_err(|_| {
-                        log::debug!(
-                            "Failed to redeem voucher for user {:?} and program {:?}",
-                            who,
-                            destination,
-                        );
-                        Error::<T>::FailureRedeemingVoucher
-                    })?;
+            let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
+
+            GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                log::debug!(
+                    "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
+                );
+                Error::<T>::FailureRedeemingVoucher
+            })?;
 
             // Using the `voucher_id` as the external origin to create the gas node in order for
             // the leftover being refunded back to the voucher account and not the user's account.
@@ -2028,7 +2021,7 @@ pub mod pallet {
             //
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
-            CurrencyOf::<T>::reserve(&origin, value)?;
+            GearBank::<T>::deposit_value(&origin, value)?;
 
             let reply_id = MessageId::generate_reply(mailboxed.id());
 
@@ -2039,21 +2032,14 @@ pub mod pallet {
                 gas_limit
             };
 
-            // Converting applied gas limit into value to reserve.
-            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
-
             // Redeeming voucher to pay for gas.
             // Currency will be reserved on the voucher's account as a result of this call.
-            let voucher_id =
-                VoucherOf::<T>::redeem_with_id(origin.clone(), destination, gas_limit_reserve)
-                    .map_err(|_| {
-                        log::debug!(
-                            "Failed to redeem voucher for user {:?} and program {:?}",
-                            origin,
-                            destination,
-                        );
-                        Error::<T>::FailureRedeemingVoucher
-                    })?;
+            let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
+
+            GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                log::debug!("Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}");
+                Error::<T>::FailureRedeemingVoucher
+            })?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(

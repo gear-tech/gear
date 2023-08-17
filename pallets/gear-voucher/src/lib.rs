@@ -75,7 +75,6 @@ pub use pallet::*;
 
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
 
 /// The current storage version.
@@ -188,16 +187,7 @@ impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet
     type VoucherId = T::AccountId;
     type Error = DispatchError;
 
-    fn redeem_with_id(
-        who: T::AccountId,
-        program: ProgramId,
-        amount: BalanceOf<T>,
-    ) -> Result<Self::VoucherId, Self::Error> {
-        let voucher_id = Self::voucher_account_id(&who, &program);
-        CurrencyOf::<T>::reserve(&voucher_id, amount).map_err(|e| {
-            log::debug!("Failed to reserve funds from the voucher account: {:?}", e);
-            Error::<T>::FailureToRedeemVoucher
-        })?;
-        Ok(voucher_id)
+    fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
+        Self::voucher_account_id(&who, &program)
     }
 }
