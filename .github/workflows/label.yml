@@ -1,3 +1,4 @@
+# Prefix A for adjusting the new created checks into this check suite.
 name: Label
 
 on:
@@ -26,100 +27,5 @@ jobs:
           REF: ${{ github.head_ref || github.ref_name }}
         with:
           script: |
-            const { LABEL, REF, HEAD_SHA } = process.env;
-            const [owner, repo] = ["gear-tech", "gear"];
-            const linux = (LABEL === "A0-pleasereview");
-
-            // List the latest check runs
-            const {
-              data: { check_runs }
-            } = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref: REF,
-            });
-
-            // Filter the traget skipped workflow run.
-            const runs = linux
-              ?check_runs.filter((run) => run.name === "build")
-              :check_runs.filter((run) => run.name === "build / macox-x86")
-
-            if (runs.length === 0) return;
-            if (runs[0].conclusion !== "skipped") return;
-
-            /**
-             * The main logic starts from here.
-             **/
-
-            // Dispatch target workflow.
-            const workflow_id = linux
-              ?".github/workflows/build.yml"
-              :".github/workflows/build-macos.yml";
-
-            const sleep = ms => new Promise(r => setTimeout(r, ms));
-            await github.rest.actions.createWorkflowDispatch({
-              owner,
-              repo,
-              workflow_id,
-              ref: REF,
-            });
-
-            await sleep(10000);
-
-            // Create check and update status
-            const { data: { workflow_runs } } = await github.rest.actions.listWorkflowRuns({
-              owner,
-              repo,
-              workflow_id,
-              head_sha: HEAD_SHA,
-            });
-
-            console.log(workflow_runs);
-
-            if (workflow_runs.length != 1) {
-              core.setFailed(`Empty workflow runs`);
-              return;
-            }
-
-            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
-              owner,
-              repo,
-              run_id: workflow_runs[0].id
-            });
-
-            console.log(jobs);
-
-            if (jobs.length === 0) {
-              core.setFailed(`Empty jobs from dispatched workflow`);
-              return;
-            }
-
-            const checks = linux
-              ?["linux", "win-cross"]
-              :["macos-x86"];
-
-            for (check of checks) {
-              let runs = jobs.filter((run) => run.name === check);
-              if (runs.length !== 1) {
-                core.setFailed(`Could not find action ${check} from ${workflow_runs}`);
-                return;
-              }
-
-              const {
-                status,
-                conclusion,
-                id: external_id,
-                started_at,
-                url: details_url,
-              } = runs[0];
-
-              const { data: res } = await github.rest.checks.create({
-                owner,
-                repo,
-                name: `build / ${check}`,
-                head_sha: HEAD_SHA,
-                details_url,
-                // external_id,
-              });
-              console.log(res);
-            }
+            const script = require('./.github/actions/label/build.js');
+            await script({ github, core });

@@ -247,7 +247,7 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-  macos-x86:
+  macos:
     needs: linux
     if: ${{ always() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
