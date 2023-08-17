@@ -2040,6 +2040,9 @@ pub mod runtime_types {
                     #[codec(index = 15)]
                     #[doc = "Voucher can't be redemmed"]
                     FailureRedeemingVoucher,
+                    #[codec(index = 16)]
+                    #[doc = "Program has not initialized yet."]
+                    UninitializedProgram,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]

@@ -455,7 +455,7 @@ where
                                     )
                                 });
 
-                        log::debug!("Init called wait_dispatch: expiration_block = {expiration_block}, expected = {}", hold.expected());
+                        log::debug!("Init called wait_dispatch: expiration_block = {expiration_block:?}, expected = {:?}", hold.expected());
                         hold.expected().max(expiration_block + One::one())
                     }
                     _ => hold.expected(),
