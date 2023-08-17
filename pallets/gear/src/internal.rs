@@ -208,7 +208,7 @@ where
     // Reset of all storages.
     #[cfg(feature = "runtime-benchmarks")]
     pub(crate) fn reset() {
-        use common::{CodeStorage, GasProvider, PausedProgramStorage, ProgramStorage};
+        use common::{CodeStorage, GasProvider, PausedProgramStorage};
 
         <<T as Config>::ProgramStorage as PausedProgramStorage>::reset();
         <<T as Config>::ProgramStorage as ProgramStorage>::reset();
