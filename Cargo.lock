@@ -3797,6 +3797,8 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
+ "sha-1",
+ "static_assertions",
  "thiserror",
 ]
 
@@ -4366,6 +4368,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "indicatif",
+ "log",
  "proptest",
  "rand 0.8.5",
  "wasm-smith",

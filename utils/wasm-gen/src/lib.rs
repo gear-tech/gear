@@ -23,7 +23,6 @@
 //!
 //! This crate also re-exports `arbitrary` from internal module [`wasm_gen_arbitrary`] to make it easy generating arbitrary configs and wasm.
 
-#![allow(clippy::items_after_test_module)]
 pub mod wasm_gen_arbitrary {
     //! `arbitrary` crate re-export.
     pub use arbitrary::*;
@@ -36,26 +35,33 @@ mod utils;
 mod wasm;
 
 pub use config::*;
+pub use gear_wasm_instrument::syscalls::SysCallName;
 pub use generator::*;
 pub use wasm::WasmModule;
 pub use wasm_gen_arbitrary::*;
-pub use gear_wasm_instrument::syscalls::SysCallName;
 
 use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 
 /// Generate gear program as raw bytes.
-pub fn generate_gear_program_code<'a>(
-    u: &mut Unstructured<'a>,
+pub fn generate_gear_program_code(
+    u: &mut Unstructured<'_>,
     configs_bundle: impl ConfigsBundle,
 ) -> Result<Vec<u8>> {
     let module = generate_gear_program_module(u, configs_bundle)?;
 
-    Ok(parity_wasm::serialize(module).expect("unable to serialize pw module"))
+    let bytes = parity_wasm::serialize(module).expect("unable to serialize pw module");
+
+    log::trace!(
+        "{}",
+        wasmprinter::print_bytes(&bytes).expect("internal error: failed printing bytes")
+    );
+
+    Ok(bytes)
 }
 
 /// Generate gear program as [`parity_wasm::elements::Module`](https://docs.rs/parity-wasm/latest/parity_wasm/elements/struct.Module.html)
-pub fn generate_gear_program_module<'a>(
-    u: &mut Unstructured<'a>,
+pub fn generate_gear_program_module(
+    u: &mut Unstructured<'_>,
     configs_bundle: impl ConfigsBundle,
 ) -> Result<Module> {
     let (gear_wasm_generator_config, module_selectables_config) = configs_bundle.into_parts();

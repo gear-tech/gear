@@ -76,7 +76,10 @@ impl<'a, 'b>
 }
 
 impl<'a, 'b> From<SysCallsImportsGeneratorInstantiator<'a, 'b>>
-    for (SysCallsImportsGenerator<'a, 'b>, FrozenGearWasmGenerator<'a, 'b>)
+    for (
+        SysCallsImportsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
+    )
 {
     fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
         let SysCallsImportsGeneratorInstantiator((
@@ -129,6 +132,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
     /// Disable current generator.
     pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a, 'b> {
+        log::trace!(
+            "Random data when disabling sys-calls imports generator - {}",
+            self.unstructured.len()
+        );
         DisabledSysCallsImportsGenerator {
             unstructured: self.unstructured,
             call_indexes: self.call_indexes,
@@ -148,22 +155,21 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         DisabledSysCallsImportsGenerator<'a, 'b>,
         SysCallsImportsGenerationProof,
     )> {
+        log::trace!("Generating sys-calls imports");
+
         let sys_calls_proof = self.generate_sys_calls_imports()?;
         self.generate_send_from_reservation();
 
-        let disabled = DisabledSysCallsImportsGenerator {
-            unstructured: self.unstructured,
-            call_indexes: self.call_indexes,
-            module: self.module,
-            config: self.config,
-            sys_calls_imports: self.sys_calls_imports,
-        };
-
-        Ok((disabled, sys_calls_proof))
+        Ok((self.disable(), sys_calls_proof))
     }
 
     /// Generates sys-calls imports from config, used to instantiate the generator.
     pub fn generate_sys_calls_imports(&mut self) -> Result<SysCallsImportsGenerationProof> {
+        log::trace!(
+            "Random data before sys-calls imports - {}",
+            self.unstructured.len()
+        );
+
         for sys_call in SysCallName::instrumentable() {
             let sys_call_generation_data = self.generate_sys_call_import(sys_call)?;
             if let Some(sys_call_generation_data) = sys_call_generation_data {
@@ -184,17 +190,16 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         &mut self,
         sys_call: SysCallName,
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
-        println!("UNSTRUCTURED LEN {:?}", self.unstructured.len());
         let sys_call_amount_range = self.config.injection_amounts(sys_call);
-        if sys_call == SysCallName::Exit {
-            println!("UNSTRUCTURED EXIT {:?}", self.unstructured.peek_bytes(10));
-        }
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
-
-        println!("UNSTRUCTURED AFTER {:?}", self.unstructured.peek_bytes(10));
-
         Ok((sys_call_amount != 0).then(|| {
             let call_indexes_handle = self.insert_sys_call_import(sys_call);
+            log::trace!(
+                " -- Generated {} amount of {} sys-call",
+                sys_call_amount,
+                sys_call.to_str()
+            );
+
             (sys_call_amount, call_indexes_handle)
         }))
     }
@@ -251,7 +256,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
             match maybe_reserve_gas.zip(maybe_reservation_send) {
                 Some(indexes) => indexes,
-                None => return,
+                None => {
+                    log::trace!("Wasm hasn't got either gr_reserve_gas, or gr_reservation_send, or both of them");
+                    return;
+                }
             }
         };
 
@@ -348,6 +356,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
             (module_builder.build(), idx)
         });
+
+        log::trace!("Builded proper reservation send call");
 
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes

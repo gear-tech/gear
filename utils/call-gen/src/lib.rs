@@ -27,6 +27,7 @@ mod send_reply;
 mod upload_code;
 mod upload_program;
 
+pub use arbitrary_call::GearCalls;
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
@@ -34,7 +35,6 @@ pub use send_message::SendMessageArgs;
 pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
-pub use arbitrary_call::GearCalls;
 
 pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
 

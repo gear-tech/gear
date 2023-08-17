@@ -38,7 +38,12 @@ pub struct EntryPointsGenerator<'a, 'b> {
     call_indexes: CallIndexes,
 }
 
-impl<'a, 'b> From<GearWasmGenerator<'a, 'b>> for (EntryPointsGenerator<'a, 'b>, FrozenGearWasmGenerator<'a, 'b>) {
+impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
+    for (
+        EntryPointsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
+    )
+{
     fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
@@ -78,6 +83,10 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
     /// Disable current generator.
     pub fn disable(self) -> DisabledEntryPointsGenerator<'a, 'b> {
+        log::trace!(
+            "Random data when disabling gear entry points generator - {}",
+            self.unstructured.len()
+        );
         DisabledEntryPointsGenerator {
             unstructured: self.unstructured,
             module: self.module,
@@ -94,6 +103,8 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         DisabledEntryPointsGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
     )> {
+        log::trace!("Generating gear entry points");
+
         if self.config.has_init() {
             self.generate_export("init")?;
         }
@@ -106,13 +117,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             self.generate_export("handle_reply")?;
         }
 
-        let disabled = DisabledEntryPointsGenerator {
-            unstructured: self.unstructured,
-            module: self.module,
-            call_indexes: self.call_indexes,
-        };
-
-        Ok((disabled, GearEntryPointGenerationProof(())))
+        Ok((self.disable(), GearEntryPointGenerationProof(())))
     }
 
     /// Generates an export function with a `name`.
@@ -127,6 +132,11 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// and then disabled, that export index can be retrieved from [`DisabledEntryPointsGenerator`], by
     /// accessing the underlying `parity_wasm::module::Module` and iterating over it's export section.
     pub fn generate_export(&mut self, name: &str) -> Result<GearEntryPointGenerationProof> {
+        log::trace!(
+            "Random data before generating {name} export - {}",
+            self.unstructured.len()
+        );
+
         let last_func_idx = self.module.count_code_funcs() - 1;
         let export_body_call_idx = self.unstructured.int_in_range(0..=last_func_idx)?;
 
@@ -175,6 +185,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             (module, ())
         });
 
+        log::trace!("Generated export - {name}");
         self.call_indexes.add_func(export_idx);
 
         Ok(GearEntryPointGenerationProof(()))
@@ -214,7 +225,7 @@ pub struct GearEntryPointGenerationProof(());
 /// Instance of this types signals that there was once active gear wasm
 /// entry points generator, but it ended up it's work.
 pub struct DisabledEntryPointsGenerator<'a, 'b> {
-    pub unstructured: &'b mut Unstructured<'a>,
+    unstructured: &'b mut Unstructured<'a>,
     module: WasmModule,
     call_indexes: CallIndexes,
 }

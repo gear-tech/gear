@@ -26,6 +26,7 @@ use crate::{
     utils, EntryPointName, InvocableSysCall, MessageDestination, SysCallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
+use gear_core::ids::ProgramId;
 use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SysCallName,
@@ -106,19 +107,14 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
         DisabledAdditionalDataInjector<'a, 'b>,
         AddressesInjectionOutcome,
     ) {
+        log::trace!("Injecting additional data");
+
         let offsets = self.inject_addresses();
         self.inject_log_info_printing();
 
-        let disabled = DisabledAdditionalDataInjector {
-            module: self.module,
-            call_indexes: self.call_indexes,
-            sys_calls_imports: self.sys_calls_imports,
-            config: self.config,
-            unstructured: self.unstructured,
-        };
         let outcome = AddressesInjectionOutcome { offsets };
 
-        (disabled, outcome)
+        (self.disable(), outcome)
     }
 
     /// Disable current generator.
@@ -138,6 +134,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
     /// If no addresses were defined in the config, then returns `None`.
     pub fn inject_addresses(&mut self) -> Option<AddressesOffsets> {
         if !self.addresses_offsets.is_empty() {
+            log::trace!("Called address injection again");
             return Some(AddressesOffsets(
                 self.addresses_offsets.clone().into_iter().cycle(),
             ));
@@ -147,6 +144,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             return None;
         };
 
+        log::trace!("Inserting {} addresses into wasm", existing_addresses.len());
         for address in existing_addresses {
             self.addresses_offsets.push(self.last_offset);
 
@@ -163,8 +161,18 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                 (module, ())
             });
 
+            log::trace!(
+                "Inserted {} program address into wasm",
+                ProgramId::from(address.hash.as_slice())
+            );
+
             self.last_offset += data_len as u32;
         }
+
+        log::trace!(
+            "Last offset after inserting addresses - {}",
+            self.last_offset
+        );
 
         Some(AddressesOffsets(
             self.addresses_offsets.clone().into_iter().cycle(),
@@ -181,13 +189,25 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
         let Some(log_info) = self.config.log_info() else {
             return;
         };
+        log::trace!("Inserting next logging info - {log_info}");
+
         let log_bytes = log_info.as_bytes().to_vec();
 
         let export_idx = self
             .module
             .gear_entry_point(EntryPointName::Init)
-            .or_else(|| self.module.gear_entry_point(EntryPointName::Handle))
-            .or_else(|| self.module.gear_entry_point(EntryPointName::HandleReply))
+            .map(|idx| {
+                log::trace!("Info will be logged in init");
+                idx
+            })
+            .or_else(|| {
+                log::trace!("Info will be logged in handle");
+                self.module.gear_entry_point(EntryPointName::Handle)
+            })
+            .or_else(|| {
+                log::trace!("Info will be logged in handle_reply");
+                self.module.gear_entry_point(EntryPointName::HandleReply)
+            })
             // This generator is instantiated from SysCallsImportsGenerator, which can only be
             // generated if entry points and memory import were generated.
             .expect("impossible to have no gear export");

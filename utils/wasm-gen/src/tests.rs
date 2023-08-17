@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::WASM_PAGE_SIZE;
-
 use super::*;
 use arbitrary::Unstructured;
-use gear_core::code::Code;
+use gear_core::{code::Code, pages::WASM_PAGE_SIZE};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::parity_wasm::{
     self,
@@ -144,7 +142,7 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE) as i32);
+    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
 
     let second_addr_offset = entries
         .get(1)
@@ -156,17 +154,17 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE) as i32);
+    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
 }
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
     // Test that valid config always generates a valid gear wasm.
-    fn test_valid_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+    fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
         use gear_wasm_instrument::rules::CustomConstantCostRules;
         let mut u = Unstructured::new(&buf);
-        let configs_bundle: ValidGearWasmConfigsBundle = ValidGearWasmConfigsBundle {
+        let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
             log_info: Some("Some data".into()),
             entry_points_set: EntryPointsSet::InitHandleHandleReply,
             ..Default::default()
@@ -184,7 +182,7 @@ proptest! {
         let mut u = Unstructured::new(&buf);
         let mut u2 = Unstructured::new(&buf);
 
-        let gear_config = ValidGearWasmConfigsBundle::<[u8; 32]>::default();
+        let gear_config = StandardGearWasmConfigsBundle::<[u8; 32]>::default();
 
         let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
         let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");

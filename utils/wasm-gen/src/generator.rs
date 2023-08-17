@@ -126,28 +126,24 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     pub fn generate(self) -> Result<Module> {
         let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
-        println!("UNSTRD len after mem-gen - {:?}", frozen_gear_wasm_gen.unstructured.as_ref().map(|f| f.len()));
-        
-        
+
         let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof) =
             Self::from((disabled_mem_gen, frozen_gear_wasm_gen)).generate_entry_points()?;
-        println!("UNSTRD len after ep-gen - {:?}", disabled_ep_gen.unstructured.len());
-        
-        
+
         let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
             Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
                 .generate_sys_calls(mem_imports_gen_proof, ep_gen_proof)?;
-        println!("UNSTRD len after invocations - {:?}", disabled_syscalls_invocator.unstructured.len());
-        
-        
+
         let config = frozen_gear_wasm_gen.melt();
         let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
             .into_wasm_module()
             .into_inner();
 
         Ok(if config.remove_recursions {
+            log::trace!("Removing recursions");
             utils::remove_recursion(module)
         } else {
+            log::trace!("Leaving recursions");
             module
         })
     }
@@ -187,7 +183,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         self,
         mem_import_gen_proof: MemoryImportGenerationProof,
         ep_gen_proof: GearEntryPointGenerationProof,
-    ) -> Result<(DisabledSysCallsInvocator<'a, 'b>, FrozenGearWasmGenerator<'a, 'b>)> {
+    ) -> Result<(DisabledSysCallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let sys_calls_imports_gen_instantiator =
             SysCallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
         let (sys_calls_imports_gen, frozen_gear_wasm_gen) =
@@ -264,6 +260,8 @@ impl CallIndexes {
     }
 
     fn add_func(&mut self, func_idx: usize) {
+        log::trace!("Inserting function with func index {func_idx}");
+
         self.inner.push(FunctionIndex::Func(func_idx as u32));
         let is_new = self.custom_funcs.insert(func_idx);
 

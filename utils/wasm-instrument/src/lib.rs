@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::items_after_test_module)]
 
 extern crate alloc;
 
