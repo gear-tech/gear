@@ -93,6 +93,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     // Use (0..G)^3 / G^2 to produce more values closer to default_gas_limit.
     let default_gas_limit = default_gas_limit() as u128;
     let gas_limit = rand.gen_range(0..=default_gas_limit).pow(3) / default_gas_limit.pow(2);
+
     let gas_limit = gas_limit as u64;
 
     match rand.gen_range(0..=1) {
