@@ -31,7 +31,6 @@ use sp_wasm_interface::Value;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
     Gas = 0,
-    Amount = 1,
 }
 
 #[derive(Debug)]

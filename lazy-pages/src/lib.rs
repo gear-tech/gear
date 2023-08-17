@@ -49,7 +49,7 @@ mod utils;
 
 use crate::{
     common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
-    globals::{GlobalNo, GlobalsContext},
+    globals::GlobalsContext,
     init_flag::InitializationFlag,
 };
 
@@ -305,8 +305,8 @@ pub fn status() -> Result<Status, Error> {
 pub enum InitError {
     #[display(fmt = "Wrong page sizes amount: get {_0}, must be {_1}")]
     WrongSizesAmount(usize, usize),
-    #[display(fmt = "Wrong global names amount: get {_0}, must be {_1}")]
-    WrongGlobalNamesAmount(usize, usize),
+    #[display(fmt = "Wrong global names: {_0}")]
+    WrongGlobalNames(String),
     #[display(fmt = "Not suitable page sizes")]
     NotSuitablePageSizes,
     #[display(fmt = "Can not set signal handler: {_0}")]
@@ -416,12 +416,10 @@ fn init_with_handler<H: UserSignalHandler>(
         return Err(NotSuitablePageSizes);
     }
 
-    // if global_names.len() != GlobalNo::Amount as usize {
-    //     return Err(WrongGlobalNamesAmount(
-    //         global_names.len(),
-    //         GlobalNo::Amount as usize,
-    //     ));
-    // }
+    // TODO: check globals from context issue #3057
+    if !global_names.contains(&LimitedStr::from_small_str("gear_gas")) {
+        return Err(WrongGlobalNames("gear_gas".to_string()));
+    }
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_CONTEXT.with(|ctx| {
