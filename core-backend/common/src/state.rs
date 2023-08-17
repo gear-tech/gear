@@ -20,7 +20,7 @@ use crate::{BackendExternalities, BackendState, BackendTermination, UndefinedTer
 
 pub type HostState<Ext> = Option<State<Ext>>;
 
-/// It's supposed that `E` implements [BackendExt]
+/// It's supposed that `Ext` implements [`BackendExternalities`]
 pub struct State<Ext> {
     pub ext: Ext,
     pub termination_reason: UndefinedTerminationReason,
