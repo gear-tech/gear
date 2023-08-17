@@ -26,7 +26,7 @@ use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
-use gear_wasm_gen::{EntryPointsSet, ValidGearWasmConfigsBundle};
+use gear_wasm_gen::{EntryPointsSet, StandardGearWasmConfigsBundle};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event;
@@ -118,8 +118,8 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     }
 }
 
-fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> ValidGearWasmConfigsBundle<ProgramId> {
-    ValidGearWasmConfigsBundle {
+fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> StandardGearWasmConfigsBundle<ProgramId> {
+    StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),
         existing_addresses: NonEmpty::from_vec(programs),
         entry_points_set: EntryPointsSet::HandleHandleReply,
