@@ -87,7 +87,6 @@ impl<T> AsContextExt for Store<T> {}
 
 pub struct Caller<'a, T> {
     data: &'a mut T,
-    mem: Memory,
     instance_idx: u32,
 }
 
@@ -98,10 +97,6 @@ impl<'a, T> SandboxCaller<T> for Caller<'a, T> {
 
     fn get_global_val(&self, name: &str) -> Option<Value> {
         get_global_val(self.instance_idx, name)
-    }
-
-    fn memory(&self) -> Memory {
-        self.mem.clone()
     }
 }
 
@@ -208,7 +203,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 /// A builder for the environment of the sandboxed WASM module.
 pub struct EnvironmentDefinitionBuilder<T> {
     env_def: env::EnvironmentDefinition,
-    memory: Option<Memory>,
+    retained_memories: Vec<Memory>,
     _marker: marker::PhantomData<T>,
 }
 
@@ -233,7 +228,7 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
             env_def: env::EnvironmentDefinition {
                 entries: Vec::new(),
             },
-            memory: None,
+            retained_memories: Vec::new(),
             _marker: marker::PhantomData::<T>,
         }
     }
@@ -252,13 +247,10 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
         N1: Into<String>,
         N2: Into<String>,
     {
-        let memory_idx = mem.handle.memory_idx;
-
         // We need to retain memory to keep it alive while the EnvironmentDefinitionBuilder alive.
-        let old_mem = self.memory.replace(mem);
-        assert!(old_mem.is_none());
+        self.retained_memories.push(mem.clone());
 
-        let mem = env::ExternEntity::Memory(memory_idx);
+        let mem = env::ExternEntity::Memory(mem.handle.memory_idx);
         self.add_entry(module, field, mem);
     }
 }
@@ -266,14 +258,13 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
 /// Sandboxed instance of a WASM module.
 pub struct Instance<T> {
     instance_idx: u32,
-    memory: Memory,
+    _retained_memories: Vec<Memory>,
     _marker: marker::PhantomData<T>,
 }
 
 #[repr(C)]
 struct DispatchThunkState {
     instance_idx: Option<u32>,
-    memory: Memory,
     data: usize,
 }
 
@@ -309,7 +300,6 @@ extern "C" fn dispatch_thunk<T>(
         let data = &mut *(state.data as *mut T);
         let caller = Caller {
             data,
-            mem: state.memory.clone(),
             instance_idx: state
                 .instance_idx
                 .unwrap_or_else(|| unreachable!("Instance index should be present")),
@@ -339,14 +329,8 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
     ) -> Result<Instance<T>, Error> {
         let serialized_env_def: Vec<u8> = env_def_builder.env_def.encode();
 
-        let memory = env_def_builder
-            .memory
-            .clone()
-            .unwrap_or_else(|| unreachable!("Memory expected to be present"));
-
         let mut state = DispatchThunkState {
             instance_idx: None,
-            memory: memory.clone(),
             data: store.data_mut() as *const T as _,
         };
 
@@ -365,9 +349,11 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
             instance_idx => instance_idx,
         };
 
+        // We need to retain memories to keep them alive while the Instance is alive.
+        let retained_memories = env_def_builder.retained_memories.clone();
         Ok(Instance {
             instance_idx,
-            memory,
+            _retained_memories: retained_memories,
             _marker: marker::PhantomData::<T>,
         })
     }
@@ -383,7 +369,6 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
 
         let mut state = DispatchThunkState {
             instance_idx: Some(self.instance_idx),
-            memory: self.memory.clone(),
             data: store.data_mut() as *const T as _,
         };
 

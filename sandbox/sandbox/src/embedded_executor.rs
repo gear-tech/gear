@@ -87,17 +87,6 @@ impl<T> SandboxCaller<T> for Caller<'_, T> {
         let value = self.0.get_export(name)?.into_global()?.get(&self.0);
         Some(to_interface(value))
     }
-
-    fn memory(&self) -> Memory {
-        Memory {
-            memref: self
-                .0
-                .get_export("memory")
-                .unwrap_or_else(|| unreachable!("Default `memory` must be set"))
-                .into_memory()
-                .unwrap_or_else(|| unreachable!("`memory` symbol is not memory")),
-        }
-    }
 }
 
 impl<T> wasmi::AsContext for Caller<'_, T> {

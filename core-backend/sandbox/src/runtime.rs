@@ -41,7 +41,9 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) fn caller_host_state_take<Ext>(caller: &mut Caller<'_, HostState<Ext>>) -> State<Ext> {
+pub(crate) fn caller_host_state_take<Ext>(
+    caller: &mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
+) -> State<Ext, DefaultExecutorMemory> {
     caller
         .data_mut()
         .take()
@@ -49,7 +51,7 @@ pub(crate) fn caller_host_state_take<Ext>(caller: &mut Caller<'_, HostState<Ext>
 }
 
 pub(crate) struct CallerWrap<'a, Ext> {
-    pub caller: Caller<'a, HostState<Ext>>,
+    pub caller: Caller<'a, HostState<Ext, DefaultExecutorMemory>>,
     pub manager: MemoryAccessManager<Ext>,
     pub memory: DefaultExecutorMemory,
 }
@@ -124,9 +126,14 @@ impl<'a, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerWrap<
 impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     #[track_caller]
     pub fn prepare(
-        caller: Caller<'a, HostState<Ext>>,
-        memory: DefaultExecutorMemory,
+        mut caller: Caller<'a, HostState<Ext, DefaultExecutorMemory>>,
     ) -> Result<Self, HostError> {
+        let memory = caller
+            .data_mut()
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("Host state must be presented"))
+            .memory
+            .clone();
         let mut wrapper = Self {
             caller,
             manager: Default::default(),
@@ -151,7 +158,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<Ext> {
+    pub fn host_state_mut(&mut self) -> &mut State<Ext, DefaultExecutorMemory> {
         self.caller
             .data_mut()
             .as_mut()
@@ -160,7 +167,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
 
     #[track_caller]
     pub fn memory<'b, 'c: 'b>(
-        caller: &'b mut Caller<'c, HostState<Ext>>,
+        caller: &'b mut Caller<'c, HostState<Ext, DefaultExecutorMemory>>,
         memory: DefaultExecutorMemory,
     ) -> MemoryWrapRef<'b, 'c, Ext> {
         MemoryWrapRef::<'b, 'c, _> { memory, caller }

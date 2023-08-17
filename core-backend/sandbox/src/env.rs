@@ -38,8 +38,8 @@ use gear_sandbox::{
     default_executor::{
         EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory, Store,
     },
-    AsContext, HostError, HostFuncType, IntoValue, ReturnValue, SandboxCaller,
-    SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory, SandboxStore, Value,
+    AsContext, HostError, HostFuncType, IntoValue, ReturnValue, SandboxEnvironmentBuilder,
+    SandboxInstance, SandboxMemory, SandboxStore, Value,
 };
 use gear_sandbox_env::WasmReturnValue;
 use gear_wasm_instrument::{
@@ -95,8 +95,7 @@ impl TryFrom<SandboxValue> for u64 {
 macro_rules! wrap_common_func_internal_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, args: &[Value]| -> Result<WasmReturnValue, HostError> {
-            let memory = ctx.memory();
-            let mut ctx = CallerWrap::prepare(ctx, memory).map_err(|_| HostError)?;
+            let mut ctx = CallerWrap::prepare(ctx).map_err(|_| HostError)?;
             $func(&mut ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*)
             .map(|(gas, r)| WasmReturnValue {
                 gas: gas as i64,
@@ -109,8 +108,7 @@ macro_rules! wrap_common_func_internal_ret{
 macro_rules! wrap_common_func_internal_no_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, _args: &[Value]| -> Result<WasmReturnValue, HostError> {
-            let memory = ctx.memory();
-            let mut ctx = CallerWrap::prepare(ctx, memory).map_err(|_| HostError)?;
+            let mut ctx = CallerWrap::prepare(ctx).map_err(|_| HostError)?;
             $func(&mut ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*)
             .map(|(gas, _)| WasmReturnValue {
                 gas: gas as i64,
@@ -173,17 +171,17 @@ where
     Ext: BackendExternalities,
     EntryPoint: WasmEntryPoint,
 {
-    instance: Instance<HostState<Ext>>,
+    instance: Instance<HostState<Ext, DefaultExecutorMemory>>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
-    store: Store<HostState<Ext>>,
+    store: Store<HostState<Ext, DefaultExecutorMemory>>,
     memory: DefaultExecutorMemory,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<Ext: BackendExternalities> {
-    env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext>>,
+    env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, DefaultExecutorMemory>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
@@ -195,7 +193,11 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<HostState<Ext>>) {
+    fn add_func(
+        &mut self,
+        name: SysCallName,
+        f: HostFuncType<HostState<Ext, DefaultExecutorMemory>>,
+    ) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder.add_host_func(
                 "env",
@@ -215,7 +217,7 @@ where
 }
 
 impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
-    for EnvironmentDefinitionBuilder<HostState<Ext>>
+    for EnvironmentDefinitionBuilder<HostState<Ext, DefaultExecutorMemory>>
 {
     fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
@@ -355,6 +357,7 @@ where
 
         *store.data_mut() = Some(State {
             ext,
+            memory: memory.clone(),
             termination_reason: ActorTerminationReason::Success.into(),
         });
 

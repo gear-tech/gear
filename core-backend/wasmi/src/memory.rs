@@ -28,7 +28,7 @@ use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContex
 
 pub(crate) struct MemoryWrapRef<'a, Ext: Externalities + 'static> {
     pub memory: WasmiMemory,
-    pub store: StoreContextMut<'a, HostState<Ext>>,
+    pub store: StoreContextMut<'a, HostState<Ext, WasmiMemory>>,
 }
 
 impl<'a, Ext: Externalities + 'static> Memory for MemoryWrapRef<'a, Ext> {
@@ -65,15 +65,15 @@ impl<'a, Ext: Externalities + 'static> Memory for MemoryWrapRef<'a, Ext> {
 /// Wrapper for [`wasmi::Memory`].
 pub struct MemoryWrap<Ext: Externalities + 'static> {
     pub(crate) memory: WasmiMemory,
-    pub(crate) store: Store<HostState<Ext>>,
+    pub(crate) store: Store<HostState<Ext, WasmiMemory>>,
 }
 
 impl<Ext: Externalities + 'static> MemoryWrap<Ext> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
-    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<Ext>>) -> Self {
+    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<Ext, WasmiMemory>>) -> Self {
         MemoryWrap { memory, store }
     }
-    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
+    pub(crate) fn into_store(self) -> Store<HostState<Ext, WasmiMemory>> {
         self.store
     }
 }
@@ -129,15 +129,13 @@ mod tests {
         let memory_type = MemoryType::new(static_pages as u32, Some(max_pages as u32));
 
         let engine = Engine::default();
-        let mut store = Store::new(
-            &engine,
-            Some(State {
-                ext: MockExt::default(),
-                termination_reason: ActorTerminationReason::Success.into(),
-            }),
-        );
-
+        let mut store = Store::new(&engine, None);
         let memory = WasmiMemory::new(&mut store, memory_type).expect("Memory creation failed");
+        *store.state_mut() = Some(State {
+            ext: MockExt::default(),
+            memory,
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
         let memory = MemoryWrap::new(memory, store);
 
         (

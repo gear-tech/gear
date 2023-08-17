@@ -107,9 +107,6 @@ pub trait SandboxCaller<T>: AsContext<T> {
 
     /// Get WASM global.
     fn get_global_val(&self, name: &str) -> Option<Value>;
-
-    /// Get WASM memory.
-    fn memory(&self) -> default_executor::Memory;
 }
 
 /// Sandbox context.

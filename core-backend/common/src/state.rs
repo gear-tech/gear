@@ -18,15 +18,16 @@
 
 use crate::{BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason};
 
-pub type HostState<Ext> = Option<State<Ext>>;
+pub type HostState<Ext, Mem> = Option<State<Ext, Mem>>;
 
 /// It's supposed that `Ext` implements [`BackendExternalities`]
-pub struct State<Ext> {
+pub struct State<Ext, Mem> {
     pub ext: Ext,
+    pub memory: Mem,
     pub termination_reason: UndefinedTerminationReason,
 }
 
-impl<Ext: BackendExternalities> BackendTermination<Ext> for State<Ext> {
+impl<Ext: BackendExternalities, Mem> BackendTermination<Ext> for State<Ext, Mem> {
     fn into_parts(self) -> (Ext, UndefinedTerminationReason) {
         let State {
             ext,
@@ -37,7 +38,7 @@ impl<Ext: BackendExternalities> BackendTermination<Ext> for State<Ext> {
     }
 }
 
-impl<Ext> BackendState for State<Ext> {
+impl<Ext, Mem> BackendState for State<Ext, Mem> {
     fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.termination_reason = reason;
     }

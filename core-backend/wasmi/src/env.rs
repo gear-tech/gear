@@ -70,7 +70,7 @@ where
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
-    store: Store<HostState<Ext>>,
+    store: Store<HostState<Ext, Memory>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
@@ -78,7 +78,7 @@ where
 
 struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance,
-    store: Option<Store<HostState<Ext>>>,
+    store: Option<Store<HostState<Ext, Memory>>>,
 }
 
 impl<Ext: Externalities> GlobalsAccessProvider<Ext> {
@@ -141,9 +141,9 @@ where
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
-        let mut store: Store<HostState<EnvExt>> = Store::new(&engine, None);
+        let mut store: Store<HostState<EnvExt, Memory>> = Store::new(&engine, None);
 
-        let mut linker: Linker<HostState<EnvExt>> = Linker::new();
+        let mut linker: Linker<HostState<EnvExt, Memory>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory =
@@ -177,6 +177,7 @@ where
 
         let runtime = State {
             ext,
+            memory,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 

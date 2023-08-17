@@ -33,7 +33,7 @@ pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
 
 pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
     pub memory: DefaultExecutorMemory,
-    pub caller: &'a mut Caller<'b, HostState<Ext>>,
+    pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
 }
 
 impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
@@ -71,7 +71,7 @@ where
     Ext: Externalities + 'static,
 {
     pub(crate) memory: DefaultExecutorMemory,
-    pub(crate) store: Store<HostState<Ext>>,
+    pub(crate) store: Store<HostState<Ext, DefaultExecutorMemory>>,
 }
 
 impl<Ext> MemoryWrap<Ext>
@@ -79,11 +79,14 @@ where
     Ext: Externalities + 'static,
 {
     /// Wrap [`DefaultExecutorMemory`] for Memory trait.
-    pub fn new(memory: DefaultExecutorMemory, store: Store<HostState<Ext>>) -> Self {
+    pub fn new(
+        memory: DefaultExecutorMemory,
+        store: Store<HostState<Ext, DefaultExecutorMemory>>,
+    ) -> Self {
         MemoryWrap { memory, store }
     }
 
-    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
+    pub(crate) fn into_store(self) -> Store<HostState<Ext, DefaultExecutorMemory>> {
         self.store
     }
 }
@@ -129,7 +132,7 @@ mod tests {
         assert_err, assert_ok, mock::MockExt, state::State, ActorTerminationReason,
     };
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
-    use gear_sandbox::SandboxStore;
+    use gear_sandbox::{AsContext, SandboxStore};
 
     fn new_test_memory(
         static_pages: u16,
@@ -137,13 +140,16 @@ mod tests {
     ) -> (AllocationsContext, MemoryWrap<MockExt>) {
         use gear_sandbox::SandboxMemory as WasmMemory;
 
-        let mut store = Store::new(Some(State {
+        let mut store = Store::new(None);
+        let memory: DefaultExecutorMemory =
+            WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
+                .expect("Memory creation failed");
+        *store.data_mut() = Some(State {
             ext: MockExt::default(),
+            memory: memory.clone(),
             termination_reason: ActorTerminationReason::Success.into(),
-        }));
+        });
 
-        let memory = WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
-            .expect("Memory creation failed");
         let memory = MemoryWrap::new(memory, store);
 
         (
