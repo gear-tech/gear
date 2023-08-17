@@ -34,20 +34,12 @@ use sp_wasm_interface::Value;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
     Gas,
-    GasAllowance,
 }
 
 impl GlobalNo {
     pub(crate) fn into_idx(self, version: LazyPagesVersion) -> usize {
         match self {
             GlobalNo::Gas => 0,
-            GlobalNo::GasAllowance => {
-                if version == LazyPagesVersion::Version1 {
-                    1
-                } else {
-                    unreachable!("GasAllowance global is deprecated since lazy-pages v2")
-                }
-            }
         }
     }
 }

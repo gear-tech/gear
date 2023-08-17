@@ -19,14 +19,13 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
 use gear_core::{
     self,
-    gas::GasLeft,
     memory::MemoryInterval,
     pages::{GearPage, PageDynSize},
 };
@@ -34,8 +33,8 @@ use std::collections::BTreeSet;
 
 pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
-    pub gas_left: &'a mut GasLeft,
-    pub gas_left_charger: GasLeftCharger,
+    pub gas_counter: &'a mut u64,
+    pub gas_charger: GasCharger,
 }
 
 impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
@@ -70,18 +69,12 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         page: GearPage,
         is_accessed: bool,
     ) -> Result<Status, Error> {
-        self.gas_left_charger.charge_for_page_access(
-            self.gas_left,
-            page,
-            self.is_write,
-            is_accessed,
-        )
+        self.gas_charger
+            .charge_for_page_access(self.gas_counter, page, self.is_write, is_accessed)
     }
 
     fn charge_for_page_data_loading(&mut self) -> Result<Status, Error> {
-        Ok(self
-            .gas_left_charger
-            .charge_for_page_data_load(self.gas_left))
+        Ok(self.gas_charger.charge_for_page_data_load(self.gas_counter))
     }
 
     fn last_page(pages: &Self::Pages) -> Option<GearPage> {
@@ -138,7 +131,7 @@ fn accesses_pages(
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-    gas_left: &mut GasLeft,
+    gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
     log::trace!("host func mem accesses: {reads:?} {writes:?}");
     LAZY_PAGES_CONTEXT
@@ -149,8 +142,8 @@ pub fn pre_process_memory_accesses(
             let mut read_pages = BTreeSet::new();
             accesses_pages(ctx, reads, &mut read_pages)?;
 
-            let gas_left_charger = {
-                GasLeftCharger {
+            let gas_charger = {
+                GasCharger {
                     read_cost: ctx.weight(WeightNo::HostFuncRead),
                     write_cost: ctx.weight(WeightNo::HostFuncWrite),
                     write_after_read_cost: ctx.weight(WeightNo::HostFuncWriteAfterRead),
@@ -162,8 +155,8 @@ pub fn pre_process_memory_accesses(
                 ctx,
                 HostFuncAccessHandler {
                     is_write: false,
-                    gas_left,
-                    gas_left_charger: gas_left_charger.clone(),
+                    gas_counter,
+                    gas_charger: gas_charger.clone(),
                 },
                 read_pages,
             )?;
@@ -180,8 +173,8 @@ pub fn pre_process_memory_accesses(
                 ctx,
                 HostFuncAccessHandler {
                     is_write: true,
-                    gas_left,
-                    gas_left_charger,
+                    gas_counter,
+                    gas_charger,
                 },
                 write_pages,
             )
@@ -195,6 +188,5 @@ pub fn pre_process_memory_accesses(
         .map(|status| match status {
             Status::Normal => Ok(()),
             Status::GasLimitExceeded => Err(ProcessAccessError::GasLimitExceeded),
-            Status::GasAllowanceExceeded => Err(ProcessAccessError::GasAllowanceExceeded),
         })?
 }

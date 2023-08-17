@@ -24,7 +24,6 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, Status},
     LimitedStr,
 };
-use gear_core::gas::GasLeft;
 
 use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage};
@@ -257,32 +256,26 @@ impl PagePrefix {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct GasLeftCharger {
+pub(crate) struct GasCharger {
     pub read_cost: u64,
     pub write_cost: u64,
     pub write_after_read_cost: u64,
     pub load_data_cost: u64,
 }
 
-impl GasLeftCharger {
-    fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
-        let new_gas = gas_left.gas.checked_sub(amount);
-        let new_allowance = gas_left.allowance.checked_sub(amount);
-        *gas_left = (
-            new_gas.unwrap_or_default(),
-            new_allowance.unwrap_or_default(),
-        )
-            .into();
-        match (new_gas, new_allowance) {
-            (None, _) => Status::GasLimitExceeded,
-            (Some(_), None) => Status::GasAllowanceExceeded,
-            (Some(_), Some(_)) => Status::Normal,
+impl GasCharger {
+    fn sub_gas(gas_counter: &mut u64, amount: u64) -> Status {
+        let new_gas = gas_counter.checked_sub(amount);
+        *gas_counter = new_gas.unwrap_or_default();
+        match new_gas {
+            None => Status::GasLimitExceeded,
+            Some(_) => Status::Normal,
         }
     }
 
     pub fn charge_for_page_access(
         &self,
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
         page: GearPage,
         is_write: bool,
         is_accessed: bool,
@@ -293,11 +286,11 @@ impl GasLeftCharger {
             (false, false) => self.read_cost,
             (false, true) => return Err(Error::DoubleReadCharge(page)),
         };
-        Ok(Self::sub_gas(gas_left, amount))
+        Ok(Self::sub_gas(gas_counter, amount))
     }
 
-    pub fn charge_for_page_data_load(&mut self, gas_left: &mut GasLeft) -> Status {
-        Self::sub_gas(gas_left, self.load_data_cost)
+    pub fn charge_for_page_data_load(&mut self, gas_counter: &mut u64) -> Status {
+        Self::sub_gas(gas_counter, self.load_data_cost)
     }
 }
 

@@ -104,7 +104,12 @@ pub trait GearRI {
         gas_left: (GasLeft,),
     ) -> (GasLeft, Result<(), ProcessAccessError>) {
         let mut gas_left = gas_left.0;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
+        let gas_before = gas_left.gas;
+        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
+
+        // Support charge for allowance otherwise DB will be corrupted.
+        // gas_left.allowance = gas_left.allowance.saturating_sub(gas_before.saturating_sub(gas_left.gas));
+
         (gas_left, res)
     }
 
@@ -120,22 +125,18 @@ pub trait GearRI {
         let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
-        let gas_counter = u64::from_le_bytes(*gas_bytes);
+        let mut gas_counter = u64::from_le_bytes(*gas_bytes);
 
-        let mut gas_left = GasLeft {
-            gas: gas_counter,
-            allowance: gas_counter,
-        };
         let res = match lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
             &writes_intervals,
-            &mut gas_left,
+            &mut gas_counter,
         ) {
             Ok(_) => 0,
             Err(err) => err.into(),
         };
-        let GasLeft { gas, allowance } = gas_left;
-        *gas_bytes = gas.min(allowance).to_le_bytes();
+
+        *gas_bytes = gas_counter.to_le_bytes();
 
         res
     }
