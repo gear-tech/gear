@@ -18,62 +18,54 @@
 
 #![no_main]
 
-use libfuzzer_sys::{fuzz_target, Corpus};
+use libfuzzer_sys::fuzz_target;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
     io::{Error as IoError, Result as IoResult, Write},
     path::Path,
 };
-use gear_call_gen::GearCalls;
 
-// const SEEDS_STORE_DIR: &str = "/tmp/fuzzing-seeds-dir";
-// const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
+const SEEDS_STORE_DIR: &str = "/tmp/fuzzing-seeds-dir";
+const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
 
-// static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
+static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
 
-fuzz_target!(|calls: GearCalls| {
+fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
 
-    log::warn!("NEW INPUT");
-    runtime_fuzzer::run_gear_calls(calls.0);
+    dump_seed(seed).unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
 
-    println!("");
-    println!("");
-    println!("");
-
-    // dump_seed(seed).unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
-
-    // log::info!("Running the seed {seed}");
-    // runtime_fuzzer::run(seed);
+    log::info!("Running the seed {seed}");
+    runtime_fuzzer::run(seed);
 });
 
-// // Dumps seed to the `SEEDS_STORE_FILE` file inside `SEEDS_STORE_DIR`
-// // directory before running fuzz test.
-// //
-// // If directory already exists for the current run, it will be cleared.
-// fn dump_seed(seed: u64) -> IoResult<()> {
-//     let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
-//         let seeds_dir = Path::new(SEEDS_STORE_DIR);
-//         match seeds_dir.exists() {
-//             true => clear_dir(seeds_dir)?,
-//             false => fs::create_dir_all(seeds_dir)?,
-//         }
+// Dumps seed to the `SEEDS_STORE_FILE` file inside `SEEDS_STORE_DIR`
+// directory before running fuzz test.
+//
+// If directory already exists for the current run, it will be cleared.
+fn dump_seed(seed: u64) -> IoResult<()> {
+    let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
+        let seeds_dir = Path::new(SEEDS_STORE_DIR);
+        match seeds_dir.exists() {
+            true => clear_dir(seeds_dir)?,
+            false => fs::create_dir_all(seeds_dir)?,
+        }
 
-//         Ok::<String, IoError>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
-//     })?;
+        Ok::<String, IoError>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
+    })?;
 
-//     OpenOptions::new()
-//         .create(true)
-//         .append(true)
-//         .open(seeds_file)
-//         .and_then(|mut file| writeln!(file, "{seed}"))
-// }
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(seeds_file)
+        .and_then(|mut file| writeln!(file, "{seed}"))
+}
 
-// fn clear_dir(path: &Path) -> IoResult<()> {
-//     for dir_entry in fs::read_dir(path)? {
-//         fs::remove_file(dir_entry?.path())?;
-//     }
+fn clear_dir(path: &Path) -> IoResult<()> {
+    for dir_entry in fs::read_dir(path)? {
+        fs::remove_file(dir_entry?.path())?;
+    }
 
-//     Ok(())
-// }
+    Ok(())
+}

@@ -54,27 +54,6 @@ impl Context {
     }
 }
 
-pub fn run_gear_calls(calls: Vec<GearCall>) {
-    new_test_ext().execute_with(|| {
-        let sender = runtime::account(runtime::alice());
-        // Increase maximum balance of the `sender`.
-        {
-            increase_to_max_balance(sender.clone())
-                .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
-            log::info!(
-                "Current balance of the sender - {}",
-                BalancesPallet::<Runtime>::free_balance(&sender)
-            );
-        }
-        for call in calls {
-            let res = execute_gear_call(sender.clone(), call);
-            log::info!("Extrinsic result: {res:?}");
-
-            run_to_next_block();
-        }
-    })
-}
-
 /// Runs all the fuzz testing internal machinery.
 pub fn run(seed: u64) {
     let sender = runtime::account(runtime::alice());
