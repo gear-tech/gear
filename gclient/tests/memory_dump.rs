@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use demo_custom::{WASM_BINARY, InitMessage};
+use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
 use parity_scale_codec::Encode;

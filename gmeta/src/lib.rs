@@ -225,7 +225,7 @@ use scale_info::{
     TypeInfo,
 };
 
-const METADATA_VERSION: u16 = 1;
+const METADATA_VERSION: u16 = 2;
 
 /// Language identifier.
 ///
