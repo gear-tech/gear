@@ -26,7 +26,13 @@ use gear_wasm_gen::{
     EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
 };
 use sha1::*;
-use std::mem::{self, MaybeUninit};
+use std::{
+    mem::{self, MaybeUninit},
+    ops::{Div, Mul},
+};
+
+/// Gear runtime max gas limit.
+const GAS_LIMIT: u64 = 250_000_000_000;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -66,7 +72,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             "Generated from corpus - {}",
             get_sha1_string(u.peek_bytes(u.len()).expect("checked"))
         );
-        let gas = 249_000_000_000_u64;
+        let gas = GAS_LIMIT.mul(99).div(100);
         let value = 0;
         let mut programs = [ProgramId::default(); GearCalls::INIT_MSGS];
         // Upload code used as a default value.
