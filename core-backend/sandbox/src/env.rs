@@ -20,7 +20,9 @@
 
 use crate::{
     memory::MemoryWrap,
-    runtime::{self, Runtime},
+    runtime,
+    runtime::CallerWrap,
+    state::{HostState, State},
 };
 use alloc::{collections::BTreeSet, format};
 use core::{convert::Infallible, fmt::Display};
@@ -37,9 +39,11 @@ use gear_core::{
     pages::{PageNumber, WasmPage},
 };
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostError, HostFuncType, IntoValue, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
-    SandboxMemory, Value,
+    default_executor::{
+        EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory, Store,
+    },
+    AsContext, HostError, HostFuncType, IntoValue, ReturnValue, SandboxCaller,
+    SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory, SandboxStore, Value,
 };
 use gear_sandbox_env::WasmReturnValue;
 use gear_wasm_instrument::{
@@ -95,7 +99,9 @@ impl TryFrom<SandboxValue> for u64 {
 macro_rules! wrap_common_func_internal_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, args: &[Value]| -> Result<WasmReturnValue, HostError> {
-            $func(ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*)
+            let memory = ctx.memory();
+            let mut ctx = CallerWrap::prepare(ctx, memory).map_err(|_| HostError)?;
+            $func(&mut ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*)
             .map(|(gas, r)| WasmReturnValue {
                 gas: gas as i64,
                 inner: r.into_value().into(),
@@ -107,7 +113,9 @@ macro_rules! wrap_common_func_internal_ret{
 macro_rules! wrap_common_func_internal_no_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, _args: &[Value]| -> Result<WasmReturnValue, HostError> {
-            $func(ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*)
+            let memory = ctx.memory();
+            let mut ctx = CallerWrap::prepare(ctx, memory).map_err(|_| HostError)?;
+            $func(&mut ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*)
             .map(|(gas, _)| WasmReturnValue {
                 gas: gas as i64,
                 inner: ReturnValue::Unit,
@@ -142,6 +150,17 @@ macro_rules! wrap_common_func {
     ($func:path, (9) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3, 4, 5, 6, 7, 8) };
 }
 
+macro_rules! gas_amount {
+    ($store:ident) => {
+        $store
+            .data_mut()
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
+            .ext
+            .gas_amount()
+    };
+}
+
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
@@ -158,16 +177,17 @@ where
     Ext: BackendExternalities,
     EntryPoint: WasmEntryPoint,
 {
-    instance: Instance<Runtime<Ext>>,
-    runtime: Runtime<Ext>,
+    instance: Instance<HostState<Ext>>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
+    store: Store<HostState<Ext>>,
+    memory: DefaultExecutorMemory,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<Ext: BackendExternalities> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<Ext>>,
+    env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
@@ -179,7 +199,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<HostState<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder.add_host_func(
                 "env",
@@ -199,7 +219,7 @@ where
 }
 
 impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
-    for EnvironmentDefinitionBuilder<Runtime<Ext>>
+    for EnvironmentDefinitionBuilder<HostState<Ext>>
 {
     fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
@@ -284,7 +304,7 @@ where
     EntryPoint: WasmEntryPoint,
 {
     type Ext = EnvExt;
-    type Memory = MemoryWrap;
+    type Memory = MemoryWrap<EnvExt>;
     type SystemError = SandboxEnvironmentError;
 
     fn new(
@@ -303,6 +323,8 @@ where
             .map(DispatchKind::forbidden_funcs)
             .unwrap_or_default();
 
+        let mut store = Store::new(None);
+
         let mut builder = EnvBuilder::<EnvExt> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
             forbidden_funcs: ext
@@ -314,10 +336,11 @@ where
             funcs_count: 0,
         };
 
-        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
-            Ok(mem) => mem,
-            Err(e) => return Err(System(CreateEnvMemory(e))),
-        };
+        let memory: DefaultExecutorMemory =
+            match SandboxMemory::new(&mut store, mem_size.raw(), None) {
+                Ok(mem) => mem,
+                Err(e) => return Err(System(CreateEnvMemory(e))),
+            };
 
         builder.add_memory(memory.clone());
 
@@ -334,22 +357,21 @@ where
 
         let env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
-        let mut runtime = Runtime {
+        *store.data_mut() = Some(State {
             ext,
-            memory: MemoryWrap::new(memory),
-            memory_manager: Default::default(),
             termination_reason: ActorTerminationReason::Success.into(),
-        };
+        });
 
-        match Instance::new(binary, &env_builder, &mut runtime) {
-            Ok(instance) => Ok(Self {
-                instance,
-                runtime,
-                entries,
-                entry_point,
-            }),
-            Err(e) => Err(Actor(runtime.ext.gas_amount(), format!("{e:?}"))),
-        }
+        let instance = Instance::new(&mut store, binary, &env_builder)
+            .map_err(|e| Actor(gas_amount!(store), format!("{e:?}")))?;
+
+        Ok(Self {
+            instance,
+            entries,
+            entry_point,
+            store,
+            memory,
+        })
     }
 
     fn execute<PrepareMemory, PrepareMemoryError>(
@@ -369,17 +391,23 @@ where
 
         let Self {
             mut instance,
-            mut runtime,
             entries,
             entry_point,
+            mut store,
+            memory,
         } = self;
 
         let stack_end = instance
-            .get_global_val(STACK_END_EXPORT_NAME)
+            .get_global_val(&store, STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32())
             .map(|global| global as u32);
 
-        let gas = runtime.ext.define_current_counter();
+        let gas = store
+            .data_mut()
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
+            .ext
+            .define_current_counter();
 
         instance
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
@@ -394,33 +422,38 @@ where
             unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
-        match prepare_memory(&mut runtime.memory, stack_end, globals_config) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(PrepareMemory(runtime.ext.gas_amount(), e));
-            }
-        }
+        let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
+        prepare_memory(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
+            let store = &mut memory_wrap.store;
+            PrepareMemory(gas_amount!(store), e)
+        })?;
 
         let needs_execution = entry_point
             .try_into_kind()
             .map(|kind| entries.contains(&kind))
             .unwrap_or(true);
 
+        let mut store = memory_wrap.into_store();
         let res = needs_execution
-            .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
+            .then(|| instance.invoke(&mut store, entry_point.as_entry(), &[]))
             .unwrap_or(Ok(ReturnValue::Unit));
 
         // Fetching global value.
         let gas = instance
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(runtime::as_u64)
-            .ok_or(System(WrongInjectedGas))?;
+            .get_global_val(&store, GLOBAL_NAME_GAS)
+            .and_then(runtime::as_i64)
+            .ok_or(System(WrongInjectedGas))? as u64;
 
-        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas);
+        let state = store
+            .data_mut()
+            .take()
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
+
+        let (ext, _, termination_reason) = state.terminate(res, gas);
 
         Ok(BackendReport {
             termination_reason,
-            memory_wrap,
+            memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })
     }

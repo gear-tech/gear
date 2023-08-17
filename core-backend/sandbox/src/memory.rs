@@ -18,50 +18,106 @@
 
 //! sp-sandbox extensions for memory.
 
+use crate::state::HostState;
 use gear_core::{
+    env::Externalities,
     memory::{HostPointer, Memory, MemoryError},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
-use gear_sandbox::SandboxMemory;
+use gear_sandbox::{
+    default_executor::{Caller, Store},
+    SandboxMemory,
+};
 
 pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
 
-/// Wrapper for sp_sandbox::Memory.
-pub struct MemoryWrap(DefaultExecutorMemory);
-
-impl MemoryWrap {
-    pub fn new(mem: DefaultExecutorMemory) -> Self {
-        MemoryWrap(mem)
-    }
+pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
+    pub memory: DefaultExecutorMemory,
+    pub caller: &'a mut Caller<'b, HostState<Ext>>,
 }
 
-/// Memory interface for the allocator.
-impl Memory for MemoryWrap {
+impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
     type GrowError = gear_sandbox::Error;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.0.grow(pages.raw()).map(|_| ())
+        self.memory.grow(self.caller, pages.raw()).map(|_| ())
     }
 
     fn size(&self) -> WasmPage {
-        WasmPage::new(self.0.size())
-            .expect("Unexpected backend behavior: size is bigger then u32::MAX")
+        WasmPage::new(self.memory.size(self.caller))
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
-        self.0
-            .set(offset, buffer)
+        self.memory
+            .set(self.caller, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
-        self.0
-            .get(offset, buffer)
+        self.memory
+            .get(self.caller, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-        self.0.get_buff()
+        self.memory.get_buff(self.caller) as HostPointer
+    }
+}
+
+/// Wrapper for [`DefaultExecutorMemory`].
+pub struct MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    pub(crate) memory: DefaultExecutorMemory,
+    pub(crate) store: Store<HostState<Ext>>,
+}
+
+impl<Ext> MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    /// Wrap [`DefaultExecutorMemory`] for Memory trait.
+    pub fn new(memory: DefaultExecutorMemory, store: Store<HostState<Ext>>) -> Self {
+        MemoryWrap { memory, store }
+    }
+
+    pub(crate) fn into_store(self) -> Store<HostState<Ext>> {
+        self.store
+    }
+}
+
+/// Memory interface for the allocator.
+impl<Ext> Memory for MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    type GrowError = gear_sandbox::Error;
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+        self.memory.grow(&mut self.store, pages.raw()).map(|_| ())
+    }
+
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.size(&self.store))
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.memory
+            .set(&mut self.store, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.memory
+            .get(&self.store, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        self.memory.get_buff(&mut self.store) as HostPointer
     }
 }
 
@@ -69,16 +125,25 @@ impl Memory for MemoryWrap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok};
+    use crate::state::State;
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
+    use gear_sandbox::SandboxStore;
 
-    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
+    fn new_test_memory(
+        static_pages: u16,
+        max_pages: u16,
+    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
         use gear_sandbox::SandboxMemory as WasmMemory;
 
-        let memory = MemoryWrap::new(
-            WasmMemory::new(static_pages as u32, Some(max_pages as u32))
-                .expect("Memory creation failed"),
-        );
+        let mut store = Store::new(Some(State {
+            ext: MockExt::default(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        }));
+
+        let memory = WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
+            .expect("Memory creation failed");
+        let memory = MemoryWrap::new(memory, store);
 
         (
             AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
