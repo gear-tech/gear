@@ -246,6 +246,7 @@ try-runtime = [
 	"pallet-airdrop/try-runtime",
 	"pallet-bags-list/try-runtime",
 	"validator-set/try-runtime",
+	"runtime-common/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [
