@@ -109,7 +109,6 @@ pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
-    pub version: LazyPagesVersion,
     pub page_sizes: PageSizes,
     pub global_names: GlobalNames,
     pub pages_storage_prefix: Vec<u8>,
@@ -117,8 +116,6 @@ pub(crate) struct LazyPagesRuntimeContext {
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
-    /// Lazy-pages impl version.
-    pub version: LazyPagesVersion,
     /// Lazy-pages page size.
     pub page_sizes: PageSizes,
     /// Lazy-pages accesses weights.
@@ -150,16 +147,6 @@ pub(crate) struct LazyPagesExecutionContext {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LazyPagesVersion {
     Version1,
-    Version2,
-}
-
-impl LazyPagesVersion {
-    pub const fn globals_count(&self) -> usize {
-        match self {
-            Self::Version1 => 2,
-            Self::Version2 => 1,
-        }
-    }
 }
 
 impl SizeManager for LazyPagesExecutionContext {

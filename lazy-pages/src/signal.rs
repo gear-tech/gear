@@ -22,7 +22,7 @@ use crate::{
     common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
     globals::{self, GlobalNo},
     process::{self, AccessHandler},
-    LazyPagesVersion, LAZY_PAGES_CONTEXT,
+    LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::lazy_pages::Status;
 use gear_core::pages::{GearPage, PageDynSize};
@@ -84,14 +84,7 @@ unsafe fn user_signal_handler_internal(
             load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
 
-        let gas_counter = match ctx.version {
-            LazyPagesVersion::Version1 => {
-                globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| Ok(None))?
-            }
-            LazyPagesVersion::Version2 => {
-                globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| Ok(None))?
-            }
-        };
+        let gas_counter = globals::apply_for_global(globals_config, GlobalNo::Gas, |_| Ok(None))?;
 
         Some((gas_counter, gas_charger))
     } else {
@@ -183,18 +176,9 @@ impl AccessHandler for SignalAccessHandler {
         if let (Some((gas_counter, _)), Some(globals_config)) =
             (self.gas_ctx, ctx.globals_context.as_ref())
         {
-            match ctx.version {
-                LazyPagesVersion::Version1 => unsafe {
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(Some(gas_counter))
-                    })?;
-                },
-                LazyPagesVersion::Version2 => unsafe {
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(Some(gas_counter))
-                    })?;
-                },
-            }
+            unsafe {
+                globals::apply_for_global(globals_config, GlobalNo::Gas, |_| Ok(Some(gas_counter)))?
+            };
         }
         Ok(())
     }

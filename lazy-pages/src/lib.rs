@@ -49,7 +49,7 @@ mod utils;
 
 use crate::{
     common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
-    globals::GlobalsContext,
+    globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
 
@@ -152,7 +152,6 @@ pub fn initialize_for_program(
         })?;
 
         let execution_ctx = LazyPagesExecutionContext {
-            version: runtime_ctx.version,
             page_sizes: runtime_ctx.page_sizes,
             weights,
             wasm_mem_addr,
@@ -385,7 +384,7 @@ pub(crate) fn reset_init_flag() {
 
 /// Initialize lazy-pages for current thread.
 fn init_with_handler<H: UserSignalHandler>(
-    version: LazyPagesVersion,
+    _version: LazyPagesVersion,
     page_sizes: Vec<u32>,
     global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
@@ -417,18 +416,17 @@ fn init_with_handler<H: UserSignalHandler>(
         return Err(NotSuitablePageSizes);
     }
 
-    if global_names.len() != version.globals_count() {
-        return Err(WrongGlobalNamesAmount(
-            global_names.len(),
-            version.globals_count(),
-        ));
-    }
+    // if global_names.len() != GlobalNo::Amount as usize {
+    //     return Err(WrongGlobalNamesAmount(
+    //         global_names.len(),
+    //         GlobalNo::Amount as usize,
+    //     ));
+    // }
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_CONTEXT.with(|ctx| {
         ctx.borrow_mut()
             .set_runtime_context(LazyPagesRuntimeContext {
-                version,
                 page_sizes,
                 global_names,
                 pages_storage_prefix,
