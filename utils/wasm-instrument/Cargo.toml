@@ -1,9 +1,14 @@
 [package]
 name = "gear-wasm-instrument"
-version = "0.1.0"
+description = "Wasm instrument library for Gear programs"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gwasm-instrument = { workspace = true, features = ["sign_ext"] }

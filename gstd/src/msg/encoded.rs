@@ -24,7 +24,11 @@ use crate::{
     async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, ops::RangeBounds},
+    prelude::{
+        convert::AsRef,
+        mem::{transmute, MaybeUninit},
+        ops::RangeBounds,
+    },
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
@@ -131,7 +135,7 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 /// Buffer size for encoding is at least `E::max_encoded_len()`.
 pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
     struct ExternalBufferOutput<'a> {
-        buffer: &'a mut [u8],
+        buffer: &'a mut [MaybeUninit<u8>],
         offset: usize,
     }
 
@@ -140,9 +144,15 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
             const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
             let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
             if end_offset > self.buffer.len() {
-                panic!("{}", ERROR_LOG);
+                panic!("{ERROR_LOG}");
             }
-            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
+            // SAFETY: same as
+            // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.
+            // This code transmutes `bytes: &[T]` to `bytes: &[MaybeUninit<T>]`. These types
+            // can be safely transmuted since they have the same layout. Then `bytes:
+            // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
+            let this = &mut self.buffer[self.offset..end_offset];
+            this.copy_from_slice(unsafe { transmute(bytes) });
             self.offset = end_offset;
         }
     }
@@ -151,7 +161,12 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
         let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
         let ExternalBufferOutput { buffer, offset } = output;
-        super::reply_bytes(&buffer[..offset], value)
+        // SAFETY: same as `MaybeUninit::slice_assume_init_ref(&buffer[..offset])`.
+        // `ExternalBufferOutput` writes data to uninitialized memory. So we can take
+        // slice `&buffer[..offset]` and say that it was initialized earlier
+        // because the buffer from `0` to `offset` was initialized.
+        let payload = unsafe { &*(&buffer[..offset] as *const _ as *const [u8]) };
+        super::reply_bytes(payload, value)
     })
 }
 

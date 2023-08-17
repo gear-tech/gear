@@ -12,7 +12,7 @@ use gear_call_gen::{
 };
 use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
-use gear_wasm_gen::ValidGearWasmConfigsBundle;
+use gear_wasm_gen::StandardGearWasmConfigsBundle;
 use std::iter;
 use tracing::instrument;
 
@@ -206,7 +206,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     fn gen_batch<
         T: CallArgs,
         FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
-        ConstArgsFn: Fn() -> T::ConstArgs<ValidGearWasmConfigsBundle<ProgramId>>,
+        ConstArgsFn: Fn() -> T::ConstArgs<StandardGearWasmConfigsBundle<ProgramId>>,
     >(
         batch_size: usize,
         seed: Seed,
