@@ -32,11 +32,11 @@ use std::mem::{self, MaybeUninit};
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
-#[derive(Debug, Clone)]
 /// New-type wrapper over array of [`GearCall`]s.
 ///
 /// It's main purpose is to be an implementor of `Arbitrary` for the array of [`GearCall`]s.
 /// New-type is required as array is always a foreign type.
+#[derive(Debug, Clone)]
 pub struct GearCalls(pub [GearCall; GearCalls::MAX_CALLS]);
 
 impl GearCalls {
@@ -48,7 +48,7 @@ impl GearCalls {
 impl<'a> Arbitrary<'a> for GearCalls {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         // Newline to easily browse logs.
-        println!("");
+        println!("\n");
 
         log::trace!("New GearCalls generation: random data received {}", u.len());
 
@@ -97,7 +97,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             log::trace!("Payload (upload_program) length {:?}", payload.len());
 
             programs[i] = ProgramId::generate(CodeId::generate(&code), &salt);
-            calls[i] = MaybeUninit::new(GearCall::UploadProgram(UploadProgramArgs((
+            calls[i].write(GearCall::UploadProgram(UploadProgramArgs((
                 code, salt, payload, gas, value,
             ))));
         }
@@ -113,7 +113,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             );
             log::trace!("Payload (send_message) length {:?}", payload.len());
 
-            calls[i] = MaybeUninit::new(GearCall::SendMessage(SendMessageArgs((
+            calls[i].write(GearCall::SendMessage(SendMessageArgs((
                 program_id, payload, gas, value,
             ))));
         }
