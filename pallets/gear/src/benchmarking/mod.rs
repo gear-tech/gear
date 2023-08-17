@@ -480,11 +480,13 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
-
-        let block_count = 1_000u32.into();
 
         init_block::<T>(None);
+
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        process_queue::<T>();
+        let block_count = 1_000u32.into();
     }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
     verify {
         let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
