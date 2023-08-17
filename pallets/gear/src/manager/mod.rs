@@ -52,18 +52,20 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
+use crate::{
+    Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
-    storage::{Interval, Queue},
+    scheduler::{ScheduledTask, StorageType, TaskPool},
+    storage::{Interval, IterableByKeyMap, Queue},
     ActiveProgram, CodeStorage, Origin, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::{
     codec::{Decode, Encode},
-    traits::Currency,
+    traits::{Currency, ExistenceRequirement},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -74,10 +76,10 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
@@ -272,32 +274,6 @@ where
             .expect("set_program shouldn't be called for the existing id");
     }
 
-    fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
-        let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|program| ActiveProgram::try_from(program).ok());
-
-        if maybe_active_program.is_none() && maybe_inactive {
-            return;
-        };
-
-        let active_program = maybe_active_program.unwrap_or_else(|| {
-            unreachable!("Clean reservations can only be called on active program")
-        });
-
-        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
-            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
-                self,
-                program_id,
-                reservation_id,
-            );
-
-            let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.finish),
-                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
-            );
-        }
-    }
-
     fn remove_gas_reservation_slot(
         reservation_id: ReservationId,
         slot: GasReservationSlot,
@@ -387,5 +363,40 @@ where
         } else {
             log::trace!("Signal wasn't sent due to inappropriate supply");
         }
+    }
+
+    /// Removes memory pages of the program and transfers program balance to the `value_destination`.
+    fn clean_inactive_program(program_id: ProgramId, value_destination: ProgramId) {
+        ProgramStorageOf::<T>::remove_program_pages(program_id);
+
+        let program_account = &<T::AccountId as Origin>::from_origin(program_id.into_origin());
+        let balance = CurrencyOf::<T>::free_balance(program_account);
+
+        let destination = Pallet::<T>::inheritor_for(value_destination);
+        let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
+        if !balance.is_zero() {
+            CurrencyOf::<T>::transfer(
+                program_account,
+                &destination,
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        }
+    }
+
+    /// Removes all messages to `program_id` from the waitlist.
+    fn clean_waitlist(program_id: ProgramId) {
+        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+
+        WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+
+            QueueOf::<T>::queue(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        });
+
+        ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 }
