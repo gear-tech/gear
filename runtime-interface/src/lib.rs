@@ -108,7 +108,9 @@ pub trait GearRI {
         let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
 
         // Support charge for allowance otherwise DB will be corrupted.
-        // gas_left.allowance = gas_left.allowance.saturating_sub(gas_before.saturating_sub(gas_left.gas));
+        gas_left.allowance = gas_left
+            .allowance
+            .saturating_sub(gas_before.saturating_sub(gas_left.gas));
 
         (gas_left, res)
     }
