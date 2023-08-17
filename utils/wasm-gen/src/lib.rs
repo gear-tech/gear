@@ -23,6 +23,7 @@
 //!
 //! This crate also re-exports `arbitrary` from internal module [`wasm_gen_arbitrary`] to make it easy generating arbitrary configs and wasm.
 
+#![allow(clippy::items_after_test_module)]
 pub mod wasm_gen_arbitrary {
     //! `arbitrary` crate re-export.
     pub use arbitrary::*;

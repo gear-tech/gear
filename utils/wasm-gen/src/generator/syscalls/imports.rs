@@ -357,7 +357,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             (module_builder.build(), idx)
         });
 
-        log::trace!("Builded proper reservation send call");
+        log::trace!("Built proper reservation send call");
 
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes

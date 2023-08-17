@@ -85,7 +85,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             log::trace!("Random data after wasm gen {}, iter - {i}", u.len());
             log::trace!("Code length {:?}", code.len());
 
-            let salt = arbitrary_payload(u)?;
+            let salt = arbitrary_salt(u)?;
             log::trace!("Random data after salt gen {}, iter - {i}", u.len());
             log::trace!("Salt length {:?}", salt.len());
 
@@ -118,7 +118,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             ))));
         }
 
-        let calls = transmute_calls(calls);
+        let calls = transmute_calls_to_init(calls);
 
         log::trace!(
             "GearCalls generation ended. Random data remains - {}",
@@ -129,8 +129,16 @@ impl<'a> Arbitrary<'a> for GearCalls {
     }
 }
 
+fn arbitrary_salt(u: &mut Unstructured<'_>) -> Result<Vec<u8>> {
+    arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
+}
+
 fn arbitrary_payload(u: &mut Unstructured<'_>) -> Result<Vec<u8>> {
-    let arb_size = u.int_in_range(0..=MAX_PAYLOAD_SIZE)?;
+    arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
+}
+
+fn arbitrary_limited_bytes(u: &mut Unstructured<'_>, limit: usize) -> Result<Vec<u8>> {
+    let arb_size = u.int_in_range(0..=limit)?;
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
 }
 
@@ -145,7 +153,7 @@ fn get_uninitialized_calls() -> [MaybeUninit<GearCall>; GearCalls::MAX_CALLS] {
     }
 }
 
-fn transmute_calls(
+fn transmute_calls_to_init(
     uninit_calls: [MaybeUninit<GearCall>; GearCalls::MAX_CALLS],
 ) -> [GearCall; GearCalls::MAX_CALLS] {
     unsafe {
@@ -158,7 +166,7 @@ fn transmute_calls(
 }
 
 fn config(
-    programs: [ProgramId; 10],
+    programs: [ProgramId; GearCalls::INIT_MSGS],
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let mut injection_amounts = SysCallsInjectionAmounts::all_once();
