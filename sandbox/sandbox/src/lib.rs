@@ -92,7 +92,7 @@ impl From<Error> for HostError {
 ///
 /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
 pub type HostFuncType<T> =
-    fn(default_executor::Caller<'_, T>, &[Value]) -> Result<env::WasmReturnValue, HostError>;
+    fn(&mut default_executor::Caller<'_, T>, &[Value]) -> Result<env::WasmReturnValue, HostError>;
 
 /// Sandbox store.
 pub trait SandboxStore<T>: AsContext<T> {

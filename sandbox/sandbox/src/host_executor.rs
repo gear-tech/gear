@@ -298,7 +298,7 @@ extern "C" fn dispatch_thunk<T>(
         // This should be safe since mutable reference to T is passed upon the invocation.
         let state = &*state;
         let data = &mut *(state.data as *mut T);
-        let caller = Caller {
+        let mut caller = Caller {
             data,
             instance_idx: state
                 .instance_idx
@@ -307,7 +307,7 @@ extern "C" fn dispatch_thunk<T>(
 
         let mut result = Vec::with_capacity(WasmReturnValue::ENCODED_MAX_SIZE);
         // Pass control flow to the designated function.
-        f(caller, &args).encode_to(&mut result);
+        f(&mut caller, &args).encode_to(&mut result);
 
         // Leak the result vector and return the pointer to return data.
         let result_ptr = result.as_ptr() as u64;
@@ -396,7 +396,12 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         get_global_val(self.instance_idx, name)
     }
 
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
+    fn set_global_val(
+        &self,
+        _store: &mut Store<T>,
+        name: &str,
+        value: Value,
+    ) -> Result<(), super::GlobalsSetError> {
         set_global_val(self.instance_idx, name, value)
     }
 

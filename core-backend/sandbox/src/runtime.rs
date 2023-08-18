@@ -50,13 +50,13 @@ pub(crate) fn caller_host_state_take<Ext>(
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, Ext> {
-    pub caller: Caller<'a, HostState<Ext, DefaultExecutorMemory>>,
+pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
+    pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
     pub manager: MemoryAccessManager<Ext>,
     pub memory: DefaultExecutorMemory,
 }
 
-impl<'a, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerWrap<'a, Ext> {
+impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerWrap<'a, 'b, Ext> {
     type Error = HostError;
 
     fn ext_mut(&mut self) -> &mut Ext {
@@ -115,18 +115,18 @@ impl<'a, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerWrap<
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
-        let mut state = caller_host_state_take(&mut self.caller);
-        let mut mem = CallerWrap::memory(&mut self.caller, self.memory.clone());
+        let mut state = caller_host_state_take(self.caller);
+        let mut mem = CallerWrap::memory(self.caller, self.memory.clone());
         let res = state.ext.alloc(pages, &mut mem);
         self.caller.data_mut().replace(state);
         res
     }
 }
 
-impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
+impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     #[track_caller]
     pub fn prepare(
-        mut caller: Caller<'a, HostState<Ext, DefaultExecutorMemory>>,
+        caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
     ) -> Result<Self, HostError> {
         let memory = caller
             .data_mut()
@@ -166,11 +166,11 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     #[track_caller]
-    pub fn memory<'b, 'c: 'b>(
-        caller: &'b mut Caller<'c, HostState<Ext, DefaultExecutorMemory>>,
+    pub fn memory<'c, 'd: 'c>(
+        caller: &'c mut Caller<'d, HostState<Ext, DefaultExecutorMemory>>,
         memory: DefaultExecutorMemory,
-    ) -> MemoryWrapRef<'b, 'c, Ext> {
-        MemoryWrapRef::<'b, 'c, _> { memory, caller }
+    ) -> MemoryWrapRef<'c, 'd, Ext> {
+        MemoryWrapRef::<'c, 'd, _> { memory, caller }
     }
 
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
@@ -183,7 +183,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     {
         let mut gas_counter = self.host_state_mut().ext.define_current_counter();
 
-        let mut memory = Self::memory(&mut self.caller, self.memory.clone());
+        let mut memory = Self::memory(self.caller, self.memory.clone());
 
         // With memory ops do similar subtractions for both counters.
         let res = f(&mut self.manager, &mut memory, &mut gas_counter);
@@ -195,7 +195,7 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 }
 
-impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
+impl<'a, 'b, Ext> MemoryAccessRecorder for CallerWrap<'a, 'b, Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
     }
@@ -220,13 +220,13 @@ impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
     }
 }
 
-impl<Ext: BackendExternalities + 'static> BackendState for CallerWrap<'_, Ext> {
+impl<Ext: BackendExternalities + 'static> BackendState for CallerWrap<'_, '_, Ext> {
     fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.host_state_mut().set_termination_reason(reason);
     }
 }
 
-impl<'a, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, Ext> {
+impl<'a, 'b, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, 'b, Ext> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }

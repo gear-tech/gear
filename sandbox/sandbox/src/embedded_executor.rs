@@ -302,17 +302,24 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                         &mut store,
                         func_ty.clone(),
                         move |caller, params, results| {
-                            let caller = Caller(caller);
+                            let gas = caller
+                                .get_export(GLOBAL_NAME_GAS)
+                                .ok_or_else(|| {
+                                    Trap::new(format!("failed to find `{GLOBAL_NAME_GAS}` export"))
+                                })?
+                                .into_global()
+                                .ok_or_else(|| {
+                                    Trap::new(format!("{GLOBAL_NAME_GAS} is not global"))
+                                })?;
 
-                            let gas = caller.get_global_val(GLOBAL_NAME_GAS).ok_or_else(|| {
-                                Trap::new(format!("failed to get `{GLOBAL_NAME_GAS}` global"))
-                            })?;
-                            let params: Vec<_> = Some(gas)
+                            let params: Vec<_> = Some(gas.get(&caller))
                                 .into_iter()
-                                .chain(params.iter().cloned().map(to_interface))
+                                .chain(params.iter().cloned())
+                                .map(to_interface)
                                 .collect();
 
-                            let val = (func_ptr)(caller, &params)
+                            let mut caller = Caller(caller);
+                            let val = (func_ptr)(&mut caller, &params)
                                 .map_err(|HostError| Trap::new("function error"))?;
 
                             match (val.inner, results) {
@@ -326,8 +333,17 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
                                     *ret = val;
                                 }
-                                _ => unreachable!(),
+                                _ => unreachable!(
+                                    "embedded executor doesn't support multi-value return"
+                                ),
                             }
+
+                            gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
+                                .map_err(|e| {
+                                    Trap::new(format!(
+                                        "failed to set `{GLOBAL_NAME_GAS}` global: {e}"
+                                    ))
+                                })?;
 
                             Ok(())
                         },
@@ -447,7 +463,10 @@ mod tests {
             counter: u32,
         }
 
-        fn env_assert(_c: Caller<'_, State>, args: &[Value]) -> Result<WasmReturnValue, HostError> {
+        fn env_assert(
+            _c: &mut Caller<'_, State>,
+            args: &[Value],
+        ) -> Result<WasmReturnValue, HostError> {
             if args.len() != 1 {
                 return Err(HostError);
             }
@@ -462,7 +481,7 @@ mod tests {
             }
         }
         fn env_inc_counter(
-            mut e: Caller<'_, State>,
+            e: &mut Caller<'_, State>,
             args: &[Value],
         ) -> Result<WasmReturnValue, HostError> {
             let e = e.data_mut();
@@ -478,7 +497,7 @@ mod tests {
         }
         /// Function that takes one argument of any type and returns that value.
         fn env_polymorphic_id(
-            _c: Caller<'_, State>,
+            _c: &mut Caller<'_, State>,
             args: &[Value],
         ) -> Result<WasmReturnValue, HostError> {
             if args.len() != 1 {
@@ -560,7 +579,7 @@ mod tests {
     #[test]
     fn cant_return_unmatching_type() {
         fn env_returns_i32(
-            _e: Caller<'_, ()>,
+            _e: &mut Caller<'_, ()>,
             _args: &[Value],
         ) -> Result<WasmReturnValue, HostError> {
             Ok(WasmReturnValue {
