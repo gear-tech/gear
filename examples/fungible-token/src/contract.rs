@@ -110,7 +110,7 @@ impl FungibleToken {
             .entry(*to)
             .and_modify(|balance| *balance += amount)
             .or_insert(amount);
-        msg::reply_on_stack(
+        msg::reply(
             FTEvent::Transfer {
                 from: *from,
                 to: *to,
@@ -201,7 +201,7 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
 
 #[no_mangle]
 extern "C" fn handle() {
-    let action: FTAction = msg::load_on_stack().expect("Could not load Action");
+    let action: FTAction = msg::load().expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {
@@ -229,7 +229,7 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn init() {
-    let config: InitConfig = msg::load_on_stack().expect("Unable to decode InitConfig");
+    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
         symbol: config.symbol,

@@ -37,14 +37,22 @@ impl Default for System {
 }
 
 impl System {
+    /// Create a new system.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Init logger with "gwasm" target set to `debug` level.
     pub fn init_logger(&self) {
-        self.init_logger_with_default_filter("gwasm=debug")
+        self.init_logger_with_default_filter("gwasm=debug");
     }
 
+    /// Init logger with "gwasm" and "gtest" targets set to `debug` level.
+    pub fn init_verbose_logger(&self) {
+        self.init_logger_with_default_filter("gwasm=debug,gtest=debug");
+    }
+
+    /// Init logger with `default_filter` as default filter.
     pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
         let _ = Builder::from_env(Env::default().default_filter_or(default_filter))
             .format(|buf, record| {

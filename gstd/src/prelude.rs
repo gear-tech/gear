@@ -36,7 +36,7 @@ pub use convert::{Into, TryInto};
 pub use hashbrown::HashMap;
 pub use scale_info::{
     self,
-    scale::{self as codec, Decode, Encode},
+    scale::{self as codec, Decode, Encode, MaxEncodedLen},
     TypeInfo,
 };
 pub use string::{String, ToString};
