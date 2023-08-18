@@ -38,8 +38,8 @@ use gsys::{ErrorWithHash, HashWithValue, Length};
 use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
-pub struct SysCallsImportsGenerator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct SysCallsImportsGenerator<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
@@ -49,24 +49,24 @@ pub struct SysCallsImportsGenerator<'a> {
 /// Sys-calls imports generator instantiator.
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
-pub struct SysCallsImportsGeneratorInstantiator<'a>(
+pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
     (
-        GearWasmGenerator<'a>,
+        GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
         GearEntryPointGenerationProof,
     ),
 );
 
-impl<'a>
+impl<'a, 'b>
     From<(
-        GearWasmGenerator<'a>,
+        GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
         GearEntryPointGenerationProof,
-    )> for SysCallsImportsGeneratorInstantiator<'a>
+    )> for SysCallsImportsGeneratorInstantiator<'a, 'b>
 {
     fn from(
         inner: (
-            GearWasmGenerator<'a>,
+            GearWasmGenerator<'a, 'b>,
             MemoryImportGenerationProof,
             GearEntryPointGenerationProof,
         ),
@@ -75,10 +75,13 @@ impl<'a>
     }
 }
 
-impl<'a> From<SysCallsImportsGeneratorInstantiator<'a>>
-    for (SysCallsImportsGenerator<'a>, FrozenGearWasmGenerator<'a>)
+impl<'a, 'b> From<SysCallsImportsGeneratorInstantiator<'a, 'b>>
+    for (
+        SysCallsImportsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
+    )
 {
-    fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a>) -> Self {
+    fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
         let SysCallsImportsGeneratorInstantiator((
             generator,
             _mem_import_gen_proof,
@@ -101,7 +104,7 @@ impl<'a> From<SysCallsImportsGeneratorInstantiator<'a>>
     }
 }
 
-impl<'a> SysCallsImportsGenerator<'a> {
+impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Instantiate a new gear sys-calls imports generator.
     ///
     /// The generator instantiations requires having type-level proof that the wasm module has memory import in it.
@@ -109,7 +112,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
     pub fn new(
         module_with_indexes: ModuleWithCallIndexes,
         config: SysCallsConfig,
-        unstructured: &'a mut Unstructured<'a>,
+        unstructured: &'b mut Unstructured<'a>,
         _mem_import_gen_proof: MemoryImportGenerationProof,
         _gen_ep_gen_proof: GearEntryPointGenerationProof,
     ) -> Self {
@@ -128,7 +131,11 @@ impl<'a> SysCallsImportsGenerator<'a> {
     }
 
     /// Disable current generator.
-    pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a> {
+    pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a, 'b> {
+        log::trace!(
+            "Random data when disabling sys-calls imports generator - {}",
+            self.unstructured.len()
+        );
         DisabledSysCallsImportsGenerator {
             unstructured: self.unstructured,
             call_indexes: self.call_indexes,
@@ -145,25 +152,24 @@ impl<'a> SysCallsImportsGenerator<'a> {
     pub fn generate(
         mut self,
     ) -> Result<(
-        DisabledSysCallsImportsGenerator<'a>,
+        DisabledSysCallsImportsGenerator<'a, 'b>,
         SysCallsImportsGenerationProof,
     )> {
+        log::trace!("Generating sys-calls imports");
+
         let sys_calls_proof = self.generate_sys_calls_imports()?;
         self.generate_send_from_reservation();
 
-        let disabled = DisabledSysCallsImportsGenerator {
-            unstructured: self.unstructured,
-            call_indexes: self.call_indexes,
-            module: self.module,
-            config: self.config,
-            sys_calls_imports: self.sys_calls_imports,
-        };
-
-        Ok((disabled, sys_calls_proof))
+        Ok((self.disable(), sys_calls_proof))
     }
 
     /// Generates sys-calls imports from config, used to instantiate the generator.
     pub fn generate_sys_calls_imports(&mut self) -> Result<SysCallsImportsGenerationProof> {
+        log::trace!(
+            "Random data before sys-calls imports - {}",
+            self.unstructured.len()
+        );
+
         for sys_call in SysCallName::instrumentable() {
             let sys_call_generation_data = self.generate_sys_call_import(sys_call)?;
             if let Some(sys_call_generation_data) = sys_call_generation_data {
@@ -186,9 +192,14 @@ impl<'a> SysCallsImportsGenerator<'a> {
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
         let sys_call_amount_range = self.config.injection_amounts(sys_call);
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
-
         Ok((sys_call_amount != 0).then(|| {
             let call_indexes_handle = self.insert_sys_call_import(sys_call);
+            log::trace!(
+                " -- Generated {} amount of {} sys-call",
+                sys_call_amount,
+                sys_call.to_str()
+            );
+
             (sys_call_amount, call_indexes_handle)
         }))
     }
@@ -230,7 +241,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
     }
 }
 
-impl<'a> SysCallsImportsGenerator<'a> {
+impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
         let (reserve_gas_idx, reservation_send_idx) = {
@@ -245,7 +256,10 @@ impl<'a> SysCallsImportsGenerator<'a> {
 
             match maybe_reserve_gas.zip(maybe_reservation_send) {
                 Some(indexes) => indexes,
-                None => return,
+                None => {
+                    log::trace!("Wasm hasn't got either gr_reserve_gas, or gr_reservation_send, or both of them");
+                    return;
+                }
             }
         };
 
@@ -343,6 +357,8 @@ impl<'a> SysCallsImportsGenerator<'a> {
             (module_builder.build(), idx)
         });
 
+        log::trace!("Built proper reservation send call");
+
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes
             .add_func(send_from_reservation_func_idx.signature as usize);
@@ -359,16 +375,16 @@ pub struct SysCallsImportsGenerationProof(());
 ///
 /// Instance of this types signals that there was once active sys-calls generator,
 /// but it ended up it's work.
-pub struct DisabledSysCallsImportsGenerator<'a> {
-    pub(super) unstructured: &'a mut Unstructured<'a>,
+pub struct DisabledSysCallsImportsGenerator<'a, 'b> {
+    pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
     pub(super) config: SysCallsConfig,
     pub(super) sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
-impl<'a> From<DisabledSysCallsImportsGenerator<'a>> for ModuleWithCallIndexes {
-    fn from(disabled_sys_call_gen: DisabledSysCallsImportsGenerator<'a>) -> Self {
+impl<'a, 'b> From<DisabledSysCallsImportsGenerator<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(disabled_sys_call_gen: DisabledSysCallsImportsGenerator<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: disabled_sys_call_gen.module,
             call_indexes: disabled_sys_call_gen.call_indexes,
