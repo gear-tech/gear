@@ -1,4 +1,3 @@
-# Prefix A for adjusting the new created checks into this check suite.
 name: Label
 
 on:

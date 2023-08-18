@@ -41,6 +41,10 @@ const skip = async ({ github }) => {
 
 /**
  *  Create build checks.
+ *
+ *  TODO:
+ *    * Queue the new created checks to check suite PR (#3087).
+ *    * Support re-runing the checks. (#3088)
  **/
 const createChecks = async ({ core, github }) => {
   let status = {};
