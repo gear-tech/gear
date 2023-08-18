@@ -58,7 +58,6 @@ pub fn generate_gear_program_code(
         "{}",
         wasmprinter::print_bytes(&bytes).expect("internal error: failed printing bytes")
     );
-    // Newline to easily browse logs.
     print!("\n");
 
     Ok(bytes)
