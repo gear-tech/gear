@@ -13,6 +13,7 @@ gsys ={ workspace = true }
 
 gear-wasm-instrument.workspace = true
 gear-sandbox.workspace = true
+gear-sandbox-env.workspace = true
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log.workspace = true
 derive_more.workspace = true

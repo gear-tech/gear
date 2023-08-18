@@ -22,6 +22,7 @@ use crate::{
     generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
     MemoryPagesConfig, WasmModule,
 };
+use gear_core::pages::WASM_PAGE_SIZE;
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -40,8 +41,10 @@ pub struct MemoryGenerator {
     module: WasmModule,
 }
 
-impl<'a> From<GearWasmGenerator<'a>> for (MemoryGenerator, FrozenGearWasmGenerator<'a>) {
-    fn from(generator: GearWasmGenerator<'a>) -> Self {
+impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
+    for (MemoryGenerator, FrozenGearWasmGenerator<'a, 'b>)
+{
+    fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
         let mem_generator = MemoryGenerator {
             config: generator.config.memory_config,
             module: generator.module,
@@ -73,6 +76,8 @@ impl MemoryGenerator {
     ///
     /// Returns disabled memory generation and a proof that memory imports generation has happened.
     pub fn generate_memory(mut self) -> (DisabledMemoryGenerator, MemoryImportGenerationProof) {
+        log::trace!("Generating memory section");
+
         self.remove_mem_section();
 
         let MemoryGenerator {
@@ -81,9 +86,11 @@ impl MemoryGenerator {
                 MemoryPagesConfig {
                     initial_size,
                     upper_limit,
-                    stack_end,
+                    stack_end_page,
                 },
         } = self;
+
+        log::trace!("Initial pages num - {}", initial_size);
 
         // Define memory import in the module
         module.with(|module| {
@@ -97,7 +104,10 @@ impl MemoryGenerator {
                 .build();
 
             // Define optional stack-end
-            if let Some(stack_end) = stack_end {
+            if let Some(stack_end_page) = stack_end_page {
+                log::trace!("Stack end offset - {:?}", stack_end_page);
+
+                let stack_end = stack_end_page * WASM_PAGE_SIZE as u32;
                 module = builder::from_module(module)
                     .global()
                     .value_type()
@@ -171,11 +181,13 @@ impl From<DisabledMemoryGenerator> for ModuleWithCallIndexes {
     }
 }
 
-impl<'a> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a>)> for GearWasmGenerator<'a> {
+impl<'a, 'b> From<(DisabledMemoryGenerator, FrozenGearWasmGenerator<'a, 'b>)>
+    for GearWasmGenerator<'a, 'b>
+{
     fn from(
         (disabled_mem_gen, frozen_gear_wasm_gen): (
             DisabledMemoryGenerator,
-            FrozenGearWasmGenerator<'a>,
+            FrozenGearWasmGenerator<'a, 'b>,
         ),
     ) -> Self {
         GearWasmGenerator {

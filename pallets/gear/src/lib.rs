@@ -770,11 +770,13 @@ pub mod pallet {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
 
-            let GasInfo {
-                min_limit, waited, ..
-            } = Self::run_with_ext_copy(|| {
-                let initial_gas = BlockGasLimitOf::<T>::get();
-                Self::calculate_gas_info_impl(
+            let calc_gas = |initial_gas| {
+                // `calculate_gas_info_impl` may change `GasAllowanceOf` and `QueueProcessingOf`.
+                // We don't wanna this behavior in tests, so restore old gas allowance value
+                // after gas calculation.
+                let gas_allowance = GasAllowanceOf::<T>::get();
+                let queue_processing = QueueProcessingOf::<T>::allowed();
+                let res = Self::calculate_gas_info_impl(
                     source,
                     kind.clone(),
                     initial_gas,
@@ -782,8 +784,20 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                     allow_skip_zero_replies,
-                )
-                .map_err(|e| {
+                );
+                GasAllowanceOf::<T>::put(gas_allowance);
+                if queue_processing {
+                    QueueProcessingOf::<T>::allow();
+                } else {
+                    QueueProcessingOf::<T>::deny();
+                }
+                res
+            };
+
+            let GasInfo {
+                min_limit, waited, ..
+            } = Self::run_with_ext_copy(|| {
+                calc_gas(BlockGasLimitOf::<T>::get()).map_err(|e| {
                     String::from_utf8(e)
                         .unwrap_or_else(|_| String::from("Failed to parse error to string"))
                 })
@@ -792,33 +806,25 @@ pub mod pallet {
             log::debug!("\n--- SECOND TRY ---\n");
 
             let res = Self::run_with_ext_copy(|| {
-                Self::calculate_gas_info_impl(
-                    source,
-                    kind,
-                    min_limit,
-                    payload,
-                    value,
-                    allow_other_panics,
-                    allow_skip_zero_replies,
-                )
-                .map(
-                    |GasInfo {
-                         reserved,
-                         burned,
-                         may_be_returned,
-                         ..
-                     }| GasInfo {
-                        min_limit,
-                        reserved,
-                        burned,
-                        may_be_returned,
-                        waited,
-                    },
-                )
-                .map_err(|e| {
-                    String::from_utf8(e)
-                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                })
+                calc_gas(min_limit)
+                    .map(
+                        |GasInfo {
+                             reserved,
+                             burned,
+                             may_be_returned,
+                             ..
+                         }| GasInfo {
+                            min_limit,
+                            reserved,
+                            burned,
+                            may_be_returned,
+                            waited,
+                        },
+                    )
+                    .map_err(|e| {
+                        String::from_utf8(e)
+                            .unwrap_or_else(|_| String::from("Failed to parse error to string"))
+                    })
             });
 
             log::debug!("\n==============================\n");

@@ -21,18 +21,23 @@
 
 // Reexports from Rust's libraries
 
-pub use core::prelude::rust_2021::*;
+pub use ::alloc::{
+    alloc, borrow,
+    borrow::ToOwned,
+    boxed,
+    boxed::Box,
+    fmt, format, rc, str, string,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+pub use core::{
+    any, array, ascii, assert_eq, assert_ne, cell, char, clone, cmp, convert, debug_assert,
+    debug_assert_eq, debug_assert_ne, default, future, hash, hint, iter, marker, matches, mem, num,
+    ops, option, panic, pin, prelude::rust_2021::*, primitive, ptr, result, slice, task, time,
+    todo, unimplemented, unreachable, write, writeln,
+};
 
-pub use ::alloc::alloc;
-pub use ::alloc::borrow;
-pub use ::alloc::boxed;
-pub use core::any;
-pub use core::array;
-pub use core::ascii;
-pub use core::cell;
-pub use core::char;
-pub use core::clone;
-pub use core::cmp;
 /// Collection types.
 ///
 /// See [`alloc::collections`] & [`hashbrown`].
@@ -47,8 +52,6 @@ pub mod collections {
         pub use hashbrown::{Equivalent, TryReserveError};
     }
 }
-pub use core::convert;
-pub use core::default;
 /// Utilities related to FFI bindings.
 ///
 /// See [`alloc::ffi`] & [`core::ffi`].
@@ -58,40 +61,6 @@ pub mod ffi {
     pub use ::alloc::ffi::*;
     pub use core::ffi::*;
 }
-pub use ::alloc::fmt;
-pub use ::alloc::rc;
-pub use ::alloc::str;
-pub use ::alloc::string;
-pub use ::alloc::vec;
-pub use core::future;
-pub use core::hash;
-pub use core::hint;
-pub use core::iter;
-pub use core::marker;
-pub use core::mem;
-pub use core::num;
-pub use core::ops;
-pub use core::option;
-pub use core::panic;
-pub use core::pin;
-pub use core::primitive;
-pub use core::ptr;
-pub use core::result;
-pub use core::slice;
-pub use core::task;
-pub use core::time;
-
-pub use ::alloc::{
-    borrow::ToOwned,
-    boxed::Box,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
-pub use core::{
-    assert_eq, assert_ne, debug_assert, debug_assert_eq, debug_assert_ne, matches, todo,
-    unimplemented, unreachable, write, writeln,
-};
 
 // Reexports from third-party libraries
 
