@@ -457,7 +457,7 @@ mod tests {
         SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
     };
     use assert_matches::assert_matches;
-    use gear_sandbox_env::WasmReturnValue;
+    use gear_sandbox_env::{WasmReturnValue, GLOBAL_NAME_GAS};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {
         struct State {
@@ -468,10 +468,10 @@ mod tests {
             _c: &mut Caller<'_, State>,
             args: &[Value],
         ) -> Result<WasmReturnValue, HostError> {
-            if args.len() != 1 {
+            if args.len() != 2 {
                 return Err(HostError);
             }
-            let condition = args[0].as_i32().ok_or(HostError)?;
+            let condition = args[1].as_i32().ok_or(HostError)?;
             if condition != 0 {
                 Ok(WasmReturnValue {
                     gas: 0,
@@ -524,10 +524,12 @@ mod tests {
 
     #[test]
     fn invoke_args() {
-        let code = wat::parse_str(
+        let code = wat::parse_str(format!(
             r#"
 		(module
 			(import "env" "assert" (func $assert (param i32)))
+			(global (;0;) (mut i64) (i64.const 0x20000))
+			(export "{GLOBAL_NAME_GAS}" (global 0)) 
 
 			(func (export "call") (param $x i32) (param $y i64)
 				;; assert that $x = 0x12345678
@@ -546,8 +548,8 @@ mod tests {
 				)
 			)
 		)
-		"#,
-        )
+		"#
+        ))
         .unwrap();
 
         execute_sandboxed(
@@ -559,9 +561,12 @@ mod tests {
 
     #[test]
     fn return_value() {
-        let code = wat::parse_str(
+        let code = wat::parse_str(format!(
             r#"
 		(module
+		    (global (;0;) (mut i64) (i64.const 0x20000))
+			(export "{GLOBAL_NAME_GAS}" (global 0)) 
+		
 			(func (export "call") (param $x i32) (result i32)
 				(i32.add
 					(get_local $x)
@@ -569,8 +574,8 @@ mod tests {
 				)
 			)
 		)
-		"#,
-        )
+		"#
+        ))
         .unwrap();
 
         let return_val = execute_sandboxed(&code, &[Value::I32(0x1336)]).unwrap();
@@ -592,11 +597,13 @@ mod tests {
         let mut env_builder = EnvironmentDefinitionBuilder::new();
         env_builder.add_host_func("env", "returns_i32", env_returns_i32);
 
-        let code = wat::parse_str(
+        let code = wat::parse_str(format!(
             r#"
 		(module
 			;; It's actually returns i32, but imported as if it returned i64
 			(import "env" "returns_i32" (func $returns_i32 (result i64)))
+			(global (;0;) (mut i64) (i64.const 0x20000))
+			(export "{GLOBAL_NAME_GAS}" (global 0)) 
 
 			(func (export "call")
 				(drop
@@ -604,8 +611,8 @@ mod tests {
 				)
 			)
 		)
-		"#,
-        )
+		"#
+        ))
         .unwrap();
 
         let mut store = Store::new(());
