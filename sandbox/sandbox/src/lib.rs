@@ -254,7 +254,12 @@ pub trait SandboxInstance<State>: Sized {
     fn get_global_val(&self, store: &default_executor::Store<State>, name: &str) -> Option<Value>;
 
     /// Set the value of a global with the given `name`.
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
+    fn set_global_val(
+        &self,
+        store: &mut default_executor::Store<State>,
+        name: &str,
+        value: Value,
+    ) -> Result<(), GlobalsSetError>;
 
     /// Get raw pointer to the executor host sandbox instance.
     fn get_instance_ptr(&self) -> HostPointer;

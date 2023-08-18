@@ -133,6 +133,9 @@ impl WasmReturnValue {
     pub const ENCODED_MAX_SIZE: usize = 8 + ReturnValue::ENCODED_MAX_SIZE;
 }
 
+// TODO #3057
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+
 #[cfg(test)]
 mod tests {
     use super::*;

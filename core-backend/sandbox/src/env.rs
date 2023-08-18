@@ -20,17 +20,19 @@
 
 use crate::{memory::MemoryWrap, runtime, runtime::CallerWrap};
 use alloc::{collections::BTreeSet, format};
-use core::{convert::Infallible, fmt::Display};
+use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
-    lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
+    lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
     state::{HostState, State},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
     BackendSyscallError, BackendTermination, Environment, EnvironmentError,
-    EnvironmentExecutionResult,
+    EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
+    env::Externalities,
+    memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
 };
@@ -293,6 +295,38 @@ where
     }
 }
 
+struct GlobalsAccessProvider<Ext: Externalities> {
+    instance: Instance<HostState<Ext, DefaultExecutorMemory>>,
+    store: Option<Store<HostState<Ext, DefaultExecutorMemory>>>,
+}
+
+impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
+    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
+        let store = self.store.as_ref().ok_or(GlobalsAccessError)?;
+        self.instance
+            .get_global_val(store, name.as_str())
+            .and_then(|val| {
+                if let Value::I64(val) = val {
+                    Some(val)
+                } else {
+                    None
+                }
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
+        self.instance
+            .set_global_val(store, name.as_str(), Value::I64(value))
+            .map_err(|_| GlobalsAccessError)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
@@ -409,8 +443,21 @@ where
             .define_current_counter();
 
         instance
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
+            .set_global_val(&mut store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
+
+        let mut globals_provider = GlobalsAccessProvider {
+            instance: instance.clone(),
+            store: None,
+        };
+        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
+
+        // Pointer to the globals access provider is valid until the end of `invoke` method.
+        // So, we can safely use it inside lazy-pages and be sure that it points to the valid object.
+        // We cannot guaranty that `store` (and so globals also) will be in a valid state,
+        // because executor mut-borrows `store` during execution. But if it's in a valid state
+        // each moment when protect memory signal can occur, than this trick is pretty safe.
+        let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsAccessConfig {
@@ -418,7 +465,10 @@ where
                 access_mod: GlobalsAccessMod::WasmRuntime,
             }
         } else {
-            unreachable!("We cannot use sandbox backend in std environment currently");
+            GlobalsAccessConfig {
+                access_ptr: globals_access_ptr,
+                access_mod: GlobalsAccessMod::NativeRuntime,
+            }
         };
 
         let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
@@ -433,9 +483,31 @@ where
             .unwrap_or(true);
 
         let mut store = memory_wrap.into_store();
-        let res = needs_execution
-            .then(|| instance.invoke(&mut store, entry_point.as_entry(), &[]))
-            .unwrap_or(Ok(ReturnValue::Unit));
+        let res = if needs_execution {
+            let store_option = &mut globals_provider_dyn_ref
+                .as_any_mut()
+                .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
+                // Provider is `GlobalsAccessProvider`, so panic is impossible.
+                .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
+                .store;
+
+            store_option.replace(store);
+
+            let res = instance.invoke(
+                store_option
+                    .as_mut()
+                    // We set store above, so panic is impossible.
+                    .unwrap_or_else(|| unreachable!("Store must be set before")),
+                entry_point.as_entry(),
+                &[],
+            );
+
+            store = globals_provider.store.take().unwrap();
+
+            res
+        } else {
+            Ok(ReturnValue::Unit)
+        };
 
         // Fetching global value.
         let gas = instance

@@ -19,10 +19,11 @@
 //! An embedded WASM executor utilizing `wasmi`.
 
 use crate::{
-    AsContext, Error, HostError, HostFuncType, ReturnValue, SandboxCaller, SandboxStore, Value,
-    TARGET,
+    AsContext, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxCaller,
+    SandboxStore, Value, TARGET,
 };
 use alloc::string::String;
+use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 use sp_wasm_interface::HostPointer;
 use wasmi::{
@@ -237,6 +238,15 @@ pub struct Instance<State> {
     _marker: PhantomData<State>,
 }
 
+impl<State> Clone for Instance<State> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: self.instance,
+            _marker: PhantomData,
+        }
+    }
+}
+
 impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
     type Memory = Memory;
     type EnvironmentBuilder = EnvironmentDefinitionBuilder<State>;
@@ -287,7 +297,15 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                         func_ty.clone(),
                         move |caller, params, results| {
                             let caller = Caller(caller);
-                            let params: Vec<_> = params.iter().cloned().map(to_interface).collect();
+
+                            let gas = caller.get_global_val(GLOBAL_NAME_GAS).ok_or_else(|| {
+                                Trap::new(format!("failed to get `{GLOBAL_NAME_GAS}` global"))
+                            })?;
+                            let params: Vec<_> = Some(gas)
+                                .into_iter()
+                                .chain(params.iter().cloned().map(to_interface))
+                                .collect();
+
                             let val = (func_ptr)(caller, &params)
                                 .map_err(|HostError| Trap::new("function error"))?;
 
@@ -364,8 +382,20 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         Some(to_interface(global))
     }
 
-    fn set_global_val(&self, _name: &str, _value: Value) -> Result<(), crate::GlobalsSetError> {
-        Err(crate::GlobalsSetError::NotFound)
+    fn set_global_val(
+        &self,
+        mut store: &mut Store<State>,
+        name: &str,
+        value: Value,
+    ) -> Result<(), GlobalsSetError> {
+        let global = self
+            .instance
+            .get_global(&store, name)
+            .ok_or(GlobalsSetError::NotFound)?;
+        global
+            .set(&mut store, to_wasmi(value))
+            .map_err(|_| GlobalsSetError::Other)?;
+        Ok(())
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
