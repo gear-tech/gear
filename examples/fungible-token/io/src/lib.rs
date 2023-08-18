@@ -19,7 +19,7 @@
 #![no_std]
 
 use core::ops::Range;
-use gmeta::{In, InOut, Metadata};
+use gmeta::{In, InOut, Metadata, Out};
 use gstd::{prelude::*, ActorId};
 use parity_scale_codec::MaxEncodedLen;
 
@@ -31,7 +31,7 @@ impl Metadata for FungibleTokenMetadata {
     type Others = ();
     type Reply = ();
     type Signal = ();
-    type State = IoFungibleToken;
+    type State = Out<IoFungibleToken>;
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]

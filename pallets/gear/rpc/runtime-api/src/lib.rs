@@ -31,7 +31,7 @@ sp_api::decl_runtime_apis! {
         /// Generate inherent-like extrinsic that runs message queue processing.
         fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic;
 
-        fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>>;
+        fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>>;
 
         fn read_state_using_wasm(program_id: H256, fn_name: Vec<u8>, wasm: Vec<u8>, argument: Option<Vec<u8>>) -> Result<Vec<u8>, Vec<u8>>;
 

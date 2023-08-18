@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
-use gmeta::{InOut, Metadata};
+use gmeta::{InOut, Metadata, Out};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -15,7 +15,7 @@ impl Metadata for ProgramMetadata {
     type Others = InOut<MessageAsyncIn, Option<u8>>;
     type Reply = String;
     type Signal = ();
-    type State = Vec<Wallet>;
+    type State = Out<Vec<Wallet>>;
 }
 
 // Metatypes for input and output
