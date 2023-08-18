@@ -58,7 +58,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        let reply = msg::load_on_stack().map(process).unwrap_or_else(|e| {
+        let reply = msg::load().map(process).unwrap_or_else(|e| {
             debug!("Error processing request: {e:?}");
             Reply::Error
         });
