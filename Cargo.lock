@@ -3437,6 +3437,7 @@ version = "0.1.4"
 dependencies = [
  "gmeta",
  "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]

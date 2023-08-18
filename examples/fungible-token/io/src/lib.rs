@@ -21,6 +21,7 @@
 use core::ops::Range;
 use gmeta::{In, InOut, Metadata};
 use gstd::{prelude::*, ActorId};
+use parity_scale_codec::MaxEncodedLen;
 
 pub struct FungibleTokenMetadata;
 
