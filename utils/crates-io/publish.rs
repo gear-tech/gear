@@ -2,7 +2,13 @@
 use anyhow::Result;
 use cargo_metadata::{DependencyKind, MetadataCommand};
 use semver::VersionReq;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    process::{Command, ExitStatus},
+    thread,
+    time::Duration,
+};
 
 /// Packages need to be published.
 const PACKAGES: [&str; 16] = [
@@ -29,10 +35,10 @@ const PACKAGES: [&str; 16] = [
 
 fn main() -> Result<()> {
     let metadata = MetadataCommand::new().no_deps().exec()?;
-    let mut index = HashMap::<String, usize>::from_iter(
+    let mut graph = BTreeMap::new();
+    let index = HashMap::<String, usize>::from_iter(
         PACKAGES.into_iter().enumerate().map(|(i, p)| (p.into(), i)),
     );
-    let mut graph = BTreeMap::new();
 
     for mut p in metadata.packages.into_iter() {
         if !index.contains_key(&p.name) {
@@ -53,15 +59,33 @@ fn main() -> Result<()> {
         graph.insert(index.get(&p.name), p);
     }
 
-    for p in graph.values() {
-        println!("{:?}", p.name);
-        // for package in packages {
-        //     if package.name == "gmeta" {
-        //         let t = toml::to_string_pretty(&package)?;
-        //         println!("{}", t);
-        //     }
-        // }
+    for package in graph.values() {
+        let manifest = package.manifest_path.as_str();
+        fs::write(manifest, toml::to_string_pretty(package)?)?;
+
+        let status = publish(manifest)?;
+        if !status.success() {
+            // The most likely reason for failure is that
+            // we have reached the rate limit of crates.io.
+            //
+            // Need to wait for 10 mins and try again. here
+            // we use 11 mins to be safe.
+            //
+            // Only retry for once, if it still fails, we
+            // will just give up.
+            thread::sleep(Duration::from_secs(660));
+        }
     }
 
     Ok(())
+}
+
+fn publish(manifest: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .arg("publish")
+        .arg("--manifest-path")
+        .arg(manifest)
+        .arg("--allow-dirty")
+        .status()
+        .map_err(Into::into)
 }
