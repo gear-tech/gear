@@ -18,13 +18,13 @@
 
 #![no_main]
 
-use gear_call_gen::GearCalls;
 use libfuzzer_sys::fuzz_target;
-use runtime_fuzzer::run;
+use runtime_fuzzer::GearCalls;
 
 fuzz_target!(|gear_calls: GearCalls| {
     gear_utils::init_default_logger();
 
+    print!("\n");
     log::info!("Executing generated gear calls");
     runtime_fuzzer::run(gear_calls);
 });

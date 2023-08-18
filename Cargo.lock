@@ -3781,8 +3781,6 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
- "sha-1 0.10.1",
- "static_assertions",
  "thiserror",
 ]
 
@@ -9149,13 +9147,12 @@ dependencies = [
  "gear-wasm-gen",
  "hex",
  "log",
- "once_cell",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
- "parking_lot 0.12.1",
  "rand 0.8.5",
+ "sha-1",
  "sp-consensus-babe",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
@@ -9163,6 +9160,7 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-keyring",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "static_assertions",
 ]
 
 [[package]]
@@ -10801,17 +10799,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha-1"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5058ada175748e33390e40e872bd0fe59a19f265d0158daa551c5a88a76009c"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest 0.10.7",
-]
-
-[[package]]
 name = "sha1"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11018,7 +11005,7 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.8.5",
- "sha-1 0.9.8",
+ "sha-1",
 ]
 
 [[package]]
@@ -14428,7 +14415,7 @@ dependencies = [
  "log",
  "rtcp",
  "rtp",
- "sha-1 0.9.8",
+ "sha-1",
  "subtle",
  "thiserror",
  "tokio",

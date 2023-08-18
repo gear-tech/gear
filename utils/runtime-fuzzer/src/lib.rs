@@ -16,10 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod arbitrary_call;
 mod runtime;
 
+pub use arbitrary_call::GearCalls;
+
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{GearCall, GearCalls, SendMessageArgs, UploadProgramArgs};
+use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
@@ -41,6 +44,8 @@ pub fn run(GearCalls(gear_calls): GearCalls) {
 
         for gear_call in gear_calls {
             let call_res = execute_gear_call(sender.clone(), gear_call);
+            // Newline to easily browse logs.
+            print!("\n");
             log::info!("Extrinsic result: {call_res:?}");
 
             // Run task and message queues with max possible gas limit.

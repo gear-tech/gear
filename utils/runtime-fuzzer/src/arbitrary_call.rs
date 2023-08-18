@@ -18,7 +18,7 @@
 
 //! `Arbitrary` trait implementation for a collection of [`GearCall`].
 
-use crate::{GearCall, SendMessageArgs, UploadProgramArgs};
+use crate::{runtime::default_gas_limit, GearCall, SendMessageArgs, UploadProgramArgs};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -26,13 +26,7 @@ use gear_wasm_gen::{
     EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
 };
 use sha1::*;
-use std::{
-    mem::{self, MaybeUninit},
-    ops::{Div, Mul},
-};
-
-/// Gear runtime max gas limit.
-const GAS_LIMIT: u64 = 250_000_000_000;
+use std::mem::{self, MaybeUninit};
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -72,7 +66,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             "Generated from corpus - {}",
             get_sha1_string(u.peek_bytes(u.len()).expect("checked"))
         );
-        let gas = GAS_LIMIT.mul(99).div(100);
+        let gas = default_gas_limit();
         let value = 0;
         let prepaid = false;
         let mut programs = [ProgramId::default(); GearCalls::INIT_MSGS];
