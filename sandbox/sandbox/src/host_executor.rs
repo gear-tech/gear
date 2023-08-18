@@ -262,6 +262,16 @@ pub struct Instance<T> {
     _marker: marker::PhantomData<T>,
 }
 
+impl<T> Clone for Instance<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance_idx: self.instance_idx,
+            _retained_memories: self._retained_memories.clone(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
 #[repr(C)]
 struct DispatchThunkState {
     instance_idx: Option<u32>,
