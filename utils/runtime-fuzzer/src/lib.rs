@@ -45,7 +45,7 @@ pub fn run(GearCalls(gear_calls): GearCalls) {
         for gear_call in gear_calls {
             let call_res = execute_gear_call(sender.clone(), gear_call);
             // Newline to easily browse logs.
-            print!("\n");
+            println!();
             log::info!("Extrinsic result: {call_res:?}");
 
             // Run task and message queues with max possible gas limit.

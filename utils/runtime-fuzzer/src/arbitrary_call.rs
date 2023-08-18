@@ -26,7 +26,10 @@ use gear_wasm_gen::{
     EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
 };
 use sha1::*;
-use std::mem::{self, MaybeUninit};
+use std::{
+    fmt::Debug,
+    mem::{self, MaybeUninit},
+};
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -36,8 +39,22 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 ///
 /// It's main purpose is to be an implementor of `Arbitrary` for the array of [`GearCall`]s.
 /// New-type is required as array is always a foreign type.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GearCalls(pub [GearCall; GearCalls::MAX_CALLS]);
+
+/// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the [`GearCalls`].
+/// Fuzzer executes [`GearCalls`] with pretty large codes and payloads, therefore to avoid printing huge
+/// amount of data we do a mock implementation of [`Debug`].
+///
+/// If one wants to see a real debug string of the type, a separate wrapper over [`GearCall`]s array must be
+/// implemented. This wrapper must implement [`Debug`] then.
+impl Debug for GearCalls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("GearCalls")
+            .field(&"Mock `Debug` impl")
+            .finish()
+    }
+}
 
 impl GearCalls {
     pub const MAX_CALLS: usize = GearCalls::INIT_MSGS + GearCalls::HANDLE_MSGS;

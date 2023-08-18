@@ -85,8 +85,8 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  RUST_LOG=debug,syscalls,gear_wasm_gen,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,runtime_fuzzer=trace,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm \
+  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
