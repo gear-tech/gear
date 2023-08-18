@@ -55,7 +55,7 @@ pub(crate) mod wasm {
     }
 
     pub(crate) fn handle(state: &mut State) {
-        let reply = msg::load_on_stack()
+        let reply = msg::load()
             .map(|request| process(state, request))
             .unwrap_or_else(|e| {
                 debug!("Error processing request: {e:?}");

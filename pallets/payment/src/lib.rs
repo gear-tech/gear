@@ -218,7 +218,7 @@ where
 
         let queue_len: u128 = QueueOf::<T>::len().saturated_into();
         let pow = queue_len.saturating_div(len_step);
-        Multiplier::saturating_from_integer(1 << pow)
+        Multiplier::saturating_from_integer(x)
     }
 }
 

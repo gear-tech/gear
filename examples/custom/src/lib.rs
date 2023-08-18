@@ -63,7 +63,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn init() {
-        let init_message: InitMessage = msg::load_on_stack().expect("Failed to load payload bytes");
+        let init_message: InitMessage = msg::load().expect("Failed to load payload bytes");
         let state = match init_message {
             InitMessage::Capacitor(payload) => State::Capacitor(capacitor::init(payload)),
             InitMessage::BTree => State::BTree(btree::init()),
