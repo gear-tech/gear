@@ -334,7 +334,7 @@ impl Default for ConstantParams {
             max_imports: 0,
             max_instructions: 100_000,
             min_funcs: 15,
-            max_funcs: 100,
+            max_funcs: 30,
             max_data_segments: 0,
             min_data_segments: 0,
             max_types: 100,
