@@ -257,7 +257,7 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
 
 /// Sandboxed instance of a WASM module.
 pub struct Instance<T> {
-    instance_idx: u32,
+    instance_idx: Rc<u32>,
     _retained_memories: Vec<Memory>,
     _marker: marker::PhantomData<T>,
 }
@@ -265,9 +265,17 @@ pub struct Instance<T> {
 impl<T> Clone for Instance<T> {
     fn clone(&self) -> Self {
         Self {
-            instance_idx: self.instance_idx,
+            instance_idx: self.instance_idx.clone(),
             _retained_memories: self._retained_memories.clone(),
             _marker: marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Drop for Instance<T> {
+    fn drop(&mut self) {
+        if let Some(idx) = Rc::get_mut(&mut self.instance_idx) {
+            sandbox::instance_teardown(*idx);
         }
     }
 }
@@ -362,7 +370,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         // We need to retain memories to keep them alive while the Instance is alive.
         let retained_memories = env_def_builder.retained_memories.clone();
         Ok(Instance {
-            instance_idx,
+            instance_idx: Rc::new(instance_idx),
             _retained_memories: retained_memories,
             _marker: marker::PhantomData::<T>,
         })
@@ -378,12 +386,12 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         let mut return_val = vec![0u8; ReturnValue::ENCODED_MAX_SIZE];
 
         let mut state = DispatchThunkState {
-            instance_idx: Some(self.instance_idx),
+            instance_idx: Some(*self.instance_idx),
             data: store.data_mut() as *const T as _,
         };
 
         let result = sandbox::invoke(
-            self.instance_idx,
+            *self.instance_idx,
             name,
             &serialized_args,
             return_val.as_mut_ptr() as _,
@@ -403,7 +411,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
     }
 
     fn get_global_val(&self, _store: &Store<T>, name: &str) -> Option<Value> {
-        get_global_val(self.instance_idx, name)
+        get_global_val(*self.instance_idx, name)
     }
 
     fn set_global_val(
@@ -412,16 +420,10 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         name: &str,
         value: Value,
     ) -> Result<(), super::GlobalsSetError> {
-        set_global_val(self.instance_idx, name, value)
+        set_global_val(*self.instance_idx, name, value)
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
-        sandbox::get_instance_ptr(self.instance_idx)
-    }
-}
-
-impl<T> Drop for Instance<T> {
-    fn drop(&mut self) {
-        sandbox::instance_teardown(self.instance_idx);
+        sandbox::get_instance_ptr(*self.instance_idx)
     }
 }
