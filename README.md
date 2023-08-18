@@ -176,7 +176,7 @@ Performance charts can be seen here: https://gear-tech.github.io/performance-cha
 
 # Contribution
 
-You can request a new feature by creating a new issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
+You can request a new feature by [creating a new issue](https://github.com/gear-tech/gear/issues/new/choose) or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
 Here are some features in progress or planned: https://github.com/gear-tech/gear/issues
 
 # License
