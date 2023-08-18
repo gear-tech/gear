@@ -102,6 +102,9 @@ pub trait SandboxStore<T>: AsContext<T> {
 
 /// Sandbox caller.
 pub trait SandboxCaller<T>: AsContext<T> {
+    /// Set WASM global.
+    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()>;
+
     /// Get WASM global.
     fn get_global_val(&self, name: &str) -> Option<Value>;
 }

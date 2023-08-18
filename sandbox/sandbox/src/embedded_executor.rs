@@ -78,6 +78,12 @@ impl<T> AsContextExt for Store<T> {}
 pub struct Caller<'a, T>(wasmi::Caller<'a, T>);
 
 impl<T> SandboxCaller<T> for Caller<'_, T> {
+    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()> {
+        let global = self.0.get_export(name)?.into_global()?;
+        global.set(&mut self.0, to_wasmi(value)).ok()?;
+        Some(())
+    }
+
     fn get_global_val(&self, name: &str) -> Option<Value> {
         let value = self.0.get_export(name)?.into_global()?.get(&self.0);
         Some(to_interface(value))

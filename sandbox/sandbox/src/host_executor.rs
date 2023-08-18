@@ -67,10 +67,8 @@ fn get_global_val(instance_idx: u32, name: &str) -> Option<Value> {
     sandbox::get_global_val(instance_idx, name)
 }
 
-/// Dummy trait.
 pub trait AsContextExt {}
 
-/// Dummy store.
 pub struct Store<T>(T);
 
 impl<T> SandboxStore<T> for Store<T> {
@@ -87,13 +85,16 @@ impl<T> AsContext<T> for Store<T> {
 
 impl<T> AsContextExt for Store<T> {}
 
-/// Dummy caller.
 pub struct Caller<'a, T> {
     data: &'a mut T,
     instance_idx: u32,
 }
 
 impl<'a, T> SandboxCaller<T> for Caller<'a, T> {
+    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()> {
+        set_global_val(self.instance_idx, name, value).ok()
+    }
+
     fn get_global_val(&self, name: &str) -> Option<Value> {
         get_global_val(self.instance_idx, name)
     }
