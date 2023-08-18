@@ -1663,7 +1663,7 @@ pub mod pallet {
                     .map_err(|_| Error::<T>::InsufficientBalance)?;
                 VoucherOf::<T>::redeem_with_id(origin.clone(), destination, gas_limit_reserve)
                     .map_err(|_| {
-                        log::debug!(
+                        log::error!(
                             "Failed to redeem voucher for user {:?} and program {:?}",
                             origin,
                             destination,

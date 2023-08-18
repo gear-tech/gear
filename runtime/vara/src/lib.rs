@@ -846,13 +846,7 @@ impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
                 destination,
                 prepaid,
                 ..
-            }) => {
-                if *prepaid {
-                    Some(GearVoucher::voucher_account_id(who, destination))
-                } else {
-                    None
-                }
-            }
+            }) => prepaid.then(|| GearVoucher::voucher_account_id(who, destination)),
             RuntimeCall::Gear(pallet_gear::Call::send_reply {
                 reply_to_id,
                 prepaid,
