@@ -1,5 +1,5 @@
 [package]
-name = "demo-capacitor"
+name = "demo-custom"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -8,6 +8,11 @@ workspace = "../../"
 
 [dependencies]
 gstd.workspace = true
+gsys.workspace = true
+parity-scale-codec.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
