@@ -65,7 +65,7 @@ pub(crate) mod wasm {
     }
 
     pub(crate) fn state(state: State) {
-        let request: StateRequest = msg::load_on_stack().unwrap();
+        let request: StateRequest = msg::load().unwrap();
         match request {
             StateRequest::Full => msg::reply(state, 0).unwrap(),
             StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
