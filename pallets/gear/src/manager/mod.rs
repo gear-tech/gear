@@ -371,11 +371,10 @@ where
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id.into_origin());
         let balance = CurrencyOf::<T>::free_balance(program_account);
-
-        let destination = Pallet::<T>::inheritor_for(value_destination);
-        let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
-
         if !balance.is_zero() {
+            let destination = Pallet::<T>::inheritor_for(value_destination);
+            let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
             CurrencyOf::<T>::transfer(
                 program_account,
                 &destination,
