@@ -103,7 +103,11 @@ impl<'a> Arbitrary<'a> for GearCalls {
             );
             log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-            programs[i] = ProgramId::generate(CodeId::generate(&code), &salt);
+            let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+
+            log::trace!("Generated code for program id - {program_id}");
+
+            programs[i] = program_id;
             calls[i].write(GearCall::UploadProgram(UploadProgramArgs((
                 code, salt, payload, gas, value,
             ))));
