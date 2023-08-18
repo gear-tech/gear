@@ -262,7 +262,10 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = Module::new(store.engine(), code).map_err(|_| Error::Module)?;
+        let module = Module::new(store.engine(), code).map_err(|e| {
+            log::error!(target: TARGET, "Failed to create module: {e}");
+            Error::Module
+        })?;
         let mut linker = Linker::new(store.engine());
 
         for import in module.imports() {
@@ -272,7 +275,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
             match import.ty() {
                 ExternType::Global(_) | ExternType::Table(_) => {}
-                ExternType::Memory(mem_ty) => {
+                ExternType::Memory(_mem_ty) => {
                     let mem = env_def_builder
                         .map
                         .get(&key)
@@ -280,10 +283,6 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                         .and_then(|val| val.memory())
                         .ok_or(Error::Module)?
                         .memref;
-
-                    if mem.ty(&store) != *mem_ty {
-                        return Err(Error::Module);
-                    }
 
                     let mem = wasmi::Extern::Memory(mem);
                     linker
@@ -388,8 +387,10 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         let mut results =
             vec![RuntimeValue::ExternRef(wasmi::ExternRef::null()); func_ty.results().len()];
 
-        func.call(&mut store, &args, &mut results)
-            .map_err(|_| Error::Execution)?;
+        func.call(&mut store, &args, &mut results).map_err(|e| {
+            log::error!(target: TARGET, "invocation error: {e}");
+            Error::Execution
+        })?;
 
         match results.as_slice() {
             [] => Ok(ReturnValue::Unit),
