@@ -24,6 +24,7 @@ use runtime_fuzzer::GearCalls;
 fuzz_target!(|gear_calls: GearCalls| {
     gear_utils::init_default_logger();
 
+    // Newline to easily browse logs.
     print!("\n");
     log::info!("Executing generated gear calls");
     runtime_fuzzer::run(gear_calls);
