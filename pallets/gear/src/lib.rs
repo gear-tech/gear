@@ -1534,7 +1534,7 @@ pub mod pallet {
                     // If no such voucher exists, the call is invalidated.
                     VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
                         .map_err(|_| {
-                            log::debug!(
+                            log::error!(
                                 "Failed to redeem voucher for user {:?} and program {:?}",
                                 who,
                                 destination,
