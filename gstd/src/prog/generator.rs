@@ -23,7 +23,9 @@ use crate::{
     common::errors::Result,
     msg::{CodecCreateProgramFuture, CreateProgramFuture},
     prelude::convert::AsRef,
-    prog, ActorId, CodeId, MessageId,
+    prog,
+    util::with_optimized_encode,
+    ActorId, CodeId, MessageId,
 };
 use gstd_codegen::wait_create_program_for_reply;
 use scale_info::scale::{alloc::vec::Vec, Decode, Encode};
@@ -150,7 +152,9 @@ impl ProgramGenerator {
         payload: E,
         value: u128,
     ) -> Result<(MessageId, ActorId)> {
-        Self::create_program_bytes(code_id, payload.encode(), value)
+        with_optimized_encode(payload, |buffer| {
+            Self::create_program_bytes(code_id, buffer, value)
+        })
     }
 
     /// Same as [`create_program`](Self::create_program), but creates a new
@@ -161,7 +165,9 @@ impl ProgramGenerator {
         value: u128,
         delay: u32,
     ) -> Result<(MessageId, ActorId)> {
-        Self::create_program_bytes_delayed(code_id, payload.encode(), value, delay)
+        with_optimized_encode(payload, |buffer| {
+            Self::create_program_bytes_delayed(code_id, buffer, value, delay)
+        })
     }
 
     /// Same as [`create_program`](Self::create_program), but with an explicit
@@ -173,7 +179,9 @@ impl ProgramGenerator {
         gas_limit: u64,
         value: u128,
     ) -> Result<(MessageId, ActorId)> {
-        Self::create_program_bytes_with_gas(code_id, payload.encode(), gas_limit, value)
+        with_optimized_encode(payload, |buffer| {
+            Self::create_program_bytes_with_gas(code_id, buffer, gas_limit, value)
+        })
     }
 
     /// Same as [`create_program_with_gas`](Self::create_program_with_gas), but
@@ -185,12 +193,8 @@ impl ProgramGenerator {
         value: u128,
         delay: u32,
     ) -> Result<(MessageId, ActorId)> {
-        Self::create_program_bytes_with_gas_delayed(
-            code_id,
-            payload.encode(),
-            gas_limit,
-            value,
-            delay,
-        )
+        with_optimized_encode(payload, |buffer| {
+            Self::create_program_bytes_with_gas_delayed(code_id, buffer, gas_limit, value, delay)
+        })
     }
 }
