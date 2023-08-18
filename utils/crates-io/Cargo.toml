@@ -1,0 +1,14 @@
+[package]
+name = "crates-io"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "publish"
+path = "publish.rs"
+
+[dependencies]
+anyhow.workspace = true
+cargo_metadata.workspace = true
+semver.workspace = true
+toml.workspace = true

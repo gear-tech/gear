@@ -440,6 +440,7 @@ scale-value = "^0.10"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
+semver = "1.0.18"                                                         # crates-io
 
 [profile.release]
 panic = "unwind"
