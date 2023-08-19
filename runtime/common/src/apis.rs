@@ -165,8 +165,8 @@ macro_rules! impl_runtime_apis_plus_common {
 					UncheckedExtrinsic::new_unsigned(Gear::run_call().into()).into()
 				}
 
-				fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state(program_id)
+				fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+					Gear::read_state(program_id, payload)
 				}
 
 				fn read_state_using_wasm(

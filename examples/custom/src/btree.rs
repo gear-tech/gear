@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,20 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+use crate::{Decode, Encode};
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-extern crate alloc;
-
-use gstd::prelude::*;
-use parity_scale_codec::{Decode, Encode};
+use alloc::vec::Vec;
 
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
@@ -47,46 +36,54 @@ pub enum Reply {
     List(Vec<(u32, u32)>),
 }
 
+#[derive(Debug, Encode, Decode)]
+pub enum StateRequest {
+    Full,
+    ForKey(u32),
+}
+
 #[cfg(not(feature = "std"))]
-mod wasm {
+pub(crate) mod wasm {
     use super::*;
+    use gstd::{debug, msg, prelude::*, BTreeMap};
 
-    use alloc::collections::BTreeMap;
-    use gstd::{debug, msg};
+    pub(crate) type State = BTreeMap<u32, u32>;
 
-    static mut STATE: Option<BTreeMap<u32, u32>> = None;
+    pub(crate) fn init() -> State {
+        msg::reply((), 0).unwrap();
+        BTreeMap::new()
+    }
 
-    #[no_mangle]
-    extern "C" fn handle() {
-        let reply = msg::load_on_stack().map(process).unwrap_or_else(|e| {
-            debug!("Error processing request: {e:?}");
-            Reply::Error
-        });
+    pub(crate) fn handle(state: &mut State) {
+        let reply = msg::load()
+            .map(|request| process(state, request))
+            .unwrap_or_else(|e| {
+                debug!("Error processing request: {e:?}");
+                Reply::Error
+            });
         msg::reply(reply, 0).unwrap();
     }
 
-    fn state() -> &'static mut BTreeMap<u32, u32> {
-        unsafe { STATE.as_mut().unwrap() }
+    pub(crate) fn state(state: State) {
+        let request: StateRequest = msg::load().unwrap();
+        match request {
+            StateRequest::Full => msg::reply(state, 0).unwrap(),
+            StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
+        };
     }
 
-    fn process(request: Request) -> Reply {
+    fn process(state: &mut State, request: Request) -> Reply {
         use Request::*;
 
         match request {
-            Insert(key, value) => Reply::Value(state().insert(key, value)),
-            Remove(key) => Reply::Value(state().remove(&key)),
-            List => Reply::List(state().iter().map(|(k, v)| (*k, *v)).collect()),
+            Insert(key, value) => Reply::Value(state.insert(key, value)),
+            Remove(key) => Reply::Value(state.remove(&key)),
+            List => Reply::List(state.iter().map(|(k, v)| (*k, *v)).collect()),
             Clear => {
-                state().clear();
+                state.clear();
                 Reply::None
             }
         }
-    }
-
-    #[no_mangle]
-    extern "C" fn init() {
-        unsafe { STATE = Some(BTreeMap::new()) };
-        msg::reply((), 0).unwrap();
     }
 }
 
@@ -95,6 +92,7 @@ mod tests {
     extern crate std;
 
     use super::{Reply, Request};
+    use crate::InitMessage;
     use alloc::vec;
     use gtest::{Log, Program, System};
 
@@ -107,7 +105,7 @@ mod tests {
 
         let from = 42;
 
-        let res = program.send_bytes(from, b"init");
+        let res = program.send(from, InitMessage::BTree);
         let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
@@ -121,7 +119,7 @@ mod tests {
 
         let from = 42;
 
-        let _res = program.send_bytes(from, b"init");
+        let _res = program.send(from, InitMessage::BTree);
 
         IntoIterator::into_iter([
             Request::Insert(0, 1),

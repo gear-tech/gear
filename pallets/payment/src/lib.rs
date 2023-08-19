@@ -217,7 +217,9 @@ where
         let len_step = S::get().max(1); // Avoiding division by 0.
 
         let queue_len: u128 = QueueOf::<T>::len().saturated_into();
-        let pow = queue_len.saturating_div(len_step);
+        // min(30) in order to not goes into negative multiplier or UB.
+        // 30 is the last not negative bit in i32.
+        let pow = queue_len.saturating_div(len_step).min(30);
         Multiplier::saturating_from_integer(1 << pow)
     }
 }

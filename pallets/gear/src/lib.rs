@@ -726,10 +726,10 @@ pub mod pallet {
                 .map_err(String::into_bytes)
         }
 
-        pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+        pub fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_impl(program_id).map_err(String::into_bytes)
+            Self::read_state_impl(program_id, payload).map_err(String::into_bytes)
         }
 
         pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {

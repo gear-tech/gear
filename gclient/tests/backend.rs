@@ -18,8 +18,9 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use demo_backend_error::WASM_BINARY;
+use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
+use parity_scale_codec::Encode;
 
 #[tokio::test]
 async fn backend_errors_handled_by_sandbox() -> anyhow::Result<()> {
@@ -39,7 +40,7 @@ async fn backend_errors_handled_by_sandbox() -> anyhow::Result<()> {
         .upload_program_bytes(
             WASM_BINARY,
             gclient::now_micros().to_le_bytes(),
-            [],
+            InitMessage::BackendError.encode(),
             gas_limit,
             0,
         )
