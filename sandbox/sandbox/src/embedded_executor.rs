@@ -137,7 +137,7 @@ impl<'a, T> Externals for GuestExternals<'a, T> {
 
         let result = (self.defined_host_functions.funcs[index])(self.state, &args);
         match result {
-            Ok(value) => Ok(match value {
+            Ok(value) => Ok(match value.inner {
                 ReturnValue::Value(v) => Some(to_wasmi(v)),
                 ReturnValue::Unit => None,
             }),
@@ -282,24 +282,9 @@ pub struct Instance<T> {
     _marker: PhantomData<T>,
 }
 
-/// Unit-type as InstanceGlobals for wasmi executor.
-#[derive(Clone, Default)]
-pub struct InstanceGlobals;
-
-impl super::InstanceGlobals for InstanceGlobals {
-    fn get_global_val(&self, _name: &str) -> Option<Value> {
-        None
-    }
-
-    fn set_global_val(&self, _name: &str, _value: Value) -> Result<(), super::GlobalsSetError> {
-        Err(super::GlobalsSetError::NotFound)
-    }
-}
-
 impl<T> super::SandboxInstance<T> for Instance<T> {
     type Memory = Memory;
     type EnvironmentBuilder = EnvironmentDefinitionBuilder<T>;
-    type InstanceGlobals = InstanceGlobals;
 
     fn new(
         code: &[u8],
@@ -350,8 +335,8 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         Some(to_interface(global))
     }
 
-    fn instance_globals(&self) -> Option<Self::InstanceGlobals> {
-        None
+    fn set_global_val(&self, _name: &str, _value: Value) -> Result<(), crate::GlobalsSetError> {
+        Err(crate::GlobalsSetError::NotFound)
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
@@ -384,37 +369,50 @@ mod tests {
     use super::{EnvironmentDefinitionBuilder, Instance};
     use crate::{Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, Value};
     use assert_matches::assert_matches;
+    use gear_sandbox_env::WasmReturnValue;
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, HostError> {
         struct State {
             counter: u32,
         }
 
-        fn env_assert(_e: &mut State, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn env_assert(_e: &mut State, args: &[Value]) -> Result<WasmReturnValue, HostError> {
             if args.len() != 1 {
                 return Err(HostError);
             }
             let condition = args[0].as_i32().ok_or(HostError)?;
             if condition != 0 {
-                Ok(ReturnValue::Unit)
+                Ok(WasmReturnValue {
+                    gas: 0,
+                    inner: ReturnValue::Unit,
+                })
             } else {
                 Err(HostError)
             }
         }
-        fn env_inc_counter(e: &mut State, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn env_inc_counter(e: &mut State, args: &[Value]) -> Result<WasmReturnValue, HostError> {
             if args.len() != 1 {
                 return Err(HostError);
             }
             let inc_by = args[0].as_i32().ok_or(HostError)?;
             e.counter += inc_by as u32;
-            Ok(ReturnValue::Value(Value::I32(e.counter as i32)))
+            Ok(WasmReturnValue {
+                gas: 0,
+                inner: ReturnValue::Value(Value::I32(e.counter as i32)),
+            })
         }
         /// Function that takes one argument of any type and returns that value.
-        fn env_polymorphic_id(_e: &mut State, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn env_polymorphic_id(
+            _e: &mut State,
+            args: &[Value],
+        ) -> Result<WasmReturnValue, HostError> {
             if args.len() != 1 {
                 return Err(HostError);
             }
-            Ok(ReturnValue::Value(args[0]))
+            Ok(WasmReturnValue {
+                gas: 0,
+                inner: ReturnValue::Value(args[0]),
+            })
         }
 
         let mut state = State { counter: 0 };
@@ -525,8 +523,11 @@ mod tests {
 
     #[test]
     fn cant_return_unmatching_type() {
-        fn env_returns_i32(_e: &mut (), _args: &[Value]) -> Result<ReturnValue, HostError> {
-            Ok(ReturnValue::Value(Value::I32(42)))
+        fn env_returns_i32(_e: &mut (), _args: &[Value]) -> Result<WasmReturnValue, HostError> {
+            Ok(WasmReturnValue {
+                gas: 0,
+                inner: ReturnValue::Value(Value::I32(42)),
+            })
         }
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();

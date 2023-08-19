@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! gear api rpc methods
-#![allow(clippy::too_many_arguments)]
-use crate::{result::Result, types::GasInfo, Api};
+//! Gear API RPC methods
+
+use crate::{result::Result, Api, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use subxt::rpc::rpc_params;
@@ -137,9 +137,17 @@ impl Api {
     }
 
     /// gear_readState
-    pub async fn read_state(&self, pid: H256, at: Option<H256>) -> Result<String> {
+    pub async fn read_state(
+        &self,
+        pid: H256,
+        payload: Vec<u8>,
+        at: Option<H256>,
+    ) -> Result<String> {
         self.rpc()
-            .request("gear_readState", rpc_params![H256(pid.into()), at])
+            .request(
+                "gear_readState",
+                rpc_params![H256(pid.into()), hex::encode(payload), at],
+            )
             .await
             .map_err(Into::into)
     }

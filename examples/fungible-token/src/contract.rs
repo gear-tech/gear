@@ -18,8 +18,7 @@
 
 use core::ops::Range;
 use ft_io::*;
-use gmeta::Metadata;
-use gstd::{debug, errors::Result as GstdResult, msg, prelude::*, ActorId, MessageId};
+use gstd::{msg, prelude::*, ActorId};
 use hashbrown::HashMap;
 
 const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
@@ -110,7 +109,7 @@ impl FungibleToken {
             .entry(*to)
             .and_modify(|balance| *balance += amount)
             .or_insert(amount);
-        msg::reply_on_stack(
+        msg::reply(
             FTEvent::Transfer {
                 from: *from,
                 to: *to,
@@ -159,8 +158,9 @@ impl FungibleToken {
     }
 }
 
-fn common_state() -> <FungibleTokenMetadata as Metadata>::State {
-    let state = static_mut_state();
+#[no_mangle]
+extern "C" fn state() {
+    let state = unsafe { FUNGIBLE_TOKEN.take().expect("State is not initialized") };
     let FungibleToken {
         name,
         symbol,
@@ -168,40 +168,29 @@ fn common_state() -> <FungibleTokenMetadata as Metadata>::State {
         balances,
         allowances,
         decimals,
-    } = state.clone();
+    } = state;
 
-    let balances = balances.iter().map(|(k, v)| (*k, *v)).collect();
+    let balances = balances.into_iter().map(|(k, v)| (k, v)).collect();
     let allowances = allowances
-        .iter()
-        .map(|(id, allowance)| (*id, allowance.iter().map(|(k, v)| (*k, *v)).collect()))
+        .into_iter()
+        .map(|(id, allowance)| (id, allowance.into_iter().map(|(k, v)| (k, v)).collect()))
         .collect();
-    IoFungibleToken {
+    let payload = IoFungibleToken {
         name,
         symbol,
         total_supply,
         balances,
         allowances,
         decimals,
-    }
-}
+    };
 
-fn static_mut_state() -> &'static mut FungibleToken {
-    unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) }
-}
-
-#[no_mangle]
-extern "C" fn state() {
-    reply(common_state())
-        .expect("Failed to encode or reply with `<AppMetadata as Metadata>::State` from `state()`");
-}
-
-fn reply(payload: impl Encode) -> GstdResult<MessageId> {
     msg::reply(payload, 0)
+        .expect("Failed to encode or reply with `<AppMetadata as Metadata>::State` from `state()`");
 }
 
 #[no_mangle]
 extern "C" fn handle() {
-    let action: FTAction = msg::load_on_stack().expect("Could not load Action");
+    let action: FTAction = msg::load().expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {
@@ -229,7 +218,7 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn init() {
-    let config: InitConfig = msg::load_on_stack().expect("Unable to decode InitConfig");
+    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
         symbol: config.symbol,
@@ -238,45 +227,4 @@ extern "C" fn init() {
         ..Default::default()
     };
     unsafe { FUNGIBLE_TOKEN = Some(ft) };
-}
-
-#[no_mangle]
-extern "C" fn meta_state() -> *mut [i32; 2] {
-    let query: State = msg::load().expect("failed to decode input argument");
-    let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
-    debug!("{query:?}");
-    let encoded = match query {
-        State::Name => StateReply::Name(ft.name.clone()),
-        State::Symbol => StateReply::Name(ft.symbol.clone()),
-        State::Decimals => StateReply::Decimals(ft.decimals),
-        State::TotalSupply => StateReply::TotalSupply(ft.total_supply),
-        State::BalanceOf(account) => {
-            let balance = ft.balances.get(&account).unwrap_or(&0);
-            StateReply::Balance(*balance)
-        }
-    }
-    .encode();
-    gstd::util::to_leak_ptr(encoded)
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
-pub enum State {
-    Name,
-    Symbol,
-    Decimals,
-    TotalSupply,
-    BalanceOf(ActorId),
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
-pub enum StateReply {
-    Name(String),
-    Symbol(String),
-    Decimals(u8),
-    TotalSupply(u128),
-    Balance(u128),
 }

@@ -107,15 +107,8 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        // Gas calculation info should not depend on the current block gas allowance.
-        // We set it to 'block gas limit" * RUNTIME_API_BLOCK_LIMITS_COUNT for the calculation purposes with a subsequent restore.
-        // This is done in order to avoid abusing running node. If one wants to check
-        // executions exceeding the set threshold, they can build their own node with that
-        // parameter set to a higher value.
-        let gas_allowance = GasAllowanceOf::<T>::get();
         GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT);
-        // Restore gas allowance.
-        let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
+        QueueProcessingOf::<T>::allow();
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -124,8 +117,11 @@ where
                 );
             }
 
-            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
-                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+            let Some(queued_dispatch) =
+                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
+            else {
+                break;
+            };
 
             let actor_id = queued_dispatch.destination();
 
@@ -310,7 +306,7 @@ where
         let instrumented_code = code_and_id.into_parts().0;
 
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id)?);
+        payload.append(&mut Self::read_state_impl(program_id, Default::default())?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),
@@ -329,7 +325,10 @@ where
         )
     }
 
-    pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
+    pub(crate) fn read_state_impl(
+        program_id: ProgramId,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
@@ -357,7 +356,7 @@ where
             program_pages,
             Some(allocations),
             Some(program_id),
-            Default::default(),
+            payload,
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )

@@ -69,8 +69,6 @@ demo-async.workspace = true
 demo-async-init.workspace = true
 demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
-demo-backend-error.workspace = true
-demo-btree.workspace = true
 demo-delayed-sender.workspace = true
 demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true
@@ -108,6 +106,7 @@ demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
+demo-custom.workspace = true
 test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }

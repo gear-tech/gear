@@ -15,4 +15,6 @@ dyn-clonable.workspace = true
 hex.workspace = true
 log.workspace = true
 rand.workspace = true
+sha-1 = "0.10.1"
+static_assertions.workspace = true
 thiserror.workspace = true

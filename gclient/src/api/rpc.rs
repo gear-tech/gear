@@ -19,7 +19,7 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use gsdk::{ext::sp_core::H256, types::GasInfo};
+use gsdk::{ext::sp_core::H256, GasInfo};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
 
@@ -209,8 +209,12 @@ impl GearApi {
     }
 
     /// Read the program's state as a byte vector.
-    pub async fn read_state_bytes(&self, program_id: ProgramId) -> Result<Vec<u8>> {
-        self.read_state_bytes_at(program_id, None).await
+    pub async fn read_state_bytes(
+        &self,
+        program_id: ProgramId,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>> {
+        self.read_state_bytes_at(program_id, payload, None).await
     }
 
     /// Same as [`read_state_bytes`](Self::read_state_bytes), but reads the
@@ -218,15 +222,24 @@ impl GearApi {
     pub async fn read_state_bytes_at(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let response: String = self.0.api().read_state(H256(program_id.into()), at).await?;
+        let response: String = self
+            .0
+            .api()
+            .read_state(H256(program_id.into()), payload, at)
+            .await?;
         crate::utils::hex_to_vec(response).map_err(Into::into)
     }
 
     /// Read the program's state as decoded data.
-    pub async fn read_state<D: Decode>(&self, program_id: ProgramId) -> Result<D> {
-        self.read_state_at(program_id, None).await
+    pub async fn read_state<D: Decode>(
+        &self,
+        program_id: ProgramId,
+        payload: Vec<u8>,
+    ) -> Result<D> {
+        self.read_state_at(program_id, payload, None).await
     }
 
     /// Same as [`read_state`](Self::read_state), but reads the program's state
@@ -234,9 +247,10 @@ impl GearApi {
     pub async fn read_state_at<D: Decode>(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         at: Option<H256>,
     ) -> Result<D> {
-        let bytes = self.read_state_bytes_at(program_id, at).await?;
+        let bytes = self.read_state_bytes_at(program_id, payload, at).await?;
         D::decode(&mut bytes.as_ref()).map_err(Into::into)
     }
 

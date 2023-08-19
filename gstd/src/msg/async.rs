@@ -146,7 +146,7 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CodecCreateProgramFuture<InitReply> =
-///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0, 0)
+///         prog::create_program_bytes_for_reply_as(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
@@ -228,7 +228,7 @@ impl_futures!(
 
 /// Async functions that relate to creating programs wait for a reply from the
 /// program's init function. These functions have the suffix` _for_reply`, such
-/// as [`crate::prog::create_program_for_reply`].
+/// as [`crate::prog::create_program_bytes_for_reply`].
 ///
 /// To get the reply payload (in bytes), one should use `.await` syntax. After
 /// calling a corresponding async function, the program interrupts its execution
@@ -252,7 +252,7 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CreateProgramFuture =
-///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0, 0)
+///         prog::create_program_bytes_for_reply(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
 /// }

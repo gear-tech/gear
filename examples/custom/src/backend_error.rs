@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,23 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
 #[cfg(not(feature = "std"))]
-mod wasm {
-    extern crate gstd;
+pub(crate) mod wasm {
     use gsys::{ErrorWithHash, HashWithValue};
 
-    #[no_mangle]
-    extern "C" fn init() {
+    pub(crate) struct State;
+
+    pub(crate) fn init() -> State {
         // Code below is copied and simplified from `gcore::msg::send`.
         let pid_value = HashWithValue {
             hash: [0; 32],
@@ -52,6 +42,8 @@ mod wasm {
             )
         };
 
-        assert!(res.error_code != 0)
+        assert!(res.error_code != 0);
+
+        State
     }
 }

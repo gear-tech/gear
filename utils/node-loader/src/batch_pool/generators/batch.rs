@@ -10,8 +10,9 @@ use gear_call_gen::{
     CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, SendMessageArgs,
     SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
+use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
-use gear_wasm_gen::ConfigsBundle;
+use gear_wasm_gen::StandardGearWasmConfigsBundle;
 use std::iter;
 use tracing::instrument;
 
@@ -33,7 +34,6 @@ impl RuntimeSettings {
 pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
-    prog_gen_config: ConfigsBundle,
     code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
 }
@@ -121,7 +121,6 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         Self {
             batch_gen_rng,
             batch_size,
-            prog_gen_config: utils::get_config_with_seed_log(seed),
             code_seed_gen: seed::some_generator::<Rng>(code_seed_type),
             rt_settings,
         }
@@ -146,27 +145,21 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     ) -> Batch {
         match batch_id {
             0 => {
-                let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
+                let config = utils::get_wasm_gen_config(seed, context.programs.iter().copied());
                 Self::gen_batch::<UploadProgramArgs, _, _>(
                     self.batch_size,
                     seed,
-                    |rng| {
-                        (
-                            existing_programs.clone(),
-                            self.code_seed_gen.next_u64(),
-                            rng.next_u64(),
-                        )
-                    },
-                    || (rt_settings.gas_limit, self.prog_gen_config.clone()),
+                    |rng| (self.code_seed_gen.next_u64(), rng.next_u64()),
+                    || (rt_settings.gas_limit, config.clone()),
                 )
             }
             1 => {
-                let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
+                let config = utils::get_wasm_gen_config(seed, context.programs.iter().copied());
                 Self::gen_batch::<UploadCodeArgs, _, _>(
                     self.batch_size,
                     seed,
-                    |_| (existing_programs.clone(), self.code_seed_gen.next_u64()),
-                    || (self.prog_gen_config.clone(),),
+                    |_| self.code_seed_gen.next_u64(),
+                    || (config.clone(),),
                 )
             }
             2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
@@ -213,7 +206,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     fn gen_batch<
         T: CallArgs,
         FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
-        ConstArgsFn: Fn() -> T::ConstArgs,
+        ConstArgsFn: Fn() -> T::ConstArgs<StandardGearWasmConfigsBundle<ProgramId>>,
     >(
         batch_size: usize,
         seed: Seed,
@@ -232,7 +225,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                     generator_for = T::name(),
                     call_id = i
                 )
-                .in_scope(|| T::generate::<Rng>(fuzzer_args, const_args_fn()))
+                .in_scope(|| T::generate::<Rng, _>(fuzzer_args, const_args_fn()))
             })
             .collect();
 

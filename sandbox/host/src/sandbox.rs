@@ -26,6 +26,7 @@ mod wasmi_backend;
 use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 use codec::Decode;
+use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
 use sp_wasm_interface::{Pointer, WordSize};
 
@@ -629,6 +630,7 @@ impl<DT: Clone> Store<DT> {
     /// Returns uninitialized sandboxed module instance or an instantiation error.
     pub fn instantiate(
         &mut self,
+        version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
         sandbox_context: &mut dyn SandboxContext,
@@ -637,7 +639,7 @@ impl<DT: Clone> Store<DT> {
             BackendContext::Wasmi => wasmi_instantiate(wasm, guest_env, sandbox_context)?,
 
             BackendContext::Wasmer(ref context) => {
-                wasmer_instantiate(context, wasm, guest_env, sandbox_context)?
+                wasmer_instantiate(version, context, wasm, guest_env, sandbox_context)?
             }
         };
 

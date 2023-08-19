@@ -75,7 +75,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use gstd::errors::Error as GstdError;
+use gstd::{errors::Error as GstdError, BTreeMap};
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
@@ -170,7 +170,8 @@ fn read_big_state() {
             run_to_next_block(None);
 
             assert_succeed(mid);
-            let state = Gear::read_state_impl(pid).expect("Failed to read state");
+            let state =
+                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -899,7 +900,7 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use demo_backend_error::WASM_BINARY;
+    use demo_custom::{InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -907,7 +908,7 @@ fn backend_errors_handled_in_program() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BackendError.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));
@@ -1914,7 +1915,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res = Gear::read_state_impl(program_id).expect("Failed to read state");
+        let res =
+            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
@@ -6117,19 +6119,69 @@ fn resume_session_init_works() {
 }
 
 #[test]
-fn resume_session_push_works() {
+fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::Request;
+        use demo_custom::{
+            btree::{Request, StateRequest},
+            InitMessage, WASM_BINARY,
+        };
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_2),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        let data = [(0u32, 1u32), (2, 4), (7, 8)];
+        for (key, value) in data {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Request::Insert(key, value).encode(),
+                1_000_000_000,
+                0
+            ));
+        }
+
+        run_to_next_block(None);
+
+        for (key, value) in data {
+            let ret =
+                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            assert_eq!(
+                Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
+                value
+            );
+        }
+
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
+        let expected: BTreeMap<u32, u32> = data.into_iter().collect();
+        assert_eq!(ret, expected);
+    })
+}
+
+#[test]
+fn resume_session_push_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
+
+        let code = WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -6230,17 +6282,20 @@ fn resume_session_push_works() {
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::{Reply, Request};
+        use demo_custom::{
+            btree::{Reply, Request},
+            InitMessage, WASM_BINARY,
+        };
         use frame_support::traits::ReservableCurrency;
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -7440,7 +7495,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_btree::{Request, WASM_BINARY};
+    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7450,7 +7505,7 @@ fn gas_spent_vs_balance() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -7481,7 +7536,7 @@ fn gas_spent_vs_balance() {
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             0,
             true,
             true,
