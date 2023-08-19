@@ -24,11 +24,11 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
+    InvocableSysCall, SysCallInfo, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
-    parity_wasm::elements::{Instruction, Internal, ValueType},
+    parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName},
 };
 use std::{collections::BTreeMap, iter};
@@ -123,6 +123,35 @@ impl<'a, 'b>
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum ParamSetter {
+    I32(i32),
+    I64(i64),
+}
+
+impl std::fmt::Display for ParamSetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Set parameter to ")?;
+        match self {
+            Self::I32(val) => {
+                write!(f, "{}: i32", val)
+            }
+            Self::I64(val) => {
+                write!(f, "{}: i64", val)
+            }
+        }
+    }
+}
+
+impl ParamSetter {
+    fn get_ix(&self) -> Instruction {
+        match *self {
+            Self::I32(val) => Instruction::I32Const(val),
+            Self::I64(val) => Instruction::I64Const(val),
+        }
+    }
+}
+
 impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Insert sys-calls invokes.
     ///
@@ -173,24 +202,24 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let signature = invocable.into_signature();
         if self.is_not_send_sys_call(invocable) {
             log::trace!(
                 " -- Generating build call for non-send sys-call {}",
                 invocable.to_str()
             );
-            return self.build_call(&signature.params, &signature.results, call_indexes_handle);
+            return self.build_call(invocable.into_info(), call_indexes_handle);
         }
 
         log::trace!(
             " -- Generating build call for send sys-call {}",
             invocable.to_str()
         );
-        let mut call_without_destination_instrs = self.build_call(
-            &signature.params[1..],
-            &signature.results,
-            call_indexes_handle,
-        )?;
+
+        let mut info = invocable.into_info();
+        // The first ix will be I32Const(destination_ptr), so we replace it with non-random value.
+        info.signature.params.remove(0);
+        let mut call_without_destination_instrs = self.build_call(info, call_indexes_handle)?;
+
         let res = if self.config.sending_message_destination().is_source() {
             log::trace!(" -- Message destination is result of `gr_source`");
 
@@ -249,6 +278,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             instructions
         };
 
+        println!("{} {:?}", invocable.to_str(), res);
+
         Ok(res)
     }
 
@@ -264,18 +295,64 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         .contains(&sys_call)
     }
 
-    fn build_call(
+    fn build_result_processing(
         &mut self,
-        params: &[ParamType],
-        results: &[ValueType],
-        call_indexes_handle: CallIndexesHandle,
-    ) -> Result<Vec<Instruction>> {
+        syscall: SysCallInfo,
+        param_setters: &[ParamSetter],
+    ) -> Vec<Instruction> {
+        if syscall.fallible {
+            // Assume here that:
+            // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
+            // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
+            // TODO: Assert these assumptions.
+
+            let params = syscall.signature.params;
+            assert!(
+                matches!(
+                    params
+                    .last()
+                    .expect("The last argument of fallible syscall must be pointer to error code (by assumption we made)"), 
+                ParamType::Ptr(..)
+            )
+            );
+            assert_eq!(params.len(), param_setters.len());
+
+            if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
+                return vec![
+                    Instruction::I32Const(*ptr),
+                    Instruction::I32Load(4, 0),
+                    Instruction::I32Const(0),
+                    Instruction::I32Ne,
+                    Instruction::If(BlockType::NoResult),
+                    Instruction::Unreachable,
+                    Instruction::End,
+                ];
+            } else {
+                panic!("Incorrect last parameter type: expected pointer");
+            }
+        }
+
+        let results_len = syscall.signature.results.len();
+        if results_len != 0 {
+            assert_eq!(results_len, 1);
+            // Assume here that return type of syscall means error when = -1.
+            return vec![
+                Instruction::I32Const(-1),
+                Instruction::I32Eq,
+                Instruction::If(BlockType::NoResult),
+                Instruction::Unreachable,
+                Instruction::End,
+            ];
+        }
+
+        vec![]
+    }
+
+    fn build_param_setters(&mut self, params: &[ParamType]) -> Result<Vec<ParamSetter>> {
         log::trace!(
-            "  ----  Random data before SysCallsInvocator::build_call - {}",
+            "  ----  Random data before SysCallsInvocator::build_param_setters - {}",
             self.unstructured.len()
         );
-
-        let results = results.iter().map(|_| Instruction::Drop);
 
         let mem_size_pages = self
             .module
@@ -285,19 +362,18 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .expect("generator is instantiated with a memory import generation proof");
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
-        // + 1 for call instruction.
-        let mut instructions = Vec::with_capacity(params.len() * 2 + results.len() + 1);
+        let mut setters = Vec::with_capacity(params.len());
         for processed_param in process_sys_call_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSysCallParams::Alloc => {
                     let pages_to_alloc = self
                         .unstructured
                         .int_in_range(0..=mem_size_pages.saturating_sub(1))?;
-                    let instr = Instruction::I32Const(pages_to_alloc as i32);
+                    let setter = ParamSetter::I32(pages_to_alloc as i32);
 
-                    log::trace!("  ----  Allocate memory - {instr}");
+                    log::trace!("  ----  Allocate memory - {setter}");
 
-                    instructions.push(instr);
+                    setters.push(setter);
                 }
                 ProcessedSysCallParams::Value {
                     value_type,
@@ -310,21 +386,21 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                             panic!("gear wasm must not have any floating nums")
                         }
                     };
-                    let instr = if let Some(allowed_values) = allowed_values {
+                    let setter = if let Some(allowed_values) = allowed_values {
                         if is_i32 {
-                            Instruction::I32Const(allowed_values.get_i32(self.unstructured)?)
+                            ParamSetter::I32(allowed_values.get_i32(self.unstructured)?)
                         } else {
-                            Instruction::I64Const(allowed_values.get_i64(self.unstructured)?)
+                            ParamSetter::I64(allowed_values.get_i64(self.unstructured)?)
                         }
                     } else if is_i32 {
-                        Instruction::I32Const(self.unstructured.arbitrary()?)
+                        ParamSetter::I32(self.unstructured.arbitrary()?)
                     } else {
-                        Instruction::I64Const(self.unstructured.arbitrary()?)
+                        ParamSetter::I64(self.unstructured.arbitrary()?)
                     };
 
-                    log::trace!("  ----  Pointer value - {instr}");
+                    log::trace!("  ----  Pointer value - {setter}");
 
-                    instructions.push(instr);
+                    setters.push(setter);
                 }
                 ProcessedSysCallParams::MemoryArray => {
                     let upper_limit = mem_size.saturating_sub(1);
@@ -332,33 +408,58 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     let pointer_beyond = self.unstructured.int_in_range(0..=upper_limit)?;
                     let offset = self.unstructured.int_in_range(0..=pointer_beyond)?;
 
-                    let first = Instruction::I32Const(offset as i32);
-                    let second = Instruction::I32Const((pointer_beyond - offset) as i32);
+                    let first = ParamSetter::I32(offset as i32);
+                    let second = ParamSetter::I32((pointer_beyond - offset) as i32);
                     log::trace!("  ----  Memory array {first}, {second}");
 
-                    instructions.push(first);
-                    instructions.push(second);
+                    setters.push(first);
+                    setters.push(second);
                 }
                 ProcessedSysCallParams::MemoryPtrValue => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
-                    let instr = Instruction::I32Const(offset as i32);
-                    log::trace!("  ----  Memory pointer value - {instr}");
+                    let setter = ParamSetter::I32(offset as i32);
+                    log::trace!("  ----  Memory pointer value - {setter}");
 
-                    instructions.push(instr);
+                    setters.push(setter);
                 }
             }
         }
 
-        instructions.push(Instruction::Call(call_indexes_handle as u32));
-        instructions.extend(results);
-
         log::trace!(
-            "  ----  Random data after SysCallsInvocator::build_call - {}",
+            "  ----  Random data after SysCallsInvocator::build_param_setters - {}",
             self.unstructured.len()
         );
+
+        assert_eq!(setters.len(), params.len());
+
+        Ok(setters)
+    }
+
+    fn build_call(
+        &mut self,
+        syscall: SysCallInfo,
+        call_indexes_handle: CallIndexesHandle,
+    ) -> Result<Vec<Instruction>> {
+        let ignore_syscall_result = true;
+
+        let mut instructions = vec![];
+
+        let param_setters = self.build_param_setters(&syscall.signature.params)?;
+        instructions.extend(param_setters.iter().map(ParamSetter::get_ix));
+
+        instructions.push(Instruction::Call(call_indexes_handle as u32));
+
+        let mut result_processing = if ignore_syscall_result {
+            std::iter::repeat(Instruction::Drop)
+                .take(syscall.signature.results.len())
+                .collect()
+        } else {
+            self.build_result_processing(syscall, &param_setters)
+        };
+        instructions.append(&mut result_processing);
 
         Ok(instructions)
     }

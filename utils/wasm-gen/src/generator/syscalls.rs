@@ -60,6 +60,11 @@ pub(crate) enum InvocableSysCall {
     Precise(SysCallName),
 }
 
+pub(crate) struct SysCallInfo {
+    pub signature: SysCallSignature,
+    pub fallible: bool,
+}
+
 impl InvocableSysCall {
     fn to_str(self) -> &'static str {
         match self {
@@ -86,5 +91,80 @@ impl InvocableSysCall {
                 _ => unimplemented!(),
             },
         }
+    }
+
+    fn into_info(self) -> SysCallInfo {
+        let underlying_syscall = match self {
+            Self::Loose(sc) => sc,
+            Self::Precise(sc) => sc,
+        };
+
+        let fallible = is_syscall_fallible(underlying_syscall);
+        SysCallInfo {
+            signature: self.into_signature(),
+            fallible,
+        }
+    }
+}
+
+// If syscall changes from fallible into infallible or vice versa in future,
+// we'll see it by analyzing code coverage stats produced by fuzzer.
+fn is_syscall_fallible(syscall: SysCallName) -> bool {
+    match syscall {
+        SysCallName::BlockHeight
+        | SysCallName::BlockTimestamp
+        | SysCallName::Debug
+        | SysCallName::Panic
+        | SysCallName::OomPanic
+        | SysCallName::Exit
+        | SysCallName::GasAvailable
+        | SysCallName::Leave
+        | SysCallName::MessageId
+        | SysCallName::ProgramId
+        | SysCallName::Random
+        | SysCallName::Size
+        | SysCallName::Source
+        | SysCallName::ValueAvailable
+        | SysCallName::Value
+        | SysCallName::WaitFor
+        | SysCallName::WaitUpTo
+        | SysCallName::Wait
+        | SysCallName::Alloc
+        | SysCallName::Free
+        | SysCallName::OutOfGas => false,
+        SysCallName::CreateProgramWGas
+        | SysCallName::CreateProgram
+        | SysCallName::ReplyDeposit
+        | SysCallName::ReplyCode
+        | SysCallName::SignalCode
+        | SysCallName::PayProgramRent
+        | SysCallName::Read
+        | SysCallName::ReplyCommitWGas
+        | SysCallName::ReplyCommit
+        | SysCallName::ReplyPush
+        | SysCallName::ReplyPushInput
+        | SysCallName::ReplyTo
+        | SysCallName::SignalFrom
+        | SysCallName::ReplyInputWGas
+        | SysCallName::ReplyWGas
+        | SysCallName::Reply
+        | SysCallName::ReplyInput
+        | SysCallName::ReservationReplyCommit
+        | SysCallName::ReservationReply
+        | SysCallName::ReservationSendCommit
+        | SysCallName::ReservationSend
+        | SysCallName::ReserveGas
+        | SysCallName::SendCommitWGas
+        | SysCallName::SendCommit
+        | SysCallName::SendInit
+        | SysCallName::SendPush
+        | SysCallName::SendPushInput
+        | SysCallName::SendInputWGas
+        | SysCallName::SendWGas
+        | SysCallName::Send
+        | SysCallName::SendInput
+        | SysCallName::SystemReserveGas
+        | SysCallName::UnreserveGas
+        | SysCallName::Wake => true,
     }
 }
