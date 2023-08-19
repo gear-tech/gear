@@ -18,8 +18,9 @@
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use gear_runtime::{
-    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
-    SudoConfig, SystemConfig, ValidatorSetConfig, WASM_BINARY,
+    constants::currency::EXISTENTIAL_DEPOSIT, BabeConfig, BalancesConfig, GenesisConfig,
+    GrandpaConfig, SessionConfig, SessionKeys, SudoConfig, SystemConfig, ValidatorSetConfig,
+    WASM_BINARY,
 };
 use gear_runtime_common::constants::BANK_ADDRESS;
 use hex_literal::hex;
@@ -27,9 +28,6 @@ use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
-
-// The URL for the telemetry server.
-// const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
@@ -65,8 +63,8 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
                     get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-                    BANK_ADDRESS.into(),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -118,8 +116,8 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-                    BANK_ADDRESS.into(),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -204,8 +202,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                 vec![
                     // root_key
                     hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
-                    // TODO: append here bank account
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -231,21 +229,24 @@ fn testnet_genesis(
     initial_authorities: Vec<(AccountId, BabeId, GrandpaId)>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
+    bank_account: AccountId,
     _enable_println: bool,
 ) -> GenesisConfig {
+    // Configure endowed accounts with initial balance of 1 << 60.
+    let mut balances = endowed_accounts
+        .iter()
+        .cloned()
+        .map(|k| (k, 1u128 << 60))
+        .collect::<Vec<_>>();
+
+    balances.push((bank_account, EXISTENTIAL_DEPOSIT));
+
     GenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
         },
-        balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 1 << 60.
-            balances: endowed_accounts
-                .iter()
-                .cloned()
-                .map(|k| (k, 1 << 60))
-                .collect(),
-        },
+        balances: BalancesConfig { balances },
         validator_set: ValidatorSetConfig {
             initial_validators: initial_authorities
                 .iter()
