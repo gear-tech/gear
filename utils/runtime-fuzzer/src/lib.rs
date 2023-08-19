@@ -18,6 +18,8 @@
 
 mod arbitrary_call;
 mod runtime;
+#[cfg(test)]
+mod tests;
 
 pub use arbitrary_call::GearCalls;
 
@@ -28,10 +30,15 @@ use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(GearCalls(gear_calls): GearCalls) {
+pub fn run(gear_calls: GearCalls) {
+    run_impl(gear_calls);
+}
+
+fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
     let sender = runtime::account(runtime::alice());
 
-    new_test_ext().execute_with(|| {
+    let mut test_ext = new_test_ext();
+    test_ext.execute_with(|| {
         // Increase maximum balance of the `sender`.
         {
             increase_to_max_balance(sender.clone())
@@ -52,6 +59,8 @@ pub fn run(GearCalls(gear_calls): GearCalls) {
             run_to_next_block();
         }
     });
+
+    test_ext
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {

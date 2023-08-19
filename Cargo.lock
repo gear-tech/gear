@@ -9151,6 +9151,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
+ "proptest",
  "rand 0.8.5",
  "sha-1 0.10.1",
  "sp-consensus-babe",

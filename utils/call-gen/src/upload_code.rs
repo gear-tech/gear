@@ -26,7 +26,7 @@ use crate::{
 /// Upload code args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::upload_code` call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
