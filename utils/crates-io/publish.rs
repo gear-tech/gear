@@ -56,6 +56,16 @@ fn main() -> Result<()> {
         let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
         manifest.complete_from_path_and_workspace(&path, Some((&workspace, &workspace_path)))?;
 
+        // // NOTE: This is a bug inside of crate cargo_toml, it should
+        // // not append crate-type = ["rlib"] to proc-macro crates, fixing
+        // // it by hacking it now.
+        if p.name.ends_with("-codegen") {
+            if let Some(mut product) = manifest.lib {
+                product.crate_type = vec![];
+                manifest.lib = Some(product);
+            }
+        }
+
         for (name, dep) in manifest.dependencies.iter_mut() {
             if !index.contains_key(name) {
                 continue;
@@ -69,6 +79,7 @@ fn main() -> Result<()> {
                     version: Some(version.to_string()),
                     features: features.clone(),
                     optional: *optional,
+                    default_features: true,
                     ..Default::default()
                 })
             }
@@ -78,11 +89,16 @@ fn main() -> Result<()> {
     }
 
     for (path, manifest) in graph.values() {
-        println!("publishing {:?}", path);
+        println!("Publishing {:?}", path);
         fs::write(path, toml::to_string_pretty(manifest)?)?;
 
-        let status = publish(&path.to_string_lossy())?;
+        let path = path.to_string_lossy();
+        let status = publish(&path)?;
         if !status.success() {
+            println!(
+                "Failed to publish package {}...\nRetry after 11 mins...",
+                &path
+            );
             // The most likely reason for failure is that
             // we have reached the rate limit of crates.io.
             //
@@ -92,6 +108,7 @@ fn main() -> Result<()> {
             // Only retry for once, if it still fails, we
             // will just give up.
             thread::sleep(Duration::from_secs(660));
+            publish(&path)?;
         }
     }
 
@@ -104,6 +121,7 @@ fn publish(manifest: &str) -> Result<ExitStatus> {
         .arg("--manifest-path")
         .arg(manifest)
         .arg("--allow-dirty")
+        .arg("--dry-run")
         .status()
         .map_err(Into::into)
 }
