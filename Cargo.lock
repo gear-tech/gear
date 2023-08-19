@@ -3781,8 +3781,6 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
- "sha-1 0.10.1",
- "static_assertions",
  "thiserror",
 ]
 
@@ -9149,13 +9147,12 @@ dependencies = [
  "gear-wasm-gen",
  "hex",
  "log",
- "once_cell",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
- "parking_lot 0.12.1",
  "rand 0.8.5",
+ "sha-1 0.10.1",
  "sp-consensus-babe",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
@@ -9163,6 +9160,7 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-keyring",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "static_assertions",
 ]
 
 [[package]]

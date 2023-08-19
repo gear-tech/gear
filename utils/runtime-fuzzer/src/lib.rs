@@ -16,51 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod arbitrary_call;
 mod runtime;
 
+pub use arbitrary_call::GearCalls;
+
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{
-    CallGenRng, GearCall, GeneratableCallArgs, SendMessageArgs, UploadProgramArgs,
-};
-use gear_common::event::ProgramChangeKind;
-use gear_core::ids::ProgramId;
-use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
-use gear_utils::NonEmpty;
-use gear_wasm_gen::{EntryPointsSet, StandardGearWasmConfigsBundle};
-use once_cell::sync::OnceCell;
+use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
+use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
-use pallet_gear::Event;
-use parking_lot::Mutex;
-use rand::rngs::SmallRng;
 use runtime::*;
-use sp_io::TestExternalities;
-
-type ContextMutex = Mutex<Context>;
-
-// Saving ext is planned to be multithreaded, so sync primitive is used
-// TODO #2189
-static TEST_EXT: OnceCell<Mutex<TestExternalities>> = OnceCell::new();
-static CONTEXT: OnceCell<Mutex<Context>> = OnceCell::new();
-
-struct Context {
-    programs: Vec<ProgramId>,
-}
-
-impl Context {
-    fn new() -> Self {
-        Self {
-            programs: Vec::new(),
-        }
-    }
-}
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(seed: u64) {
+pub fn run(GearCalls(gear_calls): GearCalls) {
     let sender = runtime::account(runtime::alice());
-    let test_ext = TEST_EXT.get_or_init(|| Mutex::new(new_test_ext()));
-    let context = CONTEXT.get_or_init(|| Mutex::new(Context::new()));
 
-    test_ext.lock().execute_with(|| {
+    new_test_ext().execute_with(|| {
         // Increase maximum balance of the `sender`.
         {
             increase_to_max_balance(sender.clone())
@@ -71,62 +42,16 @@ pub fn run(seed: u64) {
             );
         }
 
-        // Generate gear call.
-        let call = generate_gear_call::<SmallRng>(seed, context);
+        for gear_call in gear_calls {
+            let call_res = execute_gear_call(sender.clone(), gear_call);
+            // Newline to easily browse logs.
+            println!();
+            log::info!("Extrinsic result: {call_res:?}");
 
-        // Execute gear call.
-        let call_res = execute_gear_call(sender, call);
-        log::info!("Extrinsic result: {call_res:?}");
-
-        // Run task and message queues with max possible gas limit.
-        run_to_next_block();
-
-        // Update context after the run.
-        update_context(context)
+            // Run task and message queues with max possible gas limit.
+            run_to_next_block();
+        }
     });
-}
-
-fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> GearCall {
-    let config = fuzzer_config(seed, context.lock().programs.clone());
-    let mut rand = Rng::seed_from_u64(seed);
-
-    // Use (0..G)^3 / G^2 to produce more values closer to default_gas_limit.
-    let default_gas_limit = default_gas_limit() as u128;
-    let gas_limit = rand.gen_range(0..=default_gas_limit).pow(3) / default_gas_limit.pow(2);
-
-    let gas_limit = gas_limit as u64;
-
-    match rand.gen_range(0..=1) {
-        0 => UploadProgramArgs::generate::<Rng, _>(
-            (rand.next_u64(), rand.next_u64()),
-            (gas_limit, config),
-        )
-        .into(),
-        1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
-            Some(existing_programs) => SendMessageArgs::generate::<Rng, ()>(
-                (existing_programs, rand.next_u64()),
-                (gas_limit,),
-            )
-            .into(),
-            None => UploadProgramArgs::generate::<Rng, _>(
-                (rand.next_u64(), rand.next_u64()),
-                (gas_limit, config),
-            )
-            .into(),
-        },
-        _ => unreachable!("Generate in range 0..=1."),
-    }
-}
-
-fn fuzzer_config(seed: u64, programs: Vec<ProgramId>) -> StandardGearWasmConfigsBundle<ProgramId> {
-    StandardGearWasmConfigsBundle {
-        log_info: Some(format!("Gear program seed = '{seed}'")),
-        existing_addresses: NonEmpty::from_vec(programs),
-        entry_points_set: EntryPointsSet::HandleHandleReply,
-        remove_recursion: true,
-        call_indirect_enabled: false,
-        ..Default::default()
-    }
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
@@ -153,31 +78,6 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
                 prepaid,
             )
         }
-        _ => unreachable!("Unsupported currently."),
+        _ => unimplemented!("Unsupported currently."),
     }
-}
-
-fn update_context(context: &ContextMutex) {
-    log::debug!("Starting updating context");
-    let mut initialized_programs: Vec<_> = System::events()
-        .into_iter()
-        .filter_map(|v| {
-            if let RuntimeEvent::Gear(Event::ProgramChanged {
-                id,
-                change: ProgramChangeKind::Active { .. },
-            }) = v.event
-            {
-                Some(id)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    System::reset_events();
-
-    log::debug!("Collected all the programs");
-
-    context.lock().programs.append(&mut initialized_programs);
-    log::debug!("Context is stored");
 }
