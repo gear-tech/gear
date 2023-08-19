@@ -31,8 +31,7 @@ use gear_backend_common::{
     BackendExternalities, BackendState, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
-use gear_sandbox::{default_executor::Caller, AsContext, HostError, SandboxCaller, Value};
-use gear_wasm_instrument::GLOBAL_NAME_GAS;
+use gear_sandbox::{default_executor::Caller, AsContext, HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -135,27 +134,11 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
             .unwrap_or_else(|| unreachable!("Host state must be presented"))
             .memory
             .clone();
-        let mut wrapper = Self {
+        Ok(Self {
             caller,
             manager: Default::default(),
             memory,
-        };
-
-        let f = || {
-            let gas = wrapper.caller.get_global_val(GLOBAL_NAME_GAS)?;
-            let Value::I64(gas) = gas else { return None };
-            Some(gas as u64)
-        };
-
-        let gas_left =
-            f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        wrapper
-            .host_state_mut()
-            .ext
-            .decrease_current_counter_to(gas_left);
-
-        Ok(wrapper)
+        })
     }
 
     #[track_caller]

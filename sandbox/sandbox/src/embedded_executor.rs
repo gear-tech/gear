@@ -19,8 +19,8 @@
 //! An embedded WASM executor utilizing `wasmi`.
 
 use crate::{
-    AsContext, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxCaller,
-    SandboxStore, Value, TARGET,
+    AsContext, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore, Value,
+    TARGET,
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
@@ -76,19 +76,6 @@ impl<T> AsContextExt for Store<T> {}
 
 /// wasmi caller wrapper.
 pub struct Caller<'a, T>(wasmi::Caller<'a, T>);
-
-impl<T> SandboxCaller<T> for Caller<'_, T> {
-    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()> {
-        let global = self.0.get_export(name)?.into_global()?;
-        global.set(&mut self.0, to_wasmi(value)).ok()?;
-        Some(())
-    }
-
-    fn get_global_val(&self, name: &str) -> Option<Value> {
-        let value = self.0.get_export(name)?.into_global()?.get(&self.0);
-        Some(to_interface(value))
-    }
-}
 
 impl<T> wasmi::AsContext for Caller<'_, T> {
     type UserState = T;

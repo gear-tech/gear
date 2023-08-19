@@ -21,8 +21,7 @@
 use codec::{Decode, Encode};
 
 use crate::{
-    env, AsContext, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxCaller, SandboxStore,
-    Value,
+    env, AsContext, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
 use alloc::string::String;
 use gear_runtime_interface::sandbox;
@@ -55,18 +54,6 @@ mod ffi {
     }
 }
 
-fn set_global_val(instance_idx: u32, name: &str, value: Value) -> Result<(), GlobalsSetError> {
-    match sandbox::set_global_val(instance_idx, name, value) {
-        env::ERROR_GLOBALS_OK => Ok(()),
-        env::ERROR_GLOBALS_NOT_FOUND => Err(GlobalsSetError::NotFound),
-        _ => Err(GlobalsSetError::Other),
-    }
-}
-
-fn get_global_val(instance_idx: u32, name: &str) -> Option<Value> {
-    sandbox::get_global_val(instance_idx, name)
-}
-
 pub trait AsContextExt {}
 
 pub struct Store<T>(T);
@@ -85,24 +72,11 @@ impl<T> AsContext<T> for Store<T> {
 
 impl<T> AsContextExt for Store<T> {}
 
-pub struct Caller<'a, T> {
-    data: &'a mut T,
-    instance_idx: u32,
-}
-
-impl<'a, T> SandboxCaller<T> for Caller<'a, T> {
-    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()> {
-        set_global_val(self.instance_idx, name, value).ok()
-    }
-
-    fn get_global_val(&self, name: &str) -> Option<Value> {
-        get_global_val(self.instance_idx, name)
-    }
-}
+pub struct Caller<'a, T>(&'a mut T);
 
 impl<T> AsContext<T> for Caller<'_, T> {
     fn data_mut(&mut self) -> &mut T {
-        self.data
+        self.0
     }
 }
 
@@ -280,18 +254,12 @@ impl<T> Drop for Instance<T> {
     }
 }
 
-#[repr(C)]
-struct DispatchThunkState {
-    instance_idx: Option<u32>,
-    data: usize,
-}
-
 /// The primary responsibility of this thunk is to deserialize arguments and
 /// call the original function, specified by the index.
 extern "C" fn dispatch_thunk<T>(
     serialized_args_ptr: *const u8,
     serialized_args_len: usize,
-    state: *mut DispatchThunkState,
+    state: usize,
     f: ffi::HostFuncIndex,
 ) -> u64 {
     let serialized_args = unsafe {
@@ -314,14 +282,8 @@ extern "C" fn dispatch_thunk<T>(
         let f = ffi::coerce_host_index_to_func(f);
 
         // This should be safe since mutable reference to T is passed upon the invocation.
-        let state = &*state;
-        let data = &mut *(state.data as *mut T);
-        let mut caller = Caller {
-            data,
-            instance_idx: state
-                .instance_idx
-                .unwrap_or_else(|| unreachable!("Instance index should be present")),
-        };
+        let state = &mut *(state as *mut T);
+        let mut caller = Caller(state);
 
         let mut result = Vec::with_capacity(WasmReturnValue::ENCODED_MAX_SIZE);
         // Pass control flow to the designated function.
@@ -347,18 +309,13 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
     ) -> Result<Instance<T>, Error> {
         let serialized_env_def: Vec<u8> = env_def_builder.env_def.encode();
 
-        let mut state = DispatchThunkState {
-            instance_idx: None,
-            data: store.data_mut() as *const T as _,
-        };
-
         // It's very important to instantiate thunk with the right type.
         let dispatch_thunk = dispatch_thunk::<T>;
         let result = sandbox::instantiate(
             dispatch_thunk as usize as u32,
             code,
             &serialized_env_def,
-            &mut state as *mut DispatchThunkState as _,
+            store.data_mut() as *const T as _,
         );
 
         let instance_idx = match result {
@@ -385,18 +342,13 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         let serialized_args = args.to_vec().encode();
         let mut return_val = vec![0u8; ReturnValue::ENCODED_MAX_SIZE];
 
-        let mut state = DispatchThunkState {
-            instance_idx: Some(*self.instance_idx),
-            data: store.data_mut() as *const T as _,
-        };
-
         let result = sandbox::invoke(
             *self.instance_idx,
             name,
             &serialized_args,
             return_val.as_mut_ptr() as _,
             return_val.len() as u32,
-            &mut state as *mut DispatchThunkState as _,
+            store.data_mut() as *const T as _,
         );
 
         match result {
@@ -411,7 +363,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
     }
 
     fn get_global_val(&self, _store: &Store<T>, name: &str) -> Option<Value> {
-        get_global_val(*self.instance_idx, name)
+        sandbox::get_global_val(*self.instance_idx, name)
     }
 
     fn set_global_val(
@@ -420,7 +372,11 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         name: &str,
         value: Value,
     ) -> Result<(), super::GlobalsSetError> {
-        set_global_val(*self.instance_idx, name, value)
+        match sandbox::set_global_val(*self.instance_idx, name, value) {
+            env::ERROR_GLOBALS_OK => Ok(()),
+            env::ERROR_GLOBALS_NOT_FOUND => Err(GlobalsSetError::NotFound),
+            _ => Err(GlobalsSetError::Other),
+        }
     }
 
     fn get_instance_ptr(&self) -> HostPointer {

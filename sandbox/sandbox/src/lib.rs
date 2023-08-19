@@ -100,15 +100,6 @@ pub trait SandboxStore<T>: AsContext<T> {
     fn new(state: T) -> Self;
 }
 
-/// Sandbox caller.
-pub trait SandboxCaller<T>: AsContext<T> {
-    /// Set WASM global.
-    fn set_global_val(&mut self, name: &str, value: Value) -> Option<()>;
-
-    /// Get WASM global.
-    fn get_global_val(&self, name: &str) -> Option<Value>;
-}
-
 /// Sandbox context.
 pub trait AsContext<T>: default_executor::AsContextExt {
     /// Return mutable reference to state.
