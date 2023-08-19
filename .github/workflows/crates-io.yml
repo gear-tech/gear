@@ -1,6 +1,8 @@
 name: Crates IO
 
 on:
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 env:
@@ -22,4 +24,4 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: "Publish packages"
-        run: cargo run --release -p crates-io
+        run: cargo run --release -p crates-io-manager

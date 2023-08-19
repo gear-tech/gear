@@ -60,7 +60,6 @@ use gear_core::{
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
-use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
