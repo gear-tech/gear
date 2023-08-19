@@ -305,13 +305,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
         let store = self.store.as_ref().ok_or(GlobalsAccessError)?;
         self.instance
             .get_global_val(store, name.as_str())
-            .and_then(|val| {
-                if let Value::I64(val) = val {
-                    Some(val)
-                } else {
-                    None
-                }
-            })
+            .and_then(runtime::as_i64)
             .ok_or(GlobalsAccessError)
     }
 
