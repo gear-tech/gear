@@ -441,6 +441,8 @@ heck = "0.4.1"                                                            # gsdk
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
 cargo_toml = "0.15.3"                                                     # crates-io
+crates-io = "0.37.0"                                                      # crates-io
+curl = "0.4.44"                                                           # crates-io
 
 [profile.release]
 panic = "unwind"

@@ -1,5 +1,5 @@
 [package]
-name = "crates-io"
+name = "crates-io-manager"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,4 +11,6 @@ path = "publish.rs"
 anyhow.workspace = true
 cargo_metadata.workspace = true
 cargo_toml.workspace = true
+crates-io.workspace = true
+curl.workspace = true
 toml.workspace = true

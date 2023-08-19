@@ -1,10 +1,12 @@
 //! mini-program for publishing packages to crates.io.
 use anyhow::Result;
 use cargo_metadata::MetadataCommand;
-use cargo_toml::{Dependency, DependencyDetail, InheritedDependencyDetail, Manifest, Value};
+use cargo_toml::{Dependency, Manifest, Value};
+use crates_io::Registry;
+use curl::easy::Easy;
 use std::{
     collections::{BTreeMap, HashMap},
-    fs,
+    env, fs,
     path::PathBuf,
     process::{Command, ExitStatus},
     thread,
@@ -34,7 +36,36 @@ const PACKAGES: [&str; 16] = [
     "gclient",
 ];
 
+struct CratesIo {
+    registry: Registry,
+}
+
+impl CratesIo {
+    /// Create a new instance of `CratesIo`.
+    pub fn new() -> Result<Self> {
+        let mut handle = Easy::new();
+        handle.useragent("gear-crates-io-manager")?;
+
+        Ok(Self {
+            registry: Registry::new_handle("https://crates.io".into(), None, handle, false),
+        })
+    }
+
+    /// Verify if the package is published to crates.io.
+    pub fn verify(&mut self, package: &str, version: &str) -> Result<bool> {
+        // Here using limit = 1 since we are searching explicit
+        // packages here.
+        let (crates, _total) = self.registry.search(package, 1)?;
+        if crates.len() != 1 {
+            return Ok(false);
+        }
+
+        Ok(crates[0].max_version == version)
+    }
+}
+
 fn main() -> Result<()> {
+    let mut validator = CratesIo::new()?;
     let metadata = MetadataCommand::new().no_deps().exec()?;
     let mut graph = BTreeMap::new();
     let index = HashMap::<String, usize>::from_iter(
@@ -51,14 +82,19 @@ fn main() -> Result<()> {
             continue;
         }
 
-        let version = p.version.clone();
+        let version = p.version.to_string();
+        if validator.verify(&p.name, &version)? {
+            println!("Package {}@{} already published.", &p.name, &version);
+            continue;
+        }
+
         let path = p.manifest_path.into_std_path_buf();
         let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
         manifest.complete_from_path_and_workspace(&path, Some((&workspace, &workspace_path)))?;
 
-        // // NOTE: This is a bug inside of crate cargo_toml, it should
-        // // not append crate-type = ["rlib"] to proc-macro crates, fixing
-        // // it by hacking it now.
+        // NOTE: This is a bug inside of crate cargo_toml, it should
+        // not append crate-type = ["rlib"] to proc-macro crates, fixing
+        // it by hacking it now.
         if p.name.ends_with("-codegen") {
             if let Some(mut product) = manifest.lib {
                 product.crate_type = vec![];
