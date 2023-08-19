@@ -41,6 +41,7 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
+#[track_caller]
 pub(crate) fn caller_host_state_take<Ext>(
     caller: &mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
 ) -> State<Ext, DefaultExecutorMemory> {
