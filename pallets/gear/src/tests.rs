@@ -13349,6 +13349,11 @@ fn pause_waited_uninited_program() {
             .expect("program should exist");
         let expiration_block = program.expiration_block;
 
+        assert!(TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_active(program_id));
 
@@ -13360,6 +13365,10 @@ fn pause_waited_uninited_program() {
         run_to_next_block(None);
 
         assert!(Gear::is_terminated(program_id));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
 
         System::set_block_number(expiration_block - 1);
         Gear::set_block_number(expiration_block - 1);
