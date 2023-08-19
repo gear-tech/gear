@@ -31,6 +31,7 @@ use gsdk::signer::Signer;
 /// - `payload`: data expected by the original sender.
 /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
 /// - `value`: balance to be transferred to the program once it's been created.
+/// - `prepaid`: a flag indicating whether the tx fee and gas are paid from a voucher.
 ///
 /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
 #[derive(Parser, Debug)]
@@ -46,6 +47,9 @@ pub struct Reply {
     /// Reply value
     #[arg(short, long, default_value = "0")]
     value: u128,
+    /// Use pre-issued voucher
+    #[arg(long)]
+    pub prepaid: bool,
 }
 
 impl Reply {
@@ -58,6 +62,7 @@ impl Reply {
                 self.payload.to_vec()?,
                 self.gas_limit,
                 self.value,
+                self.prepaid,
             )
             .await?;
 

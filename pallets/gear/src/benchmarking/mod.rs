@@ -678,30 +678,10 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
+        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
-    }
-
-    send_message_with_voucher {
-        let p in 0 .. MAX_PAYLOAD_LEN;
-
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
-        let payload = vec![0_u8; p as usize];
-
-        // Add voucher for the (caller, program_id) pair
-        let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
-        CurrencyOf::<T>::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
-
-        init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance, prepaid)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -730,46 +710,10 @@ benchmarks! {
             None,
         ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
+        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
-        assert!(MailboxOf::<T>::is_empty(&caller))
-    }
-
-    send_reply_with_voucher {
-        let p in 0 .. MAX_PAYLOAD_LEN;
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
-        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
-        let gas_limit = 50000;
-        let value = (p % 2).into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        let program_id = ProgramId::from_origin(program_id.into_origin());
-        MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
-            original_message_id,
-            program_id,
-            ProgramId::from_origin(caller.clone().into_origin()),
-            Default::default(),
-            value.unique_saturated_into(),
-            None,
-        ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
-        let payload = vec![0_u8; p as usize];
-
-        // Add voucher for the (caller, program_id) pair
-        let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
-        CurrencyOf::<T>::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
-
-        init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance, prepaid)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))

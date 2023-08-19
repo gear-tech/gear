@@ -29,7 +29,7 @@ sp_api::decl_runtime_apis! {
         fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>,) -> Result<GasInfo, Vec<u8>>;
 
         /// Generate inherent-like extrinsic that runs message queue processing.
-        fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic;
+        fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic;
 
         fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>>;
 

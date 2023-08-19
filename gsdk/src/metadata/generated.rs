@@ -1833,11 +1833,18 @@ pub mod runtime_types {
                     #[doc = "is not a program in uninitialized state. If the opposite holds true,"]
                     #[doc = "the message is not enqueued for processing."]
                     #[doc = ""]
+                    #[doc = "If `prepaid` flag is set, the transaction fee and the gas cost will be"]
+                    #[doc = "charged against a `voucher` that must have been issued for the sender"]
+                    #[doc = "in conjunction with the `destination` program. That means that the"]
+                    #[doc = "synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must"]
+                    #[doc = "exist and have sufficient funds in it. Otherwise, the call is invalidated."]
+                    #[doc = ""]
                     #[doc = "Parameters:"]
                     #[doc = "- `destination`: the message destination."]
                     #[doc = "- `payload`: in case of a program destination, parameters of the `handle` function."]
                     #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
                     #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                    #[doc = "- `prepaid`: a flag that indicates whether a voucher should be used."]
                     #[doc = ""]
                     #[doc = "Emits the following events:"]
                     #[doc = "- `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue."]
@@ -1846,6 +1853,7 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send reply on message in `Mailbox`."]
@@ -1861,11 +1869,18 @@ pub mod runtime_types {
                     #[doc = ""]
                     #[doc = "NOTE: only user who is destination of the message, can claim value"]
                     #[doc = "or reply on the message from mailbox."]
+                    #[doc = ""]
+                    #[doc = "If `prepaid` flag is set, the transaction fee and the gas cost will be"]
+                    #[doc = "charged against a `voucher` that must have been issued for the sender"]
+                    #[doc = "in conjunction with the mailboxed message source program. That means that the"]
+                    #[doc = "synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must"]
+                    #[doc = "exist and have sufficient funds in it. Otherwise, the call is invalidated."]
                     send_reply {
                         reply_to_id: runtime_types::gear_core::ids::MessageId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "Claim value from message in `Mailbox`."]
@@ -1881,7 +1896,9 @@ pub mod runtime_types {
                     },
                     #[codec(index = 6)]
                     #[doc = "Process message queue"]
-                    run,
+                    run {
+                        max_gas: ::core::option::Option<::core::primitive::u64>,
+                    },
                     #[codec(index = 7)]
                     #[doc = "Sets `ExecuteInherent` flag."]
                     #[doc = ""]
@@ -1933,45 +1950,6 @@ pub mod runtime_types {
                     resume_session_commit {
                         session_id: ::core::primitive::u128,
                         block_count: ::core::primitive::u32,
-                    },
-                    #[codec(index = 12)]
-                    #[doc = "Sends a message to a program using pre-allocated funds."]
-                    #[doc = ""]
-                    #[doc = "The origin must be Signed and the sender must have been issued a `voucher` -"]
-                    #[doc = "a record for the (`AccountId`, `ProgramId`) pair exists in the `Voucher` pallet"]
-                    #[doc = "and the respective synthesize account for such pair has funds in it."]
-                    #[doc = "The `gas` and transaction fees will, therefore, be paid from this synthesize account."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `destination`: the message destination (must be an initialized program)."]
-                    #[doc = "- `payload`: in case of a program destination, parameters of the `handle` function."]
-                    #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                    #[doc = "- `value`: balance to be transferred to the program once it's been created."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue."]
-                    send_message_with_voucher {
-                        destination: runtime_types::gear_core::ids::ProgramId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
-                        gas_limit: ::core::primitive::u64,
-                        value: ::core::primitive::u128,
-                    },
-                    #[codec(index = 13)]
-                    #[doc = "Sends the reply to a message in `Mailbox` using pre-allocated funds."]
-                    #[doc = ""]
-                    #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
-                    #[doc = "rent funds become free, associated with the message value"]
-                    #[doc = "transfers from message sender to extrinsic caller."]
-                    #[doc = ""]
-                    #[doc = "Generates reply on removed message with given parameters"]
-                    #[doc = "and pushes it in `MessageQueue`."]
-                    #[doc = ""]
-                    #[doc = "NOTE: source of the message in mailbox must be a program."]
-                    send_reply_with_voucher {
-                        reply_to_id: runtime_types::gear_core::ids::MessageId,
-                        payload: ::std::vec::Vec<::core::primitive::u8>,
-                        gas_limit: ::core::primitive::u64,
-                        value: ::core::primitive::u128,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -7821,8 +7799,6 @@ pub mod calls {
         ResumeSessionInit,
         ResumeSessionPush,
         ResumeSessionCommit,
-        SendMessageWithVoucher,
-        SendReplyWithVoucher,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -7840,8 +7816,6 @@ pub mod calls {
                 Self::ResumeSessionInit => "resume_session_init",
                 Self::ResumeSessionPush => "resume_session_push",
                 Self::ResumeSessionCommit => "resume_session_commit",
-                Self::SendMessageWithVoucher => "send_message_with_voucher",
-                Self::SendReplyWithVoucher => "send_reply_with_voucher",
             }
         }
     }

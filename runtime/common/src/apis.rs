@@ -161,8 +161,10 @@ macro_rules! impl_runtime_apis_plus_common {
 					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
 				}
 
-				fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
-					UncheckedExtrinsic::new_unsigned(Gear::run_call().into()).into()
+				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
+					UncheckedExtrinsic::new_unsigned(
+						Gear::run_call(max_gas).into()
+					).into()
 				}
 
 				fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
