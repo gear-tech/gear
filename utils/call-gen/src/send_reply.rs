@@ -26,7 +26,7 @@ use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
 // reply to message id, payload, gas limit, value
-type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
+type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128, bool);
 
 /// Send reply args
 ///
@@ -62,6 +62,8 @@ impl GeneratableCallArgs for SendReplyArgs {
         // TODO #2203
         let value = 0;
 
-        Self((message_id, payload, gas_limit, value))
+        let prepaid = false;
+
+        Self((message_id, payload, gas_limit, value, prepaid))
     }
 }
