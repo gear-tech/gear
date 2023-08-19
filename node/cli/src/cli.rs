@@ -31,7 +31,7 @@ pub struct RunCmd {
     pub force_vara: bool,
 
     /// The upper limit for the amount of gas a validator can burn in one block.
-    #[arg(long, short = 'g')]
+    #[arg(long)]
     pub max_gas: Option<u64>,
 }
 
