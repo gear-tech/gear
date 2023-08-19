@@ -57,11 +57,6 @@ impl CratesIo {
 
     /// Verify if the package is published to crates.io.
     pub fn verify(&mut self, mut package: &str, version: &str) -> Result<bool> {
-        // // TODO: remove this hack after we official publishing v0.2.2.
-        // if (package == "gmeta-codegen" || package == "gear-backend-codegen") {
-        //     return Ok(true);
-        // }
-
         if package == "gear-core-processor" {
             package = "gear-processor";
         }
