@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 16] = [
+const PACKAGES: [&str; 17] = [
     // Packages without local dependencies.
     "gear-backend-codegen",
     "gear-common-codegen",
@@ -27,8 +27,9 @@ const PACKAGES: [&str; 16] = [
     // and should be published in order.
     "gmeta",
     "gear-core",
-    "gear-core-processor",
+    "gear-utils",
     "gear-backend-common",
+    "gear-core-processor",
     "gear-backend-wasmi",
     "gear-common",
     "gsdk",
@@ -52,7 +53,16 @@ impl CratesIo {
     }
 
     /// Verify if the package is published to crates.io.
-    pub fn verify(&mut self, package: &str, version: &str) -> Result<bool> {
+    pub fn verify(&mut self, mut package: &str, version: &str) -> Result<bool> {
+        // workaround here.
+        if package == "gmeta-codegen" || package == "gear-backend-codegen" {
+            return Ok(true);
+        }
+
+        if package == "gear-core-processor" {
+            package = "gear-processor";
+        }
+
         // Here using limit = 1 since we are searching explicit
         // packages here.
         let (crates, _total) = self.registry.search(package, 1)?;
@@ -100,16 +110,47 @@ fn main() -> Result<()> {
                 product.crate_type = vec![];
                 manifest.lib = Some(product);
             }
+        } else if p.name == "gear-core-processor" {
+            if let Some(mut metadata) = manifest.package {
+                metadata.name = "gear-processor".into();
+                manifest.package = Some(metadata);
+            }
         }
 
         for (name, dep) in manifest.dependencies.iter_mut() {
-            if !index.contains_key(name) {
+            // NOTE: the required version of sp-arithmetic is 6.0.0 in
+            // git repo, but 7.0.0 in crates.io, so we need to fix it.
+            if name == "sp-arithmetic" {
+                if let Dependency::Detailed(detail) = &dep {
+                    let mut detail = detail.clone();
+                    detail.version = Some("7.0.0".into());
+                    detail.branch = None;
+                    detail.git = None;
+
+                    *dep = Dependency::Detailed(detail.clone());
+                }
+            } else if name == "subxt" {
+                if let Dependency::Detailed(detail) = &dep {
+                    let mut detail = detail.clone();
+                    detail.package = Some("gear-subxt".into());
+                    *dep = Dependency::Detailed(detail.clone());
+                }
+            }
+
+            // No need to update dependencies for packages without
+            // local dependencies.
+            if !index.contains_key(name) && name != "core-processor" {
                 continue;
             }
 
             if let Dependency::Detailed(detail) = &dep {
                 let mut detail = detail.clone();
                 detail.version = Some(version.to_string());
+
+                if detail.package == Some("gear-core-processor".into()) {
+                    detail.package = Some("gear-processor".into());
+                }
+
                 *dep = Dependency::Detailed(detail.clone());
             }
         }
@@ -150,7 +191,6 @@ fn publish(manifest: &str) -> Result<ExitStatus> {
         .arg("--manifest-path")
         .arg(manifest)
         .arg("--allow-dirty")
-        .arg("--dry-run")
         .status()
         .map_err(Into::into)
 }

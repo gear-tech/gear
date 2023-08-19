@@ -99,7 +99,7 @@ impl Origin for sp_runtime::AccountId32 {
     }
 
     fn from_origin(v: H256) -> Self {
-        sp_runtime::AccountId32::unchecked_from(v)
+        Self::new(v.0)
     }
 }
 
