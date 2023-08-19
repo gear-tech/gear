@@ -381,7 +381,7 @@ where
                 balance,
                 ExistenceRequirement::AllowDeath,
             )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
         }
     }
 
@@ -393,7 +393,7 @@ where
             let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
 
             QueueOf::<T>::queue(message)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
         });
 
         ProgramStorageOf::<T>::waiting_init_remove(program_id);

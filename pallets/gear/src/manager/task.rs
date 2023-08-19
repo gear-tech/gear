@@ -109,8 +109,7 @@ where
         })
         .unwrap_or_else(|e| {
             unreachable!(
-                "Program terminated status may only be set to an existing active program: {:?}",
-                e,
+                "Program terminated status may only be set to an existing active program: {e:?}"
             );
         });
 
@@ -234,8 +233,7 @@ where
             })
             .unwrap_or_else(|e| {
                 unreachable!(
-                    "Program terminated status may only be set to an existing active program: {:?}",
-                    e,
+                    "Program terminated status may only be set to an existing active program: {e:?}"
                 );
             });
 
