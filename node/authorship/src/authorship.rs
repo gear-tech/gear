@@ -80,6 +80,8 @@ pub struct ProposerFactory<A, B, C, PR> {
     telemetry: Option<TelemetryHandle>,
     /// When estimating the block size, should the proof be included?
     include_proof_in_block_size_estimation: bool,
+    /// Hard limit for the gas allowed to burn in one block.
+    max_gas: Option<u64>,
     /// phantom member to pin the `Backend`/`ProofRecording` type.
     _phantom: PhantomData<(B, PR)>,
 }
@@ -105,6 +107,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
             telemetry,
             client,
             include_proof_in_block_size_estimation: false,
+            max_gas: None,
             _phantom: PhantomData,
         }
     }
@@ -133,6 +136,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
             soft_deadline_percent: DEFAULT_SOFT_DEADLINE_PERCENT,
             telemetry,
             include_proof_in_block_size_estimation: true,
+            max_gas: None,
             _phantom: PhantomData,
         }
     }
@@ -169,6 +173,11 @@ impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
     /// are being tried with no success, hence block producer ends up creating an empty block.
     pub fn set_soft_deadline(&mut self, percent: Percent) {
         self.soft_deadline_percent = percent;
+    }
+
+    /// Set the hard limit for the block gas
+    pub fn set_block_max_gas(&mut self, max_gas: u64) {
+        self.max_gas = Some(max_gas);
     }
 }
 
@@ -210,6 +219,7 @@ where
             default_block_size_limit: self.default_block_size_limit,
             soft_deadline_percent: self.soft_deadline_percent,
             telemetry: self.telemetry.clone(),
+            max_gas: self.max_gas,
             _phantom: PhantomData,
             include_proof_in_block_size_estimation: self.include_proof_in_block_size_estimation,
         };
@@ -258,6 +268,7 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     include_proof_in_block_size_estimation: bool,
     soft_deadline_percent: Percent,
     telemetry: Option<TelemetryHandle>,
+    max_gas: Option<u64>,
     _phantom: PhantomData<(B, PR)>,
 }
 
@@ -514,7 +525,7 @@ where
         self.transaction_pool.remove_invalid(&unqueue_invalid);
 
         // Pushing a custom extrinsic that must run at the end of a block
-        let custom_extrinsic = block_builder.create_terminal_extrinsic()?;
+        let custom_extrinsic = block_builder.create_terminal_extrinsic(self.max_gas)?;
 
         debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
         match block_builder.push(custom_extrinsic) {

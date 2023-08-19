@@ -368,6 +368,7 @@ pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
         >,
         &sc_consensus_babe::BabeLink<Block>,
     ),
+    max_gas: Option<u64>,
 ) -> Result<NewFullBase<RuntimeApi, ExecutorDispatch>, ServiceError>
 where
     RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -484,13 +485,16 @@ where
     (with_startup_data)(&block_import, &babe_link);
 
     if let sc_service::config::Role::Authority { .. } = &role {
-        let proposer = authorship::ProposerFactory::new(
+        let mut proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),
         );
+        if let Some(max_gas) = max_gas {
+            proposer.set_block_max_gas(max_gas);
+        };
 
         let client_clone = client.clone();
         let slot_duration = babe_link.config().slot_duration();
@@ -640,6 +644,7 @@ impl ExecuteWithClient for RevertConsensus {
 pub fn new_full(
     config: Configuration,
     disable_hardware_benchmarks: bool,
+    max_gas: Option<u64>,
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
@@ -647,6 +652,7 @@ pub fn new_full(
             config,
             disable_hardware_benchmarks,
             |_, _| (),
+            max_gas,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
@@ -654,6 +660,7 @@ pub fn new_full(
             config,
             disable_hardware_benchmarks,
             |_, _| (),
+            max_gas,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),

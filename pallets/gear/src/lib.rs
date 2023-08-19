@@ -1284,8 +1284,8 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn run_call() -> Call<T> {
-            Call::run {}
+        pub fn run_call(max_gas: Option<GasBalanceOf<T>>) -> Call<T> {
+            Call::run { max_gas }
         }
 
         pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
@@ -1704,7 +1704,10 @@ pub mod pallet {
         /// Process message queue
         #[pallet::call_index(6)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
-        pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+        pub fn run(
+            origin: OriginFor<T>,
+            max_gas: Option<GasBalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
             ensure!(
@@ -1716,8 +1719,12 @@ pub mod pallet {
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
             let remaining_weight = max_weight.saturating_sub(weight_used.total());
 
-            // Remaining weight may exceed the minimum block gas limit determined by the Limiter trait
-            let adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
+            // Remaining weight may exceed the minimum block gas limit set by the Limiter trait.
+            let mut adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
+            // Gas for queue processing can never exceed the hard limit, if the latter is provided.
+            if let Some(max_gas) = max_gas {
+                adjusted_gas = adjusted_gas.min(max_gas);
+            };
 
             log::debug!(
                 target: "gear::runtime",

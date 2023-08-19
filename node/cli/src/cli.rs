@@ -29,6 +29,10 @@ pub struct RunCmd {
     /// Force using Vara native runtime.
     #[arg(long = "force-vara")]
     pub force_vara: bool,
+
+    /// The upper limit for the amount of gas a validator can burn in one block.
+    #[arg(long, short = 'g')]
+    pub max_gas: Option<u64>,
 }
 
 #[derive(Debug, Parser)]

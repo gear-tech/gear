@@ -1881,7 +1881,9 @@ pub mod runtime_types {
                     },
                     #[codec(index = 6)]
                     #[doc = "Process message queue"]
-                    run,
+                    run {
+                        max_gas: ::core::option::Option<::core::primitive::u64>,
+                    },
                     #[codec(index = 7)]
                     #[doc = "Sets `ExecuteInherent` flag."]
                     #[doc = ""]
