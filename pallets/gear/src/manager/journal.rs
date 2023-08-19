@@ -139,46 +139,9 @@ where
                 executed,
                 ..
             } => {
-                log::trace!(
-                    "Dispatch ({:?}) init failure for program {:?}",
-                    message_id,
-                    program_id
-                );
+                log::trace!("Dispatch ({message_id:?}) init failure for program {program_id:?}");
 
-                // Some messages addressed to the program could be processed
-                // in the queue before init message. For example, that could
-                // happen when init message had more gas limit then rest block
-                // gas allowance, but a dispatch message to the program was
-                // dequeued. The other case is async init.
-                Self::clean_waitlist(program_id);
-
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-                    let _ = TaskPoolOf::<T>::delete(
-                        bn,
-                        ScheduledTask::PauseProgram(program_id),
-                    );
-
-                    if let Program::Active(program) = p { Self::remove_gas_reservation_map(program_id, core::mem::take(&mut program.gas_reservation_map)) }
-
-                    *p = Program::Terminated(origin);
-                }).unwrap_or_else(|e| {
-                    // If we run into `InitFailure` after real execution (not
-                    // prepare or precharge) processor methods, then we are
-                    // sure that it was active program.
-                    if executed {
-                        unreachable!(
-                            "Program terminated status may only be set to an existing active program: {:?}",
-                            e,
-                        );
-                    }
-                });
-
-                Self::clean_inactive_program(program_id, origin);
-
-                Pallet::<T>::deposit_event(Event::ProgramChanged {
-                    id: program_id,
-                    change: ProgramChangeKind::Terminated,
-                });
+                Self::process_failed_init(program_id, origin, executed);
 
                 DispatchStatus::Failed
             }

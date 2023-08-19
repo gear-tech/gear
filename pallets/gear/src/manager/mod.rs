@@ -53,13 +53,14 @@ pub use journal::*;
 pub use task::*;
 
 use crate::{
-    Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
+    WaitlistOf,
 };
 use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    ActiveProgram, CodeStorage, Origin, ProgramState, ProgramStorage, ReservableTree,
+    ActiveProgram, CodeStorage, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -397,5 +398,47 @@ where
         });
 
         ProgramStorageOf::<T>::waiting_init_remove(program_id);
+    }
+
+    fn process_failed_init(program_id: ProgramId, origin: ProgramId, executed: bool) {
+        // Some messages addressed to the program could be processed
+        // in the queue before init message. For example, that could
+        // happen when init message had more gas limit then rest block
+        // gas allowance, but a dispatch message to the program was
+        // dequeued. The other case is async init.
+        Self::clean_waitlist(program_id);
+
+        ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
+
+            match p {
+                Program::Active(program) => Self::remove_gas_reservation_map(
+                    program_id,
+                    core::mem::take(&mut program.gas_reservation_map),
+                ),
+                _ if executed => unreachable!("Action executed only for active program"),
+                _ => (),
+            }
+
+            *p = Program::Terminated(origin);
+        })
+        .unwrap_or_else(|e| {
+            // If we run into `InitFailure` after real execution (not
+            // prepare or precharge) processor methods, then we are
+            // sure that it was active program.
+            if executed {
+                unreachable!(
+                    "Program terminated status may only be set to an existing active program: {:?}",
+                    e,
+                );
+            }
+        });
+
+        Self::clean_inactive_program(program_id, origin);
+
+        Pallet::<T>::deposit_event(Event::ProgramChanged {
+            id: program_id,
+            change: ProgramChangeKind::Terminated,
+        });
     }
 }

@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, DispatchStashOf, Event, Pallet, ProgramStorageOf, QueueOf,
-    TaskPoolOf, WaitlistOf,
+    WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -215,34 +215,8 @@ where
         Pallet::<T>::consume_and_retrieve(waitlisted.id());
 
         if waitlisted.kind() == DispatchKind::Init {
-            Self::clean_waitlist(program_id);
-
             let origin = waitlisted.source();
-            ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-                let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
-
-                match p {
-                    Program::Active(program) => Self::remove_gas_reservation_map(
-                        program_id,
-                        core::mem::take(&mut program.gas_reservation_map),
-                    ),
-                    _ => unreachable!("Action executed only for active program"),
-                }
-
-                *p = Program::Terminated(origin);
-            })
-            .unwrap_or_else(|e| {
-                unreachable!(
-                    "Program terminated status may only be set to an existing active program: {e:?}"
-                );
-            });
-
-            Self::clean_inactive_program(program_id, origin);
-
-            Pallet::<T>::deposit_event(Event::ProgramChanged {
-                id: program_id,
-                change: ProgramChangeKind::Terminated,
-            });
+            Self::process_failed_init(program_id, origin, true);
         }
     }
 
