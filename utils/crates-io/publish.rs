@@ -135,7 +135,7 @@ fn main() -> Result<()> {
                 continue;
             };
 
-            match name {
+            match name.as_ref() {
                 // NOTE: the required version of sp-arithmetic is 6.0.0 in
                 // git repo, but 7.0.0 in crates.io, so we need to fix it.
                 "sp-arithmetic" => {
