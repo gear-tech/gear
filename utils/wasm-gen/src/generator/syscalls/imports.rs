@@ -34,7 +34,7 @@ use gear_wasm_instrument::{
     },
     syscalls::SysCallName,
 };
-use gsys::{ErrorWithHash, HashWithValue, Length};
+use gsys::HashWithValue;
 use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
