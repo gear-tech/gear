@@ -116,9 +116,9 @@ impl<T> super::SandboxMemory<T> for Memory {
         }
     }
 
-    fn get<C>(&self, _ctx: &C, offset: u32, buf: &mut [u8]) -> Result<(), Error>
+    fn get<Context>(&self, _ctx: &Context, offset: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let result = sandbox::memory_get(
             self.handle.memory_idx,
@@ -133,9 +133,9 @@ impl<T> super::SandboxMemory<T> for Memory {
         }
     }
 
-    fn set<C>(&self, _ctx: &mut C, offset: u32, val: &[u8]) -> Result<(), Error>
+    fn set<Context>(&self, _ctx: &mut Context, offset: u32, val: &[u8]) -> Result<(), Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let result = sandbox::memory_set(
             self.handle.memory_idx,
@@ -150,25 +150,25 @@ impl<T> super::SandboxMemory<T> for Memory {
         }
     }
 
-    fn grow<C>(&self, ctx: &mut C, pages: u32) -> Result<u32, Error>
+    fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let size = self.size(ctx);
         sandbox::memory_grow(self.handle.memory_idx, pages);
         Ok(size)
     }
 
-    fn size<C>(&self, _ctx: &C) -> u32
+    fn size<Context>(&self, _ctx: &Context) -> u32
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         sandbox::memory_size(self.handle.memory_idx)
     }
 
-    unsafe fn get_buff<C>(&self, _ctx: &mut C) -> HostPointer
+    unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> HostPointer
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         sandbox::get_buff(self.handle.memory_idx)
     }

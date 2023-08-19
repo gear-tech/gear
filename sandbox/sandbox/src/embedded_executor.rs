@@ -112,9 +112,9 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(Memory { memref })
     }
 
-    fn get<C>(&self, ctx: &C, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
+    fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let data = self
             .memref
@@ -125,9 +125,9 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(())
     }
 
-    fn set<C>(&self, ctx: &mut C, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let data = self
             .memref
@@ -138,9 +138,9 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(())
     }
 
-    fn grow<C>(&self, ctx: &mut C, pages: u32) -> Result<u32, Error>
+    fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         let pages = Pages::new(pages).ok_or(Error::MemoryGrow)?;
         self.memref
@@ -149,16 +149,16 @@ impl<T> super::SandboxMemory<T> for Memory {
             .map_err(|_| Error::MemoryGrow)
     }
 
-    fn size<C>(&self, ctx: &C) -> u32
+    fn size<Context>(&self, ctx: &Context) -> u32
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         self.memref.current_pages(ctx).into()
     }
 
-    unsafe fn get_buff<C>(&self, ctx: &mut C) -> u64
+    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> u64
     where
-        C: AsContext<T>,
+        Context: AsContext<T>,
     {
         self.memref.data_mut(ctx).as_mut_ptr() as usize as u64
     }

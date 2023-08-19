@@ -131,37 +131,37 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Read a memory area at the address `ptr` with the size of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn get<C>(&self, ctx: &C, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
+    fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        C: AsContext<T>;
+        Context: AsContext<T>;
 
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn set<C>(&self, ctx: &mut C, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        C: AsContext<T>;
+        Context: AsContext<T>;
 
     /// Grow memory with provided number of pages.
     ///
     /// Returns `Err` if attempted to allocate more memory than permitted by the limit.
-    fn grow<C>(&self, ctx: &mut C, pages: u32) -> Result<u32, Error>
+    fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        C: AsContext<T>;
+        Context: AsContext<T>;
 
     /// Returns current memory size.
     ///
     /// Maximum memory size cannot exceed 65536 pages or 4GiB.
-    fn size<C>(&self, ctx: &C) -> u32
+    fn size<Context>(&self, ctx: &Context) -> u32
     where
-        C: AsContext<T>;
+        Context: AsContext<T>;
 
     /// Returns pointer to the begin of wasm mem buffer
     /// # Safety
     /// Pointer is intended to use by `mprotect` function.
-    unsafe fn get_buff<C>(&self, ctx: &mut C) -> HostPointer
+    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> HostPointer
     where
-        C: AsContext<T>;
+        Context: AsContext<T>;
 }
 
 /// Struct that can be used for defining an environment for a sandboxed module.
