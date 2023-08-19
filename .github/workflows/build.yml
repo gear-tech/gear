@@ -91,6 +91,8 @@ jobs:
           cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
           # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          # check that read_big_state benchmarks works
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check that check/test benchmarks works
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check also lazy-pages benchmarks tests for native runtime

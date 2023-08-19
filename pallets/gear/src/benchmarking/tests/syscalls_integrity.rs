@@ -29,7 +29,8 @@
 
 use super::*;
 
-use crate::{Event, RentCostPerBlockOf, WaitlistOf};
+use crate::{BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
+use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -38,6 +39,83 @@ use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
 use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
+
+pub fn read_big_state<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
+
+    #[cfg(feature = "std")]
+    utils::init_logger();
+
+    let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+    CurrencyOf::<T>::deposit_creating(
+        &origin,
+        100_000_000_000_000_000_u128.unique_saturated_into(),
+    );
+
+    let salt = b"read_big_state salt";
+
+    Gear::<T>::upload_program(
+        RawOrigin::Signed(origin.clone()).into(),
+        WASM_BINARY.to_vec(),
+        salt.to_vec(),
+        Default::default(),
+        BlockGasLimitOf::<T>::get(),
+        Zero::zero(),
+    )
+    .expect("Failed to upload read_big_state binary");
+
+    let pid = ProgramId::generate(CodeId::generate(WASM_BINARY), salt);
+    utils::run_to_next_block::<T>(None);
+
+    let string = String::from("hi").repeat(4095);
+    let string_size = 8 * 1024;
+    assert_eq!(string.encoded_size(), string_size);
+
+    let strings = Strings::new(string);
+    let strings_size = (string_size * Strings::LEN) + 1;
+    assert_eq!(strings.encoded_size(), strings_size);
+
+    let approx_size =
+        |size: usize, iteration: usize| -> usize { size - 17 - 144 * (iteration + 1) };
+
+    // with initial data step is ~2 MiB
+    let expected_size =
+        |iteration: usize| -> usize { Strings::LEN * State::LEN * string_size * (iteration + 1) };
+
+    // go to 6 MiB due to approximate calculations and 8MiB reply restrictions
+    for i in 0..3 {
+        let next_user_mid = utils::get_next_message_id::<T>(origin.clone());
+
+        Gear::<T>::send_message(
+            RawOrigin::Signed(origin.clone()).into(),
+            pid,
+            strings.encode(),
+            BlockGasLimitOf::<T>::get(),
+            Zero::zero(),
+        )
+        .expect("Failed to send read_big_state append command");
+
+        utils::run_to_next_block::<T>(None);
+
+        assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+            let bytes = e.event.encode();
+            let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+            let Event::MessagesDispatched { statuses, .. } = gear_event else { return false };
+
+            log::debug!("{statuses:?}");
+            log::debug!("{next_user_mid:?}");
+            matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
+        }), "No message with expected id had succeeded");
+
+        let state =
+            Gear::<T>::read_state_impl(pid, Default::default()).expect("Failed to read state");
+        assert_eq!(approx_size(state.len(), i), expected_size(i));
+    }
+}
 
 pub fn main_test<T>()
 where

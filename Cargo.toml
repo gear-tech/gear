@@ -385,7 +385,7 @@ demo-program-generator = { path = "examples/program-generator" }
 demo-proxy = { path = "examples/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
-demo-read-big-state = { path = "examples/read-big-state" }
+demo-read-big-state = { path = "examples/read-big-state", default-features = false }
 demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas" }
 demo-rwlock = { path = "examples/rwlock" }

@@ -57,6 +57,7 @@ rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
+demo-read-big-state = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -151,6 +152,7 @@ std = [
 	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
+	"demo-read-big-state?/std",
 	"demo-proxy?/std",
 ]
 runtime-benchmarks = [
@@ -166,6 +168,7 @@ runtime-benchmarks = [
 	"rand",
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
+	"demo-read-big-state/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
 	"gsys",
 ]
