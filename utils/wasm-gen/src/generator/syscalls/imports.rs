@@ -280,11 +280,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 .into();
             initial_mem_size.memory_size()
         };
+
         // subtract to be sure we are in memory boundaries.
-        let reserve_gas_result_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
-        let rid_pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<Length>() as i32;
-        let pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<ErrorWithHash>() as i32;
-        let reservation_send_result_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
+        let pid_value_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
+        let rid_pid_value_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Amount of gas to reserve
@@ -292,10 +291,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             // Duration of the reservation
             Instruction::GetLocal(5),
             // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
+            Instruction::GetLocal(6),
             Instruction::Call(reserve_gas_idx as u32),
             // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
+            Instruction::GetLocal(6),
             // Load LengthWithHash.length
             Instruction::I32Load(2, 0),
             // Check if LengthWithHash.length == 0
@@ -337,7 +336,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             // Number of blocks to delay the sending for
             Instruction::GetLocal(3),
             // Pointer to the result of the reservation send
-            Instruction::I32Const(reservation_send_result_ptr),
+            Instruction::GetLocal(6),
             Instruction::Call(reservation_send_idx as u32),
             Instruction::End,
             Instruction::End,

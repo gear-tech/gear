@@ -40,6 +40,7 @@ impl SysCallsConfigBuilder {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
             sending_message_destination: MessageDestination::default(),
+            ignore_fallible_syscall_errors: false,
             log_info: None,
         })
     }
@@ -83,6 +84,13 @@ impl SysCallsConfigBuilder {
         self
     }
 
+    /// Enable/disable processing of errors returned from fallible syscalls.
+    pub fn set_ignore_fallible_syscall_errors(mut self, ignore: bool) -> Self {
+        self.0.ignore_fallible_syscall_errors = ignore;
+
+        self
+    }
+
     fn enable_sys_call(&mut self, name: SysCallName) {
         let range = self.0.injection_amounts.get(name);
 
@@ -105,6 +113,7 @@ pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
     sending_message_destination: MessageDestination,
+    ignore_fallible_syscall_errors: bool,
     log_info: Option<String>,
 }
 
@@ -128,9 +137,14 @@ impl SysCallsConfig {
         self.log_info.as_ref()
     }
 
-    /// Gen sys-calls params config.
+    /// Get sys-calls params config.
     pub fn params_config(&self) -> &SysCallsParamsConfig {
         &self.params_config
+    }
+
+    /// Should we ignore error processing of fallible syscalls?
+    pub fn ignore_fallible_syscall_errors(&self) -> bool {
+        self.ignore_fallible_syscall_errors
     }
 }
 

@@ -87,6 +87,7 @@ impl InvocableSysCall {
                     ParamType::Delay,        // Number of blocks to delay the sending for
                     ParamType::Gas,          // Amount of gas to reserve
                     ParamType::Duration,     // Duration of the reservation
+                    ParamType::Ptr(None),    // Address of error returned
                 ]),
                 _ => unimplemented!(),
             },

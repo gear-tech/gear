@@ -278,8 +278,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             instructions
         };
 
-        println!("{} {:?}", invocable.to_str(), res);
-
         Ok(res)
     }
 
@@ -319,7 +317,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
                 return vec![
                     Instruction::I32Const(*ptr),
-                    Instruction::I32Load(4, 0),
+                    Instruction::I32Load(2, 0),
                     Instruction::I32Const(0),
                     Instruction::I32Ne,
                     Instruction::If(BlockType::NoResult),
@@ -442,8 +440,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         syscall: SysCallInfo,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
-        let ignore_syscall_result = true;
-
         let mut instructions = vec![];
 
         let param_setters = self.build_param_setters(&syscall.signature.params)?;
@@ -451,7 +447,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
-        let mut result_processing = if ignore_syscall_result {
+        let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
             std::iter::repeat(Instruction::Drop)
                 .take(syscall.signature.results.len())
                 .collect()
