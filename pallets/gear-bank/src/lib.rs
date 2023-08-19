@@ -285,6 +285,10 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
+            // All the checks and internal values withdrawals performed in
+            // `*_no_transfer` function above.
+            //
+            // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
@@ -300,6 +304,10 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
 
+            // All the checks and internal values withdrawals performed in
+            // `*_no_transfer` function above.
+            //
+            // This call does only currency trait final transfer.
             Self::reward_block_author(value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
@@ -364,6 +372,10 @@ pub mod pallet {
 
             Self::withdraw_value_no_transfer(account_id, value)?;
 
+            // All the checks and internal values withdrawals performed in
+            // `*_no_transfer` function above.
+            //
+            // This call does only currency trait final transfer.
             Self::withdraw(account_id, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
@@ -381,6 +393,10 @@ pub mod pallet {
 
             Self::withdraw_value_no_transfer(account_id, value)?;
 
+            // All the checks and internal values withdrawals performed in
+            // `*_no_transfer` function above.
+            //
+            // This call does only currency trait final transfer.
             Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
