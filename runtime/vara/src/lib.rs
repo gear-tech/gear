@@ -835,7 +835,7 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// TODO: in case of the `send_reply` call we have to iterate through the
+// TODO: in case of the `send_reply` prepaid call we have to iterate through the
 // user's mailbox to dig out the stored message source `program_id` to check if it has
 // issued a voucher to pay for the reply extrinsic transaction fee.
 // Isn't there a better way to do that?

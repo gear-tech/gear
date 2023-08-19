@@ -1474,7 +1474,7 @@ pub mod pallet {
         /// the message is not enqueued for processing.
         ///
         /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// be charged against a `voucher` that must have been issued for the sender
+        /// charged against a `voucher` that must have been issued for the sender
         /// in conjunction with the `destination` program. That means that the
         /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
         /// exist and have sufficient funds in it. Otherwise, the call is invalidated.
@@ -1600,7 +1600,7 @@ pub mod pallet {
         /// or reply on the message from mailbox.
         ///
         /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// be charged against a `voucher` that must have been issued for the sender
+        /// charged against a `voucher` that must have been issued for the sender
         /// in conjunction with the mailboxed message source program. That means that the
         /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
         /// exist and have sufficient funds in it. Otherwise, the call is invalidated.

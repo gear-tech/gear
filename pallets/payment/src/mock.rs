@@ -267,7 +267,7 @@ impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
             RuntimeCall::Gear(pallet_gear::Call::send_message { prepaid, .. }) => {
-                prepaid.then(|| FEE_PAYER)
+                prepaid.then_some(FEE_PAYER)
             }
             RuntimeCall::Gear(pallet_gear::Call::send_reply {
                 reply_to_id,
