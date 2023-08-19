@@ -74,6 +74,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
         );
         let gas = GAS_LIMIT.mul(99).div(100);
         let value = 0;
+        let prepaid = false;
         let mut programs = [ProgramId::default(); GearCalls::INIT_MSGS];
         // Upload code used as a default value.
         let mut calls = get_uninitialized_calls();
@@ -120,7 +121,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             log::trace!("Payload (send_message) length {:?}", payload.len());
 
             calls[i].write(GearCall::SendMessage(SendMessageArgs((
-                program_id, payload, gas, value,
+                program_id, payload, gas, value, prepaid,
             ))));
         }
 

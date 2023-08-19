@@ -26,7 +26,7 @@ use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
 // destination, payload, gas, value
-type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
+type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128, bool);
 
 /// Send message args
 ///
@@ -67,6 +67,8 @@ impl GeneratableCallArgs for SendMessageArgs {
         // TODO #2203
         let value = 0;
 
-        Self((destination, payload, gas_limit, value))
+        let prepaid = false;
+
+        Self((destination, payload, gas_limit, value, prepaid))
     }
 }

@@ -109,6 +109,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<TxInBlock> {
         self.run_tx(
             GearCall::SendMessage,
@@ -117,6 +118,7 @@ impl Signer {
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
+                Value::bool(prepaid),
             ],
         )
         .await
@@ -129,6 +131,7 @@ impl Signer {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<TxInBlock> {
         self.run_tx(
             GearCall::SendReply,
@@ -137,6 +140,7 @@ impl Signer {
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
+                Value::bool(prepaid),
             ],
         )
         .await

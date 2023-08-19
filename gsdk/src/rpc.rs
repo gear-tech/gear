@@ -137,9 +137,17 @@ impl Api {
     }
 
     /// gear_readState
-    pub async fn read_state(&self, pid: H256, at: Option<H256>) -> Result<String> {
+    pub async fn read_state(
+        &self,
+        pid: H256,
+        payload: Vec<u8>,
+        at: Option<H256>,
+    ) -> Result<String> {
         self.rpc()
-            .request("gear_readState", rpc_params![H256(pid.into()), at])
+            .request(
+                "gear_readState",
+                rpc_params![H256(pid.into()), hex::encode(payload), at],
+            )
             .await
             .map_err(Into::into)
     }
