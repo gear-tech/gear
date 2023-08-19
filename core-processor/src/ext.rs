@@ -916,7 +916,7 @@ impl Externalities for Ext {
         let (mid, pid) = self
             .context
             .message_context
-            .init_program(packet, delay, &[ProgramId::SYSTEM])
+            .init_program(packet, delay)
             .map(|(init_msg_id, new_prog_id)| {
                 // Save a program candidate for this run
                 let entry = self
