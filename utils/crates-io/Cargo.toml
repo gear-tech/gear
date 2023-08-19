@@ -10,5 +10,5 @@ path = "publish.rs"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-semver.workspace = true
+cargo_toml.workspace = true
 toml.workspace = true

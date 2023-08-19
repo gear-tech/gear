@@ -1,10 +1,11 @@
 //! mini-program for publishing packages to crates.io.
 use anyhow::Result;
-use cargo_metadata::{DependencyKind, MetadataCommand};
-use semver::VersionReq;
+use cargo_metadata::MetadataCommand;
+use cargo_toml::{Dependency, DependencyDetail, InheritedDependencyDetail, Manifest, Value};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
+    path::PathBuf,
     process::{Command, ExitStatus},
     thread,
     time::Duration,
@@ -40,30 +41,47 @@ fn main() -> Result<()> {
         PACKAGES.into_iter().enumerate().map(|(i, p)| (p.into(), i)),
     );
 
-    for mut p in metadata.packages.into_iter() {
+    let workspace_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../Cargo.toml")
+        .canonicalize()?;
+    let workspace = Manifest::from_path(&workspace_path)?;
+
+    for p in metadata.packages.into_iter() {
         if !index.contains_key(&p.name) {
             continue;
         }
 
-        let version = VersionReq::parse(&p.version.to_string())?;
-        for d in p.dependencies.iter_mut() {
-            if d.kind != DependencyKind::Normal {
+        let version = p.version.clone();
+        let path = p.manifest_path.into_std_path_buf();
+        let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
+        manifest.complete_from_path_and_workspace(&path, Some((&workspace, &workspace_path)))?;
+
+        for (name, dep) in manifest.dependencies.iter_mut() {
+            if !index.contains_key(name) {
                 continue;
             }
 
-            if index.contains_key(&d.name) {
-                d.req = version.clone();
+            if let Dependency::Inherited(InheritedDependencyDetail {
+                features, optional, ..
+            }) = &dep
+            {
+                *dep = Dependency::Detailed(DependencyDetail {
+                    version: Some(version.to_string()),
+                    features: features.clone(),
+                    optional: *optional,
+                    ..Default::default()
+                })
             }
         }
 
-        graph.insert(index.get(&p.name), p);
+        graph.insert(index.get(&p.name), (path, manifest));
     }
 
-    for package in graph.values() {
-        let manifest = package.manifest_path.as_str();
-        fs::write(manifest, toml::to_string_pretty(package)?)?;
+    for (path, manifest) in graph.values() {
+        println!("publishing {:?}", path);
+        fs::write(path, toml::to_string_pretty(manifest)?)?;
 
-        let status = publish(manifest)?;
+        let status = publish(&path.to_string_lossy())?;
         if !status.success() {
             // The most likely reason for failure is that
             // we have reached the rate limit of crates.io.
