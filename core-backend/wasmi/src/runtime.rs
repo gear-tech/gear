@@ -38,6 +38,7 @@ use wasmi::{
     AsContextMut, Caller, Memory as WasmiMemory,
 };
 
+#[track_caller]
 pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
     caller: &'a mut Caller<'b, Option<Ext>>,
 ) -> &'a mut Ext {
@@ -47,6 +48,7 @@ pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
+#[track_caller]
 pub(crate) fn caller_host_state_take<'a, 'b: 'a, Ext>(
     caller: &'a mut Caller<'b, Option<Ext>>,
 ) -> Ext {
