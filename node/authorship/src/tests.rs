@@ -158,7 +158,8 @@ fn custom_extrinsic_is_placed_in_each_block() {
     );
     assert_eq!(txpool.ready().count(), 1);
 
-    let mut proposer_factory = ProposerFactory::new(spawner, client.clone(), txpool, None, None);
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
     let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
 
@@ -243,7 +244,8 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
         )),
     );
 
-    let mut proposer_factory = ProposerFactory::new(spawner, client.clone(), txpool, None, None);
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
     let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
 
@@ -362,7 +364,7 @@ fn queue_remains_intact_if_processing_fails() {
     );
 
     let mut proposer_factory =
-        ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None);
+        ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
 
     let proposer = block_on(
@@ -547,9 +549,8 @@ fn block_max_gas_works() {
         )),
     );
 
-    let mut proposer_factory = ProposerFactory::new(spawner, client.clone(), txpool, None, None);
-    // Enforce a hard limit for the block gas
-    proposer_factory.set_block_max_gas(MAX_GAS);
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, Some(MAX_GAS));
 
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
 

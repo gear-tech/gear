@@ -485,16 +485,14 @@ where
     (with_startup_data)(&block_import, &babe_link);
 
     if let sc_service::config::Role::Authority { .. } = &role {
-        let mut proposer = authorship::ProposerFactory::new(
+        let proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),
+            max_gas,
         );
-        if let Some(max_gas) = max_gas {
-            proposer.set_block_max_gas(max_gas);
-        };
 
         let client_clone = client.clone();
         let slot_duration = babe_link.config().slot_duration();

@@ -97,6 +97,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
+        max_gas: Option<u64>,
     ) -> Self {
         ProposerFactory {
             spawn_handle: Box::new(spawn_handle),
@@ -107,7 +108,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
             telemetry,
             client,
             include_proof_in_block_size_estimation: false,
-            max_gas: None,
+            max_gas,
             _phantom: PhantomData,
         }
     }
@@ -173,11 +174,6 @@ impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
     /// are being tried with no success, hence block producer ends up creating an empty block.
     pub fn set_soft_deadline(&mut self, percent: Percent) {
         self.soft_deadline_percent = percent;
-    }
-
-    /// Set the hard limit for the block gas
-    pub fn set_block_max_gas(&mut self, max_gas: u64) {
-        self.max_gas = Some(max_gas);
     }
 }
 
