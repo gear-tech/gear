@@ -647,7 +647,7 @@ impl GearApi {
         let tx = self
             .0
             .calls
-            .send_message(destination, payload, gas_limit, value)
+            .send_message(destination, payload, gas_limit, value, prepaid)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
@@ -763,7 +763,7 @@ impl GearApi {
         let tx = self
             .0
             .calls
-            .send_reply(reply_to_id, payload, gas_limit, value)
+            .send_reply(reply_to_id, payload, gas_limit, value, prepaid)
             .await?;
 
         let events = tx.wait_for_success().await?;
