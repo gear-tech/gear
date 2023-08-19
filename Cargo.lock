@@ -3668,6 +3668,7 @@ name = "gear-authorship"
 version = "0.1.0"
 dependencies = [
  "demo-mul-by-const",
+ "env_logger",
  "frame-support",
  "frame-system",
  "futures",

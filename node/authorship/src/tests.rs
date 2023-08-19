@@ -91,7 +91,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
                     code: WASM_BINARY.to_vec(),
                     salt: salt.as_bytes().to_vec(),
                     init_payload: (i as u64).encode(),
-                    gas_limit: 10_000_000,
+                    gas_limit: 500_000_000,
                     value: 0,
                 }),
             };
@@ -101,8 +101,17 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
         .collect()
 }
 
+pub(crate) fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+}
+
 #[test]
 fn custom_extrinsic_is_placed_in_each_block() {
+    init_logger();
+
     let client = Arc::new(
         TestClientBuilder::new()
             .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible)
@@ -149,7 +158,8 @@ fn custom_extrinsic_is_placed_in_each_block() {
     );
     assert_eq!(txpool.ready().count(), 1);
 
-    let mut proposer_factory = ProposerFactory::new(spawner, client.clone(), txpool, None, None);
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
     let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
 
@@ -187,6 +197,8 @@ fn custom_extrinsic_is_placed_in_each_block() {
 
 #[test]
 fn proposed_storage_changes_match_execute_block_storage_changes() {
+    init_logger();
+
     let client_builder = TestClientBuilder::new()
         .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
     let backend = client_builder.backend();
@@ -232,7 +244,8 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
         )),
     );
 
-    let mut proposer_factory = ProposerFactory::new(spawner, client.clone(), txpool, None, None);
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
     let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
 
@@ -293,6 +306,8 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
 fn queue_remains_intact_if_processing_fails() {
     use sp_state_machine::IterArgs;
 
+    init_logger();
+
     let client_builder = TestClientBuilder::new()
         .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
     let backend = client_builder.backend();
@@ -349,7 +364,7 @@ fn queue_remains_intact_if_processing_fails() {
     );
 
     let mut proposer_factory =
-        ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None);
+        ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None, None);
     let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
 
     let proposer = block_on(
@@ -477,4 +492,120 @@ fn queue_remains_intact_if_processing_fails() {
         .unwrap()
         .for_each(|_k| queue_len += 1);
     assert_eq!(queue_len, 8);
+}
+
+#[test]
+fn block_max_gas_works() {
+    use sp_state_machine::IterArgs;
+
+    init_logger();
+
+    const INIT_MSG_GAS_LIMIT: u64 = 500_000_000;
+    const MAX_GAS: u64 = 2 * INIT_MSG_GAS_LIMIT + 25_000_100; // Enough to fit 2 messages
+
+    let client_builder = TestClientBuilder::new()
+        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let backend = client_builder.backend();
+    let mut client = Arc::new(client_builder.build());
+    let spawner = sp_core::testing::TaskExecutor::new();
+    let txpool = BasicPool::new_full(
+        Default::default(),
+        true.into(),
+        None,
+        spawner.clone(),
+        client.clone(),
+    );
+
+    let genesis_hash =
+        <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
+    let mut nonce = 0_u32;
+    // Creating 5 extrinsics
+    let extrinsics = checked_extrinsics(5, bob(), &mut nonce)
+        .iter()
+        .map(|x| {
+            sign(
+                x.clone(),
+                VERSION.spec_version,
+                VERSION.transaction_version,
+                genesis_hash,
+            )
+            .into()
+        })
+        .collect::<Vec<_>>();
+
+    block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
+
+    block_on(
+        txpool.maintain(chain_event(
+            client
+                .header(
+                    client
+                        .block_hash_from_id(&BlockId::Number(0_u32))
+                        .unwrap()
+                        .unwrap(),
+                )
+                .expect("header get error")
+                .expect("there should be header"),
+        )),
+    );
+
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, Some(MAX_GAS));
+
+    let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
+
+    let proposer = block_on(
+        proposer_factory.init(
+            &client
+                .header(
+                    client
+                        .block_hash_from_id(&BlockId::number(0))
+                        .unwrap()
+                        .unwrap(),
+                )
+                .expect("Database error querying block #0")
+                .expect("Block #0 should exist"),
+        ),
+    )
+    .expect("Proposer initialization failed");
+
+    let inherent_data =
+        block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
+    let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
+
+    let proposal = block_on(proposer.propose(
+        inherent_data,
+        pre_digest(time_slot, 0),
+        time::Duration::from_secs(20),
+        None,
+    ))
+    .unwrap();
+
+    // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
+    assert_eq!(proposal.block.extrinsics().len(), 7);
+
+    // Importing block #1
+    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+    let best_hash = client.info().best_hash;
+    assert_eq!(best_hash, proposal.block.hash());
+
+    let state = backend.state_at(best_hash).unwrap();
+    // Ensure message queue still has 5 messages as none of the messages fit into the gas allownce
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let mut queue_len = 0_u32;
+
+    state
+        .keys(queue_entry_args)
+        .unwrap()
+        .for_each(|_k| queue_len += 1);
+
+    // 2 out of 5 messages have been processed, 3 remain in the queue
+    assert_eq!(queue_len, 3);
 }

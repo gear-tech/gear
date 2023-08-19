@@ -369,7 +369,7 @@ pub fn run_to_block_maybe_with_queue(
                 QueueProcessingOf::<Test>::deny();
             }
 
-            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+            Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }
 
         Gear::on_finalize(System::block_number());
