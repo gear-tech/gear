@@ -30,7 +30,7 @@ use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
-        elements::{BlockType, Instruction, Instructions},
+        elements::{BlockType, Instruction, Instructions, Local},
     },
     syscalls::SysCallName,
 };
@@ -267,6 +267,50 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         ret
     }
 
+    /// Generates a function which calls "properly" the given sys-call.
+    fn generate_sys_call_pattern(
+        &mut self,
+        sys_call: SysCallName,
+        sys_call_amount: u32,
+        func_instructions: Instructions,
+        func_locals: Option<Vec<Local>>,
+    ) {
+        let invocable_sys_call = InvocableSysCall::Precise(sys_call);
+        let signature = invocable_sys_call.into_signature();
+
+        let func_ty = signature.func_type();
+        let func_signature = builder::signature()
+            .with_params(func_ty.params().iter().copied())
+            .with_results(func_ty.results().iter().copied())
+            .build_sig();
+
+        let func_idx = self.module.with(|module| {
+            let mut module_builder = builder::from_module(module);
+            let idx = module_builder.push_function(
+                builder::function()
+                    .with_signature(func_signature)
+                    .body()
+                    .with_instructions(func_instructions)
+                    .with_locals(func_locals.unwrap_or_default())
+                    .build()
+                    .build(),
+            );
+
+            (module_builder.build(), idx)
+        });
+
+        log::trace!(
+            "Built proper call to {sys_call_name}",
+            sys_call_name = sys_call.to_str()
+        );
+
+        let call_indexes_handle = self.call_indexes.len();
+        self.call_indexes.add_func(func_idx.signature as usize);
+
+        self.sys_calls_imports
+            .insert(invocable_sys_call, (sys_call_amount, call_indexes_handle));
+    }
+
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
         let Some(&[reserve_gas_idx, reservation_send_idx]) = self
@@ -274,15 +318,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             .as_deref() else {
                 return;
             };
-
-        let invocable_sys_call = InvocableSysCall::Precise(SysCallName::ReservationSend);
-        let send_from_reservation_signature = invocable_sys_call.into_signature();
-
-        let send_from_reservation_func_ty = send_from_reservation_signature.func_type();
-        let func_signature = builder::signature()
-            .with_params(send_from_reservation_func_ty.params().iter().copied())
-            .with_results(send_from_reservation_func_ty.results().iter().copied())
-            .build_sig();
 
         let memory_size_in_bytes = {
             let initial_mem_size: WasmPageCount = self
@@ -355,28 +390,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
 
-        let send_from_reservation_func_idx = self.module.with(|module| {
-            let mut module_builder = builder::from_module(module);
-            let idx = module_builder.push_function(
-                builder::function()
-                    .with_signature(func_signature)
-                    .body()
-                    .with_instructions(func_instructions)
-                    .build()
-                    .build(),
-            );
-
-            (module_builder.build(), idx)
-        });
-
-        log::trace!("Built proper reservation send call");
-
-        let call_indexes_handle = self.call_indexes.len();
-        self.call_indexes
-            .add_func(send_from_reservation_func_idx.signature as usize);
-
-        self.sys_calls_imports
-            .insert(invocable_sys_call, (1, call_indexes_handle));
+        self.generate_sys_call_pattern(SysCallName::ReservationSend, 1, func_instructions, None);
     }
 }
 
