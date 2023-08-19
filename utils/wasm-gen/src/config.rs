@@ -107,10 +107,10 @@ impl ConfigsBundle for () {
     }
 }
 
-/// Set of configurational data which is used to generate always
+/// Standard set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
-pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
+pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Externalities to be logged.
     pub log_info: Option<String>,
     /// Set of existing addresses, which will be used as message destinations.
@@ -128,10 +128,10 @@ pub struct ValidGearWasmConfigsBundle<T = [u8; 32]> {
     pub entry_points_set: EntryPointsSet,
 }
 
-impl<T> Default for ValidGearWasmConfigsBundle<T> {
+impl<T> Default for StandardGearWasmConfigsBundle<T> {
     fn default() -> Self {
         Self {
-            log_info: Some("Valid config".into()),
+            log_info: Some("StandardGearWasmConfigsBundle".into()),
             existing_addresses: None,
             remove_recursion: false,
             call_indirect_enabled: true,
@@ -141,9 +141,9 @@ impl<T> Default for ValidGearWasmConfigsBundle<T> {
     }
 }
 
-impl<T: Into<Hash>> ConfigsBundle for ValidGearWasmConfigsBundle<T> {
+impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
-        let ValidGearWasmConfigsBundle {
+        let StandardGearWasmConfigsBundle {
             log_info,
             existing_addresses,
             remove_recursion,

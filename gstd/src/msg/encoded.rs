@@ -24,11 +24,12 @@ use crate::{
     async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, ops::RangeBounds},
+    prelude::ops::RangeBounds,
+    util::with_optimized_encode,
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
+use scale_info::scale::{Decode, Encode};
 
 /// Get a payload of the message that is currently being processed.
 ///
@@ -59,14 +60,6 @@ use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
 pub fn load<D: Decode>() -> Result<D> {
-    D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
-}
-
-/// Same as [`load`](self::load), but reads current message payload to allocated
-/// on stack buffer. Decoded object will be also on stack, but if it contains
-/// any fields, with heap allocations inside (for example vec), then
-/// this decoding may lead to heap allocations.
-pub fn load_on_stack<D: Decode>() -> Result<D> {
     super::basic::with_read_on_stack(|read_result: Result<&mut [u8]>| -> Result<D> {
         let mut buffer = read_result? as &[u8];
         D::decode(&mut buffer).map_err(Error::Decode)
@@ -121,38 +114,7 @@ pub fn load_on_stack<D: Decode>() -> Result<D> {
 ///   functions allow forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
-    super::reply_bytes(payload.encode(), value)
-}
-
-// TODO: use encoded_size and in reply also. But should also check,
-// that does not lead to additional heap allocations and additional calculation
-// #2880.
-/// Same as [reply], but encodes payload to stack allocated buffer.
-/// Buffer size for encoding is at least `E::max_encoded_len()`.
-pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
-    struct ExternalBufferOutput<'a> {
-        buffer: &'a mut [u8],
-        offset: usize,
-    }
-
-    impl<'a> Output for ExternalBufferOutput<'a> {
-        fn write(&mut self, bytes: &[u8]) {
-            const ERROR_LOG: &str = "Unexpected encoding behavior: too large input bytes size";
-            let end_offset = self.offset.checked_add(bytes.len()).expect(ERROR_LOG);
-            if end_offset > self.buffer.len() {
-                panic!("{}", ERROR_LOG);
-            }
-            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
-            self.offset = end_offset;
-        }
-    }
-
-    gcore::stack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
-        let mut output = ExternalBufferOutput { buffer, offset: 0 };
-        payload.encode_to(&mut output);
-        let ExternalBufferOutput { buffer, offset } = output;
-        super::reply_bytes(&buffer[..offset], value)
-    })
+    with_optimized_encode(payload, |buffer| super::reply_bytes(buffer, value))
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of
@@ -196,7 +158,9 @@ pub fn reply_from_reservation<E: Encode>(
     payload: E,
     value: u128,
 ) -> Result<MessageId> {
-    super::reply_bytes_from_reservation(id, payload.encode(), value)
+    with_optimized_encode(payload, |buffer| {
+        super::reply_bytes_from_reservation(id, buffer, value)
+    })
 }
 
 /// Same as [`reply`], but with an explicit gas limit.
@@ -224,7 +188,9 @@ pub fn reply_from_reservation<E: Encode>(
 /// }
 /// ```
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
-    super::reply_bytes_with_gas(payload.encode(), gas_limit, value)
+    with_optimized_encode(payload, |buffer| {
+        super::reply_bytes_with_gas(buffer, gas_limit, value)
+    })
 }
 
 /// Same as [`reply`] but uses the input buffer as a payload source.
@@ -398,7 +364,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
 ///   forming a message to send in parts.
 #[wait_for_reply]
 pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> Result<MessageId> {
-    super::send_bytes(program, payload.encode(), value)
+    with_optimized_encode(payload, |buffer| super::send_bytes(program, buffer, value))
 }
 
 /// Same as [`send`], but sends the message after the `delay` expressed in block
@@ -409,7 +375,9 @@ pub fn send_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    super::send_bytes_delayed(program, payload.encode(), value, delay)
+    with_optimized_encode(payload, |buffer| {
+        super::send_bytes_delayed(program, buffer, value, delay)
+    })
 }
 
 /// Same as [`send`], but with an explicit gas limit.
@@ -420,7 +388,9 @@ pub fn send_with_gas<E: Encode>(
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    super::send_bytes_with_gas(program, payload.encode(), gas_limit, value)
+    with_optimized_encode(payload, |buffer| {
+        super::send_bytes_with_gas(program, buffer, gas_limit, value)
+    })
 }
 
 /// Same as [`send_with_gas`], but sends the message after the `delay` expressed
@@ -432,7 +402,9 @@ pub fn send_with_gas_delayed<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    super::send_bytes_with_gas_delayed(program, payload.encode(), gas_limit, value, delay)
+    with_optimized_encode(payload, |buffer| {
+        super::send_bytes_with_gas_delayed(program, buffer, gas_limit, value, delay)
+    })
 }
 
 /// Same as [`send`], but it spends gas from a reservation instead of borrowing
@@ -488,7 +460,9 @@ pub fn send_from_reservation<E: Encode>(
     payload: E,
     value: u128,
 ) -> Result<MessageId> {
-    super::send_bytes_from_reservation(id, program, payload.encode(), value)
+    with_optimized_encode(payload, |buffer| {
+        super::send_bytes_from_reservation(id, program, buffer, value)
+    })
 }
 
 /// Same as [`send_from_reservation`], but sends the message after the `delay`
@@ -500,5 +474,7 @@ pub fn send_delayed_from_reservation<E: Encode>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    super::send_bytes_delayed_from_reservation(id, program, payload.encode(), value, delay)
+    with_optimized_encode(payload, |buffer| {
+        super::send_bytes_delayed_from_reservation(id, program, buffer, value, delay)
+    })
 }

@@ -70,7 +70,7 @@ mod wasm {
             let delay = delay.value();
 
             let res = if let Some(gas_limit) = gas_limit {
-                prog::create_program_with_gas_delayed(
+                prog::create_program_bytes_with_gas_delayed(
                     code_id,
                     salt,
                     payload,
@@ -79,7 +79,7 @@ mod wasm {
                     delay,
                 )
             } else {
-                prog::create_program_delayed(code_id, salt, payload, value, delay)
+                prog::create_program_bytes_delayed(code_id, salt, payload, value, delay)
             };
 
             let (_message_id, program_id) = res.expect("Failed to create program");

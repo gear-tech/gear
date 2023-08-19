@@ -96,7 +96,7 @@ impl Default for MemoryPagesConfig {
     fn default() -> Self {
         Self {
             initial_size: Self::MAX_VALUE / 2 + 5,
-            upper_limit: Some(Self::MAX_VALUE),
+            upper_limit: None,
             stack_end_page: Some(Self::MAX_VALUE / 2),
         }
     }
