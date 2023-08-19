@@ -136,7 +136,7 @@ scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
 serde_yaml = "0.8.26"
-sha-1 = "0.9.3"
+sha-1 = "0.10.1"
 static_assertions = "1"
 # # NOTE
 #
