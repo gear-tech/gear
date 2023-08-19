@@ -146,15 +146,13 @@ macro_rules! wrap_common_func {
     ($func:path, (9) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3, 4, 5, 6, 7, 8) };
 }
 
-macro_rules! gas_amount {
-    ($store:ident) => {
-        $store
-            .data_mut()
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
-            .ext
-            .gas_amount()
-    };
+fn store_host_state_mut<Ext>(
+    store: &mut Store<HostState<Ext, DefaultExecutorMemory>>,
+) -> &mut State<Ext, DefaultExecutorMemory> {
+    store
+        .data_mut()
+        .as_mut()
+        .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -389,8 +387,12 @@ where
             termination_reason: ActorTerminationReason::Success.into(),
         });
 
-        let instance = Instance::new(&mut store, binary, &env_builder)
-            .map_err(|e| Actor(gas_amount!(store), format!("{e:?}")))?;
+        let instance = Instance::new(&mut store, binary, &env_builder).map_err(|e| {
+            Actor(
+                store_host_state_mut(&mut store).ext.gas_amount(),
+                format!("{e:?}"),
+            )
+        })?;
 
         Ok(Self {
             instance,
@@ -429,10 +431,7 @@ where
             .and_then(|global| global.as_i32())
             .map(|global| global as u32);
 
-        let gas = store
-            .data_mut()
-            .as_mut()
-            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
+        let gas = store_host_state_mut(&mut store)
             .ext
             .define_current_counter();
 
@@ -468,7 +467,7 @@ where
         let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
         prepare_memory(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
             let store = &mut memory_wrap.store;
-            PrepareMemory(gas_amount!(store), e)
+            PrepareMemory(store_host_state_mut(store).ext.gas_amount(), e)
         })?;
 
         let needs_execution = entry_point

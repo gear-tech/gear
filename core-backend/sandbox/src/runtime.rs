@@ -41,6 +41,16 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 }
 
 #[track_caller]
+pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
+    caller: &'a mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
+) -> &'a mut State<Ext, DefaultExecutorMemory> {
+    caller
+        .data_mut()
+        .as_mut()
+        .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+}
+
+#[track_caller]
 pub(crate) fn caller_host_state_take<Ext>(
     caller: &mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
 ) -> State<Ext, DefaultExecutorMemory> {
@@ -128,12 +138,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     pub fn prepare(
         caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
     ) -> Result<Self, HostError> {
-        let memory = caller
-            .data_mut()
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("Host state must be presented"))
-            .memory
-            .clone();
+        let memory = caller_host_state_mut(caller).memory.clone();
         Ok(Self {
             caller,
             manager: Default::default(),
@@ -143,10 +148,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
 
     #[track_caller]
     pub fn host_state_mut(&mut self) -> &mut State<Ext, DefaultExecutorMemory> {
-        self.caller
-            .data_mut()
-            .as_mut()
-            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+        caller_host_state_mut(self.caller)
     }
 
     #[track_caller]
