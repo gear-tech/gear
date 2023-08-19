@@ -304,17 +304,16 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             // Assume here that:
             // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
             // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
+            // 3. Returned `ErrorCode` == 0u32 when syscal was successfull.
             // TODO: Assert these assumptions.
 
             let params = syscall.signature.params;
-            assert!(
-                matches!(
-                    params
+            assert!(matches!(
+                params
                     .last()
-                    .expect("The last argument of fallible syscall must be pointer to error code (by assumption we made)"), 
+                    .expect("The last argument of fallible syscall must be pointer to error code"),
                 ParamType::Ptr(..)
-            )
-            );
+            ));
             assert_eq!(params.len(), param_setters.len());
 
             if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
