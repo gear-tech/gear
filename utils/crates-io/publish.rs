@@ -37,6 +37,9 @@ const PACKAGES: [&str; 17] = [
     "gclient",
 ];
 
+/// Packages need to be patched in depdenencies.
+const PATCHED_PACKAGES: [&str; 3] = ["core-processor", "sp-arithmetic", "subxt"];
+
 struct CratesIo {
     registry: Registry,
 }
@@ -111,6 +114,8 @@ fn main() -> Result<()> {
                 manifest.lib = Some(product);
             }
         } else if p.name == "gear-core-processor" {
+            // Change the name of gear-core-processor to gear-processor since
+            // gear-core-processor has been taken by others.
             if let Some(mut metadata) = manifest.package {
                 metadata.name = "gear-processor".into();
                 manifest.package = Some(metadata);
@@ -118,41 +123,40 @@ fn main() -> Result<()> {
         }
 
         for (name, dep) in manifest.dependencies.iter_mut() {
-            // NOTE: the required version of sp-arithmetic is 6.0.0 in
-            // git repo, but 7.0.0 in crates.io, so we need to fix it.
-            if name == "sp-arithmetic" {
-                if let Dependency::Detailed(detail) = &dep {
-                    let mut detail = detail.clone();
-                    detail.version = Some("7.0.0".into());
-                    detail.branch = None;
-                    detail.git = None;
-
-                    *dep = Dependency::Detailed(detail.clone());
-                }
-            } else if name == "subxt" {
-                if let Dependency::Detailed(detail) = &dep {
-                    let mut detail = detail.clone();
-                    detail.package = Some("gear-subxt".into());
-                    *dep = Dependency::Detailed(detail.clone());
-                }
-            }
-
             // No need to update dependencies for packages without
             // local dependencies.
-            if !index.contains_key(name) && name != "core-processor" {
+            if !index.contains_key(name) && !PATCHED_PACKAGES.contains(&name.as_str()) {
                 continue;
             }
 
-            if let Dependency::Detailed(detail) = &dep {
-                let mut detail = detail.clone();
-                detail.version = Some(version.to_string());
+            let mut detail = if let Dependency::Detailed(detail) = &dep {
+                detail.clone()
+            } else {
+                continue;
+            };
 
-                if detail.package == Some("gear-core-processor".into()) {
-                    detail.package = Some("gear-processor".into());
+            match name {
+                // NOTE: the required version of sp-arithmetic is 6.0.0 in
+                // git repo, but 7.0.0 in crates.io, so we need to fix it.
+                "sp-arithmetic" => {
+                    detail.version = Some("7.0.0".into());
+                    detail.branch = None;
+                    detail.git = None;
                 }
+                "subxt" => {
+                    detail.package = Some("gear-subxt".into());
+                }
+                _ => {
+                    detail.version = Some(version.to_string());
 
-                *dep = Dependency::Detailed(detail.clone());
+                    // Patch for gear-core-processor in dependencies.
+                    if detail.package == Some("gear-core-processor".into()) {
+                        detail.package = Some("gear-processor".into());
+                    }
+                }
             }
+
+            *dep = Dependency::Detailed(detail);
         }
 
         graph.insert(index.get(&p.name), (path, manifest));
