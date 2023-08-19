@@ -18,7 +18,6 @@
 
 //! Generator of the `pallet-gear` calls.
 
-mod arbitrary_call;
 mod claim_value;
 mod create_program;
 mod rand_utils;
@@ -27,7 +26,6 @@ mod send_reply;
 mod upload_code;
 mod upload_program;
 
-pub use arbitrary_call::GearCalls;
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 pub use rand_utils::{CallGenRng, CallGenRngCore};

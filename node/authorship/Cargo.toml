@@ -57,3 +57,4 @@ pallet-gear-messenger  = { workspace = true, features = ["std"] }
 testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true
+env_logger.workspace = true

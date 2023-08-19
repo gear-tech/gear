@@ -84,16 +84,19 @@ async fn test_calculate_create_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
+        .calls
         .upload_code(demo_messager::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messager::WASM_BINARY);
     let gas_info = signer
+        .rpc
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
 
     signer
+        .calls
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -113,6 +116,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
+        .calls
         .upload_program(
             demo_messager::WASM_BINARY.to_vec(),
             salt,
@@ -126,11 +130,13 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
+        .rpc
         .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_message(pid, vec![], gas_info.min_limit, 0)
+        .calls
+        .send_message(pid, vec![], gas_info.min_limit, 0, false)
         .await?;
 
     Ok(())
@@ -151,6 +157,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
+        .calls
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
             salt,
@@ -164,7 +171,8 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 2. send wait message.
     signer
-        .send_message(pid, payload.encode(), 100_000_000_000, 0)
+        .calls
+        .send_message(pid, payload.encode(), 100_000_000_000, 0, false)
         .await?;
 
     let mailbox = signer
@@ -176,11 +184,13 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
+        .rpc
         .calculate_reply_gas(None, message_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_reply(message_id, vec![], gas_info.min_limit, 0)
+        .calls
+        .send_reply(message_id, vec![], gas_info.min_limit, 0, false)
         .await?;
 
     Ok(())
@@ -278,6 +288,7 @@ async fn test_original_code_storage() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
+        .calls
         .upload_program(
             demo_messager::WASM_BINARY.to_vec(),
             salt,
@@ -290,7 +301,7 @@ async fn test_original_code_storage() -> Result<()> {
     let program = signer.api().gprog(pid).await?;
     let rpc = signer.api().rpc();
     let last_block = rpc.block(None).await?.unwrap().block.header.number();
-    let block_hash = rpc.block_hash(Some(last_block.into())).await?.unwrap();
+    let block_hash = rpc.block_hash(Some(last_block.into())).await?;
     let code = signer
         .api()
         .original_code_storage_at(program.code_hash.0.into(), block_hash)
