@@ -71,17 +71,10 @@ fn main() -> Result<()> {
                 continue;
             }
 
-            if let Dependency::Inherited(InheritedDependencyDetail {
-                features, optional, ..
-            }) = &dep
-            {
-                *dep = Dependency::Detailed(DependencyDetail {
-                    version: Some(version.to_string()),
-                    features: features.clone(),
-                    optional: *optional,
-                    default_features: true,
-                    ..Default::default()
-                })
+            if let Dependency::Detailed(detail) = &dep {
+                let mut detail = detail.clone();
+                detail.version = Some(version.to_string());
+                *dep = Dependency::Detailed(detail.clone());
             }
         }
 
