@@ -54,7 +54,7 @@
 //!
 //! ```
 //! #[no_std]
-//! use gmeta::{InOut, Metadata};
+//! use gmeta::{InOut, Metadata, Out};
 //! use gstd::prelude::*;
 //!
 //! // Message type for `handle()` function.
@@ -82,7 +82,7 @@
 //!     // The unit tuple is used as we don't process any signals in this contract.
 //!     type Signal = ();
 //!     // We return a counter value (`i32`) in the `state()` function in this contract.
-//!     type State = i32;
+//!     type State = Out<i32>;
 //! }
 //! ```
 //!
@@ -149,7 +149,7 @@
 //! using `build.rs`:
 //!
 //! ```
-//! use gmeta::Metadata;
+//! use gmeta::{Metadata, Out};
 //! # const IGNORE: &'static str = stringify! {
 //! use ping_io::ContractMetadata;
 //! # };
@@ -168,11 +168,11 @@
 //! #     type Others = ();
 //! #     type Reply = ();
 //! #     type Signal = ();
-//! #     type State = i32;
+//! #     type State = Out<i32>;
 //! # }
 //! #
 //! let metadata_hex = ContractMetadata::repr().hex();
-//! assert_eq!(metadata_hex.len(), 144);
+//! assert_eq!(metadata_hex.len(), 146);
 //! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
 //! ```
 //!
@@ -225,7 +225,7 @@ use scale_info::{
     TypeInfo,
 };
 
-const METADATA_VERSION: u16 = 1;
+const METADATA_VERSION: u16 = 2;
 
 /// Language identifier.
 ///
@@ -263,7 +263,7 @@ pub struct MetadataRepr {
     /// Internal representation for [`Metadata::Signal`] type.
     pub signal: Option<u32>,
     /// Internal representation for [`Metadata::State`] type.
-    pub state: Option<u32>,
+    pub state: TypesRepr,
     /// Encoded registry of types.
     pub registry: Vec<u8>,
 }
@@ -468,7 +468,7 @@ pub trait Metadata {
     ///
     /// Use the type that you pass to the `msg::reply` function in the `state()`
     /// function or unit tuple `()` if no `state()` function is defined.
-    type State: Type;
+    type State: Types;
 
     /// Create metadata representation and register types in registry.
     fn repr() -> MetadataRepr {

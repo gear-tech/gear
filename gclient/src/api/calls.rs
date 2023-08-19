@@ -640,6 +640,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
         let payload = payload.as_ref().to_vec();
 
@@ -672,16 +673,17 @@ impl GearApi {
     /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
+        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128, bool)>,
     ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(destination, payload, gas_limit, value)| {
+            .map(|(destination, payload, gas_limit, value, prepaid)| {
                 RuntimeCall::Gear(GearCall::send_message {
                     destination: destination.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    prepaid,
                 })
             })
             .collect();
@@ -721,8 +723,9 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
-        self.send_message_bytes(destination, payload.encode(), gas_limit, value)
+        self.send_message_bytes(destination, payload.encode(), gas_limit, value, prepaid)
             .await
     }
 
@@ -751,6 +754,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
@@ -792,9 +796,13 @@ impl GearApi {
     /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128, bool)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
+        let message_ids: Vec<_> = args
+            .clone()
+            .into_iter()
+            .map(|(mid, _, _, _, _)| mid)
+            .collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
@@ -809,12 +817,13 @@ impl GearApi {
 
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(reply_to_id, payload, gas_limit, value)| {
+            .map(|(reply_to_id, payload, gas_limit, value, prepaid)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    prepaid,
                 })
             })
             .collect();
@@ -860,8 +869,9 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
-        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
+        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value, prepaid)
             .await
     }
 

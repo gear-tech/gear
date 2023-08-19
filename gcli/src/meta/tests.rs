@@ -45,9 +45,12 @@ Metadata {
         },
         output: Option<u8>,
     },
+    state:  {
+        input: "()",
+        output: [Wallet { id: "Id", person: "Person" }],
+    },
     reply: str,
     signal: "()",
-    state: [Wallet { id: "Id", person: "Person" }],
 }
 "#;
 

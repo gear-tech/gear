@@ -76,7 +76,7 @@ where
             );
         }
 
-        Gear::<T>::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        Gear::<T>::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::<T>::on_finalize(SystemPallet::<T>::block_number());
     }
 }
