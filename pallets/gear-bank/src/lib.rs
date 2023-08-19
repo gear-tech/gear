@@ -109,12 +109,13 @@ pub mod pallet {
         pub value: Balance,
     }
 
-    impl<Balance: Add<Output = Balance>> BankAccount<Balance> {
+    impl<Balance: Add<Output = Balance> + Saturating> BankAccount<Balance> {
         pub fn total(self) -> Balance {
-            self.gas + self.value
+            self.gas.saturating_add(self.value)
         }
     }
 
+    // Required by Zero trait impl.
     impl<Balance: Add<Output = Balance>> Add for BankAccount<Balance> {
         type Output = Self;
 
@@ -193,6 +194,11 @@ pub mod pallet {
         fn withdraw(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
             Self::ensure_bank_can_transfer(value)?;
 
+            // The check is similar to one that used in transfer implementation.
+            // It allows us define if we cannot transfer funds on early stage
+            // to be able mean any transfer error as insufficient bank
+            // account balance, because other conditions are checked
+            // here and in other caller places.
             if CurrencyOf::<T>::free_balance(account_id).saturating_add(value)
                 < CurrencyOf::<T>::minimum_balance()
             {
@@ -381,7 +387,7 @@ pub mod pallet {
             Ok(())
         }
 
-        // TODO: pay attention for cases when ED was increased for already existing messages.
+        // TODO: take care on this fn impl in case of bump ED (issue #3115).
         pub fn transfer_value(
             account_id: &AccountIdOf<T>,
             destination: &AccountIdOf<T>,

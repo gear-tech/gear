@@ -71,6 +71,10 @@ where
 
                 // Just random approximate amount of operations,
                 // that will be meant as write operations.
+                //
+                // Two writes into balances (system_pallet), single write
+                // into gear-bank pallet and several read that will with
+                // optimizations result into ~4 writes.
                 ops += 4;
             }
 

@@ -187,6 +187,7 @@ impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet
     type VoucherId = T::AccountId;
     type Error = DispatchError;
 
+    #[inline]
     fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
         Self::voucher_account_id(&who, &program)
     }
