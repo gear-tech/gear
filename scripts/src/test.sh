@@ -85,7 +85,7 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG=debug,syscalls,gear_wasm_gen,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,runtime_fuzzer=trace,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm \
+  RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
   cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
 }
 

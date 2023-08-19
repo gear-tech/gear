@@ -79,10 +79,10 @@ impl<'a> Arbitrary<'a> for GearCalls {
             return Err(arbitrary::Error::NotEnoughData);
         }
 
-        let log_data = format!(
-            "Generated from corpus - {}",
-            get_sha1_string(u.peek_bytes(u.len()).expect("checked"))
-        );
+        let test_input_id = get_sha1_string(u.peek_bytes(u.len()).expect("checked"));
+        log::trace!("Generating GearCalls from corpus - {}", test_input_id);
+
+        let log_data = format!("Generated program from corpus - {}", test_input_id);
         let gas = default_gas_limit();
         let value = 0;
         let prepaid = false;
