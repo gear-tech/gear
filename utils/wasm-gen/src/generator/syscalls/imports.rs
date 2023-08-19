@@ -242,26 +242,38 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 }
 
 impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
+    /// Returns the indexes of invocable sys-calls.
+    fn invocable_sys_calls_indexes(&self, sys_calls: &[SysCallName]) -> Option<Vec<usize>> {
+        let ret: Option<Vec<_>> = sys_calls
+            .iter()
+            .map(|&sys_call| {
+                self.sys_calls_imports
+                    .get(&InvocableSysCall::Loose(sys_call))
+                    .map(|&(_, call_indexes_handle)| call_indexes_handle)
+            })
+            .collect();
+
+        if ret.is_none() {
+            log::trace!(
+                "Wasm should import the following syscalls: {missing_sys_calls}",
+                missing_sys_calls = sys_calls
+                    .iter()
+                    .map(|sys_call| sys_call.to_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+        }
+
+        ret
+    }
+
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
-        let (reserve_gas_idx, reservation_send_idx) = {
-            let maybe_reserve_gas = self
-                .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReserveGas))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
-            let maybe_reservation_send = self
-                .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReservationSend))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
-
-            match maybe_reserve_gas.zip(maybe_reservation_send) {
-                Some(indexes) => indexes,
-                None => {
-                    log::trace!("Wasm hasn't got either gr_reserve_gas, or gr_reservation_send, or both of them");
-                    return;
-                }
-            }
-        };
+        let Some(&[reserve_gas_idx, reservation_send_idx]) = self
+            .invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SysCallName::ReservationSend])
+            .as_deref() else {
+                return;
+            };
 
         let invocable_sys_call = InvocableSysCall::Precise(SysCallName::ReservationSend);
         let send_from_reservation_signature = invocable_sys_call.into_signature();
