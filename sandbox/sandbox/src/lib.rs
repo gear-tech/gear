@@ -95,13 +95,13 @@ pub type HostFuncType<T> =
     fn(&mut default_executor::Caller<'_, T>, &[Value]) -> Result<env::WasmReturnValue, HostError>;
 
 /// Sandbox store.
-pub trait SandboxStore<T>: AsContext<T> {
+pub trait SandboxStore<T>: AsContextExt<T> {
     /// Create a new sandbox store.
     fn new(state: T) -> Self;
 }
 
 /// Sandbox context.
-pub trait AsContext<T>: default_executor::AsContextExt {
+pub trait AsContextExt<T>: default_executor::AsContext {
     /// Return mutable reference to state.
     fn data_mut(&mut self) -> &mut T;
 }
@@ -133,35 +133,35 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Returns `Err` if the range is out-of-bounds.
     fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        Context: AsContext<T>;
+        Context: AsContextExt<T>;
 
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
     fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        Context: AsContext<T>;
+        Context: AsContextExt<T>;
 
     /// Grow memory with provided number of pages.
     ///
     /// Returns `Err` if attempted to allocate more memory than permitted by the limit.
     fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        Context: AsContext<T>;
+        Context: AsContextExt<T>;
 
     /// Returns current memory size.
     ///
     /// Maximum memory size cannot exceed 65536 pages or 4GiB.
     fn size<Context>(&self, ctx: &Context) -> u32
     where
-        Context: AsContext<T>;
+        Context: AsContextExt<T>;
 
     /// Returns pointer to the begin of wasm mem buffer
     /// # Safety
     /// Pointer is intended to use by `mprotect` function.
     unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> HostPointer
     where
-        Context: AsContext<T>;
+        Context: AsContextExt<T>;
 }
 
 /// Struct that can be used for defining an environment for a sandboxed module.

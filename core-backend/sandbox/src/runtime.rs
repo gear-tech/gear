@@ -31,7 +31,7 @@ use gear_backend_common::{
     BackendExternalities, BackendState, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
-use gear_sandbox::{default_executor::Caller, AsContext, HostError, Value};
+use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {

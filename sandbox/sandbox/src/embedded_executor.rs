@@ -19,8 +19,8 @@
 //! An embedded WASM executor utilizing `wasmi`.
 
 use crate::{
-    AsContext, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore, Value,
-    TARGET,
+    AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
+    Value, TARGET,
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
@@ -32,8 +32,8 @@ use wasmi::{
     Value as RuntimeValue,
 };
 
-/// [`AsContext`] extension.
-pub trait AsContextExt: wasmi::AsContext + wasmi::AsContextMut {}
+/// [`AsContextExt`] extension.
+pub trait AsContext: wasmi::AsContext + wasmi::AsContextMut {}
 
 /// wasmi store wrapper.
 pub struct Store<T>(wasmi::Store<T>);
@@ -66,13 +66,13 @@ impl<T> wasmi::AsContextMut for Store<T> {
     }
 }
 
-impl<T> AsContext<T> for Store<T> {
+impl<T> AsContextExt<T> for Store<T> {
     fn data_mut(&mut self) -> &mut T {
         self.0.data_mut()
     }
 }
 
-impl<T> AsContextExt for Store<T> {}
+impl<T> AsContext for Store<T> {}
 
 /// wasmi caller wrapper.
 pub struct Caller<'a, T>(wasmi::Caller<'a, T>);
@@ -91,13 +91,13 @@ impl<T> wasmi::AsContextMut for Caller<'_, T> {
     }
 }
 
-impl<T> AsContext<T> for Caller<'_, T> {
+impl<T> AsContextExt<T> for Caller<'_, T> {
     fn data_mut(&mut self) -> &mut T {
         self.0.data_mut()
     }
 }
 
-impl<T> AsContextExt for Caller<'_, T> {}
+impl<T> AsContext for Caller<'_, T> {}
 
 /// The linear memory used by the sandbox.
 #[derive(Clone)]
@@ -114,7 +114,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        Context: AsContext<T>,
+        Context: AsContextExt<T>,
     {
         let data = self
             .memref
@@ -127,7 +127,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        Context: AsContext<T>,
+        Context: AsContextExt<T>,
     {
         let data = self
             .memref
@@ -140,7 +140,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        Context: AsContext<T>,
+        Context: AsContextExt<T>,
     {
         let pages = Pages::new(pages).ok_or(Error::MemoryGrow)?;
         self.memref
@@ -151,14 +151,14 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn size<Context>(&self, ctx: &Context) -> u32
     where
-        Context: AsContext<T>,
+        Context: AsContextExt<T>,
     {
         self.memref.current_pages(ctx).into()
     }
 
     unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> u64
     where
-        Context: AsContext<T>,
+        Context: AsContextExt<T>,
     {
         self.memref.data_mut(ctx).as_mut_ptr() as usize as u64
     }
@@ -440,7 +440,7 @@ fn to_interface(value: RuntimeValue) -> Value {
 mod tests {
     use super::{Caller, EnvironmentDefinitionBuilder, Instance};
     use crate::{
-        default_executor::Store, AsContext, Error, HostError, ReturnValue,
+        default_executor::Store, AsContextExt, Error, HostError, ReturnValue,
         SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
     };
     use assert_matches::assert_matches;
