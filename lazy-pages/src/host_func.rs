@@ -139,9 +139,6 @@ pub fn pre_process_memory_accesses(
             let mut ctx = ctx.borrow_mut();
             let ctx = ctx.execution_context_mut()?;
 
-            let mut read_pages = BTreeSet::new();
-            accesses_pages(ctx, reads, &mut read_pages)?;
-
             let gas_charger = {
                 GasCharger {
                     read_cost: ctx.weight(WeightNo::HostFuncRead),
@@ -150,34 +147,44 @@ pub fn pre_process_memory_accesses(
                     load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
                 }
             };
+            let mut status = Status::Normal;
 
-            let status = process::process_lazy_pages(
-                ctx,
-                HostFuncAccessHandler {
-                    is_write: false,
-                    gas_counter,
-                    gas_charger: gas_charger.clone(),
-                },
-                read_pages,
-            )?;
+            if !reads.is_empty() {
+                let mut read_pages = BTreeSet::new();
+                accesses_pages(ctx, reads, &mut read_pages)?;
+
+                status = process::process_lazy_pages(
+                    ctx,
+                    HostFuncAccessHandler {
+                        is_write: false,
+                        gas_counter,
+                        gas_charger: gas_charger.clone(),
+                    },
+                    read_pages,
+                )?;
+            }
 
             // Does not process write accesses if gas exceeded.
             if !matches!(status, Status::Normal) {
                 return Ok(status);
             }
 
-            let mut write_pages = BTreeSet::new();
-            accesses_pages(ctx, writes, &mut write_pages)?;
+            if !reads.is_empty() {
+                let mut write_pages = BTreeSet::new();
+                accesses_pages(ctx, writes, &mut write_pages)?;
 
-            process::process_lazy_pages(
-                ctx,
-                HostFuncAccessHandler {
-                    is_write: true,
-                    gas_counter,
-                    gas_charger,
-                },
-                write_pages,
-            )
+                status = process::process_lazy_pages(
+                    ctx,
+                    HostFuncAccessHandler {
+                        is_write: true,
+                        gas_counter,
+                        gas_charger,
+                    },
+                    write_pages,
+                )?;
+            }
+
+            Ok(status)
         })
         .map_err(|err| match err {
             Error::WasmMemAddrIsNotSet | Error::OutOfWasmMemoryAccess => {
