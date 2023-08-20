@@ -13377,6 +13377,48 @@ fn pause_waited_uninited_program() {
     })
 }
 
+#[test]
+fn remove_from_waitlist_after_exit_reply() {
+    use demo_constructor::demo_wait_init_exit_reply;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let (_init_mid, program_id) = init_constructor(demo_wait_init_exit_reply::scheme());
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(USER_1).unwrap();
+        let (_, remove_from_waitlist_block) = get_last_message_waited();
+
+        assert_ok!(Gear::pay_program_rent(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            remove_from_waitlist_block + 1
+        ));
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            reply.id(),
+            vec![],
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        System::set_block_number(remove_from_waitlist_block - 1);
+        Gear::set_block_number(remove_from_waitlist_block - 1);
+
+        run_to_next_block(None);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
