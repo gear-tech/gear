@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "actor-system-error"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3718,6 +3725,7 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "blake2-rfc",
  "derive_more",
  "gear-backend-codegen",
@@ -3889,6 +3897,7 @@ dependencies = [
 name = "gear-core-processor"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
