@@ -439,10 +439,12 @@ where
             .set_global_val(&mut store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
+        #[cfg(feature = "std")]
         let mut globals_provider = GlobalsAccessProvider {
             instance: instance.clone(),
             store: None,
         };
+        #[cfg(feature = "std")]
         let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
 
         // Pointer to the globals access provider is valid until the end of `invoke` method.
@@ -450,18 +452,19 @@ where
         // We cannot guaranty that `store` (and so globals also) will be in a valid state,
         // because executor mut-borrows `store` during execution. But if it's in a valid state
         // each moment when protect memory signal can occur, than this trick is pretty safe.
+        #[cfg(feature = "std")]
         let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
 
-        let globals_config = if cfg!(not(feature = "std")) {
-            GlobalsAccessConfig {
-                access_ptr: instance.get_instance_ptr(),
-                access_mod: GlobalsAccessMod::WasmRuntime,
-            }
-        } else {
-            GlobalsAccessConfig {
-                access_ptr: globals_access_ptr,
-                access_mod: GlobalsAccessMod::NativeRuntime,
-            }
+        #[cfg(feature = "std")]
+        let globals_config = GlobalsAccessConfig {
+            access_ptr: globals_access_ptr,
+            access_mod: GlobalsAccessMod::NativeRuntime,
+        };
+
+        #[cfg(not(feature = "std"))]
+        let globals_config = GlobalsAccessConfig {
+            access_ptr: instance.get_instance_ptr(),
+            access_mod: GlobalsAccessMod::WasmRuntime,
         };
 
         let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
@@ -477,25 +480,31 @@ where
 
         let mut store = memory_wrap.into_store();
         let res = if needs_execution {
-            let store_option = &mut globals_provider_dyn_ref
-                .as_any_mut()
-                .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
-                // Provider is `GlobalsAccessProvider`, so panic is impossible.
-                .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
-                .store;
+            #[cfg(feature = "std")]
+            let res = {
+                let store_option = &mut globals_provider_dyn_ref
+                    .as_any_mut()
+                    .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
+                    // Provider is `GlobalsAccessProvider`, so panic is impossible.
+                    .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
+                    .store;
 
-            store_option.replace(store);
+                store_option.replace(store);
 
-            let res = instance.invoke(
-                store_option
+                let store_ref = store_option
                     .as_mut()
                     // We set store above, so panic is impossible.
-                    .unwrap_or_else(|| unreachable!("Store must be set before")),
-                entry_point.as_entry(),
-                &[],
-            );
+                    .unwrap_or_else(|| unreachable!("Store must be set before"));
 
-            store = globals_provider.store.take().unwrap();
+                let res = instance.invoke(store_ref, entry_point.as_entry(), &[]);
+
+                store = globals_provider.store.take().unwrap();
+
+                res
+            };
+
+            #[cfg(not(feature = "std"))]
+            let res = instance.invoke(&mut store, entry_point.as_entry(), &[]);
 
             res
         } else {
