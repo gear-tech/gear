@@ -40,6 +40,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use scale_info::scale::{Decode, DecodeAll, Encode, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
+/// 0 index is reserved for an ok result.
 #[derive(Debug, Clone, Encode, Decode, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum ProcessAccessError {
