@@ -21,6 +21,7 @@
 #![allow(useless_deprecated, deprecated)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
@@ -127,7 +128,7 @@ pub trait GearRI {
         let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
-        let mut gas_counter = u64::from_le_bytes(*gas_bytes);
+        let mut gas_counter = LittleEndian::read_u64(gas_bytes);
 
         let res = match lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
@@ -138,7 +139,7 @@ pub trait GearRI {
             Err(err) => err.into(),
         };
 
-        *gas_bytes = gas_counter.to_le_bytes();
+        LittleEndian::write_u64(gas_bytes, gas_counter);
 
         res
     }

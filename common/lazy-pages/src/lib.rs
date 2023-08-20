@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
@@ -171,12 +172,13 @@ pub fn pre_process_memory_accesses(
     let serialized_reads = serialize_mem_intervals(reads);
     let serialized_writes = serialize_mem_intervals(writes);
 
-    let mut gas_bytes = gas_counter.to_le_bytes();
+    let mut gas_bytes = [0u8; 8];
+    LittleEndian::write_u64(&mut gas_bytes, *gas_counter);
 
     let res =
         gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, &mut gas_bytes);
 
-    *gas_counter = u64::from_le_bytes(gas_bytes);
+    *gas_counter = LittleEndian::read_u64(&gas_bytes);
 
     // if result can be converted to `ProcessAccessError` then it's an error
     if let Ok(err) = ProcessAccessError::try_from(res) {
