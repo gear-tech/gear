@@ -13655,7 +13655,8 @@ fn remove_from_waitlist_after_exit_reply() {
             reply.id(),
             vec![],
             1_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
