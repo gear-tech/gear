@@ -75,13 +75,17 @@ where
         self.block_builder.estimate_block_size(include_proof)
     }
 
-    pub fn create_terminal_extrinsic(&mut self) -> Result<Block::Extrinsic, Error> {
+    pub fn create_terminal_extrinsic(
+        &mut self,
+        max_gas: Option<u64>,
+    ) -> Result<Block::Extrinsic, Error> {
         let block_hash = self.parent_hash;
         self.api
             .execute_in_transaction(move |api| {
                 TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(
                     block_hash,
                     ExecutionContext::BlockConstruction,
+                    max_gas,
                 ))
             })
             .map_err(|e| Error::Application(Box::new(e)))

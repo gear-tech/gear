@@ -713,22 +713,19 @@ mod tests {
 
     #[test]
     fn save_load_memory_dump() {
+        use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            420,
-            demo_capacitor::WASM_BINARY.to_vec(),
-            None,
-        );
+        let mut prog =
+            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
 
         let signer = 42;
 
-        // Init capacitor with CAPACITY = 15
-        prog.send_bytes(signer, b"15");
+        // Init capacitor with limit = 15
+        prog.send(signer, InitMessage::Capacitor("15".to_string()));
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = dbg!(prog.send_bytes(signer, b"10"));
         let log = Log::builder()
             .source(prog.id())
@@ -739,21 +736,22 @@ mod tests {
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
         };
-        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
+        // dbg!(log.clone());
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
 
-        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())

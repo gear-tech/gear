@@ -19,8 +19,8 @@
 #![no_std]
 
 use core::ops::Range;
-use gmeta::{In, InOut, Metadata};
-use gstd::{prelude::*, ActorId};
+use gmeta::{In, InOut, Metadata, Out};
+use gstd::{codec::MaxEncodedLen, prelude::*, ActorId};
 
 pub struct FungibleTokenMetadata;
 
@@ -30,7 +30,7 @@ impl Metadata for FungibleTokenMetadata {
     type Others = ();
     type Reply = ();
     type Signal = ();
-    type State = IoFungibleToken;
+    type State = Out<IoFungibleToken>;
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]

@@ -412,6 +412,7 @@ where
         );
 
         GasAllowanceOf::<T>::decrease(gas_burned);
+        // TODO: #3112. Rework requeueing logic to avoid blocked queue.
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
