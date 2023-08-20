@@ -16,6 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    gear_wasm_builder::build();
+use crate::{Calls, Scheme};
+
+pub fn init() -> Calls {
+    let source_var = "source_var";
+
+    Calls::builder()
+        // Storing source id under `source_var`.
+        .source(source_var)
+        .send(source_var, [])
+        .wait()
+}
+
+pub fn handle() -> Calls {
+    Calls::builder().noop()
+}
+
+pub fn handle_reply() -> Calls {
+    let source_var = "source_var";
+
+    Calls::builder()
+        // Storing source id under `source_var`.
+        .source(source_var)
+        // Exit call.
+        .exit(source_var)
+}
+
+pub fn scheme() -> Scheme {
+    Scheme::predefined(init(), handle(), handle_reply())
 }

@@ -368,6 +368,7 @@ pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
         >,
         &sc_consensus_babe::BabeLink<Block>,
     ),
+    max_gas: Option<u64>,
 ) -> Result<NewFullBase<RuntimeApi, ExecutorDispatch>, ServiceError>
 where
     RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -490,6 +491,7 @@ where
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),
+            max_gas,
         );
 
         let client_clone = client.clone();
@@ -640,6 +642,7 @@ impl ExecuteWithClient for RevertConsensus {
 pub fn new_full(
     config: Configuration,
     disable_hardware_benchmarks: bool,
+    max_gas: Option<u64>,
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
@@ -647,6 +650,7 @@ pub fn new_full(
             config,
             disable_hardware_benchmarks,
             |_, _| (),
+            max_gas,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
@@ -654,6 +658,7 @@ pub fn new_full(
             config,
             disable_hardware_benchmarks,
             |_, _| (),
+            max_gas,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),

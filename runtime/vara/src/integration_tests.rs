@@ -66,7 +66,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
-    Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+    Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
@@ -502,6 +502,7 @@ fn tokens_locking_works() {
                     vec![],
                     10_000_000_000,
                     11 * UNITS,
+                    false,
                 ),
                 pallet_gear::Error::<Runtime>::InsufficientBalance
             );

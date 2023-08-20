@@ -26,7 +26,7 @@ mod common;
 #[tokio::test]
 async fn api_timeout() {
     assert!(matches!(
-        Api::new_with_timeout(None, Some(10)).await.err(),
+        Api::new_with_timeout(None, Some(1)).await.err(),
         Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
     ));
 }

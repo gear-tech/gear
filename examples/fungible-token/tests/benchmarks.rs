@@ -40,7 +40,7 @@ async fn send_messages_in_parallel(
     api: &GearApi,
     batch_size: usize,
     treads_number: usize,
-    messages: &[(ProgramId, Vec<u8>, u64, u128)],
+    messages: &[(ProgramId, Vec<u8>, u64, u128, bool)],
 ) -> Result<Vec<MessageId>> {
     // TODO: currently have problem with transaction priorities from one user.
     // Fix this after loader become a lib #2781
@@ -190,9 +190,9 @@ async fn stress_test() -> Result<()> {
     }
 
     // Converting batch
-    let batch: Vec<(_, Vec<u8>, u64, _)> = batch
+    let batch: Vec<(_, Vec<u8>, u64, _, _)> = batch
         .iter()
-        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0))
+        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0, false))
         .collect();
 
     // Sending batch
@@ -251,9 +251,9 @@ async fn stress_transfer() -> Result<()> {
         ));
     }
 
-    let messages: Vec<(_, Vec<u8>, u64, _)> = actions
+    let messages: Vec<(_, Vec<u8>, u64, _, _)> = actions
         .into_iter()
-        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0))
+        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0, false))
         .collect();
 
     let message_ids = send_messages_in_parallel(&api, BATCH_CHUNK_SIZE, 1, &messages).await?;

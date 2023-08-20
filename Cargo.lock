@@ -1848,25 +1848,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-backend-error"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gsys",
-]
-
-[[package]]
-name = "demo-btree"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
@@ -1896,14 +1877,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-capacitor"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -1919,6 +1892,17 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-custom"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gsys",
+ "gtest",
  "parity-scale-codec",
 ]
 
@@ -3636,12 +3620,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "demo-async-tester",
- "demo-backend-error",
- "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
- "demo-capacitor",
  "demo-constructor",
+ "demo-custom",
  "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",
@@ -3693,6 +3675,7 @@ name = "gear-authorship"
 version = "0.1.0"
 dependencies = [
  "demo-mul-by-const",
+ "env_logger",
  "frame-support",
  "frame-system",
  "futures",
@@ -3701,6 +3684,7 @@ dependencies = [
  "gear-node-testing",
  "gear-runtime-primitives",
  "log",
+ "pallet-balances",
  "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-rpc-runtime-api",
@@ -3806,8 +3790,6 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
- "sha-1",
- "static_assertions",
  "thiserror",
 ]
 
@@ -4695,7 +4677,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
- "demo-capacitor",
+ "demo-custom",
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
@@ -6189,9 +6171,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.19"
+version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
+checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "loupe"
@@ -7243,13 +7225,12 @@ dependencies = [
  "demo-async-recursion",
  "demo-async-signal-entry",
  "demo-async-tester",
- "demo-backend-error",
- "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
  "demo-constructor",
+ "demo-custom",
  "demo-delayed-sender",
  "demo-distributor",
  "demo-futures-unordered",
@@ -8905,13 +8886,13 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.9.1"
+version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2eae68fc220f7cf2532e4494aded17545fce192d59cd996e0fe7887f4ceb575"
+checksum = "81bc1d4caf89fac26a70747fe603c130093b53c773888797a6329091246d651a"
 dependencies = [
  "aho-corasick 1.0.2",
  "memchr",
- "regex-automata 0.3.2",
+ "regex-automata 0.3.6",
  "regex-syntax 0.7.4",
 ]
 
@@ -8926,9 +8907,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.3.2"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83d3daa6976cffb758ec878f108ba0e062a45b2d6ca3a2cca965338855476caf"
+checksum = "fed1ceff11a1dddaee50c9dc8e4938bd106e9d89ae372f192311e7da498e3b69"
 dependencies = [
  "aho-corasick 1.0.2",
  "memchr",
@@ -9176,13 +9157,13 @@ dependencies = [
  "gear-wasm-gen",
  "hex",
  "log",
- "once_cell",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
- "parking_lot 0.12.1",
+ "proptest",
  "rand 0.8.5",
+ "sha-1 0.10.1",
  "sp-consensus-babe",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
@@ -9190,6 +9171,7 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-keyring",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "static_assertions",
 ]
 
 [[package]]
@@ -10773,9 +10755,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.104"
+version = "1.0.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "076066c5f1078eac5b722a31827a8832fe108bed65dfa75e233c89f8206e976c"
+checksum = "693151e1ac27563d6dbcec9dee9fbd5da8539b20fa14ad3752b2e6d363ace360"
 dependencies = [
  "itoa",
  "ryu",
@@ -10825,6 +10807,17 @@ dependencies = [
  "cpufeatures",
  "digest 0.9.0",
  "opaque-debug 0.3.0",
+]
+
+[[package]]
+name = "sha-1"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5058ada175748e33390e40e872bd0fe59a19f265d0158daa551c5a88a76009c"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -11034,7 +11027,7 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.8.5",
- "sha-1",
+ "sha-1 0.9.8",
 ]
 
 [[package]]
@@ -13097,9 +13090,9 @@ dependencies = [
 
 [[package]]
 name = "trybuild"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a84e0202ea606ba5ebee8507ab2bfbe89b98551ed9b8f0be198109275cff284b"
+checksum = "6df60d81823ed9c520ee897489573da4b1d79ffbe006b8134f46de1a1aa03555"
 dependencies = [
  "basic-toml",
  "dissimilar",
@@ -14444,7 +14437,7 @@ dependencies = [
  "log",
  "rtcp",
  "rtp",
- "sha-1",
+ "sha-1 0.9.8",
  "subtle",
  "thiserror",
  "tokio",
