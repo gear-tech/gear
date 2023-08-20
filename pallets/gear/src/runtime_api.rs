@@ -73,14 +73,16 @@ where
                     })?;
             }
             HandleKind::Handle(destination) => {
-                Self::send_message(who.into(), destination, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_message failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_message(who.into(), destination, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
-                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_reply failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
@@ -306,7 +308,7 @@ where
         let instrumented_code = code_and_id.into_parts().0;
 
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id)?);
+        payload.append(&mut Self::read_state_impl(program_id, Default::default())?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),
@@ -325,7 +327,10 @@ where
         )
     }
 
-    pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
+    pub(crate) fn read_state_impl(
+        program_id: ProgramId,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
@@ -353,7 +358,7 @@ where
             program_pages,
             Some(allocations),
             Some(program_id),
-            Default::default(),
+            payload,
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )

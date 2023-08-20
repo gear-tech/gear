@@ -52,10 +52,13 @@ pub fn generate_gear_program_code(
 
     let bytes = parity_wasm::serialize(module).expect("unable to serialize pw module");
 
+    // Newline to easily browse logs.
+    println!();
     log::trace!(
         "{}",
         wasmprinter::print_bytes(&bytes).expect("internal error: failed printing bytes")
     );
+    println!();
 
     Ok(bytes)
 }

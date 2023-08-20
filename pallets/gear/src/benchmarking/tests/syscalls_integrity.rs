@@ -331,6 +331,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -685,6 +686,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -723,6 +725,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -926,6 +929,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send message");
         }
@@ -937,6 +941,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send reply");
         }
