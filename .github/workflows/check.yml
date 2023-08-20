@@ -80,10 +80,16 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
 
       - name: "Check fuzzer with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+      - name: "Check fuzzer reproduction"
+        run: ./scripts/gear.sh test fuzz-repr
 
       - run: sccache --show-stats

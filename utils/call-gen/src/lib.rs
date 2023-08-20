@@ -90,7 +90,7 @@ pub trait NamedCallArgs {
 }
 
 /// Set of `pallet_gear` calls supported by the crate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GearCall {
     /// Upload program call args.
     UploadProgram(UploadProgramArgs),
