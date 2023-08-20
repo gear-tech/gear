@@ -13632,7 +13632,7 @@ fn remove_from_waitlist_after_exit_reply() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let (_init_mid, program_id) = init_constructor(demo_wait_init_exit_reply::scheme());
+        let (init_mid, program_id) = init_constructor(demo_wait_init_exit_reply::scheme());
 
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_active(program_id));
@@ -13640,7 +13640,8 @@ fn remove_from_waitlist_after_exit_reply() {
         run_to_next_block(None);
 
         let reply = maybe_last_message(USER_1).unwrap();
-        let (_, remove_from_waitlist_block) = get_last_message_waited();
+        let (waited_mid, remove_from_waitlist_block) = get_last_message_waited();
+        assert_eq!(init_mid, waited_mid);
 
         assert_ok!(Gear::pay_program_rent(
             RuntimeOrigin::signed(USER_1),
@@ -13649,6 +13650,11 @@ fn remove_from_waitlist_after_exit_reply() {
         ));
 
         run_to_next_block(None);
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &remove_from_waitlist_block,
+            &ScheduledTask::RemoveFromWaitlist(program_id, init_mid)
+        ));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -13660,6 +13666,12 @@ fn remove_from_waitlist_after_exit_reply() {
         ));
 
         run_to_next_block(None);
+
+        assert!(Gear::is_exited(program_id));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &remove_from_waitlist_block,
+            &ScheduledTask::RemoveFromWaitlist(program_id, init_mid)
+        ));
 
         System::set_block_number(remove_from_waitlist_block - 1);
         Gear::set_block_number(remove_from_waitlist_block - 1);
