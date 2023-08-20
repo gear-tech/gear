@@ -375,7 +375,7 @@ pub enum Memory {
     /// Wasmi memory reference
     Wasmi(WasmiMemoryWrapper),
 
-    /// Wasmer memory refernce
+    /// Wasmer memory reference
     Wasmer(WasmerMemoryWrapper),
 }
 

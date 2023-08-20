@@ -158,7 +158,7 @@ fn validate_if_has_no_attributes(
 ///
 /// **Important note**: although metafunctions can take more than 1 additional
 /// arguments, on the metaWASM binary level, they must be passed as one. So if
-/// the amount of additinal arguments is 0 or 1, nothing needs to be changed,
+/// the amount of additional arguments is 0 or 1, nothing needs to be changed,
 /// but if more - they all must be placed inside a tuple in the same order as in
 /// their function's signature.
 ///

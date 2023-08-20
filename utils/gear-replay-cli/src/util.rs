@@ -47,7 +47,7 @@ use sp_runtime::{
     DeserializeOwned,
 };
 use sp_state_machine::{
-    backend::BackendRuntimeCode, ExecutionStrategy, OverlayedChanges, StateMachine,
+    backend::BackendRuntimeCode, ExecutionStrategy, OverlaidChanges, StateMachine,
 };
 use std::{fmt::Debug, str::FromStr, sync::Arc};
 use substrate_rpc_client::{ChainApi, WsClient};
@@ -190,7 +190,7 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
     data: &[u8],
     extensions: Extensions,
     strategy: ExecutionStrategy,
-) -> sc_cli::Result<(OverlayedChanges, Vec<u8>)> {
+) -> sc_cli::Result<(OverlaidChanges, Vec<u8>)> {
     let mut changes = Default::default();
     let encoded_results = StateMachine::new(
         &ext.backend,

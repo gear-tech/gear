@@ -107,7 +107,7 @@ impl EventListener {
         Err(Self::not_waited())
     }
 
-    /// Reads the next event from the stream and returns the repsective block
+    /// Reads the next event from the stream and returns the respective block
     /// hash.
     pub async fn next_block_hash(&mut self) -> Result<H256> {
         Ok(self

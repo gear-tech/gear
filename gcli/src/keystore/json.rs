@@ -75,7 +75,7 @@ pub struct EncryptedEncoding {
 ///         ],
 ///         "version": "3"
 ///     },
-///     "address": "5Hax9tpSjfiX1nYrqhFf8F3sLiaa2ZfPv2VeDQzPBLzKNjRq",
+///     "address": "5Hex9tpSjfiX1nYrqhFf8F3sLiaa2ZfPv2VeDQzPBLzKNjRq",
 ///     "meta": {
 ///         "genesisHash": "",
 ///         "name": "GEAR",
