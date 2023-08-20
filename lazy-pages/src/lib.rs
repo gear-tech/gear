@@ -305,8 +305,8 @@ pub fn status() -> Result<Status, Error> {
 pub enum InitError {
     #[display(fmt = "Wrong page sizes amount: get {_0}, must be {_1}")]
     WrongSizesAmount(usize, usize),
-    #[display(fmt = "Wrong global names: {_0}")]
-    WrongGlobalNames(String),
+    #[display(fmt = "Wrong global names: expected {_0}, found {_1}")]
+    WrongGlobalNames(String, String),
     #[display(fmt = "Not suitable page sizes")]
     NotSuitablePageSizes,
     #[display(fmt = "Can not set signal handler: {_0}")]
@@ -419,7 +419,10 @@ fn init_with_handler<H: UserSignalHandler>(
     // TODO: check globals from context issue #3057
     // we only need to check the globals that are used to keep the state consistent in older runtimes.
     if global_names[GlobalNo::Gas as usize].as_str() != "gear_gas" {
-        return Err(WrongGlobalNames("gear_gas".to_string()));
+        return Err(WrongGlobalNames(
+            "gear_gas".to_string(),
+            global_names[GlobalNo::Gas as usize].to_string(),
+        ));
     }
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
