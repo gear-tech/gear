@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  TERM: xterm-256color
+
 jobs:
   check:
     name: Check
@@ -11,4 +17,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: typos-action
-        uses: crate-ci/typos@v1.0.4
+        uses: crate-ci/typos@master
