@@ -28,7 +28,7 @@ use gear_utils::{NonEmpty, RingGet};
 /// Claim value args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::claim_value` call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ClaimValueArgs(pub MessageId);
 
 impl_convert_traits!(ClaimValueArgs, MessageId, ClaimValue, "claim_value");

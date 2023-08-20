@@ -31,7 +31,7 @@ type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128, bool);
 /// Send reply args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_reply` call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SendReplyArgs(pub SendReplyArgsInner);
 
 impl_convert_traits!(SendReplyArgs, SendReplyArgsInner, SendReply, "send_reply");

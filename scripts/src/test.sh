@@ -91,7 +91,7 @@ run_fuzzer() {
 }
 
 test_fuzzer_reproduction() {
-  cargo nextest run -p runtime-fuzzer -E 'test(=test_fuzzer_reproduction)'
+  cargo nextest run -p runtime-fuzzer -E 'test(=tests::test_fuzzer_reproduction)'
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
