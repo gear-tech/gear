@@ -106,7 +106,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     let salt = vec![];
     let pid =
-        ProgramId::generate_with_nonce(CodeId::generate(demo_messager::WASM_BINARY), &salt, 0u32);
+        ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -145,7 +145,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let salt = vec![];
     let pid =
-        ProgramId::generate_with_nonce(CodeId::generate(demo_waiter::WASM_BINARY), &salt, 0u32);
+        ProgramId::generate(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
 
     // 1. upload program.
@@ -274,7 +274,7 @@ async fn test_original_code_storage() -> Result<()> {
 
     let salt = vec![];
     let pid =
-        ProgramId::generate_with_nonce(CodeId::generate(demo_messager::WASM_BINARY), &salt, 0u32);
+        ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     let signer = Api::new(Some(&node_uri(&node)))
         .await?

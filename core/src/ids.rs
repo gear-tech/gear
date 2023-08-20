@@ -206,14 +206,25 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
-        Self::generate_with_nonce(code_id, salt, 0u32)
-    }
-
-    /// Generate ProgramId from given CodeId, nonce and salt
-    pub fn generate_with_nonce<T: ProgramNonce>(code_id: CodeId, salt: &[u8], nonce: T) -> Self {
         const SALT: &[u8] = b"program";
 
-        let argument = [nonce.as_nonce().as_ref(), SALT, code_id.as_ref(), salt].concat();
+        let argument = [SALT, code_id.as_ref(), salt].concat();
+        hash(&argument).into()
+    }
+
+    /// Generate ProgramId from given CodeId, MessageId and salt
+    pub fn generate_for_pallet(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
+        const SALT: &[u8] = b"program";
+
+        let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt].concat();
+        hash(&argument).into()
+    }
+
+    /// Generate ProgramId from given CodeId, MessageId, salt and nonce
+    pub fn generate_for_wasm(code_id: CodeId, salt: &[u8], message_id: MessageId, nonce: usize) -> Self {
+        const SALT: &[u8] = b"program";
+
+        let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt, nonce.to_le_bytes()].concat();
         hash(&argument).into()
     }
 }
@@ -230,37 +241,12 @@ impl ReservationId {
     }
 }
 
-/// Trait representing the extra info needed for program id generation.
-/// This is usually a MessageId, but it can be a handle in the form of a u32 or u64.
-pub trait ProgramNonce {
-    /// Turn the nonce into a vector of bytes to be used in the program id generation.
-    fn as_nonce(&self) -> Vec<u8>;
-}
-
-impl ProgramNonce for MessageId {
-    fn as_nonce(&self) -> Vec<u8> {
-        self.as_ref().to_vec()
-    }
-}
-
-impl ProgramNonce for u32 {
-    fn as_nonce(&self) -> Vec<u8> {
-        self.to_le_bytes().to_vec()
-    }
-}
-
-impl ProgramNonce for u64 {
-    fn as_nonce(&self) -> Vec<u8> {
-        self.to_le_bytes().to_vec()
-    }
-}
-
 #[test]
 fn formatting_test() {
     use alloc::format;
 
     let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate_with_nonce(code_id, &[2, 1, 0], 0u32);
+    let id = ProgramId::generate(code_id, &[2, 1, 0]);
 
     // `Debug`/`Display`.
     assert_eq!(

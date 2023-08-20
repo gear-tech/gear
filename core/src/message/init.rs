@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{CodeId, MessageId, ProgramId, ProgramNonce},
+    ids::{CodeId, MessageId, ProgramId},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
         StoredMessage, Value,
@@ -46,10 +46,10 @@ pub struct InitMessage {
 
 impl InitMessage {
     /// Create InitMessage from InitPacket.
-    pub fn from_packet<T: ProgramNonce>(id: MessageId, packet: InitPacket, nonce: T) -> Self {
+    pub fn from_packet(id: MessageId, packet: InitPacket, nonce: usize) -> Self {
         Self {
             id,
-            destination: packet.destination(nonce),
+            destination: packet.destination(id, Some(nonce)),
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -157,8 +157,13 @@ impl InitPacket {
     }
 
     /// Packet destination (newly created program id).
-    pub fn destination<T: ProgramNonce>(&self, nonce: T) -> ProgramId {
-        ProgramId::generate_with_nonce(self.code_id, self.salt.inner(), nonce)
+    pub fn destination(&self, message_id: MessageId, nonce: Option<usize>) -> ProgramId {
+        if let Some(nonce) = nonce {
+            ProgramId::generate_for_wasm(self.code_id, self.salt.inner(), message_id, nonce)
+        }
+        else {
+            ProgramId::generate_for_pallet(self.code_id, self.salt.inner(), message_id)
+        }
     }
 
     /// Code id.

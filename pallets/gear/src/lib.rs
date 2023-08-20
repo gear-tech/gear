@@ -1233,7 +1233,7 @@ pub mod pallet {
             let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
-                packet.destination(message_id),
+                packet.destination(message_id, None),
                 &code_info,
                 message_id,
                 expiration_block,

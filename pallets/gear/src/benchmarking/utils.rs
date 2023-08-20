@@ -134,7 +134,7 @@ where
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate_with_nonce(
+            let program_id = ProgramId::generate_for_pallet(
                 CodeId::generate(code),
                 b"bench_salt",
                 root_message_id,
@@ -176,7 +176,7 @@ where
         }
         HandleKind::InitByHash(code_id) => {
             let program_id =
-                ProgramId::generate_with_nonce(code_id, b"bench_salt", root_message_id);
+                ProgramId::generate_for_pallet(code_id, b"bench_salt", root_message_id);
 
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
