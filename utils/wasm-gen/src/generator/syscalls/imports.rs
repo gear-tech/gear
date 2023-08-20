@@ -268,10 +268,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates a function which calls "properly" the given sys-call.
-    fn generate_sys_call_pattern(
+    fn generate_proper_sys_call_invocation(
         &mut self,
         sys_call: SysCallName,
-        sys_call_amount: u32,
         func_instructions: Instructions,
         func_locals: Option<Vec<Local>>,
     ) {
@@ -307,8 +306,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes.add_func(func_idx.signature as usize);
 
+        // TODO: make separate config for precise sys-calls
         self.sys_calls_imports
-            .insert(invocable_sys_call, (sys_call_amount, call_indexes_handle));
+            .insert(invocable_sys_call, (1, call_indexes_handle));
     }
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
@@ -390,7 +390,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
 
-        self.generate_sys_call_pattern(SysCallName::ReservationSend, 1, func_instructions, None);
+        self.generate_proper_sys_call_invocation(
+            SysCallName::ReservationSend,
+            func_instructions,
+            None,
+        );
     }
 }
 
