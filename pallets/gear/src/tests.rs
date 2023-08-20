@@ -13261,6 +13261,28 @@ fn test_send_to_terminated_from_program() {
     })
 }
 
+// currently `parity_wasm` doesn't support WASM reference types
+#[test]
+fn wasm_ref_types_doesnt_work() {
+    const WAT: &str = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (elem declare func $init)
+        (func $init
+            ref.func $init
+            call $test
+        )
+        (func $test (param funcref))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _pid = upload_program_default(USER_1, ProgramCodeKind::Custom(WAT)).unwrap_err();
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

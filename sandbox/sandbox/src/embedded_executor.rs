@@ -302,7 +302,12 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
                                 .into_iter()
                                 .chain(params.iter().cloned())
                                 .map(to_interface)
-                                .collect();
+                                .map(|val| {
+                                    val.ok_or(Trap::new(
+                                        "`externref` or `funcref` are not supported",
+                                    ))
+                                })
+                                .collect::<Result<_, _>>()?;
 
                             let mut caller = Caller(caller);
                             let val = (func_ptr)(&mut caller, &params)
@@ -381,7 +386,10 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
 
         match results.as_slice() {
             [] => Ok(ReturnValue::Unit),
-            [val] => Ok(ReturnValue::Value(to_interface(val.clone()))),
+            [val] => {
+                let val = to_interface(val.clone()).ok_or(Error::Execution)?;
+                Ok(ReturnValue::Value(val))
+            }
             _ => unreachable!(),
         }
     }
@@ -389,7 +397,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
     fn get_global_val(&self, store: &Store<State>, name: &str) -> Option<Value> {
         let global = self.instance.get_global(store, name)?;
         let global = global.get(store);
-        Some(to_interface(global))
+        to_interface(global)
     }
 
     fn set_global_val(
@@ -424,15 +432,13 @@ fn to_wasmi(value: Value) -> RuntimeValue {
 }
 
 /// Convert the wasmi value type to the substrate value type.
-fn to_interface(value: RuntimeValue) -> Value {
+fn to_interface(value: RuntimeValue) -> Option<Value> {
     match value {
-        RuntimeValue::I32(val) => Value::I32(val),
-        RuntimeValue::I64(val) => Value::I64(val),
-        RuntimeValue::F32(val) => Value::F32(val.into()),
-        RuntimeValue::F64(val) => Value::F64(val.into()),
-        RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => {
-            unreachable!("embedded executor doesn't work with FuncRef or ExternRef")
-        }
+        RuntimeValue::I32(val) => Some(Value::I32(val)),
+        RuntimeValue::I64(val) => Some(Value::I64(val)),
+        RuntimeValue::F32(val) => Some(Value::F32(val.into())),
+        RuntimeValue::F64(val) => Some(Value::F64(val.into())),
+        RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => None,
     }
 }
 
