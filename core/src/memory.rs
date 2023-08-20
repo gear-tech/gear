@@ -61,11 +61,13 @@ impl MemoryInterval {
     /// `0..4` - `offset`
     /// `4..8` - `size`
     #[inline]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        assert!(bytes.len() == 8);
+    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
+        if bytes.len() != 8 {
+            return Err("bytes size != 8");
+        }
         let offset = LittleEndian::read_u32(&bytes[0..4]);
         let size = LittleEndian::read_u32(&bytes[4..8]);
-        MemoryInterval { offset, size }
+        Ok(MemoryInterval { offset, size })
     }
 }
 
