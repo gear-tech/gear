@@ -1,5 +1,5 @@
 [default]
 extend-ignore-re = [
-    "\\w{49}",
+    "\\w{48,49}",
     "\"hel\""
 ]
