@@ -112,7 +112,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(Memory { memref })
     }
 
-    fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
+    fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
         Context: AsContextExt<T>,
     {
@@ -125,7 +125,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(())
     }
 
-    fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<T>,
     {

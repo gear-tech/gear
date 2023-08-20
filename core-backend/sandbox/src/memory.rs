@@ -50,13 +50,13 @@ impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.memory
-            .set(self.caller, offset, buffer)
+            .write(self.caller, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.memory
-            .get(self.caller, offset, buffer)
+            .read(self.caller, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
@@ -109,13 +109,13 @@ where
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.memory
-            .set(&mut self.store, offset, buffer)
+            .write(&mut self.store, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.memory
-            .get(&self.store, offset, buffer)
+            .read(&self.store, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 

@@ -110,7 +110,7 @@ pub trait AsContextExt<T>: default_executor::AsContext {
 /// will be used by the guest module.
 ///
 /// The memory can't be directly accessed by supervisor, but only
-/// through designated functions [`get`](SandboxMemory::get) and [`set`](SandboxMemory::set).
+/// through designated functions [`get`](SandboxMemory::read) and [`set`](SandboxMemory::write).
 pub trait SandboxMemory<T>: Sized + Clone {
     /// Construct a new linear memory instance.
     ///
@@ -131,14 +131,14 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Read a memory area at the address `ptr` with the size of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn get<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
+    fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
         Context: AsContextExt<T>;
 
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn set<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<T>;
 
