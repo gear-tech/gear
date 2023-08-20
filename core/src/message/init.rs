@@ -160,8 +160,7 @@ impl InitPacket {
     pub fn destination(&self, message_id: MessageId, nonce: Option<usize>) -> ProgramId {
         if let Some(nonce) = nonce {
             ProgramId::generate_for_wasm(self.code_id, self.salt.inner(), message_id, nonce)
-        }
-        else {
+        } else {
             ProgramId::generate_for_pallet(self.code_id, self.salt.inner(), message_id)
         }
     }

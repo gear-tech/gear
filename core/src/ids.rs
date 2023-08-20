@@ -221,10 +221,22 @@ impl ProgramId {
     }
 
     /// Generate ProgramId from given CodeId, MessageId, salt and nonce
-    pub fn generate_for_wasm(code_id: CodeId, salt: &[u8], message_id: MessageId, nonce: usize) -> Self {
+    pub fn generate_for_wasm(
+        code_id: CodeId,
+        salt: &[u8],
+        message_id: MessageId,
+        nonce: usize,
+    ) -> Self {
         const SALT: &[u8] = b"program";
 
-        let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt, nonce.to_le_bytes()].concat();
+        let argument = [
+            message_id.as_ref(),
+            SALT,
+            code_id.as_ref(),
+            salt,
+            nonce.to_le_bytes(),
+        ]
+        .concat();
         hash(&argument).into()
     }
 }

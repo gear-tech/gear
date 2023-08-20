@@ -1146,8 +1146,7 @@ fn delayed_user_replacement() {
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let future_program_address =
-            ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
