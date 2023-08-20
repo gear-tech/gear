@@ -243,28 +243,35 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
 impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Returns the indexes of invocable sys-calls.
-    fn invocable_sys_calls_indexes(&self, sys_calls: &[SysCallName]) -> Option<Vec<usize>> {
-        let ret: Option<Vec<_>> = sys_calls
-            .iter()
-            .map(|&sys_call| {
-                self.sys_calls_imports
-                    .get(&InvocableSysCall::Loose(sys_call))
-                    .map(|&(_, call_indexes_handle)| call_indexes_handle)
-            })
-            .collect();
+    fn invocable_sys_calls_indexes<const N: usize>(
+        &self,
+        sys_calls: [SysCallName; N],
+    ) -> Option<[usize; N]> {
+        let mut indexes = [0; N];
+        let iter = sys_calls.iter().map(|&sys_call| {
+            self.sys_calls_imports
+                .get(&InvocableSysCall::Loose(sys_call))
+                .map(|&(_, call_indexes_handle)| call_indexes_handle)
+        });
 
-        if ret.is_none() {
-            log::trace!(
-                "Wasm should import the following syscalls: {missing_sys_calls}",
-                missing_sys_calls = sys_calls
-                    .iter()
-                    .map(|sys_call| sys_call.to_str())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
+        for (index, maybe_index) in indexes.iter_mut().zip(iter) {
+            match maybe_index {
+                Some(idx) => *index = idx,
+                None => {
+                    log::trace!(
+                        "Wasm should import the following syscalls: {missing_sys_calls}",
+                        missing_sys_calls = sys_calls
+                            .iter()
+                            .map(|sys_call| sys_call.to_str())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                    return None;
+                }
+            }
         }
 
-        ret
+        Some(indexes)
     }
 
     /// Generates a function which calls "properly" the given sys-call.
@@ -313,9 +320,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
-        let Some(&[reserve_gas_idx, reservation_send_idx]) = self
-            .invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SysCallName::ReservationSend])
-            .as_deref() else {
+        let Some([reserve_gas_idx, reservation_send_idx]) = self
+            .invocable_sys_calls_indexes([SysCallName::ReserveGas, SysCallName::ReservationSend]) else {
                 return;
             };
 
