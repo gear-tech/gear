@@ -3677,6 +3677,7 @@ dependencies = [
  "gear-node-testing",
  "gear-runtime-primitives",
  "log",
+ "pallet-balances",
  "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-rpc-runtime-api",

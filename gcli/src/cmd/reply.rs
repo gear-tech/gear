@@ -57,6 +57,7 @@ impl Reply {
         let reply_to_id = self.reply_to_id.to_hash()?;
 
         signer
+            .calls
             .send_reply(
                 reply_to_id.into(),
                 self.payload.to_vec()?,
