@@ -92,9 +92,9 @@ impl InvocableSysCall {
     // If syscall changes from fallible into infallible or vice versa in future,
     // we'll see it by analyzing code coverage stats produced by fuzzer.
     pub(crate) fn is_fallible(&self) -> bool {
-        let underlying_syscall = match self {
-            &Self::Loose(sc) => sc,
-            &Self::Precise(sc) => sc,
+        let underlying_syscall = match *self {
+            Self::Loose(sc) => sc,
+            Self::Precise(sc) => sc,
         };
 
         match underlying_syscall {
