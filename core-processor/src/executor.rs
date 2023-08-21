@@ -41,12 +41,12 @@ use gear_core::{
     env::Externalities,
     gas::{CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, Memory, MemoryError},
+    memory::{AllocationsContext, Memory},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
 };
@@ -67,9 +67,6 @@ pub enum ActorPrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
     /// Stack is not aligned to WASM page size
     #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
     StackIsNotAligned(u32),
@@ -80,15 +77,6 @@ pub enum SystemPrepareMemoryError {
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(GearPage, MemoryError),
-    /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(GearPage, MemoryError),
-    /// Initial pages data must be empty in lazy pages mode
-    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesContainsDataInLazyPagesMode,
 }
 
 /// Make checks that everything with memory goes well.
