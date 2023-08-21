@@ -4357,6 +4357,7 @@ dependencies = [
  "log",
  "proptest",
  "rand 0.8.5",
+ "static_assertions",
  "wasm-smith",
  "wasmparser-nostd 0.100.1",
  "wasmprinter",

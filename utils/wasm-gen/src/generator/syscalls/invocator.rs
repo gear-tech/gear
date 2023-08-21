@@ -305,7 +305,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             // Assume here that:
             // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
             // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
-            // 3. Returned `ErrorCode` == 0u32 when syscal was successfull.
+
+            static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+            assert_eq!(gsys::ErrorCode::default(), 0);
 
             let params = syscall.signature.params;
             assert!(matches!(

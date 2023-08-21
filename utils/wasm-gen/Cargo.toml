@@ -15,6 +15,7 @@ gsys.workspace = true
 gear-utils.workspace = true
 gear-core.workspace = true
 wasmparser.workspace = true
+static_assertions.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
