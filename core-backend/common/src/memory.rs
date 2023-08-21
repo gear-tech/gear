@@ -371,7 +371,7 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
         // # Safety:
         //
         // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-        // `MaybeUninit` is presented on stack with continuous sequence of bytes.
+        // `MaybeUninit` is presented on stack as a contiguous sequence of bytes.
         //
         // It's also safe to construct T from any bytes, because we use the fn
         // only for reading primitive const-size types that are `[repr(C)]`,
