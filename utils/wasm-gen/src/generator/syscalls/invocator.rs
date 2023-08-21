@@ -295,6 +295,30 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         .contains(&sys_call)
     }
 
+    fn build_call(
+        &mut self,
+        syscall: SysCallInfo,
+        call_indexes_handle: CallIndexesHandle,
+    ) -> Result<Vec<Instruction>> {
+        let mut instructions = vec![];
+
+        let param_setters = self.build_param_setters(&syscall.signature.params)?;
+        instructions.extend(param_setters.iter().map(ParamSetter::get_ix));
+
+        instructions.push(Instruction::Call(call_indexes_handle as u32));
+
+        let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
+            std::iter::repeat(Instruction::Drop)
+                .take(syscall.signature.results.len())
+                .collect()
+        } else {
+            self.build_result_processing(syscall, &param_setters)
+        };
+        instructions.append(&mut result_processing);
+
+        Ok(instructions)
+    }
+
     fn build_result_processing(
         &mut self,
         syscall: SysCallInfo,
@@ -437,30 +461,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         assert_eq!(setters.len(), params.len());
 
         Ok(setters)
-    }
-
-    fn build_call(
-        &mut self,
-        syscall: SysCallInfo,
-        call_indexes_handle: CallIndexesHandle,
-    ) -> Result<Vec<Instruction>> {
-        let mut instructions = vec![];
-
-        let param_setters = self.build_param_setters(&syscall.signature.params)?;
-        instructions.extend(param_setters.iter().map(ParamSetter::get_ix));
-
-        instructions.push(Instruction::Call(call_indexes_handle as u32));
-
-        let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
-            std::iter::repeat(Instruction::Drop)
-                .take(syscall.signature.results.len())
-                .collect()
-        } else {
-            self.build_result_processing(syscall, &param_setters)
-        };
-        instructions.append(&mut result_processing);
-
-        Ok(instructions)
     }
 
     fn insert_sys_call_instructions(&mut self, instructions: &[Instruction]) -> Result<()> {
