@@ -115,7 +115,6 @@ impl Meta {
             wasm,
             None,
             None,
-            None,
             Default::default(),
             u64::MAX,
             BlockInfo::default(),

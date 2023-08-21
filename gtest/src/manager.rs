@@ -117,13 +117,7 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(
-        &self,
-    ) -> Option<(
-        ExecutableActorData,
-        CoreProgram,
-        BTreeMap<GearPage, PageBuf>,
-    )> {
+    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
         let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
@@ -161,7 +155,6 @@ impl TestActor {
                 gas_reservation_map,
             },
             program,
-            pages_data,
         ))
     }
 }
@@ -407,14 +400,8 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, program, memory_pages)) = actor.get_executable_actor_data() {
-                self.process_normal(
-                    balance,
-                    data,
-                    program.code().clone(),
-                    memory_pages,
-                    dispatch,
-                );
+            } else if let Some((data, program)) = actor.get_executable_actor_data() {
+                self.process_normal(balance, data, program.code().clone(), dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -445,11 +432,10 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
+        if let Some((_, program)) = actor.get_executable_actor_data() {
             core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
                 String::from("state"),
                 program.code().clone(),
-                Some(memory_pages),
                 Some(program.allocations().clone()),
                 Some(*program_id),
                 Default::default(),
@@ -487,7 +473,6 @@ impl ExtManager {
         core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
             String::from(fn_name),
             mapping_code,
-            None,
             None,
             None,
             mapping_code_payload,
@@ -770,14 +755,13 @@ impl ExtManager {
         balance: u128,
         data: ExecutableActorData,
         code: InstrumentedCode,
-        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
+        self.process_dispatch(balance, Some((data, code)), dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
-        self.process_dispatch(balance, None, Default::default(), dispatch);
+        self.process_dispatch(balance, None, dispatch);
     }
 
     #[track_caller]
@@ -785,7 +769,6 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: Option<(ExecutableActorData, InstrumentedCode)>,
-        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -864,7 +847,6 @@ impl ExtManager {
             &block_config,
             (context, code, balance).into(),
             self.random_data.clone(),
-            memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 

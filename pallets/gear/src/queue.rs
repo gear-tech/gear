@@ -141,7 +141,6 @@ where
             block_config,
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
-            Default::default(),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 

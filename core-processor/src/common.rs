@@ -549,8 +549,6 @@ pub struct WasmExecutionContext {
     pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,
-    /// Memory pages with initial data.
-    pub pages_initial_data: BTreeMap<GearPage, PageBuf>,
     /// Size of the memory block.
     pub memory_size: WasmPage,
 }

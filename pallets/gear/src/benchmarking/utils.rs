@@ -289,6 +289,5 @@ where
         block_config,
         context: (context, code, balance).into(),
         random_data: (vec![0u8; 32], 0),
-        memory_pages: Default::default(),
     })
 }

@@ -30,7 +30,6 @@ pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
-    pub program_pages: Option<BTreeMap<GearPage, PageBuf>>,
 }
 
 impl<T: Config> Pallet<T>
@@ -249,12 +248,10 @@ where
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
         let allocations = program.allocations;
-        let program_pages = None;
 
         Ok(CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         })
     }
 
@@ -302,7 +299,6 @@ where
             instrumented_code,
             None,
             None,
-            None,
             payload,
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
@@ -320,7 +316,6 @@ where
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -331,7 +326,6 @@ where
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
-            program_pages,
             Some(allocations),
             Some(program_id),
             payload,
@@ -348,7 +342,6 @@ where
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -359,7 +352,6 @@ where
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
-            program_pages,
             Some(allocations),
             Some(program_id),
             Default::default(),
