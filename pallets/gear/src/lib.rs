@@ -606,6 +606,8 @@ pub mod pallet {
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
+            let program_id = ProgramId::generate(code_and_id.code_id(), &salt);
+
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
                 salt.try_into()
@@ -617,7 +619,6 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let program_id = packet.destination(0u32);
             // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
@@ -662,7 +663,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0u32);
+            let message = InitMessage::from_packet(message_id, packet, 0);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
@@ -1193,6 +1194,8 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> Result<InitPacket, DispatchError> {
+            let program_id = ProgramId::generate(code_id, &salt);
+
             let packet = InitPacket::new_with_gas(
                 code_id,
                 salt.try_into()
@@ -1203,8 +1206,6 @@ pub mod pallet {
                 gas_limit,
                 value.unique_saturated_into(),
             );
-
-            let program_id = ProgramId::generate(code_id, &salt);
             // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
