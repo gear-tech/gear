@@ -24,6 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
+use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     format,
@@ -54,12 +55,9 @@ use scale_info::{
     TypeInfo,
 };
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum PrepareMemoryError {
-    #[display(fmt = "{_0}")]
-    Actor(ActorPrepareMemoryError),
-    #[display(fmt = "{_0}")]
-    System(SystemPrepareMemoryError),
+actor_system_error! {
+    /// Prepare memory error.
+    pub type PrepareMemoryError = ActorSystemError<ActorPrepareMemoryError, SystemPrepareMemoryError>;
 }
 
 /// Prepare memory error

@@ -22,6 +22,7 @@ gsys.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+actor-system-error.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] }

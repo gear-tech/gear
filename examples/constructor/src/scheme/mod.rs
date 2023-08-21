@@ -8,6 +8,7 @@ pub mod demo_ping;
 pub mod demo_proxy_with_gas;
 pub mod demo_reply_deposit;
 pub mod demo_value_sender;
+pub mod demo_wait_init_exit_reply;
 
 #[derive(Encode, Decode, Clone, Debug)]
 /// Represents behavior pattern of `demo_constructor`.

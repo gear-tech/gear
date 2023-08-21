@@ -21,6 +21,7 @@
 use crate::{
     executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
 };
+use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -432,15 +433,9 @@ pub trait JournalHandler {
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
 
-/// Execution error
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum ExecutionError {
-    /// Actor execution error
-    #[display(fmt = "{_0}")]
-    Actor(ActorExecutionError),
-    /// System execution error
-    #[display(fmt = "{_0}")]
-    System(SystemExecutionError),
+actor_system_error! {
+    /// Execution error.
+    pub type ExecutionError = ActorSystemError<ActorExecutionError, SystemExecutionError>;
 }
 
 /// Actor execution error.
