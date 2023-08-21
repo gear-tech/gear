@@ -64,9 +64,9 @@ pub enum ExternEntity {
 #[codec(crate = codec)]
 pub struct Entry {
     /// Module name of which corresponding entity being defined.
-    pub module_name: Vec<u8>,
+    pub module_name: String,
     /// Field name in which corresponding entity being defined.
-    pub field_name: Vec<u8>,
+    pub field_name: String,
     /// External entity being defined.
     pub entity: ExternEntity,
 }
@@ -153,16 +153,16 @@ mod tests {
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"kernel"[..].into(),
-                field_name: b"memory"[..].into(),
+                module_name: "kernel".to_string(),
+                field_name: "memory".to_string(),
                 entity: ExternEntity::Memory(1337),
             }],
         });
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"env"[..].into(),
-                field_name: b"abort"[..].into(),
+                module_name: "env".to_string(),
+                field_name: "abort".to_string(),
                 entity: ExternEntity::Function(228),
             }],
         });
