@@ -26,7 +26,11 @@
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
 //! fn my_config<'a>(u: &'a mut Unstructured<'a>) -> Result<WasmModuleConfig> {
-//!     let selectable_params = SelectableParams { call_indirect_enabled: false };
+//!     let selectable_params = SelectableParams {
+//!         call_indirect_enabled: false,
+//!         forbidden_instructions: vec![],
+//!         override_max_instructions: None
+//!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
 //! }
