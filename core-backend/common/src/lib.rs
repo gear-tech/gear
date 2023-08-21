@@ -33,6 +33,8 @@ pub mod funcs;
 pub mod memory;
 pub mod runtime;
 
+use crate::runtime::RunFallibleError;
+use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -46,7 +48,7 @@ use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, PageBuf},
+    memory::{Memory, MemoryError, MemoryInterval, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntryPoint,
     },
@@ -57,17 +59,13 @@ use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
 
-use crate::runtime::RunFallibleError;
 pub use crate::utils::LimitedStr;
-use gear_core::memory::MemoryError;
 pub use log;
 
 pub const PTR_SPECIAL: u32 = u32::MAX;
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
-pub enum TerminationReason {
-    Actor(ActorTerminationReason),
-    System(SystemTerminationReason),
+actor_system_error! {
+    pub type TerminationReason = ActorSystemError<ActorTerminationReason, SystemTerminationReason>;
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]

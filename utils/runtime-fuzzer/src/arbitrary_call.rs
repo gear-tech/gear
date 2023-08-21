@@ -18,7 +18,7 @@
 
 //! `Arbitrary` trait implementation for a collection of [`GearCall`].
 
-use crate::{GearCall, SendMessageArgs, UploadProgramArgs};
+use crate::{runtime::default_gas_limit, GearCall, SendMessageArgs, UploadProgramArgs};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -27,23 +27,41 @@ use gear_wasm_gen::{
 };
 use sha1::*;
 use std::{
+    fmt::Debug,
     mem::{self, MaybeUninit},
-    ops::{Div, Mul},
 };
-
-/// Gear runtime max gas limit.
-const GAS_LIMIT: u64 = 250_000_000_000;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
+/// 25 MiB is an approximate assessment for 35 calls,
+/// where each call of:
+/// 1. `UploadProgram` requires 1024 KiB for payload an salt and 50 KiB for code.
+/// 2. `SendMessage` requires 512 Kib for payload.
+/// So, [10 * (1024 + 50)] + [25 * 512] = 23540 KiB
+pub(crate) const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
+
 /// New-type wrapper over array of [`GearCall`]s.
 ///
 /// It's main purpose is to be an implementor of `Arbitrary` for the array of [`GearCall`]s.
 /// New-type is required as array is always a foreign type.
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct GearCalls(pub [GearCall; GearCalls::MAX_CALLS]);
+
+/// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the [`GearCalls`].
+/// Fuzzer executes [`GearCalls`] with pretty large codes and payloads, therefore to avoid printing huge
+/// amount of data we do a mock implementation of [`Debug`].
+///
+/// If one wants to see a real debug string of the type, a separate wrapper over [`GearCall`]s array must be
+/// implemented. This wrapper must implement [`Debug`] then.
+impl Debug for GearCalls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("GearCalls")
+            .field(&"Mock `Debug` impl")
+            .finish()
+    }
+}
 
 impl GearCalls {
     pub const MAX_CALLS: usize = GearCalls::INIT_MSGS + GearCalls::HANDLE_MSGS;
@@ -58,21 +76,16 @@ impl<'a> Arbitrary<'a> for GearCalls {
 
         log::trace!("New GearCalls generation: random data received {}", u.len());
 
-        // 25 MiB is an approximate assessment for 35 calls,
-        // where each call of:
-        // 1. `UploadProgram` requires 1024 KiB for payload an salt and 50 KiB for code.
-        // 2. `SendMessage` requires 512 Kib for payload.
-        // So, [10 * (1024 + 50)] + [25 * 512] = 23540 KiB
-        if u.len() < 25_000_000_usize {
+        if u.len() < MIN_GEAR_CALLS_BYTES {
             log::trace!("Not enough bytes for creating gear calls");
             return Err(arbitrary::Error::NotEnoughData);
         }
 
-        let log_data = format!(
-            "Generated from corpus - {}",
-            get_sha1_string(u.peek_bytes(u.len()).expect("checked"))
-        );
-        let gas = GAS_LIMIT.mul(99).div(100);
+        let test_input_id = get_sha1_string(u.peek_bytes(u.len()).expect("checked"));
+        log::trace!("Generating GearCalls from corpus - {}", test_input_id);
+
+        let log_data = format!("Generated program from corpus - {}", test_input_id);
+        let gas = default_gas_limit();
         let value = 0;
         let prepaid = false;
         let mut programs = [ProgramId::default(); GearCalls::INIT_MSGS];
@@ -103,7 +116,11 @@ impl<'a> Arbitrary<'a> for GearCalls {
             );
             log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-            programs[i] = ProgramId::generate(CodeId::generate(&code), &salt);
+            let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+
+            log::trace!("Generated code for program id - {program_id}");
+
+            programs[i] = program_id;
             calls[i].write(GearCall::UploadProgram(UploadProgramArgs((
                 code, salt, payload, gas, value,
             ))));

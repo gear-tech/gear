@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "actor-system-error"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3677,6 +3684,7 @@ dependencies = [
  "gear-node-testing",
  "gear-runtime-primitives",
  "log",
+ "pallet-balances",
  "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-rpc-runtime-api",
@@ -3717,6 +3725,7 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "blake2-rfc",
  "derive_more",
  "gear-backend-codegen",
@@ -3781,8 +3790,6 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
- "sha-1 0.10.1",
- "static_assertions",
  "thiserror",
 ]
 
@@ -3890,6 +3897,7 @@ dependencies = [
 name = "gear-core-processor"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
@@ -9149,13 +9157,13 @@ dependencies = [
  "gear-wasm-gen",
  "hex",
  "log",
- "once_cell",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
- "parking_lot 0.12.1",
+ "proptest",
  "rand 0.8.5",
+ "sha-1 0.10.1",
  "sp-consensus-babe",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
@@ -9163,6 +9171,7 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-keyring",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "static_assertions",
 ]
 
 [[package]]
