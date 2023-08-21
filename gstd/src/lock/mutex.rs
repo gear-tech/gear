@@ -256,10 +256,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
         *locked_by = Some((
             owner_msg_id,
-            current_block.saturating_add(
-                self.own_up_for
-                    .unwrap_or_else(|| Config::mx_lock_duration()),
-            ),
+            current_block.saturating_add(self.own_up_for.unwrap_or_else(Config::mx_lock_duration)),
         ));
         Poll::Ready(MutexGuard {
             mutex: self.mutex,

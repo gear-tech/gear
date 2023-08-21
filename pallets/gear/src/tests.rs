@@ -9107,6 +9107,7 @@ fn mx_lock_ownership_exceedance() {
                     command.encode(),
                     BlockGasLimitOf::<Test>::get(),
                     0,
+                    false,
                 )
                 .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
                 let msg_id = get_last_message_id();
