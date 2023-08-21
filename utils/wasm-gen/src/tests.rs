@@ -175,12 +175,12 @@ fn ignore_fallible_syscall_result_works() {
     );
     assert!(unreachable_executed);
 
-    let gas_limit_exceeded = majority_fallible_syscalls_exited_with_expected_termination_reason(
+    let success = majority_fallible_syscalls_exited_with_expected_termination_reason(
         true,
         0,
         TerminationReason::Actor(ActorTerminationReason::Success),
     );
-    assert!(gas_limit_exceeded);
+    assert!(success);
 }
 
 fn majority_fallible_syscalls_exited_with_expected_termination_reason(
