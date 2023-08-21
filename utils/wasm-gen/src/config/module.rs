@@ -24,10 +24,8 @@
 //! and [`ConstantParams`].
 
 use arbitrary::{Arbitrary, Result, Unstructured};
-use wasm_smith::{
-    InstructionKind::{self, *},
-    InstructionKinds, SwarmConfig,
-};
+pub use wasm_smith::InstructionKind;
+use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
 
 /// Wasm module generation config.
 ///

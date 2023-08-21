@@ -261,7 +261,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
-                    debug_assert!(self
+                    assert!(self
                         .config
                         .sending_message_destination()
                         .is_existing_addresses());
@@ -270,7 +270,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     offsets.next_offset()
                 }
                 None => {
-                    debug_assert!(self.config.sending_message_destination().is_random());
+                    assert!(self.config.sending_message_destination().is_random());
                     log::trace!(" -- Message destination is a random address");
 
                     self.unstructured.arbitrary()?
@@ -310,11 +310,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
         let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
-            std::iter::repeat(Instruction::Drop)
-                .take(signature.results.len())
-                .collect()
+            Self::build_result_processing_ignored(signature)
+        } else if fallible {
+            Self::build_result_processing_fallible(signature, &param_setters)
         } else {
-            self.build_result_processing(signature, &param_setters, fallible)
+            Self::build_result_processing_infallible(signature)
         };
         instructions.append(&mut result_processing);
 
@@ -411,59 +411,63 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(setters)
     }
 
-    fn build_result_processing(
-        &mut self,
+    fn build_result_processing_ignored(signature: SysCallSignature) -> Vec<Instruction> {
+        std::iter::repeat(Instruction::Drop)
+            .take(signature.results.len())
+            .collect()
+    }
+
+    fn build_result_processing_fallible(
         signature: SysCallSignature,
         param_setters: &[ParamSetter],
-        fallible: bool,
     ) -> Vec<Instruction> {
-        if fallible {
-            // TODO: #3129.
-            // Assume here that:
-            // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
-            // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
+        // TODO: #3129.
+        // Assume here that:
+        // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
+        // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
 
-            static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
-            assert_eq!(gsys::ErrorCode::default(), 0);
+        static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+        assert_eq!(gsys::ErrorCode::default(), 0);
 
-            let params = signature.params;
-            assert!(matches!(
-                params
-                    .last()
-                    .expect("The last argument of fallible syscall must be pointer to error code"),
-                ParamType::Ptr(..)
-            ));
-            assert_eq!(params.len(), param_setters.len());
+        let params = signature.params;
+        assert!(matches!(
+            params
+                .last()
+                .expect("The last argument of fallible syscall must be pointer to error code"),
+            ParamType::Ptr(..)
+        ));
+        assert_eq!(params.len(), param_setters.len());
 
-            if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
-                return vec![
-                    Instruction::I32Const(*ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(0),
-                    Instruction::I32Ne,
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::Unreachable,
-                    Instruction::End,
-                ];
-            } else {
-                panic!("Incorrect last parameter type: expected pointer");
-            }
+        if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
+            vec![
+                Instruction::I32Const(*ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0),
+                Instruction::I32Ne,
+                Instruction::If(BlockType::NoResult),
+                Instruction::Unreachable,
+                Instruction::End,
+            ]
+        } else {
+            panic!("Incorrect last parameter type: expected pointer");
         }
+    }
 
+    fn build_result_processing_infallible(signature: SysCallSignature) -> Vec<Instruction> {
         let results_len = signature.results.len();
         if results_len != 0 {
             assert_eq!(results_len, 1);
             // Assume here that return type of syscall means error when = -1.
-            return vec![
+            vec![
                 Instruction::I32Const(-1),
                 Instruction::I32Eq,
                 Instruction::If(BlockType::NoResult),
                 Instruction::Unreachable,
                 Instruction::End,
-            ];
+            ]
+        } else {
+            vec![]
         }
-
-        vec![]
     }
 
     fn insert_sys_call_instructions(&mut self, instructions: &[Instruction]) -> Result<()> {
