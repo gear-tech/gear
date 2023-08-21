@@ -301,11 +301,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         param_setters: &[ParamSetter],
     ) -> Vec<Instruction> {
         if syscall.fallible {
+            // TODO: Assert these assumptions.
             // Assume here that:
             // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
             // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
             // 3. Returned `ErrorCode` == 0u32 when syscal was successfull.
-            // TODO: Assert these assumptions.
 
             let params = syscall.signature.params;
             assert!(matches!(
