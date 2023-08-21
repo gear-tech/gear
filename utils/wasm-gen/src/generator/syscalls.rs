@@ -94,7 +94,7 @@ impl InvocableSysCall {
         }
     }
 
-    fn into_info(self) -> SysCallInfo {
+    pub(crate) fn into_info(self) -> SysCallInfo {
         let underlying_syscall = match self {
             Self::Loose(sc) => sc,
             Self::Precise(sc) => sc,

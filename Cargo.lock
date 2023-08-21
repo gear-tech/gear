@@ -4346,7 +4346,10 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-backend-common",
+ "gear-backend-wasmi",
  "gear-core",
+ "gear-core-processor",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",

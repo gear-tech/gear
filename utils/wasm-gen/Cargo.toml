@@ -21,3 +21,8 @@ rand = { workspace = true, features = ["small_rng"] }
 wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
+
+gear-backend-wasmi = { workspace = true, features = ["std"] }
+gear-backend-common = { workspace = true, features = ["mock"] }
+gear-core.workspace = true
+gear-core-processor.workspace = true

@@ -18,6 +18,7 @@
 
 use super::*;
 use arbitrary::Unstructured;
+use gear_backend_common::{TerminationReason, TrapExplanation};
 use gear_core::{code::Code, pages::WASM_PAGE_SIZE};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::parity_wasm::{
@@ -27,6 +28,7 @@ use gear_wasm_instrument::parity_wasm::{
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::mem;
+use wasm_smith::InstructionKind;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -155,6 +157,193 @@ fn injecting_addresses_works() {
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
     assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+}
+
+#[test]
+fn ignore_fallible_syscall_result_works() {
+    use gear_backend_common::ActorTerminationReason;
+
+    // Sometimes there can be situations when fallible syscall will not fall:
+    //  - wasm-gen generates wasm such as this syscall wasn't called
+    //  - rng provided data that don't causes syscall fall
+    //  - this syscall is very durable to wrong input or accepts a wide variety of values
+    // so we just want a majority of fallible syscalls to fall.
+    let unreachable_executed = majority_fallible_syscalls_exited_with_expected_termination_reason(
+        false,
+        0,
+        TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown)),
+    );
+    assert!(unreachable_executed);
+
+    let gas_limit_exceeded = majority_fallible_syscalls_exited_with_expected_termination_reason(
+        true,
+        0,
+        TerminationReason::Actor(ActorTerminationReason::Success),
+    );
+    assert!(gas_limit_exceeded);
+}
+
+fn majority_fallible_syscalls_exited_with_expected_termination_reason(
+    ignore_fallible_errors: bool,
+    rng_seed: u64,
+    expected_result: TerminationReason,
+) -> bool {
+    use gear_backend_common::ActorTerminationReason;
+
+    let fallible_syscalls: Vec<_> = SysCallName::instrumentable()
+        .into_iter()
+        .filter(|sc| InvocableSysCall::Loose(*sc).into_info().fallible)
+        .collect();
+
+    let mut returned_as_expected_amount = 0;
+    for syscall in &fallible_syscalls {
+        println!("Syscall: {}", syscall.to_str());
+
+        let reason = execute_wasm_with_syscall_injected(*syscall, ignore_fallible_errors, rng_seed);
+        let as_expected = reason == expected_result;
+
+        if !as_expected {
+            println!(
+                "Another termination reason detected: {}",
+                match reason {
+                    TerminationReason::Actor(ActorTerminationReason::Success) =>
+                        "success".to_string(),
+                    TerminationReason::Actor(ActorTerminationReason::Trap(expl)) =>
+                        format!("trap {expl}"),
+                    TerminationReason::Actor(..) => "actor termination reason".to_string(),
+                    TerminationReason::System(..) => "system termination reason".to_string(),
+                }
+            );
+        }
+
+        returned_as_expected_amount += as_expected as usize;
+    }
+
+    returned_as_expected_amount >= fallible_syscalls.len() - 2
+}
+
+fn execute_wasm_with_syscall_injected(
+    syscall: SysCallName,
+    ignore_fallible_errors: bool,
+    rng_seed: u64,
+) -> TerminationReason {
+    use gear_backend_common::{BackendReport, Environment};
+    use gear_backend_wasmi::WasmiEnvironment;
+    use gear_core::{
+        gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+        memory::AllocationsContext,
+        message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
+        reservation::GasReserver,
+    };
+    use gear_core_processor::{configs::PageCosts, ProcessorContext, ProcessorExternalities};
+
+    const INITIAL_PAGES: u16 = 1024;
+    const INJECTED_SYSCALLS: u32 = 1024;
+
+    let mut rng = SmallRng::seed_from_u64(rng_seed);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+
+    let mut unstructured = Unstructured::new(&buf);
+
+    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
+    injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+    let gear_config = (
+        GearWasmGeneratorConfigBuilder::new()
+            .with_memory_config(MemoryPagesConfig {
+                initial_size: INITIAL_PAGES as u32,
+                ..MemoryPagesConfig::default()
+            })
+            .with_sys_calls_config(
+                SysCallsConfigBuilder::new(injection_amounts)
+                    .set_ignore_fallible_syscall_errors(ignore_fallible_errors)
+                    .build(),
+            )
+            .with_entry_points_config(EntryPointsSet::Init)
+            .with_recursions_removed(true)
+            .build(),
+        SelectableParams {
+            call_indirect_enabled: false,
+            forbidden_instructions: vec![
+                InstructionKind::Control,
+                InstructionKind::Table,
+                InstructionKind::Memory,
+                InstructionKind::Reference,
+                InstructionKind::Parametric,
+            ],
+            override_max_instructions: Some(10),
+        },
+    );
+
+    let module = generate_gear_program_module(&mut unstructured, gear_config)
+        .expect("failed wasm generation");
+
+    let module = gear_wasm_instrument::inject(
+        module,
+        &gear_wasm_instrument::rules::CustomConstantCostRules::new(0, 0, 0),
+        "env",
+    )
+    .unwrap();
+    let code = module.into_bytes().unwrap();
+
+    let default_pc = ProcessorContext {
+        gas_counter: GasCounter::new(0),
+        gas_allowance_counter: GasAllowanceCounter::new(0),
+        gas_reserver: GasReserver::new(
+            &<IncomingDispatch as Default>::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        system_reservation: None,
+        value_counter: ValueCounter::new(0),
+        allocations_context: AllocationsContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        message_context: MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 0),
+        ),
+        block_info: Default::default(),
+        max_pages: INITIAL_PAGES.into(),
+        page_costs: PageCosts::new_for_tests(),
+        existential_deposit: 0,
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        program_rents: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: 0,
+        waitlist_cost: 0,
+        dispatch_hold_cost: 0,
+        reserve_for: 0,
+        reservation: 0,
+        random_data: ([0u8; 32].to_vec(), 0),
+        rent_cost: 0,
+    };
+
+    let ext = gear_core_processor::Ext::new(default_pc);
+    let env = WasmiEnvironment::new(
+        ext,
+        &code,
+        DispatchKind::Init,
+        vec![DispatchKind::Init].into_iter().collect(),
+        INITIAL_PAGES.into(),
+    )
+    .unwrap();
+
+    let report = env
+        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
+        .unwrap();
+
+    let BackendReport {
+        termination_reason, ..
+    } = report;
+
+    termination_reason
 }
 
 proptest! {

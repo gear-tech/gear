@@ -24,7 +24,10 @@
 //! and [`ConstantParams`].
 
 use arbitrary::{Arbitrary, Result, Unstructured};
-use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
+use wasm_smith::{
+    InstructionKind::{self, *},
+    InstructionKinds, SwarmConfig,
+};
 
 /// Wasm module generation config.
 ///
@@ -84,6 +87,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
 
         let SelectableParams {
             call_indirect_enabled,
+            forbidden_instructions,
+            override_max_instructions,
         } = selectable_params;
 
         let ArbitraryParams {
@@ -114,6 +119,14 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             table_max_size_required,
             max_memory_pages,
         } = arbitrary_params;
+
+        let allowed_instructions: Vec<_> = allowed_instructions
+            .into_iter()
+            .filter(|ix| !forbidden_instructions.contains(ix))
+            .collect();
+        let allowed_instructions = InstructionKinds::new(&allowed_instructions);
+
+        let max_instructions = override_max_instructions.unwrap_or(max_instructions);
 
         Self(SwarmConfig {
             allow_start_export,
@@ -300,7 +313,7 @@ pub struct ConstantParams {
     sign_extension_enabled: bool,
     simd_enabled: bool,
     float_enabled: bool,
-    allowed_instructions: InstructionKinds,
+    allowed_instructions: Vec<InstructionKind>,
     memory_grow_enabled: bool,
     min_funcs: usize,
     min_types: usize,
@@ -309,9 +322,7 @@ pub struct ConstantParams {
 impl Default for ConstantParams {
     fn default() -> Self {
         ConstantParams {
-            allowed_instructions: InstructionKinds::new(&[
-                Numeric, Reference, Parametric, Variable, Table, Memory, Control,
-            ]),
+            allowed_instructions: vec![Numeric, Reference, Parametric, Variable, Table, Memory],
             bulk_memory_enabled: false,
             sign_extension_enabled: false,
             saturating_float_to_int_enabled: false,
@@ -349,12 +360,16 @@ pub struct SelectableParams {
     /// Flag signalizing whether `call_indirect` instruction
     /// must be used or not.
     pub call_indirect_enabled: bool,
+    pub forbidden_instructions: Vec<InstructionKind>,
+    pub override_max_instructions: Option<usize>,
 }
 
 impl Default for SelectableParams {
     fn default() -> Self {
         Self {
             call_indirect_enabled: true,
+            forbidden_instructions: vec![],
+            override_max_instructions: None,
         }
     }
 }
