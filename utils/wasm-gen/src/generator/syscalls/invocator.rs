@@ -24,12 +24,12 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallInfo, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
+    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
-    syscalls::{ParamType, SysCallName},
+    syscalls::{ParamType, SysCallName, SysCallSignature},
 };
 use std::{collections::BTreeMap, iter};
 
@@ -209,7 +209,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 " -- Generating build call for non-send sys-call {}",
                 invocable.to_str()
             );
-            return self.build_call(invocable.into_info(), call_indexes_handle);
+            let fallible = invocable.is_fallible();
+            return self.build_call(invocable.into_signature(), fallible, call_indexes_handle);
         }
 
         log::trace!(
@@ -217,10 +218,12 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             invocable.to_str()
         );
 
-        let mut info = invocable.into_info();
-        // The first ix will be I32Const(destination_ptr), so we replace it with non-random value.
-        info.signature.params.remove(0);
-        let mut call_without_destination_instrs = self.build_call(info, call_indexes_handle)?;
+        let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
+        // The value for the first param is chosen from config.
+        // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
+        signature.params.remove(0);
+        let mut call_without_destination_instrs =
+            self.build_call(signature, fallible, call_indexes_handle)?;
 
         let res = if self.config.sending_message_destination().is_source() {
             log::trace!(" -- Message destination is result of `gr_source`");
@@ -297,22 +300,21 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_call(
         &mut self,
-        syscall: SysCallInfo,
+        signature: SysCallSignature,
+        fallible: bool,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
-        let mut instructions = vec![];
-
-        let param_setters = self.build_param_setters(&syscall.signature.params)?;
-        instructions.extend(param_setters.iter().map(ParamSetter::get_ix));
+        let param_setters = self.build_param_setters(&signature.params)?;
+        let mut instructions: Vec<_> = param_setters.iter().map(ParamSetter::get_ix).collect();
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
         let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
             std::iter::repeat(Instruction::Drop)
-                .take(syscall.signature.results.len())
+                .take(signature.results.len())
                 .collect()
         } else {
-            self.build_result_processing(syscall, &param_setters)
+            self.build_result_processing(signature, &param_setters, fallible)
         };
         instructions.append(&mut result_processing);
 
@@ -411,10 +413,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_result_processing(
         &mut self,
-        syscall: SysCallInfo,
+        signature: SysCallSignature,
         param_setters: &[ParamSetter],
+        fallible: bool,
     ) -> Vec<Instruction> {
-        if syscall.fallible {
+        if fallible {
             // TODO: Assert these assumptions.
             // Assume here that:
             // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
@@ -423,7 +426,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
             assert_eq!(gsys::ErrorCode::default(), 0);
 
-            let params = syscall.signature.params;
+            let params = signature.params;
             assert!(matches!(
                 params
                     .last()
@@ -447,7 +450,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             }
         }
 
-        let results_len = syscall.signature.results.len();
+        let results_len = signature.results.len();
         if results_len != 0 {
             assert_eq!(results_len, 1);
             // Assume here that return type of syscall means error when = -1.

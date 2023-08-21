@@ -192,7 +192,7 @@ fn majority_fallible_syscalls_exited_with_expected_termination_reason(
 
     let fallible_syscalls: Vec<_> = SysCallName::instrumentable()
         .into_iter()
-        .filter(|sc| InvocableSysCall::Loose(*sc).into_info().fallible)
+        .filter(|sc| InvocableSysCall::Loose(*sc).is_fallible())
         .collect();
 
     let mut returned_as_expected_amount = 0;
@@ -272,7 +272,7 @@ fn execute_wasm_with_syscall_injected(
                 InstructionKind::Reference,
                 InstructionKind::Parametric,
             ],
-            override_max_instructions: Some(10),
+            max_instructions: 10,
         },
     );
 

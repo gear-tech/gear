@@ -29,7 +29,7 @@
 //!     let selectable_params = SelectableParams {
 //!         call_indirect_enabled: false,
 //!         forbidden_instructions: vec![],
-//!         override_max_instructions: None
+//!         max_instructions: 100_000
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
