@@ -8,7 +8,7 @@
     ;; length of each push supposed to be a half of a wasm page (32 kb)
     ;; delay for sending will be 100
     (func $init
-        ;; for example pushing 3 fullfilled wasm pages
+        ;; for example pushing 3 fulfilled wasm pages
         (call $reply_push (i32.const 0) (i32.const 0x8000) (i32.const 0))
         (call $reply_push (i32.const 0) (i32.const 0x8000) (i32.const 0))
         (call $reply_push (i32.const 0) (i32.const 0x8000) (i32.const 0))

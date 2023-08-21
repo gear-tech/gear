@@ -180,7 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make pre-handle if input wasm has been builded from as-script
+        // Make pre-handle if input wasm has been built from as-script
         let wasm_path = if assembly_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer

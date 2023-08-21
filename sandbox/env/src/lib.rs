@@ -107,7 +107,7 @@ pub const ERR_OUT_OF_BOUNDS: u32 = -2i32 as u32;
 /// For FFI purposes.
 pub const ERR_EXECUTION: u32 = -3i32 as u32;
 
-/// A global variable has been sucessfully changed.
+/// A global variable has been successfully changed.
 ///
 /// For FFI purposes.
 pub const ERROR_GLOBALS_OK: u32 = 0;

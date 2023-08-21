@@ -22,7 +22,7 @@ use std::{collections::HashMap, path::Path};
 
 use crate::builder_error::BuilderError;
 
-/// Helper to get a crate info exctracted from the `Cargo.toml`.
+/// Helper to get a crate info extracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
 pub struct CrateInfo {
     /// Original name of the crate.
