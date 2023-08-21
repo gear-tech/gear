@@ -23,7 +23,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasmer::{Exportable, RuntimeError};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
@@ -86,9 +86,6 @@ impl Clone for Env {
         }
     }
 }
-
-// TODO #3057
-pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 
 impl wasmer::WasmerEnv for Env {
     fn init_with_instance(
