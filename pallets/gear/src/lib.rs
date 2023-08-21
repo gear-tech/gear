@@ -1004,14 +1004,6 @@ pub mod pallet {
             }
         }
 
-        pub(crate) fn get_and_track_memory_pages(
-            manager: &mut ExtManager<T>,
-            program_id: ProgramId,
-        ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            manager.insert_program_id_loaded_pages(program_id);
-            Some(Default::default())
-        }
-
         pub(crate) fn block_config() -> BlockConfig {
             let block_info = BlockInfo {
                 height: Self::block_number().unique_saturated_into(),

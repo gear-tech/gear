@@ -30,7 +30,6 @@ pub(crate) struct QueueStep<'a, T: Config, F> {
 
 #[derive(Debug)]
 pub(crate) enum QueueStepError {
-    NoMemoryPages,
     ActorData(PrechargedDispatch),
 }
 
@@ -134,8 +133,7 @@ where
         };
 
         // Load program memory pages.
-        let memory_pages = Pallet::<T>::get_and_track_memory_pages(ext_manager, program_id)
-            .ok_or(QueueStepError::NoMemoryPages)?;
+        ext_manager.insert_program_id_loaded_pages(program_id);
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
@@ -143,7 +141,7 @@ where
             block_config,
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
-            memory_pages,
+            Default::default(),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -249,7 +247,6 @@ where
                         MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
                     );
                 }
-                Err(QueueStepError::NoMemoryPages) => continue,
             }
         }
 
