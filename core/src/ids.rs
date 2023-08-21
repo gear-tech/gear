@@ -18,7 +18,6 @@
 
 //! Base identifiers for messaging primitives.
 
-use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
@@ -234,7 +233,7 @@ impl ProgramId {
             SALT,
             code_id.as_ref(),
             salt,
-            nonce.to_le_bytes(),
+            &nonce.to_le_bytes(),
         ]
         .concat();
         hash(&argument).into()
