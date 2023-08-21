@@ -162,7 +162,7 @@ pub enum MessageError {
 
     /// An error when a syscall is used incorrectly
     #[display(fmt = "Syscall was used incorrectly")]
-    SyscallUsageError = 400,
+    SyscallUsageError = 311,
 }
 
 /// Reservation error.
