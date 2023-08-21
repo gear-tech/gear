@@ -46,6 +46,8 @@ where
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
     ) -> Result<GasInfo, Vec<u8>> {
+        Self::enable_lazy_pages();
+
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
@@ -101,8 +103,6 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
-        let lazy_pages_enabled = Self::enable_lazy_pages();
-
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
@@ -143,7 +143,6 @@ where
 
             let step = QueueStep {
                 block_config: &block_config,
-                lazy_pages_enabled,
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch: queued_dispatch,
@@ -265,10 +264,7 @@ where
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
-        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-            unreachable!("By some reasons we cannot run lazy-pages on this machine");
-        }
+        Self::enable_lazy_pages();
 
         let schedule = T::Schedule::get();
 
@@ -317,10 +313,7 @@ where
         program_id: ProgramId,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-            unreachable!("By some reasons we cannot run lazy-pages on this machine");
-        }
+        Self::enable_lazy_pages();
 
         log::debug!("Reading state of {program_id:?}");
 
@@ -348,10 +341,7 @@ where
     }
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
-        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-            unreachable!("By some reasons we cannot run lazy-pages on this machine");
-        }
+        Self::enable_lazy_pages();
 
         log::debug!("Reading metahash of {program_id:?}");
 
