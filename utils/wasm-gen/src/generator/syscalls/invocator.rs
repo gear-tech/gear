@@ -418,7 +418,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         fallible: bool,
     ) -> Vec<Instruction> {
         if fallible {
-            // TODO: Assert these assumptions.
+            // TODO: #3129.
             // Assume here that:
             // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
             // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
