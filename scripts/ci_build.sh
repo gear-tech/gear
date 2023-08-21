@@ -24,13 +24,8 @@ echo "Check: Gear runtime imports"
 echo "Check: Vara runtime imports"
     ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-echo "Test: Gear pallet tests with lazy pages"
-    cargo test -p pallet-gear --features=lazy-pages --release --locked
-    cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-    cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
-
 echo "Test: Gear workspace"
-    ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
+    ./scripts/gear.sh test gear --exclude gclient --exclude gcli --release --locked
 
 echo "Test: `gcli`"
     ./scripts/gear.sh test gcli --release --locked --retries 3

@@ -54,11 +54,11 @@ node-release:
 
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native
 
 .PHONY: gear-replay
 gear-replay:
@@ -193,13 +193,13 @@ test-doc:
 test-gear: #\
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk
 
 .PHONY: test-gear-release
 test-gear-release: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk
 
 .PHONY: test-gsdk
 test-gsdk: node-release
@@ -258,7 +258,7 @@ fuzz:
 
 .PHONY: fuzz-vara #TODO 2434 test it works
 fuzz-vara:
-	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
+	@ ./scripts/gear.sh test fuzz --features=vara-native --no-default-features $(target)
 
 .PHONY: kill-gear
 kill:

@@ -45,7 +45,7 @@ jobs:
       - name: "Build: Node"
         run: >-
           cargo build
-          -p gear-cli --features=lazy-pages
+          -p gear-cli
 
       - name: "Test: Lazy pages"
         run: >-
@@ -53,4 +53,3 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --features=lazy-pages

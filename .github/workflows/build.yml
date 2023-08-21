@@ -69,11 +69,8 @@ jobs:
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
-
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
@@ -242,7 +239,6 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --features=lazy-pages
           --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
