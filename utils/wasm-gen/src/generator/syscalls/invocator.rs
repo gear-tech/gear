@@ -319,60 +319,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(instructions)
     }
 
-    fn build_result_processing(
-        &mut self,
-        syscall: SysCallInfo,
-        param_setters: &[ParamSetter],
-    ) -> Vec<Instruction> {
-        if syscall.fallible {
-            // TODO: Assert these assumptions.
-            // Assume here that:
-            // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
-            // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
-
-            static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
-            assert_eq!(gsys::ErrorCode::default(), 0);
-
-            let params = syscall.signature.params;
-            assert!(matches!(
-                params
-                    .last()
-                    .expect("The last argument of fallible syscall must be pointer to error code"),
-                ParamType::Ptr(..)
-            ));
-            assert_eq!(params.len(), param_setters.len());
-
-            if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
-                return vec![
-                    Instruction::I32Const(*ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(0),
-                    Instruction::I32Ne,
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::Unreachable,
-                    Instruction::End,
-                ];
-            } else {
-                panic!("Incorrect last parameter type: expected pointer");
-            }
-        }
-
-        let results_len = syscall.signature.results.len();
-        if results_len != 0 {
-            assert_eq!(results_len, 1);
-            // Assume here that return type of syscall means error when = -1.
-            return vec![
-                Instruction::I32Const(-1),
-                Instruction::I32Eq,
-                Instruction::If(BlockType::NoResult),
-                Instruction::Unreachable,
-                Instruction::End,
-            ];
-        }
-
-        vec![]
-    }
-
     fn build_param_setters(&mut self, params: &[ParamType]) -> Result<Vec<ParamSetter>> {
         log::trace!(
             "  ----  Random data before SysCallsInvocator::build_param_setters - {}",
@@ -461,6 +407,60 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         assert_eq!(setters.len(), params.len());
 
         Ok(setters)
+    }
+
+    fn build_result_processing(
+        &mut self,
+        syscall: SysCallInfo,
+        param_setters: &[ParamSetter],
+    ) -> Vec<Instruction> {
+        if syscall.fallible {
+            // TODO: Assert these assumptions.
+            // Assume here that:
+            // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
+            // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
+
+            static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+            assert_eq!(gsys::ErrorCode::default(), 0);
+
+            let params = syscall.signature.params;
+            assert!(matches!(
+                params
+                    .last()
+                    .expect("The last argument of fallible syscall must be pointer to error code"),
+                ParamType::Ptr(..)
+            ));
+            assert_eq!(params.len(), param_setters.len());
+
+            if let ParamSetter::I32(ptr) = param_setters.last().unwrap() {
+                return vec![
+                    Instruction::I32Const(*ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(0),
+                    Instruction::I32Ne,
+                    Instruction::If(BlockType::NoResult),
+                    Instruction::Unreachable,
+                    Instruction::End,
+                ];
+            } else {
+                panic!("Incorrect last parameter type: expected pointer");
+            }
+        }
+
+        let results_len = syscall.signature.results.len();
+        if results_len != 0 {
+            assert_eq!(results_len, 1);
+            // Assume here that return type of syscall means error when = -1.
+            return vec![
+                Instruction::I32Const(-1),
+                Instruction::I32Eq,
+                Instruction::If(BlockType::NoResult),
+                Instruction::Unreachable,
+                Instruction::End,
+            ];
+        }
+
+        vec![]
     }
 
     fn insert_sys_call_instructions(&mut self, instructions: &[Instruction]) -> Result<()> {
