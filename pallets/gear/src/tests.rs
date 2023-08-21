@@ -2903,7 +2903,6 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -3145,7 +3144,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
@@ -4086,16 +4084,12 @@ fn claim_value_works() {
 
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
-        let charged_for_page_load = if cfg!(feature = "lazy-pages") {
-            GasPrice::gas_price(
-                <Test as Config>::Schedule::get()
-                    .memory_weights
-                    .load_page_data
-                    .ref_time(),
-            )
-        } else {
-            0
-        };
+        let charged_for_page_load = GasPrice::gas_price(
+            <Test as Config>::Schedule::get()
+                .memory_weights
+                .load_page_data
+                .ref_time(),
+        );
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =

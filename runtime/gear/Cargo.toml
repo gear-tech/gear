@@ -173,8 +173,3 @@ try-runtime = [
 	"validator-set/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
-lazy-pages = [
-	"pallet-gear/lazy-pages",
-	"pallet-gear-payment/lazy-pages",
-	"pallet-gear-debug?/lazy-pages",
-]

@@ -110,10 +110,6 @@ vara-native = [
 	"pallet-im-online",
 	"sp-authority-discovery"
 ]
-lazy-pages = [
-	"gear-runtime?/lazy-pages",
-	"vara-runtime?/lazy-pages",
-]
 runtime-benchmarks = [
  	"frame-benchmarking/runtime-benchmarks",
  	"frame-benchmarking-cli/runtime-benchmarks",

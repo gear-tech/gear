@@ -21,10 +21,10 @@
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
-    RentCostPerBlockOf,
+    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
+    QueueOf, RentCostPerBlockOf,
 };
-use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
+use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
     configs::{BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -39,11 +39,6 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
-
-#[cfg(feature = "lazy-pages")]
-use crate::ProgramStorageOf;
-#[cfg(feature = "lazy-pages")]
-use common::ProgramStorage;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
@@ -119,7 +114,6 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    #[cfg(feature = "lazy-pages")]
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
         ProgramStorageOf::<T>::pages_final_prefix()
     ));

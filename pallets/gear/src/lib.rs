@@ -24,7 +24,6 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(feature = "lazy-pages")]
 mod ext;
 
 mod internal;
@@ -60,6 +59,7 @@ use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
 };
+use ext::LazyPagesExt as Ext;
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
@@ -78,6 +78,7 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
+use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -89,15 +90,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use gear_lazy_pages_common as lazy_pages;
-
-#[cfg(feature = "lazy-pages")]
-use ext::LazyPagesExt as Ext;
-
-#[cfg(not(feature = "lazy-pages"))]
-use core_processor::Ext;
 
 #[cfg(feature = "std")]
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;
@@ -1006,19 +998,11 @@ pub mod pallet {
         }
 
         pub(crate) fn enable_lazy_pages() -> bool {
-            #[cfg(feature = "lazy-pages")]
-            {
-                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
-                }
-                true
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
-
-            #[cfg(not(feature = "lazy-pages"))]
-            {
-                false
-            }
+            true
         }
 
         pub(crate) fn get_and_track_memory_pages(

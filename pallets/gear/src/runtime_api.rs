@@ -249,19 +249,8 @@ where
         let instrumented_code = T::CodeStorage::get_code(code_id)
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
-        #[cfg(not(feature = "lazy-pages"))]
-        let program_pages = Some(
-            ProgramStorageOf::<T>::get_program_data_for_pages(
-                program_id,
-                program.pages_with_data.iter(),
-            )
-            .map_err(|e| format!("Get program pages data error: {e:?}"))?,
-        );
-
-        #[cfg(feature = "lazy-pages")]
-        let program_pages = None;
-
         let allocations = program.allocations;
+        let program_pages = None;
 
         Ok(CodeWithMemoryData {
             instrumented_code,
@@ -276,12 +265,9 @@ where
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
+        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            unreachable!("By some reasons we cannot run lazy-pages on this machine");
         }
 
         let schedule = T::Schedule::get();
@@ -331,12 +317,9 @@ where
         program_id: ProgramId,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
+        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            unreachable!("By some reasons we cannot run lazy-pages on this machine");
         }
 
         log::debug!("Reading state of {program_id:?}");
@@ -365,12 +348,9 @@ where
     }
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
+        let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+        if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            unreachable!("By some reasons we cannot run lazy-pages on this machine");
         }
 
         log::debug!("Reading metahash of {program_id:?}");

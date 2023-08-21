@@ -25,7 +25,7 @@ static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
-gear-lazy-pages-common = { workspace = true, optional = true }
+gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
@@ -148,7 +148,6 @@ std = [
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
-	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
@@ -171,5 +170,4 @@ runtime-benchmarks = [
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
-lazy-pages = ["gear-lazy-pages-common"]
 fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

@@ -60,7 +60,7 @@ gcli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
+default = ["gear-native", "vara-native"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime",
@@ -69,11 +69,6 @@ vara-native = [
 	"service/vara-native",
 	"vara-runtime",
 	"pallet-gear-staking-rewards",
-]
-lazy-pages = [
-	"service/lazy-pages",
-	"vara-runtime?/lazy-pages",
-	"gear-runtime?/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",

@@ -363,22 +363,17 @@ benchmarks! {
     #[extra]
     check_all {
         syscalls_integrity::main_test::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
     check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -388,19 +383,16 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging_special::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
