@@ -20,6 +20,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+use alloc::string::String;
 use codec::{Decode, Encode};
 use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;

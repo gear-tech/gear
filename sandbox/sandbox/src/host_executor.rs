@@ -188,8 +188,8 @@ impl<T> EnvironmentDefinitionBuilder<T> {
         N2: Into<String>,
     {
         let entry = env::Entry {
-            module_name: module.into().into(),
-            field_name: field.into().into(),
+            module_name: module.into(),
+            field_name: field.into(),
             entity: extern_entity,
         };
         self.env_def.entries.push(entry);
