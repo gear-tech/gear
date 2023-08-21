@@ -1204,7 +1204,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let program_id = packet.destination(0u32);
+            let program_id = ProgramId::generate(code_id, &salt);
             // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
@@ -1239,7 +1239,7 @@ pub mod pallet {
                 expiration_block,
             );
 
-            let program_id = packet.destination(message_id);
+            let program_id = packet.destination(message_id, None);
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
@@ -1254,7 +1254,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0u32);
+            let message = InitMessage::from_packet(message_id, packet, 0);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
