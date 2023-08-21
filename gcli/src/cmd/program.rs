@@ -100,7 +100,7 @@ impl Program {
     }
 
     async fn full_state(api: Api, pid: H256, at: Option<H256>) -> Result<()> {
-        let state = api.read_state(pid, at).await?;
+        let state = api.read_state(pid, Default::default(), at).await?;
         println!("{}", state);
         Ok(())
     }

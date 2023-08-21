@@ -1,9 +1,14 @@
 [package]
 name = "gear-core"
-version = "0.1.0"
+description = "Gear core library"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core-errors = { workspace = true, features = ["codec"] }
@@ -18,6 +23,7 @@ hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
 static_assertions.workspace = true
 paste = { workspace = true }
+enum-iterator.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true

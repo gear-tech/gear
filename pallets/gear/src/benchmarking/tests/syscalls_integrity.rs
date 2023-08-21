@@ -91,7 +91,7 @@ where
             | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
-            SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
+            SysCallName::OutOfGas => { /*no need for tests */}
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
@@ -331,6 +331,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -685,6 +686,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -723,6 +725,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -926,6 +929,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send message");
         }
@@ -937,6 +941,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send reply");
         }

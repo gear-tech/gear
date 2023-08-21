@@ -10,14 +10,14 @@ arbitrary.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
-once_cell.workspace = true
-parking_lot.workspace = true
-rand = { workspace = true, features = ["small_rng"] }
+sha-1.workspace = true
+static_assertions.workspace = true
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
 clap = { workspace = true, features = ["derive"] }
 
 gear-call-gen.workspace = true
+gear-wasm-gen.workspace = true
 runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
@@ -36,3 +36,7 @@ sp-consensus-slots = { workspace = true }
 sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-authorship.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+rand = { workspace = true, features = ["small_rng"] }

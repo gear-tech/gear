@@ -46,7 +46,9 @@ macro_rules! wrap_common_func_internal_ret {
             let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-                $func(&mut ctx, $($arg_name,)*).map(|ret| (ret,))
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
+                $func(&mut ctx, 0, $($arg_name,)*).map(|(_, r)| (r,))
             };
             Func::wrap(store, func)
         }
@@ -59,7 +61,10 @@ macro_rules! wrap_common_func_internal_no_ret {
             let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-                $func(&mut ctx, $($arg_name,)*)
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
+                $func(&mut ctx, 0, $($arg_name,)*)
+                .map(|(_, r)| r)
             };
             Func::wrap(store, func)
         }
@@ -158,7 +163,6 @@ where
         f.build(ReplyDeposit, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_deposit, (3) -> ())(store, forbidden, memory)),
         f.build(UnreserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::unreserve_gas, (2) -> ())(store, forbidden, memory)),
         f.build(OutOfGas, |_| wrap_common_func!(CommonFuncsHandler::out_of_gas, () -> ())(store, false, memory)),
-        f.build(OutOfAllowance, |_| wrap_common_func!(CommonFuncsHandler::out_of_allowance, () -> ())(store, false, memory)),
         f.build(SystemReserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::system_reserve_gas, (2) -> ())(store, forbidden, memory)),
     ]
     .into();

@@ -17,22 +17,44 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear api with signer
+
 use crate::{
     config::GearConfig,
     result::{Error, Result},
     Api,
 };
+use calls::{SignerCalls, SignerStorage};
+use core::ops::Deref;
 pub use pair_signer::PairSigner;
+use rpc::SignerRpc;
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
+use std::sync::Arc;
 
 mod calls;
 mod pair_signer;
 mod rpc;
 mod utils;
 
+/// Signer representation that provides access to gear API.
+/// Implements low-level methods such as [`run_tx`](`SignerInner::run_tx`)
+/// and [`force_batch`](`SignerInner::force_batch`).
+/// Other higher-level calls are provided by [`Signer::storage`],
+/// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
 pub struct Signer {
+    signer: Arc<SignerInner>,
+    /// Calls that get or set storage.
+    pub storage: SignerStorage,
+    /// Calls for interaction with on-chain programs.
+    pub calls: SignerCalls,
+    /// Calls to fetch data from node.
+    pub rpc: SignerRpc,
+}
+
+/// Implementation of low-level calls for [`Signer`].
+#[derive(Clone)]
+pub struct SignerInner {
     api: Api,
     /// Current signer.
     signer: PairSigner<GearConfig, Pair>,
@@ -42,33 +64,69 @@ pub struct Signer {
 impl Signer {
     /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
+        let signer = SignerInner {
             api,
             signer: PairSigner::new(
                 Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
             ),
             nonce: None,
-        })
+        };
+
+        Ok(Self::from_inner(signer))
+    }
+
+    fn from_inner(signer: SignerInner) -> Self {
+        let signer = Arc::new(signer);
+
+        Self {
+            storage: SignerStorage(signer.clone()),
+            calls: SignerCalls(signer.clone()),
+            rpc: SignerRpc(signer.clone()),
+            signer,
+        }
+    }
+
+    #[deny(unused_variables)]
+    fn replace_inner(&mut self, inner: SignerInner) {
+        let Signer {
+            signer,
+            storage,
+            calls,
+            rpc,
+        } = self;
+
+        *signer = Arc::new(inner);
+        *storage = SignerStorage(signer.clone());
+        *calls = SignerCalls(signer.clone());
+        *rpc = SignerRpc(signer.clone());
     }
 
     /// Change inner signer.
-    pub fn change(self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
-            api: self.api,
-            signer: PairSigner::new(
-                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
-            ),
-            nonce: None,
-        })
+    pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        let signer =
+            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+
+        self.replace_inner(SignerInner {
+            signer,
+            ..self.signer.as_ref().clone()
+        });
+
+        Ok(self)
     }
 
+    /// Set nonce of the signer
     pub fn set_nonce(&mut self, nonce: u32) {
-        self.nonce = Some(nonce)
+        self.replace_inner(SignerInner {
+            nonce: Some(nonce),
+            ..self.signer.as_ref().clone()
+        });
     }
+}
 
+impl SignerInner {
     /// Get address of the current signer
     pub fn address(&self) -> String {
-        self.signer.account_id().to_ss58check()
+        self.account_id().to_ss58check()
     }
 
     /// Get address of the current signer
@@ -84,10 +142,20 @@ impl Signer {
 
 impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
     fn from((api, signer): (Api, PairSigner<GearConfig, Pair>)) -> Self {
-        Signer {
+        let signer = SignerInner {
             api,
             signer,
             nonce: None,
-        }
+        };
+
+        Self::from_inner(signer)
+    }
+}
+
+impl Deref for Signer {
+    type Target = SignerInner;
+
+    fn deref(&self) -> &SignerInner {
+        self.signer.as_ref()
     }
 }

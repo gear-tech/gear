@@ -31,7 +31,7 @@ fn instruction_weights_heuristics_test() {
         version: 0,
         _phantom: core::marker::PhantomData,
 
-        i64const: 150,
+        i64const: 160,
         i64load: 7_000,
         i32load: 8_000,
         i64store: 29_000,
@@ -145,7 +145,7 @@ fn page_costs_heuristic_test() {
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 277_000.into(),
+        mem_grow: 306_170.into(),
         parachain_load_heuristic: 0.into(),
     };
 

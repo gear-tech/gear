@@ -27,11 +27,10 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime as CommonRuntime},
-    BackendExternalities, BackendState, BackendTermination, TerminationReason,
+    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
-use gear_sandbox::{HostError, InstanceGlobals, Value};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_core::{costs::RuntimeCosts, pages::WasmPage};
+use gear_sandbox::{HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -40,11 +39,14 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
+pub(crate) fn as_u64(v: Value) -> Option<u64> {
+    as_i64(v).map(|v| v as u64)
+}
+
 pub(crate) struct Runtime<Ext> {
     pub ext: Ext,
     pub memory: MemoryWrap,
-    pub termination_reason: TerminationReason,
-    pub globals: gear_sandbox::default_executor::InstanceGlobals,
+    pub termination_reason: UndefinedTerminationReason,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<Ext>,
 }
@@ -60,28 +62,37 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
         HostError
     }
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(u64, T), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
-        self.with_globals_update(|ctx| {
-            ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost)?;
-            f(ctx)
-        })
+        self.prepare_run(gas);
+
+        let run = || {
+            self.ext.charge_gas_runtime(cost)?;
+            f(self)
+        };
+
+        run()
+            .map_err(|err| {
+                self.set_termination_reason(err);
+                HostError
+            })
+            .map(|r| (self.ext.define_current_counter(), r))
     }
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx| {
+        self.run_any(gas, cost, |ctx| {
             let res = f(ctx);
             let res = ctx.process_fallible_func_result(res)?;
 
@@ -90,7 +101,6 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
             ctx.write_as(write_res, R::from(res)).map_err(Into::into)
         })
-        .map(|_| ())
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
@@ -100,53 +110,10 @@ impl<Ext: BackendExternalities> CommonRuntime<Ext> for Runtime<Ext> {
 
 impl<Ext: BackendExternalities> Runtime<Ext> {
     // Cleans `memory_manager`, updates ext counters based on globals.
-    fn prepare_run(&mut self) {
+    fn prepare_run(&mut self, gas: u64) {
         self.memory_manager = Default::default();
 
-        let gas = self
-            .globals
-            .get_global_val(GLOBAL_NAME_GAS)
-            .and_then(as_i64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        let allowance = self
-            .globals
-            .get_global_val(GLOBAL_NAME_ALLOWANCE)
-            .and_then(as_i64)
-            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
-
-        self.ext.set_gas_left((gas, allowance).into());
-    }
-
-    // Updates globals after execution.
-    fn update_globals(&mut self) {
-        let GasLeft { gas, allowance } = self.ext.gas_left();
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-
-        self.globals
-            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .unwrap_or_else(|e| {
-                unreachable!("Globals must be checked during env creation: {:?}", e)
-            });
-    }
-
-    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-    {
-        let result = f(self).map_err(|err| {
-            self.set_termination_reason(err);
-            HostError
-        });
-
-        self.update_globals();
-
-        result
+        self.ext.decrease_current_counter_to(gas);
     }
 
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
@@ -154,12 +121,15 @@ impl<Ext: BackendExternalities> Runtime<Ext> {
         F: FnOnce(
             &mut MemoryAccessManager<Ext>,
             &mut MemoryWrap,
-            &mut GasLeft,
+            &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let mut gas_left = self.ext.gas_left();
-        let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
-        self.ext.set_gas_left(gas_left);
+        let mut gas_counter = self.ext.define_current_counter();
+
+        // With memory ops do similar subtractions for both counters.
+        let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_counter);
+
+        self.ext.decrease_current_counter_to(gas_counter);
         res
     }
 }
@@ -225,13 +195,13 @@ impl<Ext: BackendExternalities> MemoryOwner for Runtime<Ext> {
 }
 
 impl<Ext> BackendState for Runtime<Ext> {
-    fn set_termination_reason(&mut self, reason: TerminationReason) {
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.termination_reason = reason;
     }
 }
 
 impl<Ext: BackendExternalities> BackendTermination<Ext, MemoryWrap> for Runtime<Ext> {
-    fn into_parts(self) -> (Ext, MemoryWrap, TerminationReason) {
+    fn into_parts(self) -> (Ext, MemoryWrap, UndefinedTerminationReason) {
         let Self {
             ext,
             memory,

@@ -52,8 +52,10 @@ sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
 pallet-sudo  = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-balances  = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
 testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true
+env_logger.workspace = true

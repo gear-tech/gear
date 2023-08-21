@@ -27,10 +27,11 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime},
-    ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendState, TrapExplanation,
+    UndefinedTerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft, pages::WasmPage};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_core::{costs::RuntimeCosts, pages::WasmPage};
+use gear_wasm_instrument::GLOBAL_NAME_GAS;
 use wasmi::{
     core::{Trap, TrapCode, Value},
     AsContextMut, Caller, Memory as WasmiMemory,
@@ -79,36 +80,46 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
     }
 
     #[track_caller]
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(
+        &mut self,
+        _gas: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(u64, T), Self::Error>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.with_globals_update(|ctx| {
             ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
-            f(ctx)
+            f(ctx).map(|r| (0, r))
         })
     }
 
     #[track_caller]
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
-            let res = f(ctx);
-            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+        self.run_any(
+            gas,
+            cost,
+            |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
+                let res = f(ctx);
+                let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.register_write_as::<R>(res_ptr);
+                // TODO: move above or make normal process memory access.
+                let write_res = ctx.register_write_as::<R>(res_ptr);
 
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
+                ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+            },
+        )
     }
 
     fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
@@ -143,21 +154,17 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
 
         let f = || {
             let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()?;
 
-            let allowance_global = wrapper
-                .caller
-                .get_export(GLOBAL_NAME_ALLOWANCE)?
-                .into_global()?;
-            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()?;
-
-            Some((gas, allowance).into())
+            Some(gas_global.get(&wrapper.caller).try_into::<i64>()? as u64)
         };
 
         let gas_left =
             f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        wrapper.host_state_mut().ext.set_gas_left(gas_left);
+        wrapper
+            .host_state_mut()
+            .ext
+            .decrease_current_counter_to(gas_left);
 
         Ok(wrapper)
     }
@@ -179,22 +186,13 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     fn update_globals(&mut self) {
-        let GasLeft { gas, allowance } = self.host_state_mut().ext.gas_left();
+        let gas = self.host_state_mut().ext.define_current_counter();
 
         let mut f = || {
             let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
             gas_global
                 .set(&mut self.caller, Value::I64(gas as i64))
                 .ok()?;
-
-            let allowance_global = self
-                .caller
-                .get_export(GLOBAL_NAME_ALLOWANCE)?
-                .into_global()?;
-            allowance_global
-                .set(&mut self.caller, Value::I64(allowance as i64))
-                .ok()?;
-
             Some(())
         };
 
@@ -206,23 +204,25 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
         F: FnOnce(
             &mut MemoryAccessManager<Ext>,
             &mut MemoryWrapRef<Ext>,
-            &mut GasLeft,
+            &mut u64,
         ) -> Result<R, MemoryAccessError>,
     {
-        let mut gas_left = self.host_state_mut().ext.gas_left();
+        let mut gas_counter = self.host_state_mut().ext.define_current_counter();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 
-        let res = f(&mut self.manager, &mut memory, &mut gas_left);
+        // With memory ops do similar subtractions for both counters.
+        let res = f(&mut self.manager, &mut memory, &mut gas_counter);
 
-        self.host_state_mut().ext.set_gas_left(gas_left);
-
+        self.host_state_mut()
+            .ext
+            .decrease_current_counter_to(gas_counter);
         res
     }
 
     fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         let result = f(self).map_err(|err| {
             self.host_state_mut().set_termination_reason(err);
@@ -261,7 +261,7 @@ impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
 }
 
 impl<Ext> BackendState for CallerWrap<'_, Ext> {
-    fn set_termination_reason(&mut self, reason: TerminationReason) {
+    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         caller_host_state_mut(&mut self.caller).set_termination_reason(reason);
     }
 }

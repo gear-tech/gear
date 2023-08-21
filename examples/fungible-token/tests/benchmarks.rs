@@ -23,11 +23,11 @@ use ft_io::*;
 use gclient::{EventProcessor, GearApi, Result};
 use gear_core::ids::{MessageId, ProgramId};
 use gstd::{vec, ActorId, Encode, Vec};
-use rand::Rng;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use statrs::statistics::Statistics;
 
 /// Path to the gear node binary.
-const GEAR_PATH: &str = "../../../target/release/gear";
+const GEAR_PATH: &str = "../../target/release/gear";
 
 /// This constant defines the number of messages in the batch.
 /// It is calculated empirically, and 25 is considered the optimal value for
@@ -40,7 +40,7 @@ async fn send_messages_in_parallel(
     api: &GearApi,
     batch_size: usize,
     treads_number: usize,
-    messages: &[(ProgramId, Vec<u8>, u64, u128)],
+    messages: &[(ProgramId, Vec<u8>, u64, u128, bool)],
 ) -> Result<Vec<MessageId>> {
     // TODO: currently have problem with transaction priorities from one user.
     // Fix this after loader become a lib #2781
@@ -190,9 +190,9 @@ async fn stress_test() -> Result<()> {
     }
 
     // Converting batch
-    let batch: Vec<(_, Vec<u8>, u64, _)> = batch
+    let batch: Vec<(_, Vec<u8>, u64, _, _)> = batch
         .iter()
-        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0))
+        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0, false))
         .collect();
 
     // Sending batch
@@ -206,7 +206,7 @@ async fn stress_test() -> Result<()> {
 #[ignore]
 #[tokio::test]
 async fn stress_transfer() -> Result<()> {
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(42);
 
     let api = GearApi::dev_from_path(GEAR_PATH).await?;
     // Use this code in comment for custom node run:
@@ -251,9 +251,9 @@ async fn stress_transfer() -> Result<()> {
         ));
     }
 
-    let messages: Vec<(_, Vec<u8>, u64, _)> = actions
+    let messages: Vec<(_, Vec<u8>, u64, _, _)> = actions
         .into_iter()
-        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0))
+        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0, false))
         .collect();
 
     let message_ids = send_messages_in_parallel(&api, BATCH_CHUNK_SIZE, 1, &messages).await?;

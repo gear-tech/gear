@@ -352,7 +352,7 @@ pub fn run() -> sc_cli::Result<()> {
             Ok(())
         }
         None => {
-            let runner = if cli.run.base.validator {
+            let runner = if cli.run.base.validator && cli.run.base.shared_params.log.is_empty() {
                 cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
                     logger.with_detailed_output(false);
                     logger.with_max_level(log::LevelFilter::Info);
@@ -362,7 +362,7 @@ pub fn run() -> sc_cli::Result<()> {
             };
 
             runner.run_node_until_exit(|config| async move {
-                service::new_full(config, cli.no_hardware_benchmarks)
+                service::new_full(config, cli.no_hardware_benchmarks, cli.run.max_gas)
                     .map_err(sc_cli::Error::Service)
             })
         }

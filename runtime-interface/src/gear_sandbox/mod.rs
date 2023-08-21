@@ -18,6 +18,8 @@
 
 //! Runtime interface for gear node
 
+#[cfg(feature = "std")]
+use gear_sandbox_host::sandbox::env::Instantiate;
 use sp_runtime_interface::{runtime_interface, Pointer};
 use sp_wasm_interface::HostPointer;
 
@@ -38,7 +40,33 @@ pub trait Sandbox {
         raw_env_def: &[u8],
         state_ptr: Pointer<u8>,
     ) -> u32 {
-        detail::instantiate(*self, dispatch_thunk_id, wasm_code, raw_env_def, state_ptr)
+        detail::instantiate(
+            *self,
+            dispatch_thunk_id,
+            wasm_code,
+            raw_env_def,
+            state_ptr,
+            Instantiate::Version1,
+        )
+    }
+
+    /// Instantiate a new sandbox instance with the given `wasm_code`.
+    #[version(2)]
+    fn instantiate(
+        &mut self,
+        dispatch_thunk_id: u32,
+        wasm_code: &[u8],
+        raw_env_def: &[u8],
+        state_ptr: Pointer<u8>,
+    ) -> u32 {
+        detail::instantiate(
+            *self,
+            dispatch_thunk_id,
+            wasm_code,
+            raw_env_def,
+            state_ptr,
+            Instantiate::Version2,
+        )
     }
 
     /// Invoke `function` in the sandbox with `sandbox_idx`.

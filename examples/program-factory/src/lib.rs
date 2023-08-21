@@ -65,7 +65,7 @@ mod wasm {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
                 let submitted_code = CHILD_CODE_HASH.into();
-                let (_message_id, new_program_id) = prog::create_program_with_gas(
+                let (_message_id, new_program_id) = prog::create_program_bytes_with_gas(
                     submitted_code,
                     unsafe { COUNTER.to_le_bytes() },
                     [],
@@ -80,9 +80,14 @@ mod wasm {
             CreateProgram::Custom(custom_child_data) => {
                 for (code_hash, salt, gas_limit) in custom_child_data {
                     let submitted_code = code_hash.into();
-                    let (_message_id, new_program_id) =
-                        prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0)
-                            .unwrap();
+                    let (_message_id, new_program_id) = prog::create_program_bytes_with_gas(
+                        submitted_code,
+                        &salt,
+                        [],
+                        gas_limit,
+                        0,
+                    )
+                    .unwrap();
                     msg::send_bytes(new_program_id, [], 0).expect("Failed to send message");
                 }
             }

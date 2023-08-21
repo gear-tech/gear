@@ -21,10 +21,11 @@ test_usage() {
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
+    fuzz-repr      run fuzzer reproduction test
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
     docs           run doc tests
     validators     run validator checks
-
+    time-consuming run time consuming tests
 EOF
 }
 
@@ -85,8 +86,12 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
+  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+}
+
+test_fuzzer_reproduction() {
+  cargo nextest run -p runtime-fuzzer -E 'test(=tests::test_fuzzer_reproduction)'
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
@@ -99,4 +104,8 @@ doc_test() {
   shift
 
   __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+}
+
+time_consuming_tests() {
+  $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
 }

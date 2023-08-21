@@ -26,7 +26,7 @@ mod common;
 #[tokio::test]
 async fn api_timeout() {
     assert!(matches!(
-        Api::new_with_timeout(None, Some(10)).await.err(),
+        Api::new_with_timeout(None, Some(1)).await.err(),
         Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
     ));
 }
@@ -37,7 +37,7 @@ fn paths() {
         env::bin("gear"),
         env::bin("gcli"),
         env::wasm_bin("demo_new_meta.opt.wasm"),
-        env::example_path("new-meta/demo_new_meta.meta.txt"),
+        env::wasm_bin("demo_new_meta.meta.txt"),
     ]
     .into_iter()
     .for_each(|path| {

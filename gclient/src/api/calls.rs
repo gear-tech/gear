@@ -18,8 +18,8 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::LockId;
 use gear_core::{
+    gas::LockId,
     ids::*,
     memory::PageBuf,
     pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
@@ -49,7 +49,7 @@ use gsdk::{
         utility::Event as UtilityEvent,
         Convert, Event,
     },
-    types, Error as GsdkError,
+    Error as GsdkError, GearGasNode, GearGasNodeId,
 };
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
@@ -98,7 +98,7 @@ impl GearApi {
     pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
-        let tx = self.0.transfer(destination, value).await?;
+        let tx = self.0.calls.transfer(destination, value).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
@@ -165,6 +165,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .create_program(code_id, salt, payload, gas_limit, value)
             .await?;
 
@@ -306,7 +307,7 @@ impl GearApi {
             .gpages_at(src_program_id, &src_program, src_block_hash)
             .await?;
 
-        let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
+        let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
             .map(|gr| gr.0.into())
@@ -321,7 +322,7 @@ impl GearApi {
         let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved {
+            if let GearGasNode::Reserved {
                 id, value, lock, ..
             } = &gas_node.1
             {
@@ -357,16 +358,19 @@ impl GearApi {
 
         dest_node_api
             .0
+            .storage
             .set_code_storage(src_code_id, &src_code)
             .await?;
 
         dest_node_api
             .0
+            .storage
             .set_code_len_storage(src_code_id, src_code_len)
             .await?;
 
         dest_node_api
             .0
+            .storage
             .set_gas_nodes(&src_program_reserved_gas_nodes)
             .await?;
 
@@ -411,6 +415,7 @@ impl GearApi {
 
         dest_node_api
             .0
+            .storage
             .set_total_issuance(
                 dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
             )
@@ -418,12 +423,14 @@ impl GearApi {
 
         dest_node_api
             .0
+            .storage
             .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
         src_program.expiration_block = dest_node_api.last_block_number().await?;
         dest_node_api
             .0
+            .storage
             .set_gprog(dest_program_id, src_program)
             .await?;
 
@@ -513,7 +520,7 @@ impl GearApi {
         )
         .await?;
 
-        self.0.set_gpages(program_id, &pages).await?;
+        self.0.storage.set_gpages(program_id, &pages).await?;
 
         Ok(())
     }
@@ -537,7 +544,7 @@ impl GearApi {
             .await?
             .map(|(message, _interval)| message.value());
 
-        let tx = self.0.claim_value(message_id).await?;
+        let tx = self.0.calls.claim_value(message_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::UserMessageRead { .. }) =
@@ -633,12 +640,14 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
         let payload = payload.as_ref().to_vec();
 
         let tx = self
             .0
-            .send_message(destination, payload, gas_limit, value)
+            .calls
+            .send_message(destination, payload, gas_limit, value, prepaid)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
@@ -664,16 +673,17 @@ impl GearApi {
     /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
+        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128, bool)>,
     ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(destination, payload, gas_limit, value)| {
+            .map(|(destination, payload, gas_limit, value, prepaid)| {
                 RuntimeCall::Gear(GearCall::send_message {
                     destination: destination.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    prepaid,
                 })
             })
             .collect();
@@ -713,8 +723,9 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
-        self.send_message_bytes(destination, payload.encode(), gas_limit, value)
+        self.send_message_bytes(destination, payload.encode(), gas_limit, value, prepaid)
             .await
     }
 
@@ -743,6 +754,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
@@ -750,7 +762,8 @@ impl GearApi {
 
         let tx = self
             .0
-            .send_reply(reply_to_id, payload, gas_limit, value)
+            .calls
+            .send_reply(reply_to_id, payload, gas_limit, value, prepaid)
             .await?;
 
         let events = tx.wait_for_success().await?;
@@ -783,9 +796,13 @@ impl GearApi {
     /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128, bool)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
+        let message_ids: Vec<_> = args
+            .clone()
+            .into_iter()
+            .map(|(mid, _, _, _, _)| mid)
+            .collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
@@ -800,12 +817,13 @@ impl GearApi {
 
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(reply_to_id, payload, gas_limit, value)| {
+            .map(|(reply_to_id, payload, gas_limit, value, prepaid)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    prepaid,
                 })
             })
             .collect();
@@ -851,8 +869,9 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
+        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
-        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
+        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value, prepaid)
             .await
     }
 
@@ -874,7 +893,7 @@ impl GearApi {
     /// - [`upload_program`](Self::upload_program) function uploads a new
     ///   program and initialize it.
     pub async fn upload_code(&self, code: impl AsRef<[u8]>) -> Result<(CodeId, H256)> {
-        let tx = self.0.upload_code(code.as_ref().to_vec()).await?;
+        let tx = self.0.calls.upload_code(code.as_ref().to_vec()).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::CodeChanged {
@@ -989,6 +1008,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .upload_program(code, salt, payload, gas_limit, value)
             .await?;
 

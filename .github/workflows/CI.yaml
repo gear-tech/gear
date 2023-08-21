@@ -5,11 +5,11 @@ on:
     - cron: "0 3 * * *"
   push:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-  pull_request:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-    types: [labeled, synchronize]
-
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -21,14 +21,8 @@ env:
 jobs:
   # TODO: add to specific branches.
   # spec_version:
-  #   runs-on: [self-hosted, epyc]
+  #   runs-on: [kuberunner]
   #   steps:
-  #     - name: Cancel Previous Runs
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.11.0
-  #       with:
-  #         access_token: ${{ github.token }}
-
   #     - name: "ACTIONS: Checkout"
   #       uses: actions/checkout@v3
 
@@ -39,253 +33,32 @@ jobs:
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
 
-  check:
-    # needs: spec_version
-    needs: check-commit-message
-    runs-on: [self-hosted, epyc-4, k8s-runner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
+  cache:
+    runs-on: ubuntu-latest
+    outputs:
+      sccache_path: ${{ steps.sccache.outputs.sccache_path }}
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Build deps"
+      - name: "CACHE: Set sccache path"
+        id: sccache
         run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
+          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
+          echo "sccache_path=$sccache_path" >> $GITHUB_OUTPUT
 
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
-
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
-
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
-      - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
-
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples --all-targets --locked
-
-      - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test doc
-
-      - name: "Test: Changes in gsdk generated code"
-        run: |
-          GENERATED_CODE="gsdk/src/metadata/generated.rs"
-          ./scripts/update-gsdk-metadata.sh
-          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
-            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
-            git --no-pager diff $GENERATED_CODE
-            exit 1
-          fi
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
+  check:
+    needs: [cache]
+    uses: ./.github/workflows/check.yml
+    with:
+      cache: ${{ needs.cache.outputs.sccache_path }}
 
   build:
-    # needs: spec_version
-    needs: [check-commit-message, check-labels]
-    runs-on: [self-hosted, epyc-4, k8s-runner]
-    env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
-      - name: "Install: grcov"
-        run: |
-          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-musl.tar.bz2 | tar jxf -
-          ./grcov --version
-
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-          ./rust-covfix --version
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
-
-      - name: "ACTIONS: Setup environment variable"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
-        
-      - name: "Buid: Init"
-        run: ./scripts/gear.sh init cargo
-
-      - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
-
-      - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked --release
-
-      - name: "Check: Gear runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
-
-      - name: "Check: Vara runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
-
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
-
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
-
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --release
-
-      - name: "Test: `gcli`"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --release --locked --retries 3
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --release
-
-      - name: "Test: Runtime benchmarks and benchmark tests work"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
-          # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-          # check that check/test benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
-          # check also lazy-pages benchmarks tests for native runtime
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
-
-      - name: "Test: Sys-calls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls --release
-
-      - name: "Test: `try-runtime` feature tests"
-        run: |
-          cargo test -p "pallet-*" --features try-runtime --release --locked
-
-      - name: "Test: Try runtime migrations"
-        run: |
-          cargo build -p gear-cli --features try-runtime --release --locked
-          ./target/release/gear try-runtime --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-private-testnet.gear-tech.io:443
-        env:
-          RUST_LOG: info
-
-      - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: >-
-          ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
-          --ignore "/*"
-          --ignore "examples/*"
-          --ignore "utils/*"
-          --ignore "target/*"
-          --ignore "node/*"
-          --ignore "program/*"
-          --ignore "pallets/gear/src/migration.rs"
-          --ignore "pallets/gear/src/weights.rs"
-          --ignore "pallets/gear-debug/src/weights.rs"
-          --ignore "pallets/gear-messenger/src/migration.rs"
-          --ignore "pallets/gear-program/src/migration.rs"
-          --ignore "pallets/gear-program/src/weights/*"
-          --ignore "pallets/usage/src/weights.rs"
-          --ignore "pallets/usage/src/migration.rs"
-          --ignore "runtime/*"
-          --ignore "gcore/*"
-          --ignore "gstd/*"
-          --ignore "galloc/*"
-          --ignore "gtest/*"
-          --ignore "gclient/*"
-          -o ./lcov.info
-
-      - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: ./rust-covfix -o lcov.info lcov.info
-
-      - name: "Coverage: Publish"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./lcov.info
-
-      - name: "Build: Production binaries"
-        if: github.event_name == 'push'
-        run: cargo build -p gear-cli -F cli --profile production
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
-
-      - name: Prepare artifacts
-        if: github.event_name == 'push'
-        run: |
-          mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          cp target/production/gear artifact/
-          cp target/release/wasm-proc artifact/
-          strip artifact/gear || true
-          strip artifact/wasm-proc || true
-
-      - name: Upload artifacts
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
-        with:
-          path: artifact
+    needs: [cache]
+    uses: ./.github/workflows/build.yml
+    with:
+      cache: ${{ needs.cache.outputs.sccache_path }}
+      macos: true
 
   build-win-native:
     if: ${{ github.ref == 'refs/heads/master' }}
@@ -295,15 +68,8 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
@@ -376,171 +142,11 @@ jobs:
           --features=lazy-pages
           --release
 
-  build-win-cross:
-    needs: [check-commit-message, check-labels]
-    runs-on: [self-hosted, epyc-4, k8s-runner]
-    env:
-      XWIN_ARCH: x86_64
-      RUSTUP_HOME: /tmp/rustup_home
-      WINEDEBUG: fixme-all
-      CARGO_INCREMENTAL: 0
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: MSVC target"
-        run: rustup target add x86_64-pc-windows-msvc
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build
-
-      - name: "Install: Wine"
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo mkdir -pm755 /etc/apt/keyrings
-          sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
-          sudo apt update
-          sudo apt install --install-recommends -y winehq-stable winetricks
-          wineboot
-          winetricks win10
-
-      - name: "Install: LLVM"
-        run: |
-          sudo apt install -y clang-12 clang-tools-12 llvm-12
-          sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
-
-      - name: "Install: binaryen"
-        run: |
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
-      - name: "Install: cargo-xwin"
-        run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        continue-on-error: true
-        run: |
-          tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      # These tests randomly stops responding
-
-      #- name: "Test: Client tests"
-      #  run: |
-      #    cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-      #    ./scripts/gear.sh test client
-      #  env:
-      #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Lazy pages"
-        run: >-
-          cargo xwin test
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          --features=lazy-pages
-          --release
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /cache/
-
-  build-macos-x86:
-    if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
-    needs: build
-    runs-on: macos-latest
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "ACTIONS: Setup caching"
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: "Install: protobuf"
-        run: brew install protobuf
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        run: >-
-          cargo build
-          -p gear-cli --features=lazy-pages
-
-      - name: "Test: Lazy pages"
-        run: >-
-          cargo nextest run
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          --features=lazy-pages
-
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
       - name: Download artifacts
         uses: actions/download-artifact@v3
 
@@ -564,56 +170,3 @@ jobs:
           draft: false
           fail_on_unmatched_files: true
           files: artifact/*
-
-  check-fuzzer:
-    runs-on: [self-hosted, epyc-4, k8s-runner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-
-      - name: "Check fuzzer with mutation test"
-        run: ./scripts/check-fuzzer.sh
-
-  check-commit-message:
-    runs-on: ubuntu-latest
-    outputs:
-      commit-message: ${{ steps.commit_message.outputs.commitMsg }}
-    steps:
-      - name: Get repo
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: Print head git commit message
-        id: commit_message
-        run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
-
-  check-labels:
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') || github.event_name == 'push'
-    steps:
-      - name: Build Condition Passed!
-        run: echo "bebop"
