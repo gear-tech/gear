@@ -27,9 +27,10 @@ use crate::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
             gear_core::code::InstrumentedCode,
+            pallet_gear_bank::pallet::BankAccount,
             sp_weights::weight_v2::Weight,
         },
-        storage::{GearGasStorage, GearProgramStorage},
+        storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         sudo::Event as SudoEvent,
         Event,
     },
@@ -291,6 +292,19 @@ impl SignerStorage {
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
+    }
+}
+
+// pallet-gear-bank
+impl SignerStorage {
+    /// Writes given BankAccount info into storage at `AccountId32`.
+    pub async fn set_bank_account_storage(
+        &self,
+        dest: impl Into<AccountId32>,
+        value: BankAccount<u128>,
+    ) -> EventsResult {
+        let addr = Api::storage(GearBankStorage::Bank, vec![Value::from_bytes(dest.into())]);
+        self.set_storage(&[(addr, value)]).await
     }
 }
 
