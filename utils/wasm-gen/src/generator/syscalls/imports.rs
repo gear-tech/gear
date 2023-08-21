@@ -260,13 +260,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 Some(idx) => *index = idx,
                 None => {
                     log::trace!(
-                        "To build the {precise_sys_call_name} sys-call, wasm must import the following sys-calls: {missing_sys_calls}",
+                        "To build the {precise_sys_call_name} sys-call, wasm must import the following sys-calls: {missing_sys_calls:?}",
                         precise_sys_call_name = InvocableSysCall::Precise(sys_call).to_str(),
-                        missing_sys_calls = sys_calls
-                            .iter()
-                            .map(|sys_call| sys_call.to_str())
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                        missing_sys_calls = sys_calls.map(|sys_call| sys_call.to_str()),
                     );
                     return None;
                 }
