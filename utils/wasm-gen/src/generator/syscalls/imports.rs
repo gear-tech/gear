@@ -311,7 +311,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes.add_func(func_idx.signature as usize);
 
-        // TODO: make separate config for precise sys-calls
+        // TODO: make separate config for precise sys-calls (#3122)
         self.sys_calls_imports
             .insert(invocable_sys_call, (1, call_indexes_handle));
     }
