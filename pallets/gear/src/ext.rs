@@ -74,8 +74,6 @@ impl BackendExternalities for LazyPagesExt {
 }
 
 impl ProcessorExternalities for LazyPagesExt {
-    const LAZY_PAGES_ENABLED: bool = true;
-
     fn new(context: ProcessorContext) -> Self {
         Self {
             inner: Ext::new(context),

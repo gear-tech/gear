@@ -244,12 +244,10 @@ where
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
-            if E::Ext::LAZY_PAGES_ENABLED {
-                E::Ext::lazy_pages_post_execution_actions(&mut memory);
+            E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                if !E::Ext::lazy_pages_status().is_normal() {
-                    termination = ext.current_counter_type().into()
-                }
+            if !E::Ext::lazy_pages_status().is_normal() {
+                termination = ext.current_counter_type().into()
             }
 
             (termination, memory, ext)
@@ -491,7 +489,6 @@ mod tests {
     struct LazyTestExt;
 
     impl ProcessorExternalities for TestExt {
-        const LAZY_PAGES_ENABLED: bool = false;
         fn new(_context: ProcessorContext) -> Self {
             Self
         }
@@ -512,8 +509,6 @@ mod tests {
     }
 
     impl ProcessorExternalities for LazyTestExt {
-        const LAZY_PAGES_ENABLED: bool = true;
-
         fn new(_context: ProcessorContext) -> Self {
             Self
         }
