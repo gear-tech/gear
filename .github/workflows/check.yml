@@ -19,7 +19,6 @@ jobs:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
@@ -62,7 +61,6 @@ jobs:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: Cancel Previous Runs
