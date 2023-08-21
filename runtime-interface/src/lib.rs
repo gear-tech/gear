@@ -96,6 +96,14 @@ fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) 
     }
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = codec)]
+pub enum ProcessAccessErrorVer1 {
+    OutOfBounds,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+}
+
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
@@ -104,7 +112,7 @@ pub trait GearRI {
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
         gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+    ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
         let mut gas_left = gas_left.0;
         let gas_before = gas_left.gas;
         let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
@@ -114,7 +122,21 @@ pub trait GearRI {
             .allowance
             .saturating_sub(gas_before.saturating_sub(gas_left.gas));
 
-        (gas_left, res)
+        match res {
+            Ok(_) => {
+                if gas_left.allowance > 0 {
+                    (gas_left, Ok(()))
+                } else {
+                    (gas_left, Err(ProcessAccessErrorVer1::GasAllowanceExceeded))
+                }
+            }
+            Err(ProcessAccessError::OutOfBounds) => {
+                (gas_left, Err(ProcessAccessErrorVer1::OutOfBounds))
+            }
+            Err(ProcessAccessError::GasLimitExceeded) => {
+                (gas_left, Err(ProcessAccessErrorVer1::GasLimitExceeded))
+            }
+        }
     }
 
     #[version(2)]

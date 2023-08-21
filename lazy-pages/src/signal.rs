@@ -84,7 +84,11 @@ unsafe fn user_signal_handler_internal(
             load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
 
-        let gas_counter = globals::apply_for_global(globals_config, GlobalNo::Gas, |_| Ok(None))?;
+        let gas_counter = globals::apply_for_global(
+            globals_config,
+            globals_config.names[GlobalNo::Gas as usize].as_str(),
+            |_| Ok(None),
+        )?;
 
         Some((gas_counter, gas_charger))
     } else {
@@ -176,9 +180,28 @@ impl AccessHandler for SignalAccessHandler {
         if let (Some((gas_counter, _)), Some(globals_config)) =
             (self.gas_ctx, ctx.globals_context.as_ref())
         {
+            let mut diff = 0;
             unsafe {
-                globals::apply_for_global(globals_config, GlobalNo::Gas, |_| Ok(Some(gas_counter)))?
+                globals::apply_for_global(
+                    globals_config,
+                    globals_config.names[GlobalNo::Gas as usize].as_str(),
+                    |current| {
+                        diff = current - gas_counter;
+                        Ok(Some(gas_counter))
+                    },
+                )?
             };
+
+            // support old runtimes
+            if globals_config.names.len() == 2
+                && globals_config.names[1].as_str() == "gear_allowance"
+            {
+                unsafe {
+                    globals::apply_for_global(globals_config, "gear_allowance", |current| {
+                        Ok(Some(current.saturating_sub(diff)))
+                    })?
+                };
+            }
         }
         Ok(())
     }
