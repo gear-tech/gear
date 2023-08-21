@@ -20,7 +20,7 @@ use super::access::AccessQueue;
 use crate::{
     async_runtime,
     errors::{Error, Result},
-    exec, msg, BlockCount, BlockNumber, Config, MessageId,
+    exec, format, msg, BlockCount, BlockNumber, Config, MessageId,
 };
 use core::{
     cell::UnsafeCell,
@@ -108,7 +108,7 @@ impl<T> Mutex<T> {
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
         MutexLockFuture {
             mutex: self,
-            own_up_for: Config::mx_lock_duration(),
+            own_up_for: None,
         }
     }
 }
@@ -156,9 +156,9 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
                 // some other message. In this case, the next rival message was
                 // awoken by the ousting mechanism in the MutexLockFuture::poll
                 panic!(
-                    "Mutex guard held by message 0x{} does not match lock owner message 0x{}",
+                    "Mutex guard held by message 0x{} does not match lock owner message {}",
                     hex::encode(self.holder_msg_id),
-                    owner_msg_id.map_or("None".into(), hex::encode)
+                    owner_msg_id.map_or("None".into(), |v| format!("0x{}", hex::encode(v)))
                 );
             }
 
@@ -231,7 +231,7 @@ unsafe impl<T> Sync for Mutex<T> {}
 /// ```
 pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
-    own_up_for: BlockCount,
+    own_up_for: Option<BlockCount>,
 }
 
 impl<'a, T> MutexLockFuture<'a, T> {
@@ -243,7 +243,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
         } else {
             Ok(MutexLockFuture {
                 mutex: self.mutex,
-                own_up_for: block_count,
+                own_up_for: Some(block_count),
             })
         }
     }
@@ -254,7 +254,13 @@ impl<'a, T> MutexLockFuture<'a, T> {
         current_block: BlockNumber,
     ) -> Poll<MutexGuard<'a, T>> {
         let locked_by = unsafe { &mut *self.mutex.locked.get() };
-        *locked_by = Some((owner_msg_id, current_block.saturating_add(self.own_up_for)));
+        *locked_by = Some((
+            owner_msg_id,
+            current_block.saturating_add(
+                self.own_up_for
+                    .unwrap_or_else(|| Config::mx_lock_duration()),
+            ),
+        ));
         Poll::Ready(MutexGuard {
             mutex: self.mutex,
             holder_msg_id: owner_msg_id,
