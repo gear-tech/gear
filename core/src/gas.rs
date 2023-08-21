@@ -20,7 +20,10 @@
 
 use crate::costs::RuntimeCosts;
 use enum_iterator::Sequence;
-use scale_info::scale::{Decode, Encode};
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// The id of the gas lock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
@@ -327,6 +330,27 @@ impl From<(i64, i64)> for GasLeft {
     fn from((gas, allowance): (i64, i64)) -> Self {
         (gas as u64, allowance as u64).into()
     }
+}
+
+/// The struct contains results of gas calculation required to process
+/// a message.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub struct GasInfo {
+    /// Represents minimum gas limit required for execution.
+    pub min_limit: u64,
+    /// Gas amount that we reserve for some other on-chain interactions.
+    pub reserved: u64,
+    /// Contains number of gas burned during message processing.
+    pub burned: u64,
+    /// The value may be returned if a program happens to be executed
+    /// the second or next time in a block.
+    pub may_be_returned: u64,
+    /// Was the message placed into waitlist at the end of calculating.
+    ///
+    /// This flag shows, that `min_limit` makes sense and have some guarantees
+    /// only before insertion into waitlist.
+    pub waited: bool,
 }
 
 #[cfg(test)]
