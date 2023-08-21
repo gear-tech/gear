@@ -20,6 +20,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+use alloc::string::String;
 use codec::{Decode, Encode};
 use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;
@@ -64,9 +67,9 @@ pub enum ExternEntity {
 #[codec(crate = codec)]
 pub struct Entry {
     /// Module name of which corresponding entity being defined.
-    pub module_name: Vec<u8>,
+    pub module_name: String,
     /// Field name in which corresponding entity being defined.
-    pub field_name: Vec<u8>,
+    pub field_name: String,
     /// External entity being defined.
     pub entity: ExternEntity,
 }
@@ -133,6 +136,9 @@ impl WasmReturnValue {
     pub const ENCODED_MAX_SIZE: usize = 8 + ReturnValue::ENCODED_MAX_SIZE;
 }
 
+// TODO #3057
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,16 +156,16 @@ mod tests {
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"kernel"[..].into(),
-                field_name: b"memory"[..].into(),
+                module_name: "kernel".to_string(),
+                field_name: "memory".to_string(),
                 entity: ExternEntity::Memory(1337),
             }],
         });
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"env"[..].into(),
-                field_name: b"abort"[..].into(),
+                module_name: "env".to_string(),
+                field_name: "abort".to_string(),
                 entity: ExternEntity::Function(228),
             }],
         });

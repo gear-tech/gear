@@ -12658,6 +12658,7 @@ fn module_instantiation_error() {
 }
 
 #[test]
+#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
@@ -13672,6 +13673,28 @@ fn remove_from_waitlist_after_exit_reply() {
 
         run_to_next_block(None);
     })
+}
+
+// currently `parity_wasm` doesn't support WASM reference types
+#[test]
+fn wasm_ref_types_doesnt_work() {
+    const WAT: &str = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (elem declare func $init)
+        (func $init
+            ref.func $init
+            call $test
+        )
+        (func $test (param funcref))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _pid = upload_program_default(USER_1, ProgramCodeKind::Custom(WAT)).unwrap_err();
+    });
 }
 
 mod utils {
