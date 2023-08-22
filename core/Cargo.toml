@@ -24,11 +24,15 @@ hashbrown.workspace = true
 static_assertions.workspace = true
 paste = { workspace = true }
 enum-iterator.workspace = true
-serde = { workspace = true, features = [ "alloc", "derive" ] }
+serde = { workspace = true, features = [ "derive" ], optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
 env_logger.workspace = true
 
 [features]
+default = []
 strict = []
+std = [
+  "serde/std"
+]
