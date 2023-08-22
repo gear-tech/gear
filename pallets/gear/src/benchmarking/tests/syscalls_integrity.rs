@@ -318,7 +318,7 @@ where
     )
     .expect("failed to upload test program");
 
-    let pid = ProgramId::generate(wasm_module.hash, b"alloc-free-test");
+    let pid = ProgramId::generate_raw(wasm_module.hash, b"alloc-free-test");
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -447,7 +447,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
         let salt = 10u64;
-        let expected_pid = ProgramId::generate_for_pallet(
+        let expected_pid = ProgramId::generate(
             simplest_gear_wasm::<T>().hash,
             &salt.to_le_bytes(),
             next_user_mid,
@@ -883,7 +883,7 @@ where
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
 
-    let tester_pid = ProgramId::generate(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
+    let tester_pid = ProgramId::generate_raw(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);

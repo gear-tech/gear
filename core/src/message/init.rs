@@ -159,9 +159,9 @@ impl InitPacket {
     /// Packet destination (newly created program id).
     pub fn destination(&self, message_id: MessageId, nonce: Option<usize>) -> ProgramId {
         if let Some(nonce) = nonce {
-            ProgramId::generate_for_wasm(self.code_id, self.salt.inner(), message_id, nonce)
+            ProgramId::generate_with_nonce(self.code_id, self.salt.inner(), message_id, nonce)
         } else {
-            ProgramId::generate_for_pallet(self.code_id, self.salt.inner(), message_id)
+            ProgramId::generate(self.code_id, self.salt.inner(), message_id)
         }
     }
 

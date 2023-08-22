@@ -204,7 +204,7 @@ impl ProgramId {
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
     /// Generate ProgramId from given CodeId and salt
-    pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
+    pub fn generate_raw(code_id: CodeId, salt: &[u8]) -> Self {
         const SALT: &[u8] = b"program";
 
         let argument = [SALT, code_id.as_ref(), salt].concat();
@@ -212,7 +212,7 @@ impl ProgramId {
     }
 
     /// Generate ProgramId from given CodeId, MessageId and salt
-    pub fn generate_for_pallet(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
+    pub fn generate(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
         const SALT: &[u8] = b"program_for_pallet";
 
         let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt].concat();
@@ -220,7 +220,7 @@ impl ProgramId {
     }
 
     /// Generate ProgramId from given CodeId, MessageId, salt and nonce
-    pub fn generate_for_wasm(
+    pub fn generate_with_nonce(
         code_id: CodeId,
         salt: &[u8],
         message_id: MessageId,
@@ -257,7 +257,7 @@ fn formatting_test() {
     use alloc::format;
 
     let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate(code_id, &[2, 1, 0]);
+    let id = ProgramId::generate_raw(code_id, &[2, 1, 0]);
 
     // `Debug`/`Display`.
     assert_eq!(
