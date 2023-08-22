@@ -473,6 +473,8 @@ pub mod pallet {
         ProgramNotFound,
         /// Voucher can't be redemmed
         FailureRedeemingVoucher,
+        /// Gear::run() already included in current block.
+        GearRunAlreadyInBlock,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -506,8 +508,7 @@ pub mod pallet {
     /// A helper variable that mirrors the `BlockNumber` at the beginning of a block.
     /// Allows to gauge the actual `BlockNumber` progress.
     #[pallet::storage]
-    #[pallet::getter(fn last_gear_block_number)]
-    pub(crate) type LastGearBlockNumber<T: Config> = StorageValue<_, T::BlockNumber>;
+    pub(crate) type GearRunInBlock<T> = StorageValue<_, ()>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -525,29 +526,20 @@ pub mod pallet {
             // Incrementing Gear block number
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
-            // Align the last gear block number before inherent execution with current value
-            <LastGearBlockNumber<T>>::put(Self::block_number());
-
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
-            // The `LastGearBlockNumber` is killed at the end of a block therefore its value
-            // will only exist in overlay and never be committed to storage.
-            // The respective write weight can be omitted and not accounted for.
             T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            // Check if the queue has been processed, that is gear block number bumped again.
-            // If not (while the queue processing enabled), fire an event.
-            if let Some(last_gear_block_number) = <LastGearBlockNumber<T>>::take() {
-                if Self::execute_inherent() && Self::block_number() <= last_gear_block_number {
-                    Self::deposit_event(Event::QueueProcessingReverted);
-                }
+            // Check if the queue has been processed.
+            // If not (while the queue processing enabled), fire an event and revert
+            // the Gear internal block number increment made in `on_initialize()`.
+            if GearRunInBlock::<T>::take().is_none() && Self::execute_inherent() {
+                Self::deposit_event(Event::QueueProcessingReverted);
+                BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
             }
-
-            // Undoing Gear block number increment that was done upfront in `on_initialize`
-            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
 
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
         }
@@ -1769,6 +1761,15 @@ pub mod pallet {
                 Error::<T>::MessageQueueProcessingDisabled
             );
 
+            ensure!(
+                !GearRunInBlock::<T>::exists(),
+                Error::<T>::GearRunAlreadyInBlock
+            );
+            // The below doesn't create an extra db write, because the value will be "taken"
+            // (set to `None`) at the end of the block, therefore, will only exist in the
+            // overlay and never be committed to storage.
+            GearRunInBlock::<T>::set(Some(()));
+
             let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
             let remaining_weight = max_weight.saturating_sub(weight_used.total());
@@ -1794,12 +1795,6 @@ pub mod pallet {
                 actual_weight,
                 Self::block_number(),
             );
-
-            // Incrementing Gear block number one more time to indicate that the queue processing
-            // has been successfully completed in the current block.
-            // Caveat: this increment must be done strictly after all extrinsics in the block have
-            // been handled to ensure correct block number math.
-            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
             Ok(PostDispatchInfo {
                 actual_weight: Some(

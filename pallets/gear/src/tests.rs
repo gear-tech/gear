@@ -13696,6 +13696,57 @@ fn wasm_ref_types_doesnt_work() {
     });
 }
 
+/// Test that the `Gear::run()` extrinsic can only run once per block,
+/// even if somehow included in a block multiple times.
+#[test]
+fn gear_run_only_runs_once_per_block() {
+    use frame_support::{
+        dispatch::RawOrigin,
+        traits::{OnFinalize, OnInitialize},
+    };
+
+    fn init_block(bn: u32) {
+        System::set_block_number(bn);
+        GasAllowanceOf::<Test>::put(1_000_000_000);
+        Gear::on_initialize(bn);
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        init_block(2);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+        // Second run in a block is not allowed
+        assert_noop!(
+            Gear::run(RawOrigin::None.into(), None,),
+            Error::<Test>::GearRunAlreadyInBlock
+        );
+        Gear::on_finalize(2);
+
+        // Everything goes back to normal in the next block
+        init_block(3);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+    })
+}
+
+/// Test that the Gear internal block numbering is consistent.
+#[test]
+fn gear_block_number_math_adds_up() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(100, None);
+        assert_eq!(Gear::block_number(), 100);
+
+        run_to_block_maybe_with_queue(120, None, None);
+        assert_eq!(System::block_number(), 120);
+        assert_eq!(Gear::block_number(), 100);
+
+        System::reset_events();
+        run_to_block(150, None);
+        assert_eq!(System::block_number(), 150);
+        assert_eq!(Gear::block_number(), 130);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 

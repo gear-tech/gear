@@ -50,7 +50,7 @@ use testing::{
     client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
-use vara_runtime::{AccountId, Runtime, RuntimeCall, SLOT_DURATION, VERSION};
+use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
 
 const SOURCE: TransactionSource = TransactionSource::External;
 
@@ -630,4 +630,108 @@ fn block_max_gas_works() {
 
     // 2 out of 5 messages have been processed, 3 remain in the queue
     assert_eq!(queue_len, 3);
+}
+
+#[test]
+fn terminal_extrinsic_discarded_from_txpool() {
+    init_logger();
+
+    let client_builder = TestClientBuilder::new()
+        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let mut client = Arc::new(client_builder.build());
+    let spawner = sp_core::testing::TaskExecutor::new();
+    let txpool = BasicPool::new_full(
+        Default::default(),
+        true.into(),
+        None,
+        spawner.clone(),
+        client.clone(),
+    );
+
+    let genesis_hash =
+        <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
+
+    // Create Gear::run() extrinsic - both unsigned and signed
+    let unsigned_gear_run_xt =
+        UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(pallet_gear::Call::run {
+            max_gas: None,
+        }));
+    let signed_gear_run_xt = sign(
+        CheckedExtrinsic {
+            signed: Some((bob(), signed_extra(0))),
+            function: RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }),
+        },
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+    // A `DispatchClass::Normal` exrinsic - supposed to end up in the txpool
+    let legit_xt = sign(
+        CheckedExtrinsic {
+            signed: Some((alice(), signed_extra(0))),
+            function: pre_fund_bank_account_call(),
+        },
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+
+    let extrinsics = vec![
+        unsigned_gear_run_xt.into(),
+        signed_gear_run_xt.into(),
+        legit_xt.into(),
+    ];
+
+    // Attempt to submit extrinsics to txpool; expecting only one of the three to be validated
+    block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
+
+    let new_header = client
+        .block_hash_from_id(&BlockId::Number(0_u32))
+        .unwrap()
+        .unwrap();
+    block_on(
+        txpool.maintain(chain_event(
+            client
+                .header(new_header)
+                .expect("header get error")
+                .expect("there should be header"),
+        )),
+    );
+
+    let mut proposer_factory =
+        ProposerFactory::new(spawner, client.clone(), txpool, None, None, None);
+
+    let timestamp_provider = sp_timestamp::InherentDataProvider::from_system_time();
+
+    let proposer = block_on(
+        proposer_factory.init(
+            &client
+                .header(new_header)
+                .expect("Database error querying block #0")
+                .expect("Block #0 should exist"),
+        ),
+    )
+    .expect("Proposer initialization failed");
+
+    let inherent_data =
+        block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
+    let time_slot = sp_timestamp::Timestamp::current().as_millis() / SLOT_DURATION;
+
+    let proposal = block_on(proposer.propose(
+        inherent_data,
+        pre_digest(time_slot, 0),
+        time::Duration::from_secs(600),
+        None,
+    ))
+    .unwrap();
+
+    // Both mandatory extrinsics should have been discarded, therefore there are only 3 txs
+    // in the block: 1 timestamp inherent + 1 normal extrinsic + 1 terminal
+    assert_eq!(proposal.block.extrinsics().len(), 3);
+
+    // Importing block #1
+    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+    let best_hash = client.info().best_hash;
+    assert_eq!(best_hash, proposal.block.hash());
 }
