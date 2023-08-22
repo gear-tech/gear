@@ -169,7 +169,7 @@ pub fn pre_process_memory_accesses(
                 return Ok(status);
             }
 
-            if !reads.is_empty() {
+            if !writes.is_empty() {
                 let mut write_pages = BTreeSet::new();
                 accesses_pages(ctx, writes, &mut write_pages)?;
 
