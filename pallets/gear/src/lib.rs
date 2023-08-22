@@ -663,7 +663,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0);
+            let message = InitMessage::from_packet(message_id, packet, None);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
@@ -1194,8 +1194,6 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> Result<InitPacket, DispatchError> {
-            let program_id = ProgramId::generate(code_id, &salt);
-
             let packet = InitPacket::new_with_gas(
                 code_id,
                 salt.try_into()
@@ -1206,11 +1204,14 @@ pub mod pallet {
                 gas_limit,
                 value.unique_saturated_into(),
             );
+
+            // I am not sure how to change this, there is no way to predict the ProgramId before
+            // Making the InitMessage anymore, so I cannot have this check here.
             // Make sure there is no program with such id in program storage
-            ensure!(
-                !Self::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
-            );
+            //ensure!(
+            //    !Self::program_exists(program_id),
+            //    Error::<T>::ProgramAlreadyExists
+            //);
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
@@ -1255,7 +1256,7 @@ pub mod pallet {
                 false,
             );
 
-            let message = InitMessage::from_packet(message_id, packet, 0);
+            let message = InitMessage::from_packet(message_id, packet, None);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();

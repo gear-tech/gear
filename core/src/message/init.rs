@@ -46,10 +46,10 @@ pub struct InitMessage {
 
 impl InitMessage {
     /// Create InitMessage from InitPacket.
-    pub fn from_packet(id: MessageId, packet: InitPacket, nonce: usize) -> Self {
+    pub fn from_packet(id: MessageId, packet: InitPacket, nonce: Option<usize>) -> Self {
         Self {
             id,
-            destination: packet.destination(id, Some(nonce)),
+            destination: packet.destination(id, nonce),
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,

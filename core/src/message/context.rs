@@ -286,7 +286,8 @@ impl MessageContext {
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
 
-        let message = InitMessage::from_packet(message_id, packet, self.store.initialized.len());
+        let message =
+            InitMessage::from_packet(message_id, packet, Some(self.store.initialized.len()));
 
         let program_id = message.destination();
 
