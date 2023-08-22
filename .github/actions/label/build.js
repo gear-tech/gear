@@ -74,7 +74,7 @@ const dispatchWorkflow = async ({ core, github }) => {
     repo,
     workflow_id,
     ref: REF,
-    inpus: {
+    inputs: {
       ref: REF,
       label: LABEL,
     }
