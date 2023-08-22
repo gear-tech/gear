@@ -455,6 +455,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_result_processing_infallible(signature: SysCallSignature) -> Vec<Instruction> {
         // TODO: #3129
+        // For now we don't check anywhere that `alloc` and `free` return
+        // error codes as described here. Also we don't assert that only `alloc` and `free`
+        // will have their first arguments equal to `ParamType::Alloc` and `ParamType::Free`.
         let results_len = signature.results.len();
         if results_len != 0 {
             assert_eq!(results_len, 1);

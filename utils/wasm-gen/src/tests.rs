@@ -265,13 +265,7 @@ fn execute_wasm_with_syscall_injected(
             .build(),
         SelectableParams {
             call_indirect_enabled: false,
-            forbidden_instructions: vec![
-                InstructionKind::Control,
-                InstructionKind::Table,
-                InstructionKind::Memory,
-                InstructionKind::Reference,
-                InstructionKind::Parametric,
-            ],
+            allowed_instructions: vec![InstructionKind::Numeric],
             max_instructions: 10,
         },
     );
