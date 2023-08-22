@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "actor-system-error"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3677,6 +3684,7 @@ dependencies = [
  "gear-node-testing",
  "gear-runtime-primitives",
  "log",
+ "pallet-balances",
  "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-rpc-runtime-api",
@@ -3717,6 +3725,7 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "blake2-rfc",
  "derive_more",
  "gear-backend-codegen",
@@ -3888,6 +3897,7 @@ dependencies = [
 name = "gear-core-processor"
 version = "0.2.2"
 dependencies = [
+ "actor-system-error",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
@@ -4161,7 +4171,7 @@ dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "wasmi 0.13.2",
+ "wasmi 0.30.0",
  "wat",
 ]
 
@@ -5189,6 +5199,12 @@ dependencies = [
  "webrtc-srtp",
  "webrtc-util",
 ]
+
+[[package]]
+name = "intx"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f38a50a899dc47a6d0ed5508e7f601a2e34c3a85303514b5d137f3c10a0c75"
 
 [[package]]
 name = "io-lifetimes"
@@ -9155,6 +9171,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "parity-scale-codec",
+ "proptest",
  "rand 0.8.5",
  "sha-1 0.10.1",
  "sp-consensus-babe",
@@ -13917,12 +13934,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmi"
+version = "0.30.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "intx",
+ "smallvec",
+ "spin 0.9.8",
+ "wasmi_arena",
+ "wasmi_core 0.12.0",
+ "wasmparser-nostd 0.100.1",
+]
+
+[[package]]
 name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "parity-wasm 0.45.0",
 ]
+
+[[package]]
+name = "wasmi_arena"
+version = "0.4.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
 
 [[package]]
 name = "wasmi_core"
@@ -13948,6 +13983,18 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
+ "region",
+]
+
+[[package]]
+name = "wasmi_core"
+version = "0.12.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "downcast-rs",
+ "libm 0.2.7",
+ "num-traits",
+ "paste",
  "region",
 ]
 

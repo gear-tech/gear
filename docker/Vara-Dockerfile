@@ -6,7 +6,7 @@ WORKDIR /gear
 
 COPY . /gear
 
-# Install dependecies
+# Install dependencies
 RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip

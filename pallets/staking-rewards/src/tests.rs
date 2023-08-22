@@ -1040,7 +1040,7 @@ fn inflation_with_too_many_stakers_adds_up() {
             MILLISECONDS_PER_YEAR,
         );
         let annualized_rewards = yearly_inflation * initial_total_issuance;
-        // At 92% staking rate, the respective ROI is withing the 30% cap.
+        // At 92% staking rate, the respective ROI is within the 30% cap.
         let expected_rewards = overall_time_fraction * annualized_rewards;
 
         // Rounding error could have accumulated over many eras

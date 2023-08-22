@@ -35,11 +35,18 @@ use std::{
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
+/// 25 MiB is an approximate assessment for 35 calls,
+/// where each call of:
+/// 1. `UploadProgram` requires 1024 KiB for payload an salt and 50 KiB for code.
+/// 2. `SendMessage` requires 512 Kib for payload.
+/// So, [10 * (1024 + 50)] + [25 * 512] = 23540 KiB
+pub(crate) const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
+
 /// New-type wrapper over array of [`GearCall`]s.
 ///
 /// It's main purpose is to be an implementor of `Arbitrary` for the array of [`GearCall`]s.
 /// New-type is required as array is always a foreign type.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct GearCalls(pub [GearCall; GearCalls::MAX_CALLS]);
 
 /// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the [`GearCalls`].
@@ -69,12 +76,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
 
         log::trace!("New GearCalls generation: random data received {}", u.len());
 
-        // 25 MiB is an approximate assessment for 35 calls,
-        // where each call of:
-        // 1. `UploadProgram` requires 1024 KiB for payload an salt and 50 KiB for code.
-        // 2. `SendMessage` requires 512 Kib for payload.
-        // So, [10 * (1024 + 50)] + [25 * 512] = 23540 KiB
-        if u.len() < 25_000_000_usize {
+        if u.len() < MIN_GEAR_CALLS_BYTES {
             log::trace!("Not enough bytes for creating gear calls");
             return Err(arbitrary::Error::NotEnoughData);
         }

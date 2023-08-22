@@ -24,7 +24,6 @@ jobs:
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
@@ -247,47 +246,7 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-  macos-x86:
-    if: ${{ always() && inputs.macos }}
+  macos:
     needs: linux
-    runs-on: macos-latest
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "ACTIONS: Setup caching"
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: "Install: protobuf"
-        run: brew install protobuf
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        run: >-
-          cargo build
-          -p gear-cli --features=lazy-pages
-
-      - name: "Test: Lazy pages"
-        run: >-
-          cargo nextest run
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          --features=lazy-pages
+    if: ${{ always() && inputs.macos }}
+    uses: ./.github/workflows/build-macos.yml

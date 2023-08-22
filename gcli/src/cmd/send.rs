@@ -60,6 +60,7 @@ pub struct Send {
 impl Send {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         signer
+            .calls
             .send_message(
                 self.destination.to_hash()?.into(),
                 self.payload.to_vec()?,

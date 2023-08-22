@@ -100,28 +100,22 @@ impl GuestToSupervisorFunctionMapping {
 /// Holds sandbox function and memory imports and performs name resolution
 struct Imports {
     /// Maps qualified function name to its guest function index
-    func_map: HashMap<(Vec<u8>, Vec<u8>), GuestFuncIndex>,
+    func_map: HashMap<(String, String), GuestFuncIndex>,
 
     /// Maps qualified field name to its memory reference
-    memories_map: HashMap<(Vec<u8>, Vec<u8>), Memory>,
+    memories_map: HashMap<(String, String), Memory>,
 }
 
 impl Imports {
     fn func_by_name(&self, module_name: &str, func_name: &str) -> Option<GuestFuncIndex> {
         self.func_map
-            .get(&(
-                module_name.as_bytes().to_owned(),
-                func_name.as_bytes().to_owned(),
-            ))
+            .get(&(module_name.to_owned(), func_name.to_string()))
             .cloned()
     }
 
     fn memory_by_name(&self, module_name: &str, memory_name: &str) -> Option<Memory> {
         self.memories_map
-            .get(&(
-                module_name.as_bytes().to_owned(),
-                memory_name.as_bytes().to_owned(),
-            ))
+            .get(&(module_name.to_string(), memory_name.to_string()))
             .cloned()
     }
 }
@@ -375,7 +369,7 @@ pub enum Memory {
     /// Wasmi memory reference
     Wasmi(WasmiMemoryWrapper),
 
-    /// Wasmer memory refernce
+    /// Wasmer memory reference
     Wasmer(WasmerMemoryWrapper),
 }
 

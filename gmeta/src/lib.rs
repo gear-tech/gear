@@ -447,7 +447,7 @@ pub trait Metadata {
     type Handle: Types;
     /// Reply message type.
     ///
-    /// Describes incoming type for the `hanle_reply()` function.
+    /// Describes incoming type for the `handle_reply()` function.
     type Reply: Type;
     /// Message types for miscellaneous purposes.
     ///

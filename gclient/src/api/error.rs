@@ -86,7 +86,7 @@ pub enum Error {
     /// Occurs when being migrated program already exists in destination node.
     #[error("Program {0} already exists")]
     ProgramAlreadyExists(String),
-    /// Occurs when node spawining failed.
+    /// Occurs when node spawning failed.
     #[error(transparent)]
     Node(#[from] NodeError),
     /// Occurs when parsing websocket domain failed.

@@ -37,7 +37,6 @@ use sp_runtime_interface::{
 };
 
 extern crate alloc;
-use alloc::string::String;
 
 #[cfg(feature = "std")]
 use gear_lazy_pages as lazy_pages;

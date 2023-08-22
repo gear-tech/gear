@@ -133,12 +133,22 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
         .ok_or("Import section not found")?
         .entries();
 
+    let mut unexpected_imports = vec![];
+
     for import in imports {
         if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
         {
-            return Err(format!("Unexpected import `{}`", import.field()));
+            unexpected_imports.push(import.field().to_string());
         }
     }
+
+    if !unexpected_imports.is_empty() {
+        return Err(format!(
+            "Unexpected imports found: {}",
+            unexpected_imports.join(", "),
+        ));
+    }
+
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
 }
@@ -180,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make pre-handle if input wasm has been builded from as-script
+        // Make pre-handle if input wasm has been built from as-script
         let wasm_path = if assembly_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer

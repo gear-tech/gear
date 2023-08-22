@@ -101,6 +101,19 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
         .collect()
 }
 
+// TODO: replace with an import from runtime constants once available.
+// Address of bank account represented as 32 bytes.
+pub const BANK_ADDRESS: [u8; 32] = *b"gearbankgearbankgearbankgearbank";
+fn pre_fund_bank_account_call() -> RuntimeCall {
+    RuntimeCall::Sudo(pallet_sudo::Call::sudo {
+        call: Box::new(RuntimeCall::Balances(pallet_balances::Call::set_balance {
+            who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
+            new_free: 1_000_000_000_000_000,
+            new_reserved: 0,
+        })),
+    })
+}
+
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
@@ -519,19 +532,28 @@ fn block_max_gas_works() {
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
     let mut nonce = 0_u32;
+    // Create an extrinsic that prefunds the bank account
+    let pre_fund_bank_xt = sign(
+        CheckedExtrinsic {
+            signed: Some((alice(), signed_extra(0))),
+            function: pre_fund_bank_account_call(),
+        },
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+
+    let mut extrinsics = vec![pre_fund_bank_xt.into()];
     // Creating 5 extrinsics
-    let extrinsics = checked_extrinsics(5, bob(), &mut nonce)
-        .iter()
-        .map(|x| {
-            sign(
-                x.clone(),
-                VERSION.spec_version,
-                VERSION.transaction_version,
-                genesis_hash,
-            )
-            .into()
-        })
-        .collect::<Vec<_>>();
+    extrinsics.extend(checked_extrinsics(5, bob(), &mut nonce).iter().map(|x| {
+        sign(
+            x.clone(),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )
+        .into()
+    }));
 
     block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
 
@@ -581,8 +603,8 @@ fn block_max_gas_works() {
     ))
     .unwrap();
 
-    // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
-    assert_eq!(proposal.block.extrinsics().len(), 7);
+    // All extrinsics have been included in the block: 1 inherent + sudo + 5 normal + 1 terminal
+    assert_eq!(proposal.block.extrinsics().len(), 8);
 
     // Importing block #1
     block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
