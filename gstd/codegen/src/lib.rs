@@ -455,7 +455,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
             Ok(MessageFuture { waiting_reply_to })
         }
@@ -471,7 +471,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
             Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
         }
@@ -538,7 +538,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         #function
 
         #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<CreateProgramFuture> {
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::CreateProgramFuture> {
             // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
 
@@ -548,13 +548,13 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CreateProgramFuture { waiting_reply_to, program_id })
+            Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id })
         }
 
         #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecCreateProgramFuture<D>> {
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecCreateProgramFuture<D>> {
             // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
 
@@ -564,9 +564,9 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
+            Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
         }
     }
     .into()

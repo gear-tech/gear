@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    async_runtime::signals,
     errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
+    prelude::{ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
