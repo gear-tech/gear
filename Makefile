@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test
+pre-commit: fmt clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
@@ -80,6 +80,10 @@ check:
 .PHONY: check-release
 check-release:
 	@ ./scripts/gear.sh check gear --release
+
+.PHONY: check-runtime-imports
+check-runtime-imports:
+	@ ./scripts/gear.sh check runtime-imports
 
 # Clippy section
 .PHONY: clippy
