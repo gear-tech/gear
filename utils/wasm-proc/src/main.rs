@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 65] = [
+const RT_ALLOWED_IMPORTS: [&str; 66] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -135,12 +135,22 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
         .ok_or("Import section not found")?
         .entries();
 
+    let mut unexpected_imports = vec![];
+
     for import in imports {
         if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
         {
-            return Err(format!("Unexpected import `{}`", import.field()));
+            unexpected_imports.push(import.field().to_string());
         }
     }
+
+    if !unexpected_imports.is_empty() {
+        return Err(format!(
+            "Unexpected imports found: {}",
+            unexpected_imports.join(", "),
+        ));
+    }
+
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
 }
