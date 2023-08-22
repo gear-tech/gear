@@ -64,5 +64,5 @@ pub mod ffi {
 
 // Reexports from third-party libraries
 
-pub use parity_scale_codec::{self as codec, Decode, Encode};
+pub use parity_scale_codec::{self as codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 pub use scale_info::{self, TypeInfo};

@@ -9,4 +9,3 @@ workspace = "../../../"
 [dependencies]
 gstd = { workspace = true }
 gmeta = { workspace = true }
-parity-scale-codec.workspace = true
