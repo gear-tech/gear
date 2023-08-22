@@ -73,7 +73,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use gstd::{errors::Error as GstdError, BTreeMap};
+use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
