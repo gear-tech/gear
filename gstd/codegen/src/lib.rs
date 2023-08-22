@@ -367,7 +367,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ///
 /// /// - [`send_bytes_for_reply`](self::send_bytes_for_reply)
 /// /// - <https://docs.substrate.io/reference/scale-codec>
-/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
+/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: crate::codec::Decode>(
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
