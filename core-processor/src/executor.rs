@@ -267,10 +267,11 @@ where
             return Err(ExecutionError::System(e.into()));
         }
         Err(EnvironmentError::Actor(gas_amount, err)) => {
+            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment(err.into()),
-            }))
+                reason: ActorExecutionErrorReplyReason::Environment,
+            }));
         }
     };
 

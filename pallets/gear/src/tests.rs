@@ -63,8 +63,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{
-    LimitedStr, TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError,
-    UnrecoverableWaitError,
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core::{
     code::{self, Code},
@@ -12650,10 +12649,7 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(
-            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
-                .to_string()
-        ));
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
     });
 }
 
@@ -12686,10 +12682,7 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(
-            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
-                .to_string()
-        ));
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
     });
 }
 

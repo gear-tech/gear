@@ -17,15 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    async_runtime::signals,
     errors::{Error, IntoResult, Result},
-    msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
+    msg::utils,
+    prelude::{ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Output};
+use scale_info::scale::Output;
 
 /// Message handle.
 ///

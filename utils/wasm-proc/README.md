@@ -19,4 +19,4 @@ wasm_proc somefile.wasm
 
 You will get two files in the same directory:
 - `somefile.opt.wasm` which is destined for the node.
-- `somefile.meta.wasm` which can be used by the browser or another ui to aquire metadata for the main wasm.
+- `somefile.meta.wasm` which can be used by the browser or another ui to acquire metadata for the main wasm.

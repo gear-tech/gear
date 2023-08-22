@@ -70,7 +70,7 @@ impl Lock {
         if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
             if blocks == 0 {
                 unreachable!(
-                    "Checked in `crate::msg::async::poll`, will trigger the tiemout error automatically."
+                    "Checked in `crate::msg::async::poll`, will trigger the timeout error automatically."
                 );
             }
 

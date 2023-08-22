@@ -115,11 +115,11 @@ mod wasm {
         }
 
         fn nodes() -> &'static Mutex<BTreeSet<Program>> {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
+            unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").nodes }
         }
 
         fn amount() -> &'static mut u64 {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").amount }
+            unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").amount }
         }
 
         async fn handle_request() {
@@ -191,7 +191,7 @@ mod wasm {
                     }
                     Err(_) => {
                         // skipping erroneous sub-nodes!
-                        debug!("Skipping errorneous node");
+                        debug!("Skipping erroneous node");
                         0
                     }
                 }
