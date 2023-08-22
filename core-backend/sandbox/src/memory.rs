@@ -131,8 +131,18 @@ mod tests {
     use gear_backend_common::{
         assert_err, assert_ok, mock::MockExt, state::State, ActorTerminationReason,
     };
-    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
+    use gear_core::memory::{AllocError, AllocationsContext, GrowHandler};
     use gear_sandbox::{AsContextExt, SandboxStore};
+
+    struct NoopGrowHandler;
+
+    impl GrowHandler for NoopGrowHandler {
+        fn before_grow_action(_mem: &mut impl Memory) -> Self {
+            Self
+        }
+
+        fn after_grow_action(self, _mem: &mut impl Memory) {}
+    }
 
     fn new_test_memory(
         static_pages: u16,

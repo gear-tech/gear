@@ -213,16 +213,6 @@ pub trait GrowHandler {
     fn after_grow_action(self, mem: &mut impl Memory);
 }
 
-/// Grow handler do nothing implementation
-pub struct NoopGrowHandler;
-
-impl GrowHandler for NoopGrowHandler {
-    fn before_grow_action(_mem: &mut impl Memory) -> Self {
-        NoopGrowHandler
-    }
-    fn after_grow_action(self, _mem: &mut impl Memory) {}
-}
-
 /// Incorrect allocation data error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 #[display(fmt = "Allocated memory pages or memory size are incorrect")]

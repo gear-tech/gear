@@ -31,12 +31,11 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
-use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Ext with lazy pages support.
@@ -94,39 +93,6 @@ impl ProcessorExternalities for LazyPagesExt {
     }
 }
 
-struct LazyGrowHandler {
-    old_mem_addr: Option<u64>,
-    old_mem_size: WasmPage,
-}
-
-impl GrowHandler for LazyGrowHandler {
-    fn before_grow_action(mem: &mut impl Memory) -> Self {
-        // New pages allocation may change wasm memory buffer location.
-        // So we remove protections from lazy-pages
-        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
-        let old_mem_addr = mem.get_buffer_host_addr();
-        lazy_pages::remove_lazy_pages_prot(mem);
-        Self {
-            old_mem_addr,
-            old_mem_size: mem.size(),
-        }
-    }
-
-    fn after_grow_action(self, mem: &mut impl Memory) {
-        // Add new allocations to lazy pages.
-        // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
-            unreachable!("Memory size cannot be zero after grow is applied for memory")
-        });
-        lazy_pages::update_lazy_pages_and_protect_again(
-            mem,
-            self.old_mem_addr,
-            self.old_mem_size,
-            new_mem_addr,
-        );
-    }
-}
-
 impl CountersOwner for LazyPagesExt {
     fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
         self.inner.charge_gas_runtime(cost)
@@ -167,7 +133,7 @@ impl Externalities for LazyPagesExt {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
+        self.inner.alloc(pages_num, mem)
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {

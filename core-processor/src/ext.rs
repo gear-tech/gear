@@ -39,8 +39,7 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
-        NoopGrowHandler, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
@@ -235,6 +234,39 @@ impl BackendAllocSyscallError for AllocExtError {
             Self::Charge(err) => Ok(err.into()),
             err => Err(err),
         }
+    }
+}
+
+struct LazyGrowHandler {
+    old_mem_addr: Option<u64>,
+    old_mem_size: WasmPage,
+}
+
+impl GrowHandler for LazyGrowHandler {
+    fn before_grow_action(mem: &mut impl Memory) -> Self {
+        // New pages allocation may change wasm memory buffer location.
+        // So we remove protections from lazy-pages
+        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
+        let old_mem_addr = mem.get_buffer_host_addr();
+        lazy_pages::remove_lazy_pages_prot(mem);
+        Self {
+            old_mem_addr,
+            old_mem_size: mem.size(),
+        }
+    }
+
+    fn after_grow_action(self, mem: &mut impl Memory) {
+        // Add new allocations to lazy pages.
+        // Protect all lazy pages including new allocations.
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
+        lazy_pages::update_lazy_pages_and_protect_again(
+            mem,
+            self.old_mem_addr,
+            self.old_mem_size,
+            new_mem_addr,
+        );
     }
 }
 
@@ -592,7 +624,18 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
+        self.context
+            .allocations_context
+            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+                Ext::charge_gas_if_enough(
+                    &mut self.context.gas_counter,
+                    &mut self.context.gas_allowance_counter,
+                    self.context.page_costs.mem_grow.calc(pages),
+                )
+            })
+            .map_err(Into::into)
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -1029,28 +1072,6 @@ impl Externalities for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
-    }
-}
-
-impl Ext {
-    /// Inner alloc realization.
-    pub fn alloc_inner<G: GrowHandler>(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, AllocExtError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
-        self.context
-            .allocations_context
-            .alloc::<G>(pages, mem, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
-                )
-            })
-            .map_err(Into::into)
     }
 }
 
