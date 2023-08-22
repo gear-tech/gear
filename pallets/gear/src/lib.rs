@@ -1205,14 +1205,6 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            // I am not sure how to change this, there is no way to predict the ProgramId before
-            // Making the InitMessage anymore, so I cannot have this check here.
-            // Make sure there is no program with such id in program storage
-            //ensure!(
-            //    !Self::program_exists(program_id),
-            //    Error::<T>::ProgramAlreadyExists
-            //);
-
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
             // First we reserve enough funds on the account to pay for `gas_limit`
