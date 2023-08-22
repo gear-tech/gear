@@ -32,7 +32,7 @@ pub(crate) trait AccessHandler {
     type Pages;
     type Output;
 
-    /// Returns wether it is write access
+    /// Returns whether it is write access
     fn is_write(&self) -> bool;
 
     /// Returns whether gas exceeded status is allowed for current access.
@@ -44,7 +44,7 @@ pub(crate) trait AccessHandler {
     /// Returns whether write accessed memory access is allowed for the case.
     fn check_write_accessed_memory_access() -> Result<(), Error>;
 
-    /// Returns wether already accessed memory read access is allowed for the case.
+    /// Returns whether already accessed memory read access is allowed for the case.
     fn check_read_from_accessed_memory() -> Result<(), Error>;
 
     /// Charge for accessed gear page.

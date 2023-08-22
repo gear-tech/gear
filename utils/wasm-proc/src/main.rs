@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 65] = [
+const RT_ALLOWED_IMPORTS: [&str; 66] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -68,6 +68,8 @@ const RT_ALLOWED_IMPORTS: [&str; 65] = [
     "ext_offchain_network_state_version_1",
     "ext_offchain_random_seed_version_1",
     "ext_offchain_submit_transaction_version_1",
+    "ext_offchain_local_storage_clear_version_1",
+    "ext_offchain_timestamp_version_1",
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
@@ -134,12 +136,22 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
         .ok_or("Import section not found")?
         .entries();
 
+    let mut unexpected_imports = vec![];
+
     for import in imports {
         if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
         {
-            return Err(format!("Unexpected import `{}`", import.field()));
+            unexpected_imports.push(import.field().to_string());
         }
     }
+
+    if !unexpected_imports.is_empty() {
+        return Err(format!(
+            "Unexpected imports found: {}",
+            unexpected_imports.join(", "),
+        ));
+    }
+
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
 }
@@ -181,7 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make pre-handle if input wasm has been builded from as-script
+        // Make pre-handle if input wasm has been built from as-script
         let wasm_path = if assembly_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer

@@ -12,7 +12,6 @@ hex.workspace = true
 log.workspace = true
 sha-1.workspace = true
 static_assertions.workspace = true
-rand = { workspace = true, features = ["small_rng"] }
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
 clap = { workspace = true, features = ["derive"] }
@@ -37,3 +36,7 @@ sp-consensus-slots = { workspace = true }
 sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-authorship.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+rand = { workspace = true, features = ["small_rng"] }

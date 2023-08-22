@@ -18,11 +18,11 @@
 
 //! `build` function that collects all the syscalls.
 
-use crate::{runtime::CallerWrap, state::HostState, wasmi::Caller};
+use crate::{runtime::CallerWrap, wasmi::Caller};
 use alloc::collections::{BTreeMap, BTreeSet};
 use gear_backend_common::{
-    funcs::FuncsHandler as CommonFuncsHandler, runtime::RunFallibleError, BackendAllocSyscallError,
-    BackendExternalities, BackendSyscallError,
+    funcs::FuncsHandler as CommonFuncsHandler, runtime::RunFallibleError, state::HostState,
+    BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
 };
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{core::Trap, Func, Memory, Store};
@@ -43,7 +43,7 @@ impl FunctionBuilder {
 macro_rules! wrap_common_func_internal_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext, Memory>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
                 // Zero-value argument is an unused gas value for wasmi backend as well
@@ -58,7 +58,7 @@ macro_rules! wrap_common_func_internal_ret {
 macro_rules! wrap_common_func_internal_no_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext, Memory>>, $($arg_name,)*| -> Result<(), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
                 // Zero-value argument is an unused gas value for wasmi backend as well
@@ -95,7 +95,7 @@ macro_rules! wrap_common_func {
 }
 
 pub(crate) fn build<Ext>(
-    store: &mut Store<HostState<Ext>>,
+    store: &mut Store<HostState<Ext, Memory>>,
     memory: Memory,
     forbidden_funcs: BTreeSet<SysCallName>,
 ) -> BTreeMap<SysCallName, Func>

@@ -57,7 +57,7 @@ pub(crate) enum Error {
     #[display(fmt = "Something goes wrong when trying to access globals: {_0:?}")]
     #[from]
     AccessGlobal(GlobalsAccessError),
-    #[display(fmt = "It's unknown wether memory access is read or write")]
+    #[display(fmt = "It's unknown whether memory access is read or write")]
     ReadOrWriteIsUnknown,
     #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,

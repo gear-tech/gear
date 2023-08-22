@@ -340,7 +340,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     payload: T,
 ///     value: u128,
 ///     reply_deposit: u64
-/// ) -> Result<MessageFuture> {
+/// ) -> Result<crate::msg::MessageFuture> {
 ///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
 ///
@@ -350,9 +350,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     }
 ///
 ///     // Registering signal.
-///     signals().register_signal(waiting_reply_to);
+///     crate::async_runtime::signals().register_signal(waiting_reply_to);
 ///
-///     Ok(MessageFuture { waiting_reply_to })
+///     Ok(crate::msg::MessageFuture { waiting_reply_to })
 /// }
 ///
 /// /// Same as [`send_bytes`](self::send_bytes), but the program
@@ -367,12 +367,12 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ///
 /// /// - [`send_bytes_for_reply`](self::send_bytes_for_reply)
 /// /// - <https://docs.substrate.io/reference/scale-codec>
-/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
+/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: crate::codec::Decode>(
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
 ///     reply_deposit: u64,
-/// ) -> Result<CodecMessageFuture<D>> {
+/// ) -> Result<crate::msg::CodecMessageFuture<D>> {
 ///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
 ///
@@ -382,9 +382,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     }
 ///
 ///     // Registering signal.
-///     signals().register_signal(waiting_reply_to);
+///     crate::async_runtime::signals().register_signal(waiting_reply_to);
 ///
-///     Ok(CodecMessageFuture::<D> {
+///     Ok(crate::msg::CodecMessageFuture::<D> {
 ///         waiting_reply_to,
 ///         _marker: Default::default(),
 ///     })
@@ -419,7 +419,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
-    let decodable_traits = vec![utils::ident("Decode")];
+    let decodable_traits = vec![syn::parse_quote!(crate::codec::Decode)];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(
@@ -445,7 +445,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
         #function
 
         #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<MessageFuture> {
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::MessageFuture> {
             // Function call.
             let waiting_reply_to = #ident #args ?;
 
@@ -455,13 +455,13 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(MessageFuture { waiting_reply_to })
+            Ok(crate::msg::MessageFuture { waiting_reply_to })
         }
 
         #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecMessageFuture<D>> {
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecMessageFuture<D>> {
             // Function call.
             let waiting_reply_to = #ident #args ?;
 
@@ -471,9 +471,9 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
+            Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
         }
     }
     .into()
@@ -524,7 +524,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
-    let decodable_traits = vec![utils::ident("Decode")];
+    let decodable_traits = vec![syn::parse_quote!(crate::codec::Decode)];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(
@@ -538,7 +538,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         #function
 
         #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<CreateProgramFuture> {
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::CreateProgramFuture> {
             // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
 
@@ -548,13 +548,13 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CreateProgramFuture { waiting_reply_to, program_id })
+            Ok(crate::msg::CreateProgramFuture { waiting_reply_to, program_id })
         }
 
         #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecCreateProgramFuture<D>> {
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecCreateProgramFuture<D>> {
             // Function call.
             let (waiting_reply_to, program_id) = #ident #args ?;
 
@@ -564,9 +564,9 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             }
 
             // Registering signal.
-            signals().register_signal(waiting_reply_to);
+            crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
+            Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
         }
     }
     .into()
