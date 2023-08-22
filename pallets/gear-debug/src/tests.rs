@@ -909,8 +909,6 @@ fn check_gear_stack_end() {
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
 
-        log::debug!("LAZY-PAGES IS ON");
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
