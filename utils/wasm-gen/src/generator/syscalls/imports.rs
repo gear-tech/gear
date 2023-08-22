@@ -245,7 +245,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Returns the indexes of invocable sys-calls.
     fn invocable_sys_calls_indexes<const N: usize>(
         &self,
-        sys_call: SysCallName,
         sys_calls: [SysCallName; N],
     ) -> Option<[usize; N]> {
         let mut indexes = [0; N];
@@ -260,8 +259,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 Some(idx) => *index = idx,
                 None => {
                     log::trace!(
-                        "To build the {precise_sys_call_name} sys-call, wasm must import the following sys-calls: {missing_sys_calls:?}",
-                        precise_sys_call_name = InvocableSysCall::Precise(sys_call).to_str(),
+                        "The following sys-calls must be imported: {missing_sys_calls:?}",
                         missing_sys_calls = sys_calls.map(|sys_call| sys_call.to_str()),
                     );
                     return None;
@@ -319,8 +317,13 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
         let sys_call = SysCallName::ReservationSend;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
         let Some([reserve_gas_idx, reservation_send_idx]) = self
-            .invocable_sys_calls_indexes(sys_call, [SysCallName::ReserveGas, SysCallName::ReservationSend]) else {
+            .invocable_sys_calls_indexes([SysCallName::ReserveGas, SysCallName::ReservationSend]) else {
                 return;
             };
 
