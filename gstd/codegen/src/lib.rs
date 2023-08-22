@@ -340,7 +340,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     payload: T,
 ///     value: u128,
 ///     reply_deposit: u64
-/// ) -> Result<MessageFuture> {
+/// ) -> Result<crate::msg::MessageFuture> {
 ///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
 ///
@@ -350,9 +350,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     }
 ///
 ///     // Registering signal.
-///     signals().register_signal(waiting_reply_to);
+///     crate::async_runtime::signals().register_signal(waiting_reply_to);
 ///
-///     Ok(MessageFuture { waiting_reply_to })
+///     Ok(crate::msg::MessageFuture { waiting_reply_to })
 /// }
 ///
 /// /// Same as [`send_bytes`](self::send_bytes), but the program
@@ -372,7 +372,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     payload: T,
 ///     value: u128,
 ///     reply_deposit: u64,
-/// ) -> Result<CodecMessageFuture<D>> {
+/// ) -> Result<crate::msg::CodecMessageFuture<D>> {
 ///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
 ///
@@ -382,9 +382,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     }
 ///
 ///     // Registering signal.
-///     signals().register_signal(waiting_reply_to);
+///     crate::async_runtime::signals().register_signal(waiting_reply_to);
 ///
-///     Ok(CodecMessageFuture::<D> {
+///     Ok(crate::msg::CodecMessageFuture::<D> {
 ///         waiting_reply_to,
 ///         _marker: Default::default(),
 ///     })
