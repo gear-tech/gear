@@ -29,4 +29,6 @@ env_logger.workspace = true
 enum-iterator.workspace = true
 
 [features]
+default = ["std"]
+std = ["gear-lazy-pages-common/std"]
 strict = []

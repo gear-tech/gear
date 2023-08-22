@@ -31,7 +31,7 @@ sp-std.workspace = true
 sp-io.workspace = true
 
 [dev-dependencies]
-core-processor.workspace = true
+core-processor = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }

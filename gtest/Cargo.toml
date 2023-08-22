@@ -10,7 +10,7 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-wasmi = { workspace = true, features = ["std"] }
-core-processor.workspace = true
+core-processor = { workspace = true, features = ["std"] }
 gear-wasm-builder.workspace = true
 gear-utils.workspace = true
 

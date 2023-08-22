@@ -45,6 +45,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-session/std",
 	"runtime-primitives/std",
+	"gear-core-processor/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"validator-set/std",
