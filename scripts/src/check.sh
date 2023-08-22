@@ -25,3 +25,19 @@ gear_check() {
   echo "  >> Check crates that use runtime with 'fuzz' feature"
   cargo check "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
+
+runtime_imports() {
+    if [ ! -f target/debug/wasm-proc ]; then
+        cargo build -p wasm-proc
+    fi
+
+    if [ ! -f target/debug/wbuild/gear-runtime/gear_runtime.compact.wasm ]; then
+        cargo build -p gear-runtime
+    fi
+    ./target/debug/wasm-proc --check-runtime-imports target/debug/wbuild/gear-runtime/gear_runtime.compact.wasm
+
+    if [ ! -f target/debug/wbuild/vara-runtime/vara_runtime.compact.wasm ]; then
+        cargo build -p vara-runtime
+    fi
+    ./target/debug/wasm-proc --check-runtime-imports target/debug/wbuild/vara-runtime/vara_runtime.compact.wasm
+}
