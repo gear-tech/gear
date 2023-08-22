@@ -16,7 +16,10 @@ on:
       label:
         type: string
 
-run-name: Build from ${{ inputs.ref }} by ${{ inputs.label }}
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' }}
+  ? Build from ${{ inputs.ref }} by ${{ inputs.label }}
+  : ""
 
 env:
   CARGO_INCREMENTAL: 0
