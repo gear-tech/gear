@@ -4,24 +4,26 @@ version = "0.1.4"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
-gstd = { workspace = true }
-hashbrown = { workspace = true }
-gmeta = { workspace = true }
+gstd.workspace = true
+hashbrown.workspace = true
+gmeta.workspace = true
 ft-io = { path = "io" }
 
 [dev-dependencies]
 gstd = { workspace = true, features = ["debug"] }
 gear-core.workspace = true
-tokio = { workspace = true, features = ["full", "test-util"] }
-gclient = { workspace = true }
-futures = "0.3"
-rand = { version = "0.8" }
+tokio.workspace = true
+gclient.workspace = true
+futures.workspace = true
+rand.workspace = true
 statrs = "0.16"
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

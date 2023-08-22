@@ -4,15 +4,17 @@ version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-parity-scale-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true
-rand_pcg = { workspace = true }
-rand = "0.8"
+rand_pcg.workspace = true
+rand.workspace = true
 static_assertions.workspace = true
 
 [build-dependencies]
