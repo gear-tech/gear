@@ -1021,6 +1021,10 @@ where
         from: &T::AccountId,
         block_count: BlockNumberFor<T>,
     ) -> Result<(), DispatchError> {
+        if !<T as Config>::ProgramRentEnabled::get() {
+            return Ok(());
+        }
+
         let old_expiration_block = program.expiration_block;
         let (new_expiration_block, blocks_to_pay) = old_expiration_block
             .checked_add(&block_count)

@@ -27,7 +27,7 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
-use sp_core::ConstU128;
+use sp_core::{ConstBool, ConstU128};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
@@ -166,6 +166,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<false>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_messenger::Config for Test {

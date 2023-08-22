@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, DispatchStashOf, Event, Pallet, ProgramStorageOf, QueueOf,
-    WaitlistOf,
+    TaskPoolOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -36,13 +36,35 @@ use gear_core::{
     message::{DispatchKind, ReplyMessage},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
+use sp_core::Get;
+use sp_runtime::Saturating;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
     fn pause_program(&mut self, program_id: ProgramId) {
-        log::debug!("pause_program; id = {:?}", program_id);
+        if !<T as Config>::ProgramRentEnabled::get() {
+            log::debug!("Program rent logic is disabled.");
+
+            let expiration_block =
+                ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+                    program.expiration_block = program
+                        .expiration_block
+                        .saturating_add(<T as Config>::ProgramRentDisabledDelta::get());
+
+                    program.expiration_block
+                })
+                .unwrap_or_else(|e| {
+                    unreachable!("PauseProgram task executes only for an active program: {e:?}.")
+                });
+
+            let task = ScheduledTask::PauseProgram(program_id);
+            TaskPoolOf::<T>::add(expiration_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            return;
+        }
 
         let program = ProgramStorageOf::<T>::get_program(program_id)
             .unwrap_or_else(|| unreachable!("Program to pause not found."));

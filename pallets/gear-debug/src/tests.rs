@@ -18,8 +18,13 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, event::MessageEntry, CodeStorage, Origin as _};
-use frame_support::assert_ok;
+use common::{
+    self,
+    event::MessageEntry,
+    scheduler::{ScheduledTask, TaskPool},
+    ActiveProgram, CodeStorage, Origin as _, PausedProgramStorage, ProgramStorage,
+};
+use frame_support::{assert_err, assert_ok};
 #[cfg(feature = "lazy-pages")]
 use gear_core::pages::GearPage;
 use gear_core::{
@@ -29,9 +34,11 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
+use pallet_gear::{
+    DebugInfo, Event, Pallet as PalletGear, ProgramStorageOf, RentCostPerBlockOf, TaskPoolOf,
+};
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use sp_core::{Get, H256};
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 const DEFAULT_SALT: &[u8] = b"salt";
@@ -933,5 +940,113 @@ fn check_gear_stack_end() {
             })
             .into(),
         );
+    })
+}
+
+#[test]
+fn disabled_program_rent() {
+    use test_syscalls::{Kind, WASM_BINARY as TEST_SYSCALLS_BINARY};
+
+    assert!(!<<Test as pallet_gear::Config>::ProgramRentEnabled as Get<bool>>::get());
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let salt = b"salt".to_vec();
+        let pay_rent_id = ProgramId::generate(CodeId::generate(TEST_SYSCALLS_BINARY), &salt);
+
+        let program_value = 10_000_000;
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            TEST_SYSCALLS_BINARY.to_vec(),
+            salt,
+            pay_rent_id.into_bytes().to_vec(),
+            20_000_000_000,
+            program_value,
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let old_block = program.expiration_block;
+
+        let block_count = 2_000u32;
+        let rent = RentCostPerBlockOf::<Test>::get() * u128::from(block_count);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            pay_rent_id,
+            vec![Kind::PayProgramRent(
+                pay_rent_id.into_origin().into(),
+                rent,
+                None
+            )]
+            .encode(),
+            20_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // check that syscall does nothing
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(old_block, program.expiration_block);
+
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &pay_rent_id
+        ));
+
+        // extrinsic should fail
+        let block_count = 10_000;
+        assert_err!(
+            Gear::pay_program_rent(RuntimeOrigin::signed(2), pay_rent_id, block_count),
+            pallet_gear::Error::<Test>::ProgramNotFound
+        );
+
+        // resume extrinsic should also fail
+        assert_err!(
+            Gear::resume_session_init(
+                RuntimeOrigin::signed(2),
+                pay_rent_id,
+                Default::default(),
+                Default::default(),
+            ),
+            pallet_gear::Error::<Test>::ProgramNotFound
+        );
+        assert_err!(
+            Gear::resume_session_push(RuntimeOrigin::signed(2), 5, Default::default(),),
+            pallet_gear::Error::<Test>::ProgramNotFound
+        );
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(2), 5, Default::default(),),
+            pallet_gear::Error::<Test>::ProgramNotFound
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block as u32 - 1);
+
+        run_to_next_block(None);
+
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &pay_rent_id
+        ));
+
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+
+        assert!(expected_block < program.expiration_block);
+        assert!(TaskPoolOf::<Test>::contains(
+            &program.expiration_block,
+            &ScheduledTask::PauseProgram(pay_rent_id)
+        ));
     })
 }
