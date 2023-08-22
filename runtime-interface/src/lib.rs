@@ -112,30 +112,38 @@ pub trait GearRI {
         writes: &[MemoryInterval],
         gas_left: (GasLeft,),
     ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
-        let mut gas_left = gas_left.0;
-        let gas_before = gas_left.gas;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
+        let gas_left = gas_left.0;
+
+        let gas_before = gas_left.gas.min(gas_left.gas);
+        let mut gas_counter = gas_before;
+        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_counter);
 
         // Support charge for allowance otherwise DB will be corrupted.
-        gas_left.allowance = gas_left
-            .allowance
-            .saturating_sub(gas_before.saturating_sub(gas_left.gas));
+        let diff = gas_before.checked_sub(gas_counter).unwrap_or_else(|| {
+            unreachable!("This cannot happen unless lazy-pages would increase gas")
+        });
 
-        match res {
-            Ok(_) => {
-                if gas_left.allowance > 0 {
-                    (gas_left, Ok(()))
+        let gas = gas_left
+            .gas
+            .checked_sub(diff)
+            .unwrap_or_else(|| unreachable!("Impossible"));
+        let allowance = gas_left
+            .allowance
+            .checked_sub(diff)
+            .unwrap_or_else(|| unreachable!("Impossible"));
+
+        let res = res.map_err(|err| match err {
+            ProcessAccessError::OutOfBounds => ProcessAccessErrorVer1::OutOfBounds,
+            ProcessAccessError::GasLimitExceeded => {
+                if gas <= allowance {
+                    ProcessAccessErrorVer1::GasLimitExceeded
                 } else {
-                    (gas_left, Err(ProcessAccessErrorVer1::GasAllowanceExceeded))
+                    ProcessAccessErrorVer1::GasAllowanceExceeded
                 }
             }
-            Err(ProcessAccessError::OutOfBounds) => {
-                (gas_left, Err(ProcessAccessErrorVer1::OutOfBounds))
-            }
-            Err(ProcessAccessError::GasLimitExceeded) => {
-                (gas_left, Err(ProcessAccessErrorVer1::GasLimitExceeded))
-            }
-        }
+        });
+
+        (GasLeft { gas, allowance }, res)
     }
 
     #[version(2)]
