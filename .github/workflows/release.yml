@@ -47,7 +47,7 @@ jobs:
 
   build:
     needs: prepare
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    runs-on: [kuberunner, github-runner-01, github-runner-02, github-runner-03]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
