@@ -2,9 +2,8 @@
 name = "demo-proxy-reservation-with-gas"
 version = "0.1.0"
 authors.workspace = true
-edition = "2021"
-license = "GPL-3.0"
-workspace = "../../"
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -13,8 +12,6 @@ scale-info = { workspace = true, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
-
-[lib]
 
 [features]
 debug = ["gstd/debug"]

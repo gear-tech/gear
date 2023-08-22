@@ -2,9 +2,8 @@
 name = "demo-waiter"
 version = "0.1.0"
 authors.workspace = true
-edition = "2021"
-license = "GPL-3.0"
-workspace = "../../"
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -18,8 +17,6 @@ gear-wasm-builder.workspace = true
 gtest.workspace = true
 gear-core.workspace = true
 demo-waiter = { path = ".", features = ["debug"] }
-
-[lib]
 
 [features]
 debug = ["gstd/debug"]

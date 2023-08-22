@@ -2,9 +2,8 @@
 name = "demo-send-from-reservation"
 version = "0.1.0"
 authors.workspace = true
-edition = "2021"
-license = "GPL-3.0"
-workspace = "../../"
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -15,8 +14,6 @@ gear-wasm-builder.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true
-
-[lib]
 
 [features]
 debug = ["gstd/debug"]

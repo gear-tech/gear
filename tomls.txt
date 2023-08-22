@@ -1,0 +1,1075 @@
+[package]
+name = "demo-read-big-state"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-wait"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+gcore.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug", "gcore/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-ping"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-program-generator"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+hex-literal.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-calc-hash"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"]}
+sha2 = { version = "0.10.6", default-features = false }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+[package]
+name = "demo-calc-hash-over-blocks"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"]}
+gstd.workspace = true
+shared = { path = "../", package = "demo-calc-hash" }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-calc-hash-in-one-block"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"]}
+gstd.workspace = true
+shared = { path = "..", package = "demo-calc-hash" }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = [ "std" ]
+[package]
+name = "demo-init-wait-reply-exit"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-proxy"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+wasm-wrapper = []
+std = ["wasm-wrapper", "parity-scale-codec/std", "scale-info/std"]
+default = ["std"]
+[package]
+name = "demo-messager"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+std = []
+default = ["std"]
+[package]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-ncompose"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-init-wait"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-async-tester"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-rwlock"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []
+[package]
+name = "demo-mul-by-const"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-async-custom-entry"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-piggy-bank"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-compose"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-send-from-reservation"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-async"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-state-rollback"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-async-init"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+futures = { workspace = true, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-reserve-gas"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-proxy-reservation-with-gas"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std", "scale-info/std"]
+default = ["std"]
+[package]
+name = "demo-gas-burned"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+log.workspace = true
+
+[features]
+std = []
+default = ["std"]
+[package]
+name = "demo-reservation-manager"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-vec"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []
+[package]
+name = "demo-wait-wake"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-wait-timeout"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-waiter"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+futures.workspace = true
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+gear-core.workspace = true
+demo-waiter = { path = ".", features = ["debug"] }
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-init-fail-sender"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "test-syscalls"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+wasm-wrapper = []
+std = ["wasm-wrapper", "parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-waiting-proxy"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-out-of-memory"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-distributor"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-delayed-sender"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = [ ]
+default = ["std"]
+[package]
+name = "demo-syscall-error"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+gsys.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-wat"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hex = { workspace = true, features = ["alloc"] }
+wabt.workspace = true
+[package]
+name = "demo-proxy-relay"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std", "scale-info/std"]
+default = ["std"]
+[package]
+name = "demo-stack-allocations"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+gtest.workspace = true
+rand_pcg = { workspace = true }
+rand = "0.8"
+static_assertions.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-signal-entry"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-node"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-custom"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+gsys.workspace = true
+parity-scale-codec.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-incomplete-async-payloads"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-async-recursion"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+async-recursion.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
+[package]
+name = "demo-async-signal-entry"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-program-factory"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd.workspace = true
+hex-literal = "*"
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = ["parity-scale-codec/std"]
+default = ["std"]
+[package]
+name = "demo-new-meta"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+parity-scale-codec.workspace = true
+demo-meta-io = { path = "io" }
+demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
+demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
+demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = true }
+gstd.workspace = true
+
+[build-dependencies]
+demo-meta-io = { path = "io" }
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = [
+    "demo-meta-state-v1/std",
+    "demo-meta-state-v2/std",
+    "demo-meta-state-v3/std",
+    "parity-scale-codec/std",
+]
+[package]
+name = "demo-meta-state-v2"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+# workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+gmeta = { workspace = true, features = ["codegen"] }
+demo-meta-io = { path = "../io" }
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
+
+[features]
+default = ["std"]
+std = []
+[package]
+name = "demo-meta-state-v3"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+# workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+gmeta = { workspace = true, features = ["codegen"] }
+demo-meta-io = { path = "../io" }
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
+
+[features]
+default = ["std"]
+std = []
+[package]
+name = "demo-meta-io"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gmeta = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+[package]
+name = "demo-meta-state-v1"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+# workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+gmeta = { workspace = true, features = ["codegen"] }
+demo-meta-io = { path = "../io" }
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
+
+[features]
+default = ["std"]
+std = []
+[package]
+name = "demo-constructor"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+hex.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "demo-fungible-token"
+version = "0.1.4"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true }
+hashbrown = { workspace = true }
+gmeta = { workspace = true }
+ft-io = { path = "io" }
+
+[dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+gear-core.workspace = true
+tokio = { workspace = true, features = ["full", "test-util"] }
+gclient = { workspace = true }
+futures = "0.3"
+rand = { version = "0.8" }
+statrs = "0.16"
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true }
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]
+[package]
+name = "ft-io"
+version = "0.1.4"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true }
+gmeta = { workspace = true }
+[package]
+name = "demo-futures-unordered"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+futures = { workspace = true, features = ["alloc", "async-await"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []
