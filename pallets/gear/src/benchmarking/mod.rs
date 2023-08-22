@@ -79,6 +79,7 @@ use core_processor::{
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
+    assert_ok,
     codec::Encode,
     traits::{Currency, Get, Hooks, ReservableCurrency},
 };
@@ -485,13 +486,22 @@ benchmarks! {
         let block_count = 1_000u32.into();
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
+
+        let mut result = Ok(().into());
+    }: {
+        let _ok = result.is_ok();
+        result = Gear::<T>::pay_program_rent(RawOrigin::Signed(caller.clone()).into(), program_id, block_count);
+    }
     verify {
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
+        if <T as Config>::ProgramRentEnabled::get() {
+            assert_ok!(result);
+
+            let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+                .expect("program should exist")
+                .try_into()
+                .expect("program should be active");
+            assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
+        }
     }
 
     resume_session_init {
@@ -509,13 +519,22 @@ benchmarks! {
             .try_into()
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
+
+        let mut result = Ok(().into());
+    }: {
+        let _ok = result.is_ok();
+        result = Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, CodeId::from_origin(program.code_hash));
+    }
     verify {
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+        if <T as Config>::ProgramRentEnabled::get() {
+            assert_ok!(result);
+
+            assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+            assert!(
+                !Gear::<T>::is_active(program_id)
+            );
+            assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+        }
     }
 
     resume_session_push {
@@ -541,17 +560,31 @@ benchmarks! {
             page
         };
 
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
-    }: _(RawOrigin::Signed(caller.clone()), session_id, memory_pages)
+        let (session_id, memory_pages) = match <T as Config>::ProgramRentEnabled::get() {
+            true => resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page),
+            false => (Default::default(), Default::default()),
+        };
+
+        let mut result = Ok(().into());
+    }: {
+        let _ok = result.is_ok();
+        if <T as Config>::ProgramRentEnabled::get() {
+            result = Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages);
+        }
+    }
     verify {
-        assert!(
-            matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
-        );
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+        if <T as Config>::ProgramRentEnabled::get() {
+            assert_ok!(result);
+
+            assert!(
+                matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
+            );
+            assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+            assert!(
+                !Gear::<T>::is_active(program_id)
+            );
+            assert!(!ProgramStorageOf::<T>::program_exists(program_id));
+        }
     }
 
     resume_session_commit {
@@ -585,16 +618,33 @@ benchmarks! {
             program.clone()
         }).expect("program should exist");
 
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
+        let session_id= match <T as Config>::ProgramRentEnabled::get() {
+            true => {
+                let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
+                Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
 
-        Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
-    }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
+                session_id
+            }
+            false => Default::default(),
+        };
+
+        let mut result = Ok(().into());
+    }: {
+        let _ok = result.is_ok();
+        if <T as Config>::ProgramRentEnabled::get() {
+            result = Gear::<T>::resume_session_commit(RawOrigin::Signed(caller.clone()).into(), session_id, ResumeMinimalPeriodOf::<T>::get());
+        }
+    }
     verify {
-        assert!(ProgramStorageOf::<T>::program_exists(program_id));
-        assert!(
-            Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        if <T as Config>::ProgramRentEnabled::get() {
+            assert_ok!(result);
+
+            assert!(ProgramStorageOf::<T>::program_exists(program_id));
+            assert!(
+                Gear::<T>::is_active(program_id)
+            );
+            assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        }
     }
 
     // This constructs a program that is maximal expensive to instrument.
