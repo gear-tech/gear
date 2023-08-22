@@ -20,8 +20,7 @@ use syn::{
     parse_quote,
     punctuated::Punctuated,
     token::{Comma, Plus},
-    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier,
-    TypeParam, TypeParamBound,
+    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
 };
 
 /// Describes how to output documentation for `_for_reply_(as)`
