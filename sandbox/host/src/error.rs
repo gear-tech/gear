@@ -155,7 +155,7 @@ pub enum WasmError {
     #[error("{0}")]
     Instantiation(String),
 
-    /// Other error happenend.
+    /// Other error happened.
     #[error("{0}")]
     Other(String),
 }

@@ -20,8 +20,7 @@ use syn::{
     parse_quote,
     punctuated::Punctuated,
     token::{Comma, Plus},
-    Expr, Generics, Ident, PathArguments, PathSegment, Token, TraitBound, TraitBoundModifier,
-    TypeParam, TypeParamBound,
+    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
 };
 
 /// Describes how to output documentation for `_for_reply_(as)`
@@ -119,19 +118,15 @@ pub fn wait_for_reply_docs(name: String, style: DocumentationStyle) -> (String, 
 /// # Note
 ///
 /// Only supports `TraitBound` for now.
-pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Ident>) -> Generics {
+pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Path>) -> Generics {
     let mut bounds: Punctuated<TypeParamBound, Plus> = Punctuated::new();
-    for t in traits {
+    for path in traits {
         bounds.push_value(
             TraitBound {
                 paren_token: None,
                 modifier: TraitBoundModifier::None,
                 lifetimes: None,
-                path: PathSegment {
-                    ident: t,
-                    arguments: PathArguments::None,
-                }
-                .into(),
+                path,
             }
             .into(),
         )

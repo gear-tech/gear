@@ -32,7 +32,7 @@ fn main() {
 // # NOTE
 //
 // using an extra tool for doing this is for preventing the
-// build-dependencies slow down the complation speed.
+// build-dependencies slow down the compilation speed.
 fn generate_api() -> Vec<u8> {
     let root = env!("CARGO_MANIFEST_DIR");
     let profile = env::var("PROFILE").expect("Environment PROFILE not found.");
@@ -82,6 +82,7 @@ fn format(stream: &[u8]) -> String {
     String::from_utf8_lossy(&out)
         .to_string()
         .replace(":: subxt", "::subxt")
+        .replace(" : :: ", ": ::")
         .replace(" :: ", "::")
 }
 
