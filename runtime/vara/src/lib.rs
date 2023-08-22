@@ -62,7 +62,10 @@ use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 pub use runtime_common::{
-    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
+    constants::{
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
     AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
     VALUE_PER_GAS,
@@ -781,12 +784,12 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
     type ProgramRentEnabled = ConstBool<false>;
-    type ProgramRentDisabledDelta = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
 #[cfg(feature = "debug-mode")]

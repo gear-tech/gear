@@ -32,3 +32,10 @@ pub const RENT_RESUME_WEEK_FACTOR: BlockNumber = 4;
 
 /// The amount of blocks for processing resume session represented as a factor of hours.
 pub const RESUME_SESSION_DURATION_HOUR_FACTOR: BlockNumber = 1;
+
+/// The free of charge period of rent represented as a factor of months.
+pub const RENT_FREE_PERIOD_MONTH_FACTOR: BlockNumber = 6;
+
+/// The amount of blocks on which tasks of pausing program shifted
+/// in a case of disabled program rent logic, represented as a factor of weeks.
+pub const RENT_DISABLED_DELTA_WEEK_FACTOR: BlockNumber = 1;
