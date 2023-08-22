@@ -268,21 +268,21 @@ impl ProcessorExternalities for Ext {
     }
 
     fn lazy_pages_init_for_program(
-        _mem: &mut impl Memory,
-        _prog_id: ProgramId,
-        _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsAccessConfig,
-        _lazy_pages_weights: LazyPagesWeights,
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
     ) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        lazy_pages::remove_lazy_pages_prot(mem);
     }
 
     fn lazy_pages_status() -> Status {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::get_status()
     }
 }
 

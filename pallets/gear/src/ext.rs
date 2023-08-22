@@ -76,15 +76,21 @@ impl ProcessorExternalities for LazyPagesExt {
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
+        Ext::lazy_pages_init_for_program(
+            mem,
+            prog_id,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        )
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        lazy_pages::remove_lazy_pages_prot(mem);
+        Ext::lazy_pages_post_execution_actions(mem)
     }
 
     fn lazy_pages_status() -> Status {
-        lazy_pages::get_status()
+        Ext::lazy_pages_status()
     }
 }
 
