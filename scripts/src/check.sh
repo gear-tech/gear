@@ -8,12 +8,13 @@ check_usage() {
     ./gear.sh check <SUBCOMMAND> [CARGO FLAGS]
 
   Flags:
-    -h, --help     show help message and exit
+    -h, --help       show help message and exit
 
   Subcommands:
-    help           show help message and exit
+    help             show help message and exit
 
-    gear           check gear workspace compile
+    gear             check gear workspace compile
+    runtime_imports  check runtime imports against the whitelist
 
 EOF
 }
