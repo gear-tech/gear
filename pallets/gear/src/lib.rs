@@ -1235,10 +1235,9 @@ pub mod pallet {
 
             let program_id = packet.destination(message_id, None);
 
-            ensure!(
-                !Self::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
-            );
+            if Self::program_exists(program_id) {
+                unreachable!("Program id uniqueness rule violated: generated existing program id");
+             }
 
             let program_event = Event::ProgramChanged {
                 id: program_id,
