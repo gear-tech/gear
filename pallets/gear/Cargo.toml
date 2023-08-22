@@ -31,7 +31,6 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
-gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
@@ -131,7 +130,6 @@ std = [
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
 	"gear-backend-sandbox/std",
-	"gear-backend-wasmi/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",

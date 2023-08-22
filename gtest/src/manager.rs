@@ -29,7 +29,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
-use gear_backend_wasmi::WasmiEnvironment;
+use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -446,7 +446,7 @@ impl ExtManager {
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
-            core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+            core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
                 String::from("state"),
                 program.code().clone(),
                 Some(memory_pages),
@@ -484,7 +484,7 @@ impl ExtManager {
         let mut mapping_code_payload = argument.unwrap_or_default();
         mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
 
-        core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+        core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
             String::from(fn_name),
             mapping_code,
             None,
@@ -860,7 +860,7 @@ impl ExtManager {
             }
         };
 
-        let journal = core_processor::process::<WasmiEnvironment<Ext>>(
+        let journal = core_processor::process::<SandboxEnvironment<Ext>>(
             &block_config,
             (context, code, balance).into(),
             self.random_data.clone(),
