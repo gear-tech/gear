@@ -971,6 +971,8 @@ fn disabled_program_rent() {
 
         run_to_next_block(None);
 
+        assert_eq!(utils::maybe_last_message(1).unwrap().payload_bytes(), b"ok");
+
         // check that syscall does nothing
         assert_eq!(
             old_block,
