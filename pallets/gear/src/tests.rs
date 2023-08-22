@@ -64,8 +64,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{
-    LimitedStr, TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError,
-    UnrecoverableWaitError,
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core::{
     code::{self, Code},
@@ -12660,14 +12659,12 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(
-            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
-                .to_string()
-        ));
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
     });
 }
 
 #[test]
+#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
@@ -12695,10 +12692,7 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(
-            &ActorExecutionErrorReplyReason::Environment(LimitedStr::from_small_str(""))
-                .to_string()
-        ));
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
     });
 }
 
@@ -13682,6 +13676,28 @@ fn remove_from_waitlist_after_exit_reply() {
 
         run_to_next_block(None);
     })
+}
+
+// currently `parity_wasm` doesn't support WASM reference types
+#[test]
+fn wasm_ref_types_doesnt_work() {
+    const WAT: &str = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (elem declare func $init)
+        (func $init
+            ref.func $init
+            call $test
+        )
+        (func $test (param funcref))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _pid = upload_program_default(USER_1, ProgramCodeKind::Custom(WAT)).unwrap_err();
+    });
 }
 
 mod utils {

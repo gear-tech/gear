@@ -1,7 +1,7 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-lat&er WITH Classpath-exception-2.0
+// Copyright (C) 2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,30 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{
-    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
-};
+use crate::{BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason};
 
-pub(crate) type HostState<Ext> = Option<State<Ext>>;
+pub type HostState<Ext, Mem> = Option<State<Ext, Mem>>;
 
-/// It's supposed that `E` implements [BackendExt]
-pub(crate) struct State<Ext> {
+pub struct State<Ext, Mem> {
     pub ext: Ext,
+    pub memory: Mem,
     pub termination_reason: UndefinedTerminationReason,
 }
 
-impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
-    fn into_parts(self) -> (Ext, (), UndefinedTerminationReason) {
+impl<Ext: BackendExternalities, Mem> BackendTermination<Ext> for State<Ext, Mem> {
+    fn into_parts(self) -> (Ext, UndefinedTerminationReason) {
         let State {
             ext,
             termination_reason,
             ..
         } = self;
-        (ext, (), termination_reason)
+        (ext, termination_reason)
     }
 }
 
-impl<Ext> BackendState for State<Ext> {
+impl<Ext, Mem> BackendState for State<Ext, Mem> {
     fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.termination_reason = reason;
     }
