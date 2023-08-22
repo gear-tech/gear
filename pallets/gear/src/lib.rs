@@ -24,8 +24,6 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod ext;
-
 mod internal;
 mod queue;
 mod runtime_api;
@@ -58,8 +56,8 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
+    Ext,
 };
-use ext::LazyPagesExt as Ext;
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
