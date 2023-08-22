@@ -18,7 +18,7 @@
 
 use crate::{
     errors::{Error, IntoResult, Result},
-    msg::{utils, CodecMessageFuture, MessageFuture},
+    msg::utils,
     prelude::{ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };

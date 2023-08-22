@@ -445,7 +445,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
         #function
 
         #[doc = #for_reply_docs]
-        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<MessageFuture> {
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<crate::msg::MessageFuture> {
             // Function call.
             let waiting_reply_to = #ident #args ?;
 
@@ -457,11 +457,11 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(MessageFuture { waiting_reply_to })
+            Ok(crate::msg::MessageFuture { waiting_reply_to })
         }
 
         #[doc = #for_reply_as_docs]
-        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecMessageFuture<D>> {
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<crate::msg::CodecMessageFuture<D>> {
             // Function call.
             let waiting_reply_to = #ident #args ?;
 
@@ -473,7 +473,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
             // Registering signal.
             crate::async_runtime::signals().register_signal(waiting_reply_to);
 
-            Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
+            Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
         }
     }
     .into()

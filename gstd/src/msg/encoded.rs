@@ -22,7 +22,7 @@
 
 use crate::{
     errors::{Error, IntoResult, Result},
-    msg::{utils, CodecMessageFuture, MessageFuture},
+    msg::utils,
     prelude::ops::RangeBounds,
     util::with_optimized_encode,
     ActorId, MessageId, ReservationId,
