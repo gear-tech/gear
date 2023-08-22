@@ -3,7 +3,7 @@
  */
 
 const [owner, repo] = ["gear-tech", "gear"];
-const { LABEL, REF, HEAD_SHA } = process.env;
+const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
 const linux = LABEL === "A0-pleasereview";
 const checks = linux ? ["linux", "win-cross"] : ["x86"];
 const workflow_id = linux
@@ -76,7 +76,11 @@ const dispatchWorkflow = async ({ core, github }) => {
     owner,
     repo,
     workflow_id,
-    ref: REF
+    ref: REF,
+    inputs: {
+      title: TITLE,
+      number: NUMBER,
+    }
   });
 
   // Wait for the workflow to be dispatched.

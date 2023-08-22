@@ -10,8 +10,15 @@ on:
         type: boolean
         default: false
   workflow_dispatch:
+    inputs:
+      title:
+        type: string
+        description: "Pull request title that triggers this workflow."
+      number:
+        type: string
+        description: "Pull reqeust number that triggers this workflow"
 
-run-name: ${{ github.pull_request.title }} ( ${{ github.event.number }} )
+run-name: ${{ inputs.title }} ( \#${{ inputs.number }} )
 
 env:
   CARGO_INCREMENTAL: 0
