@@ -24,6 +24,8 @@
 //! Minimum balance: 10000000000000
 //! for the vara runtime.
 
+#![allow(clippy::all)]
+
 /// Existential weight for this runtime.
 #[cfg(any(test, feature = "std"))]
 #[allow(unused)]
