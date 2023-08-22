@@ -454,12 +454,27 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     }
 
     fn build_result_processing_infallible(signature: SysCallSignature) -> Vec<Instruction> {
+        // TODO: #3129
         let results_len = signature.results.len();
         if results_len != 0 {
             assert_eq!(results_len, 1);
-            // Assume here that return type of syscall means error when = -1.
+
+            let error_code = match signature.params[0] {
+                ParamType::Alloc => {
+                    // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
+                    -1
+                }
+                ParamType::Free => {
+                    // Free syscall: returns 1 in case of error.
+                    1
+                }
+                _ => {
+                    unimplemented!()
+                }
+            };
+
             vec![
-                Instruction::I32Const(-1),
+                Instruction::I32Const(error_code),
                 Instruction::I32Eq,
                 Instruction::If(BlockType::NoResult),
                 Instruction::Unreachable,
