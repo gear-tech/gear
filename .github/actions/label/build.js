@@ -80,6 +80,7 @@ const dispatchWorkflow = async ({ core, github }) => {
     }
   });
 
+  // Wait for the workflow to be dispatched.
   await sleep(10000);
 
   // Get the target workflow run
@@ -134,6 +135,7 @@ module.exports = async ({ github, core }) => {
   }
 
   const run = await dispatchWorkflow({ core, github });
+  core.info(`Dispatched workflow ${run.html_url}`);
   let labelChecks = await createChecks({ core, github });
 
   while (true) {
