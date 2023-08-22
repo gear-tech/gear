@@ -82,7 +82,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn value_counter_set_correctly_for_interruptions() {
     use demo_constructor::{Arg, Calls, Scheme};
 
