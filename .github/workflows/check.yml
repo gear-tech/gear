@@ -89,5 +89,3 @@ jobs:
 
       - name: "Check fuzzer reproduction"
         run: ./scripts/gear.sh test fuzz-repr
-
-      - run: sccache --show-stats
