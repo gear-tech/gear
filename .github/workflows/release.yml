@@ -47,7 +47,7 @@ jobs:
 
   build:
     needs: prepare
-    runs-on: [kuberunner, github-runner-01, github-runner-02, github-runner-03]
+    runs-on: [kuberunner]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
