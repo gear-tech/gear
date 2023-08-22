@@ -10,6 +10,13 @@ on:
         type: boolean
         default: false
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+      label:
+        type: string
+
+run-name: Build from ${{ inputs.ref }} by ${{ inputs.label }}
 
 env:
   CARGO_INCREMENTAL: 0

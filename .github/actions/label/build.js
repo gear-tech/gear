@@ -27,7 +27,7 @@ const skip = async ({ github }) => {
     ref: REF,
   });
 
-  if (checks_runs.length === 0) return true;
+  if (check_runs.length === 0) return true;
 
   const runs = linux
     ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
@@ -74,6 +74,10 @@ const dispatchWorkflow = async ({ core, github }) => {
     repo,
     workflow_id,
     ref: REF,
+    inpus: {
+      ref: REF,
+      label: LABEL,
+    }
   });
 
   await sleep(10000);
