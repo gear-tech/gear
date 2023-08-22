@@ -27,6 +27,8 @@ const skip = async ({ github }) => {
     ref: REF,
   });
 
+  if (checks_runs.length === 0) return true;
+
   const runs = linux
     ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
     : check_runs.filter((run) => run.name === "build / macox-x86");
