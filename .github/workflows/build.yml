@@ -10,15 +10,8 @@ on:
         type: boolean
         default: false
   workflow_dispatch:
-    inputs:
-      ref:
-        type: string
-        description: "Source branch that triggers this workflow"
-      label:
-        type: string
-        description: "Source label that triggers this workflow"
 
-run-name: Build from ${{ inputs.ref }} by ${{ inputs.label }}
+run-name: ${{ github.pull_request.title }} ( ${{ github.event.number }} )
 
 env:
   CARGO_INCREMENTAL: 0

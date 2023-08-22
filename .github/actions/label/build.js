@@ -76,11 +76,7 @@ const dispatchWorkflow = async ({ core, github }) => {
     owner,
     repo,
     workflow_id,
-    ref: REF,
-    inputs: {
-      ref: REF,
-      label: LABEL,
-    }
+    ref: REF
   });
 
   // Wait for the workflow to be dispatched.
