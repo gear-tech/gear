@@ -1,0 +1,9 @@
+[default]
+extend-ignore-re = [
+    "\\w{48,49}",
+    "\"hel\""
+]
+
+[default.extend-words]
+# typo in sp-state-machine, won't fix here for now.
+overlayed = "overlayed"

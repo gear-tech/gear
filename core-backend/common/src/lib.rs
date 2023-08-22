@@ -32,6 +32,7 @@ pub mod mock;
 pub mod funcs;
 pub mod memory;
 pub mod runtime;
+pub mod state;
 
 use crate::runtime::RunFallibleError;
 use actor_system_error::actor_system_error;
@@ -454,10 +455,10 @@ pub trait BackendState {
 /// Backend termination aims to return to the caller gear wasm program
 /// execution outcome, which is the state of externalities, memory and
 /// termination reason.
-pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
+pub trait BackendTermination<Ext: BackendExternalities>: Sized {
     /// Transforms [`Self`] into tuple of externalities, memory and
     /// termination reason returned after the execution.
-    fn into_parts(self) -> (Ext, EnvMem, UndefinedTerminationReason);
+    fn into_parts(self) -> (Ext, UndefinedTerminationReason);
 
     /// Terminates backend work after execution.
     ///
@@ -478,10 +479,10 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
         self,
         res: Result<T, WasmCallErr>,
         gas: u64,
-    ) -> (Ext, EnvMem, TerminationReason) {
+    ) -> (Ext, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
-        let (mut ext, memory, termination_reason) = self.into_parts();
+        let (mut ext, termination_reason) = self.into_parts();
         let termination_reason = termination_reason.define(ext.current_counter_type());
 
         ext.decrease_current_counter_to(gas);
@@ -506,7 +507,7 @@ pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
             )
         };
 
-        (ext, memory, termination_reason)
+        (ext, termination_reason)
     }
 }
 

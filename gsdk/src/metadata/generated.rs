@@ -1021,7 +1021,7 @@ pub mod runtime_types {
                     #[doc = "- `source`: the account with vesting running,"]
                     #[doc = "- `dest`: the beneficiary account,"]
                     #[doc = "- `schedule_index`: the index of `VestingInfo` for source account."]
-                    #[doc = "- `amount`: the amount to be unlocked and transfered from `VestingInfo`."]
+                    #[doc = "- `amount`: the amount to be unlocked and transferred from `VestingInfo`."]
                     #[doc = ""]
                     #[doc = "Emits the following events:"]
                     #[doc = "- `VestingScheduleRemoved{ who, schedule_index }`"]

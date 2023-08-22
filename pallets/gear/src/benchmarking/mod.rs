@@ -95,7 +95,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::*;
-use gear_sandbox::SandboxMemory;
+use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
@@ -1619,7 +1619,9 @@ benchmarks! {
 
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut mem = MemoryWrap::new(DefaultExecutorMemory::new(1, None).unwrap());
+        let mut store = Store::new(None);
+        let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mut mem = MemoryWrap::<gear_backend_common::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(1.into()).unwrap();
