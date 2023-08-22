@@ -28,32 +28,49 @@ pub mod runtime_types {
         use super::runtime_types;
         pub mod bounded_collections {
             use super::runtime_types;
+            pub mod bounded_btree_map {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                pub struct BoundedBTreeMap<_0, _1>(pub ::subxt::utils::KeyedVec<_0, _1>);
+            }
             pub mod bounded_vec {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct BoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
             pub mod weak_bounded_vec {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct WeakBoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
         }
         pub mod finality_grandpa {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Equivocation<_0, _1, _2> {
                 pub round_number: ::core::primitive::u64,
                 pub identity: _0,
                 pub first: (_1, _2),
                 pub second: (_1, _2),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Precommit<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Prevote<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
@@ -63,7 +80,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod dispatch {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum DispatchClass {
                     #[codec(index = 0)]
                     Normal,
@@ -72,32 +91,42 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     Mandatory,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct DispatchInfo {
                     pub weight: runtime_types::sp_weights::weight_v2::Weight,
                     pub class: runtime_types::frame_support::dispatch::DispatchClass,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Pays {
                     #[codec(index = 0)]
                     Yes,
                     #[codec(index = 1)]
                     No,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PerDispatchClass<_0> {
                     pub normal: _0,
                     pub operational: _0,
                     pub mandatory: _0,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PostDispatchInfo {
                     pub actual_weight:
                         ::core::option::Option<runtime_types::sp_weights::weight_v2::Weight>,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum RawOrigin<_0> {
                     #[codec(index = 0)]
                     Root,
@@ -112,7 +141,10 @@ pub mod runtime_types {
                 pub mod misc {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct WrapperOpaque<_0>(
                         #[codec(compact)] pub ::core::primitive::u32,
@@ -122,7 +154,10 @@ pub mod runtime_types {
                 pub mod preimages {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum Bounded<_0> {
                         #[codec(index = 0)]
@@ -146,7 +181,10 @@ pub mod runtime_types {
                 pub mod schedule {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum DispatchTime<_0> {
                         #[codec(index = 0)]
@@ -160,7 +198,10 @@ pub mod runtime_types {
                     pub mod misc {
                         use super::runtime_types;
                         #[derive(
-                            Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                            Debug,
+                            crate :: gp :: Decode,
+                            crate :: gp :: DecodeAsType,
+                            crate :: gp :: Encode,
                         )]
                         pub enum BalanceStatus {
                             #[codec(index = 0)]
@@ -171,7 +212,9 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct PalletId(pub [::core::primitive::u8; 8usize]);
         }
         pub mod frame_system {
@@ -181,62 +224,87 @@ pub mod runtime_types {
                 pub mod check_genesis {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckGenesis;
                 }
                 pub mod check_mortality {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckMortality(pub runtime_types::sp_runtime::generic::era::Era);
                 }
                 pub mod check_non_zero_sender {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckNonZeroSender;
                 }
                 pub mod check_nonce {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckNonce(#[codec(compact)] pub ::core::primitive::u32);
                 }
                 pub mod check_spec_version {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckSpecVersion;
                 }
                 pub mod check_tx_version {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckTxVersion;
                 }
                 pub mod check_weight {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct CheckWeight;
                 }
             }
             pub mod limits {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct BlockLength {
                     pub max: runtime_types::frame_support::dispatch::PerDispatchClass<
                         ::core::primitive::u32,
                     >,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct BlockWeights {
                     pub base_block: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_block: runtime_types::sp_weights::weight_v2::Weight,
@@ -244,7 +312,9 @@ pub mod runtime_types {
                         runtime_types::frame_system::limits::WeightsPerClass,
                     >,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct WeightsPerClass {
                     pub base_extrinsic: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_extrinsic:
@@ -257,7 +327,9 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -315,7 +387,9 @@ pub mod runtime_types {
                         remark: ::std::vec::Vec<::core::primitive::u8>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the System pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -341,7 +415,9 @@ pub mod runtime_types {
                     #[doc = "The origin filter prevent the call to be dispatched."]
                     CallFiltered,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Event for the System pallet."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -376,7 +452,9 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct AccountInfo<_0, _1> {
                 pub nonce: _0,
                 pub consumers: _0,
@@ -384,19 +462,25 @@ pub mod runtime_types {
                 pub sufficients: _0,
                 pub data: _1,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct EventRecord<_0, _1> {
                 pub phase: runtime_types::frame_system::Phase,
                 pub event: _0,
                 pub topics: ::std::vec::Vec<_1>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct LastRuntimeUpgradeInfo {
                 #[codec(compact)]
                 pub spec_version: ::core::primitive::u32,
                 pub spec_name: ::std::string::String,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Phase {
                 #[codec(index = 0)]
                 ApplyExtrinsic(::core::primitive::u32),
@@ -410,7 +494,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod event {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum CodeChangeKind<_0> {
                     #[codec(index = 0)]
                     Active {
@@ -421,7 +507,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     Reinstrumented,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum DispatchStatus {
                     #[codec(index = 0)]
                     Success,
@@ -430,7 +518,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     NotExecuted,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum MessageEntry {
                     #[codec(index = 0)]
                     Init,
@@ -441,7 +531,9 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum MessageWaitedRuntimeReason {
                     #[codec(index = 0)]
                     WaitCalled,
@@ -452,17 +544,23 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     WaitUpToCalledFull,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum MessageWaitedSystemReason {
                     #[codec(index = 0)]
                     ProgramIsNotInitialized,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum MessageWokenRuntimeReason {
                     #[codec(index = 0)]
                     WakeCalled,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum MessageWokenSystemReason {
                     #[codec(index = 0)]
                     ProgramGotInitialized,
@@ -471,7 +569,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     OutOfRent,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ProgramChangeKind<_0> {
                     #[codec(index = 0)]
                     Active { expiration: _0 },
@@ -486,21 +586,27 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     ProgramSet { expiration: _0 },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Reason<_0, _1> {
                     #[codec(index = 0)]
                     Runtime(_0),
                     #[codec(index = 1)]
                     System(_1),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum UserMessageReadRuntimeReason {
                     #[codec(index = 0)]
                     MessageReplied,
                     #[codec(index = 1)]
                     MessageClaimed,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum UserMessageReadSystemReason {
                     #[codec(index = 0)]
                     OutOfRent,
@@ -511,14 +617,20 @@ pub mod runtime_types {
                 pub mod node {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct ChildrenRefs {
                         pub spec_refs: ::core::primitive::u32,
                         pub unspec_refs: ::core::primitive::u32,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum GasNode<_0, _1, _2> {
                         #[codec(index = 0)]
@@ -562,7 +674,10 @@ pub mod runtime_types {
                         },
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum GasNodeId<_0, _1> {
                         #[codec(index = 0)]
@@ -571,14 +686,19 @@ pub mod runtime_types {
                         Reservation(_1),
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct NodeLock<_0>(pub [_0; 4usize]);
                 }
             }
             pub mod paused_program_storage {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct ResumeSession<_0, _1> {
                     pub page_count: _1,
                     pub user: _0,
@@ -593,7 +713,10 @@ pub mod runtime_types {
                 pub mod task {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum ScheduledTask<_0> {
                         #[codec(index = 0)]
@@ -638,7 +761,10 @@ pub mod runtime_types {
                     pub mod dequeue {
                         use super::runtime_types;
                         #[derive(
-                            Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                            Debug,
+                            crate :: gp :: Decode,
+                            crate :: gp :: DecodeAsType,
+                            crate :: gp :: Encode,
                         )]
                         pub struct LinkedNode<_0, _1> {
                             pub next: ::core::option::Option<_0>,
@@ -649,7 +775,10 @@ pub mod runtime_types {
                 pub mod primitives {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct Interval<_0> {
                         pub start: _0,
@@ -657,7 +786,9 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ActiveProgram<_0> {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
@@ -671,13 +802,17 @@ pub mod runtime_types {
                 pub state: runtime_types::gear_common::ProgramState,
                 pub expiration_block: _0,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct CodeMetadata {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Program<_0> {
                 #[codec(index = 0)]
                 Active(runtime_types::gear_common::ActiveProgram<_0>),
@@ -686,7 +821,9 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Terminated(runtime_types::gear_core::ids::ProgramId),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum ProgramState {
                 #[codec(index = 0)]
                 Uninitialized {
@@ -700,7 +837,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod buffer {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct LimitedVec<_0, _1>(
                     pub ::std::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
@@ -708,7 +847,9 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct InstrumentedCode {
                     pub code: ::std::vec::Vec<::core::primitive::u8>,
                     pub original_code_len: ::core::primitive::u32,
@@ -720,25 +861,43 @@ pub mod runtime_types {
             pub mod ids {
                 use super::runtime_types;
                 #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    Copy,
+                    Debug,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    Copy,
+                    Debug,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    Copy,
+                    Debug,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    Copy,
+                    Debug,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PageBuf(
                     pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
                 );
@@ -748,7 +907,10 @@ pub mod runtime_types {
                 pub mod common {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum MessageDetails {
                         #[codec(index = 0)]
@@ -757,14 +919,20 @@ pub mod runtime_types {
                         Signal(runtime_types::gear_core::message::common::SignalDetails),
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct ReplyDetails {
                         pub to: runtime_types::gear_core::ids::MessageId,
                         pub code: runtime_types::gear_core_errors::simple::ReplyCode,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct SignalDetails {
                         pub to: runtime_types::gear_core::ids::MessageId,
@@ -774,7 +942,10 @@ pub mod runtime_types {
                 pub mod context {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct ContextStore {
                         pub outgoing: ::subxt::utils::KeyedVec<
@@ -803,7 +974,10 @@ pub mod runtime_types {
                 pub mod stored {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct StoredDispatch {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
@@ -813,7 +987,10 @@ pub mod runtime_types {
                         >,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct StoredMessage {
                         pub id: runtime_types::gear_core::ids::MessageId,
@@ -833,7 +1010,10 @@ pub mod runtime_types {
                 pub mod user {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct UserMessage {
                         pub id: runtime_types::gear_core::ids::MessageId,
@@ -850,7 +1030,10 @@ pub mod runtime_types {
                         >,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct UserStoredMessage {
                         pub id: runtime_types::gear_core::ids::MessageId,
@@ -864,7 +1047,9 @@ pub mod runtime_types {
                         pub value: ::core::primitive::u128,
                     }
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
                     Init,
@@ -875,42 +1060,46 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PayloadSizeError;
             }
             pub mod pages {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct GearPage(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct WasmPage(pub ::core::primitive::u32);
             }
             pub mod reservation {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct GasReservationSlot {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
                     pub finish: ::core::primitive::u32,
                 }
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct ReservationNonce(pub ::core::primitive::u64);
             }
@@ -919,7 +1108,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod simple {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ErrorReplyReason {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
@@ -934,7 +1125,9 @@ pub mod runtime_types {
                     #[codec(index = 255)]
                     Unsupported,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ReplyCode {
                     #[codec(index = 0)]
                     Success(runtime_types::gear_core_errors::simple::SuccessReplyReason),
@@ -943,14 +1136,18 @@ pub mod runtime_types {
                     #[codec(index = 255)]
                     Unsupported,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum SignalCode {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
                     #[codec(index = 1)]
                     RemovedFromWaitlist,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum SimpleExecutionError {
                     #[codec(index = 0)]
                     RanOutOfGas,
@@ -965,14 +1162,18 @@ pub mod runtime_types {
                     #[codec(index = 255)]
                     Unsupported,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum SimpleProgramCreationError {
                     #[codec(index = 0)]
                     CodeNotExists,
                     #[codec(index = 255)]
                     Unsupported,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum SuccessReplyReason {
                     #[codec(index = 0)]
                     Auto,
@@ -987,7 +1188,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1027,14 +1230,18 @@ pub mod runtime_types {
                         amount: ::core::option::Option<::core::primitive::u128>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the airdrop pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Amount to being transferred is bigger than vested."]
                     AmountBigger,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1054,7 +1261,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1104,7 +1313,9 @@ pub mod runtime_types {
                         config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1126,12 +1337,16 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod list {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Bag {
                     pub head: ::core::option::Option<::subxt::utils::AccountId32>,
                     pub tail: ::core::option::Option<::subxt::utils::AccountId32>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ListError {
                     #[codec(index = 0)]
                     Duplicate,
@@ -1142,7 +1357,9 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     NodeNotFound,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Node {
                     pub id: ::subxt::utils::AccountId32,
                     pub prev: ::core::option::Option<::subxt::utils::AccountId32>,
@@ -1153,7 +1370,9 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1183,14 +1402,18 @@ pub mod runtime_types {
                         lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "A error in the list interface implementation."]
                     List(runtime_types::pallet_bags_list::list::ListError),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1213,7 +1436,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1314,7 +1539,9 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1342,7 +1569,9 @@ pub mod runtime_types {
                     #[doc = "Number of named reserves exceed MaxReserves"]
                     TooManyReserves,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1414,20 +1643,26 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct AccountData<_0> {
                 pub free: _0,
                 pub reserved: _0,
                 pub misc_frozen: _0,
                 pub fee_frozen: _0,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct BalanceLock<_0> {
                 pub id: [::core::primitive::u8; 8usize],
                 pub amount: _0,
                 pub reasons: runtime_types::pallet_balances::Reasons,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Reasons {
                 #[codec(index = 0)]
                 Fee,
@@ -1436,17 +1671,561 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 All,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ReserveData<_0, _1> {
                 pub id: _0,
                 pub amount: _1,
+            }
+        }
+        pub mod pallet_bounties {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Propose a new bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be _Signed_."]
+                    #[doc = ""]
+                    #[doc = "Payment: `TipReportDepositBase` will be reserved from the origin account, as well as"]
+                    #[doc = "`DataDepositPerByte` for each byte in `reason`. It will be unreserved upon approval,"]
+                    #[doc = "or slashed when rejected."]
+                    #[doc = ""]
+                    #[doc = "- `curator`: The curator account whom will manage this bounty."]
+                    #[doc = "- `fee`: The curator fee."]
+                    #[doc = "- `value`: The total payment amount of this bounty, curator fee included."]
+                    #[doc = "- `description`: The description of this bounty."]
+                    propose_bounty {
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                        description: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Approve a bounty proposal. At a later time, the bounty will be funded and become active"]
+                    #[doc = "and the original deposit will be returned."]
+                    #[doc = ""]
+                    #[doc = "May only be called from `T::SpendOrigin`."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    approve_bounty {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "Assign a curator to a funded bounty."]
+                    #[doc = ""]
+                    #[doc = "May only be called from `T::SpendOrigin`."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    propose_curator {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                        curator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        #[codec(compact)]
+                        fee: ::core::primitive::u128,
+                    },
+                    #[codec(index = 3)]
+                    #[doc = "Unassign curator from a bounty."]
+                    #[doc = ""]
+                    #[doc = "This function can only be called by the `RejectOrigin` a signed origin."]
+                    #[doc = ""]
+                    #[doc = "If this function is called by the `RejectOrigin`, we assume that the curator is"]
+                    #[doc = "malicious or inactive. As a result, we will slash the curator when possible."]
+                    #[doc = ""]
+                    #[doc = "If the origin is the curator, we take this as a sign they are unable to do their job and"]
+                    #[doc = "they willingly give up. We could slash them, but for now we allow them to recover their"]
+                    #[doc = "deposit and exit without issue. (We may want to change this if it is abused.)"]
+                    #[doc = ""]
+                    #[doc = "Finally, the origin can be anyone if and only if the curator is \"inactive\". This allows"]
+                    #[doc = "anyone in the community to call out that a curator is not doing their due diligence, and"]
+                    #[doc = "we should pick a new curator. In this case the curator should also be slashed."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    unassign_curator {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "Accept the curator role for a bounty."]
+                    #[doc = "A deposit will be reserved from curator and refund upon successful payout."]
+                    #[doc = ""]
+                    #[doc = "May only be called from the curator."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    accept_curator {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "Award bounty to a beneficiary account. The beneficiary will be able to claim the funds"]
+                    #[doc = "after a delay."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the curator of this bounty."]
+                    #[doc = ""]
+                    #[doc = "- `bounty_id`: Bounty ID to award."]
+                    #[doc = "- `beneficiary`: The beneficiary account whom will receive the payout."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    award_bounty {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
+                    #[codec(index = 6)]
+                    #[doc = "Claim the payout from an awarded bounty after payout delay."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the beneficiary of this bounty."]
+                    #[doc = ""]
+                    #[doc = "- `bounty_id`: Bounty ID to claim."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    claim_bounty {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "Cancel a proposed or active bounty. All the funds will be sent to treasury and"]
+                    #[doc = "the curator deposit will be unreserved if possible."]
+                    #[doc = ""]
+                    #[doc = "Only `T::RejectOrigin` is able to cancel a bounty."]
+                    #[doc = ""]
+                    #[doc = "- `bounty_id`: Bounty ID to cancel."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    close_bounty {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 8)]
+                    #[doc = "Extend the expiry time of an active bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the curator of this bounty."]
+                    #[doc = ""]
+                    #[doc = "- `bounty_id`: Bounty ID to extend."]
+                    #[doc = "- `remark`: additional information."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    extend_bounty_expiry {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                        remark: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Proposer's balance is too low."]
+                    InsufficientProposersBalance,
+                    #[codec(index = 1)]
+                    #[doc = "No proposal or bounty at that index."]
+                    InvalidIndex,
+                    #[codec(index = 2)]
+                    #[doc = "The reason given is just too big."]
+                    ReasonTooBig,
+                    #[codec(index = 3)]
+                    #[doc = "The bounty status is unexpected."]
+                    UnexpectedStatus,
+                    #[codec(index = 4)]
+                    #[doc = "Require bounty curator."]
+                    RequireCurator,
+                    #[codec(index = 5)]
+                    #[doc = "Invalid bounty value."]
+                    InvalidValue,
+                    #[codec(index = 6)]
+                    #[doc = "Invalid bounty fee."]
+                    InvalidFee,
+                    #[codec(index = 7)]
+                    #[doc = "A bounty payout is pending."]
+                    #[doc = "To cancel the bounty, you must unassign and slash the curator."]
+                    PendingPayout,
+                    #[codec(index = 8)]
+                    #[doc = "The bounties cannot be claimed/closed because it's still in the countdown period."]
+                    Premature,
+                    #[codec(index = 9)]
+                    #[doc = "The bounty cannot be closed because it has active child bounties."]
+                    HasActiveChildBounty,
+                    #[codec(index = 10)]
+                    #[doc = "Too many approvals are already queued."]
+                    TooManyQueued,
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "New bounty proposal."]
+                    BountyProposed { index: ::core::primitive::u32 },
+                    #[codec(index = 1)]
+                    #[doc = "A bounty proposal was rejected; funds were slashed."]
+                    BountyRejected {
+                        index: ::core::primitive::u32,
+                        bond: ::core::primitive::u128,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "A bounty proposal is funded and became active."]
+                    BountyBecameActive { index: ::core::primitive::u32 },
+                    #[codec(index = 3)]
+                    #[doc = "A bounty is awarded to a beneficiary."]
+                    BountyAwarded {
+                        index: ::core::primitive::u32,
+                        beneficiary: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "A bounty is claimed by beneficiary."]
+                    BountyClaimed {
+                        index: ::core::primitive::u32,
+                        payout: ::core::primitive::u128,
+                        beneficiary: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "A bounty is cancelled."]
+                    BountyCanceled { index: ::core::primitive::u32 },
+                    #[codec(index = 6)]
+                    #[doc = "A bounty expiry is extended."]
+                    BountyExtended { index: ::core::primitive::u32 },
+                }
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct Bounty<_0, _1, _2> {
+                pub proposer: _0,
+                pub value: _1,
+                pub fee: _1,
+                pub curator_deposit: _1,
+                pub bond: _1,
+                pub status: runtime_types::pallet_bounties::BountyStatus<_0, _2>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum BountyStatus<_0, _1> {
+                #[codec(index = 0)]
+                Proposed,
+                #[codec(index = 1)]
+                Approved,
+                #[codec(index = 2)]
+                Funded,
+                #[codec(index = 3)]
+                CuratorProposed { curator: _0 },
+                #[codec(index = 4)]
+                Active { curator: _0, update_due: _1 },
+                #[codec(index = 5)]
+                PendingPayout {
+                    curator: _0,
+                    beneficiary: _0,
+                    unlock_at: _1,
+                },
+            }
+        }
+        pub mod pallet_child_bounties {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Add a new child-bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the curator of parent"]
+                    #[doc = "bounty and the parent bounty must be in \"active\" state."]
+                    #[doc = ""]
+                    #[doc = "Child-bounty gets added successfully & fund gets transferred from"]
+                    #[doc = "parent bounty to child-bounty account, if parent bounty has enough"]
+                    #[doc = "funds, else the call fails."]
+                    #[doc = ""]
+                    #[doc = "Upper bound to maximum number of active  child bounties that can be"]
+                    #[doc = "added are managed via runtime trait config"]
+                    #[doc = "[`Config::MaxActiveChildBountyCount`]."]
+                    #[doc = ""]
+                    #[doc = "If the call is success, the status of child-bounty is updated to"]
+                    #[doc = "\"Added\"."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty for which child-bounty is being added."]
+                    #[doc = "- `value`: Value for executing the proposal."]
+                    #[doc = "- `description`: Text description for the child-bounty."]
+                    add_child_bounty {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                        description: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Propose curator for funded child-bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be curator of parent bounty."]
+                    #[doc = ""]
+                    #[doc = "Parent bounty must be in active state, for this child-bounty call to"]
+                    #[doc = "work."]
+                    #[doc = ""]
+                    #[doc = "Child-bounty must be in \"Added\" state, for processing the call. And"]
+                    #[doc = "state of child-bounty is moved to \"CuratorProposed\" on successful"]
+                    #[doc = "call completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    #[doc = "- `curator`: Address of child-bounty curator."]
+                    #[doc = "- `fee`: payment fee to child-bounty curator for execution."]
+                    propose_curator {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                        curator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        #[codec(compact)]
+                        fee: ::core::primitive::u128,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "Accept the curator role for the child-bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the curator of this"]
+                    #[doc = "child-bounty."]
+                    #[doc = ""]
+                    #[doc = "A deposit will be reserved from the curator and refund upon"]
+                    #[doc = "successful payout or cancellation."]
+                    #[doc = ""]
+                    #[doc = "Fee for curator is deducted from curator fee of parent bounty."]
+                    #[doc = ""]
+                    #[doc = "Parent bounty must be in active state, for this child-bounty call to"]
+                    #[doc = "work."]
+                    #[doc = ""]
+                    #[doc = "Child-bounty must be in \"CuratorProposed\" state, for processing the"]
+                    #[doc = "call. And state of child-bounty is moved to \"Active\" on successful"]
+                    #[doc = "call completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    accept_curator {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 3)]
+                    #[doc = "Unassign curator from a child-bounty."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call can be either `RejectOrigin`, or"]
+                    #[doc = "the curator of the parent bounty, or any signed origin."]
+                    #[doc = ""]
+                    #[doc = "For the origin other than T::RejectOrigin and the child-bounty"]
+                    #[doc = "curator, parent bounty must be in active state, for this call to"]
+                    #[doc = "work. We allow child-bounty curator and T::RejectOrigin to execute"]
+                    #[doc = "this call irrespective of the parent bounty state."]
+                    #[doc = ""]
+                    #[doc = "If this function is called by the `RejectOrigin` or the"]
+                    #[doc = "parent bounty curator, we assume that the child-bounty curator is"]
+                    #[doc = "malicious or inactive. As a result, child-bounty curator deposit is"]
+                    #[doc = "slashed."]
+                    #[doc = ""]
+                    #[doc = "If the origin is the child-bounty curator, we take this as a sign"]
+                    #[doc = "that they are unable to do their job, and are willingly giving up."]
+                    #[doc = "We could slash the deposit, but for now we allow them to unreserve"]
+                    #[doc = "their deposit and exit without issue. (We may want to change this if"]
+                    #[doc = "it is abused.)"]
+                    #[doc = ""]
+                    #[doc = "Finally, the origin can be anyone iff the child-bounty curator is"]
+                    #[doc = "\"inactive\". Expiry update due of parent bounty is used to estimate"]
+                    #[doc = "inactive state of child-bounty curator."]
+                    #[doc = ""]
+                    #[doc = "This allows anyone in the community to call out that a child-bounty"]
+                    #[doc = "curator is not doing their due diligence, and we should pick a new"]
+                    #[doc = "one. In this case the child-bounty curator deposit is slashed."]
+                    #[doc = ""]
+                    #[doc = "State of child-bounty is moved to Added state on successful call"]
+                    #[doc = "completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    unassign_curator {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "Award child-bounty to a beneficiary."]
+                    #[doc = ""]
+                    #[doc = "The beneficiary will be able to claim the funds after a delay."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be the parent curator or"]
+                    #[doc = "curator of this child-bounty."]
+                    #[doc = ""]
+                    #[doc = "Parent bounty must be in active state, for this child-bounty call to"]
+                    #[doc = "work."]
+                    #[doc = ""]
+                    #[doc = "Child-bounty must be in active state, for processing the call. And"]
+                    #[doc = "state of child-bounty is moved to \"PendingPayout\" on successful call"]
+                    #[doc = "completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    #[doc = "- `beneficiary`: Beneficiary account."]
+                    award_child_bounty {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                        beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "Claim the payout from an awarded child-bounty after payout delay."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call may be any signed origin."]
+                    #[doc = ""]
+                    #[doc = "Call works independent of parent bounty state, No need for parent"]
+                    #[doc = "bounty to be in active state."]
+                    #[doc = ""]
+                    #[doc = "The Beneficiary is paid out with agreed bounty value. Curator fee is"]
+                    #[doc = "paid & curator deposit is unreserved."]
+                    #[doc = ""]
+                    #[doc = "Child-bounty must be in \"PendingPayout\" state, for processing the"]
+                    #[doc = "call. And instance of child-bounty is removed from the state on"]
+                    #[doc = "successful call completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    claim_child_bounty {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 6)]
+                    #[doc = "Cancel a proposed or active child-bounty. Child-bounty account funds"]
+                    #[doc = "are transferred to parent bounty account. The child-bounty curator"]
+                    #[doc = "deposit may be unreserved if possible."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be either parent curator or"]
+                    #[doc = "`T::RejectOrigin`."]
+                    #[doc = ""]
+                    #[doc = "If the state of child-bounty is `Active`, curator deposit is"]
+                    #[doc = "unreserved."]
+                    #[doc = ""]
+                    #[doc = "If the state of child-bounty is `PendingPayout`, call fails &"]
+                    #[doc = "returns `PendingPayout` error."]
+                    #[doc = ""]
+                    #[doc = "For the origin other than T::RejectOrigin, parent bounty must be in"]
+                    #[doc = "active state, for this child-bounty call to work. For origin"]
+                    #[doc = "T::RejectOrigin execution is forced."]
+                    #[doc = ""]
+                    #[doc = "Instance of child-bounty is removed from the state on successful"]
+                    #[doc = "call completion."]
+                    #[doc = ""]
+                    #[doc = "- `parent_bounty_id`: Index of parent bounty."]
+                    #[doc = "- `child_bounty_id`: Index of child bounty."]
+                    close_child_bounty {
+                        #[codec(compact)]
+                        parent_bounty_id: ::core::primitive::u32,
+                        #[codec(compact)]
+                        child_bounty_id: ::core::primitive::u32,
+                    },
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "The parent bounty is not in active state."]
+                    ParentBountyNotActive,
+                    #[codec(index = 1)]
+                    #[doc = "The bounty balance is not enough to add new child-bounty."]
+                    InsufficientBountyBalance,
+                    #[codec(index = 2)]
+                    #[doc = "Number of child bounties exceeds limit `MaxActiveChildBountyCount`."]
+                    TooManyChildBounties,
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "A child-bounty is added."]
+                    Added {
+                        index: ::core::primitive::u32,
+                        child_index: ::core::primitive::u32,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "A child-bounty is awarded to a beneficiary."]
+                    Awarded {
+                        index: ::core::primitive::u32,
+                        child_index: ::core::primitive::u32,
+                        beneficiary: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "A child-bounty is claimed by beneficiary."]
+                    Claimed {
+                        index: ::core::primitive::u32,
+                        child_index: ::core::primitive::u32,
+                        payout: ::core::primitive::u128,
+                        beneficiary: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 3)]
+                    #[doc = "A child-bounty is cancelled."]
+                    Canceled {
+                        index: ::core::primitive::u32,
+                        child_index: ::core::primitive::u32,
+                    },
+                }
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct ChildBounty<_0, _1, _2> {
+                pub parent_bounty: _2,
+                pub value: _1,
+                pub fee: _1,
+                pub curator_deposit: _1,
+                pub status: runtime_types::pallet_child_bounties::ChildBountyStatus<_0, _2>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum ChildBountyStatus<_0, _1> {
+                #[codec(index = 0)]
+                Added,
+                #[codec(index = 1)]
+                CuratorProposed { curator: _0 },
+                #[codec(index = 2)]
+                Active { curator: _0 },
+                #[codec(index = 3)]
+                PendingPayout {
+                    curator: _0,
+                    beneficiary: _0,
+                    unlock_at: _1,
+                },
             }
         }
         pub mod pallet_conviction_voting {
             use super::runtime_types;
             pub mod conviction {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Conviction {
                     #[codec(index = 0)]
                     None,
@@ -1466,7 +2245,9 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1603,7 +2384,9 @@ pub mod runtime_types {
                         index: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1644,7 +2427,9 @@ pub mod runtime_types {
                     #[doc = "The class ID supplied is invalid."]
                     BadClass,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1657,12 +2442,16 @@ pub mod runtime_types {
             }
             pub mod types {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Delegations<_0> {
                     pub votes: _0,
                     pub capital: _0,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Tally<_0> {
                     pub ayes: _0,
                     pub nays: _0,
@@ -1671,7 +2460,9 @@ pub mod runtime_types {
             }
             pub mod vote {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum AccountVote<_0> {
                     #[codec(index = 0)]
                     Standard {
@@ -1683,7 +2474,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     SplitAbstain { aye: _0, nay: _0, abstain: _0 },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Casting<_0, _1, _2> {
                     pub votes: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         _1,
@@ -1695,7 +2488,9 @@ pub mod runtime_types {
                     #[codec(skip)]
                     pub __subxt_unused_type_params: ::core::marker::PhantomData<_2>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Delegating<_0, _1, _2> {
                     pub balance: _0,
                     pub target: _1,
@@ -1704,17 +2499,21 @@ pub mod runtime_types {
                         runtime_types::pallet_conviction_voting::types::Delegations<_0>,
                     pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_2, _0>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PriorLock<_0, _1>(pub _0, pub _1);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct Vote(pub ::core::primitive::u8);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Voting<_0, _1, _2, _3> {
                     #[codec(index = 0)]
                     Casting(runtime_types::pallet_conviction_voting::vote::Casting<_0, _2, _2>),
@@ -1726,11 +2525,204 @@ pub mod runtime_types {
                 }
             }
         }
+        pub mod pallet_election_provider_multi_phase {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    # [codec (index = 0)] # [doc = "Submit a solution for the unsigned phase."] # [doc = ""] # [doc = "The dispatch origin fo this call must be __none__."] # [doc = ""] # [doc = "This submission is checked on the fly. Moreover, this unsigned solution is only"] # [doc = "validated when submitted to the pool from the **local** node. Effectively, this means"] # [doc = "that only active validators can submit this transaction when authoring a block (similar"] # [doc = "to an inherent)."] # [doc = ""] # [doc = "To prevent any incorrect solution (and thus wasted time/weight), this transaction will"] # [doc = "panic if the solution submitted by the validator is invalid in any way, effectively"] # [doc = "putting their authoring reward at risk."] # [doc = ""] # [doc = "No deposit or reward is associated with this submission."] submit_unsigned { raw_solution : :: std :: boxed :: Box < runtime_types :: pallet_election_provider_multi_phase :: RawSolution < runtime_types :: vara_runtime :: NposSolution16 > > , witness : runtime_types :: pallet_election_provider_multi_phase :: SolutionOrSnapshotSize , } , # [codec (index = 1)] # [doc = "Set a new value for `MinimumUntrustedScore`."] # [doc = ""] # [doc = "Dispatch origin must be aligned with `T::ForceOrigin`."] # [doc = ""] # [doc = "This check can be turned off by setting the value to `None`."] set_minimum_untrusted_score { maybe_next_score : :: core :: option :: Option < runtime_types :: sp_npos_elections :: ElectionScore > , } , # [codec (index = 2)] # [doc = "Set a solution in the queue, to be handed out to the client of this pallet in the next"] # [doc = "call to `ElectionProvider::elect`."] # [doc = ""] # [doc = "This can only be set by `T::ForceOrigin`, and only when the phase is `Emergency`."] # [doc = ""] # [doc = "The solution is not checked for any feasibility and is assumed to be trustworthy, as any"] # [doc = "feasibility check itself can in principle cause the election process to fail (due to"] # [doc = "memory/weight constrains)."] set_emergency_election_result { supports : :: std :: vec :: Vec < (::subxt :: utils :: AccountId32 , runtime_types :: sp_npos_elections :: Support < ::subxt :: utils :: AccountId32 > ,) > , } , # [codec (index = 3)] # [doc = "Submit a solution for the signed phase."] # [doc = ""] # [doc = "The dispatch origin fo this call must be __signed__."] # [doc = ""] # [doc = "The solution is potentially queued, based on the claimed score and processed at the end"] # [doc = "of the signed phase."] # [doc = ""] # [doc = "A deposit is reserved and recorded for the solution. Based on the outcome, the solution"] # [doc = "might be rewarded, slashed, or get all or a part of the deposit back."] submit { raw_solution : :: std :: boxed :: Box < runtime_types :: pallet_election_provider_multi_phase :: RawSolution < runtime_types :: vara_runtime :: NposSolution16 > > , } , # [codec (index = 4)] # [doc = "Trigger the governance fallback."] # [doc = ""] # [doc = "This can only be called when [`Phase::Emergency`] is enabled, as an alternative to"] # [doc = "calling [`Call::set_emergency_election_result`]."] governance_fallback { maybe_max_voters : :: core :: option :: Option < :: core :: primitive :: u32 > , maybe_max_targets : :: core :: option :: Option < :: core :: primitive :: u32 > , } , }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Error of the pallet that can be returned in response to dispatches."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Submission was too early."]
+                    PreDispatchEarlySubmission,
+                    #[codec(index = 1)]
+                    #[doc = "Wrong number of winners presented."]
+                    PreDispatchWrongWinnerCount,
+                    #[codec(index = 2)]
+                    #[doc = "Submission was too weak, score-wise."]
+                    PreDispatchWeakSubmission,
+                    #[codec(index = 3)]
+                    #[doc = "The queue was full, and the solution was not better than any of the existing ones."]
+                    SignedQueueFull,
+                    #[codec(index = 4)]
+                    #[doc = "The origin failed to pay the deposit."]
+                    SignedCannotPayDeposit,
+                    #[codec(index = 5)]
+                    #[doc = "Witness data to dispatchable is invalid."]
+                    SignedInvalidWitness,
+                    #[codec(index = 6)]
+                    #[doc = "The signed submission consumes too much weight"]
+                    SignedTooMuchWeight,
+                    #[codec(index = 7)]
+                    #[doc = "OCW submitted solution for wrong round"]
+                    OcwCallWrongEra,
+                    #[codec(index = 8)]
+                    #[doc = "Snapshot metadata should exist but didn't."]
+                    MissingSnapshotMetadata,
+                    #[codec(index = 9)]
+                    #[doc = "`Self::insert_submission` returned an invalid index."]
+                    InvalidSubmissionIndex,
+                    #[codec(index = 10)]
+                    #[doc = "The call is not allowed at this point."]
+                    CallNotAllowed,
+                    #[codec(index = 11)]
+                    #[doc = "The fallback failed"]
+                    FallbackFailed,
+                    #[codec(index = 12)]
+                    #[doc = "Some bound not met"]
+                    BoundNotMet,
+                    #[codec(index = 13)]
+                    #[doc = "Submitted solution has too many winners"]
+                    TooManyWinners,
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "A solution was stored with the given compute."]
+                    #[doc = ""]
+                    #[doc = "The `origin` indicates the origin of the solution. If `origin` is `Some(AccountId)`,"]
+                    #[doc = "the stored solution was submited in the signed phase by a miner with the `AccountId`."]
+                    #[doc = "Otherwise, the solution was stored either during the unsigned phase or by"]
+                    #[doc = "`T::ForceOrigin`. The `bool` is `true` when a previous solution was ejected to make"]
+                    #[doc = "room for this one."]
+                    SolutionStored {
+                        compute:
+                            runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
+                        origin: ::core::option::Option<::subxt::utils::AccountId32>,
+                        prev_ejected: ::core::primitive::bool,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "The election has been finalized, with the given computation and score."]
+                    ElectionFinalized {
+                        compute:
+                            runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
+                        score: runtime_types::sp_npos_elections::ElectionScore,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "An election failed."]
+                    #[doc = ""]
+                    #[doc = "Not much can be said about which computes failed in the process."]
+                    ElectionFailed,
+                    #[codec(index = 3)]
+                    #[doc = "An account has been rewarded for their signed submission being finalized."]
+                    Rewarded {
+                        account: ::subxt::utils::AccountId32,
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "An account has been slashed for submitting an invalid signed submission."]
+                    Slashed {
+                        account: ::subxt::utils::AccountId32,
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "There was a phase transition in a given round."]
+                    PhaseTransitioned {
+                        from: runtime_types::pallet_election_provider_multi_phase::Phase<
+                            ::core::primitive::u32,
+                        >,
+                        to: runtime_types::pallet_election_provider_multi_phase::Phase<
+                            ::core::primitive::u32,
+                        >,
+                        round: ::core::primitive::u32,
+                    },
+                }
+            }
+            pub mod signed {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                pub struct SignedSubmission<_0, _1, _2> {
+                    pub who: _0,
+                    pub deposit: _1,
+                    pub raw_solution:
+                        runtime_types::pallet_election_provider_multi_phase::RawSolution<_2>,
+                    pub call_fee: _1,
+                }
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum ElectionCompute {
+                #[codec(index = 0)]
+                OnChain,
+                #[codec(index = 1)]
+                Signed,
+                #[codec(index = 2)]
+                Unsigned,
+                #[codec(index = 3)]
+                Fallback,
+                #[codec(index = 4)]
+                Emergency,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum Phase<_0> {
+                #[codec(index = 0)]
+                Off,
+                #[codec(index = 1)]
+                Signed,
+                #[codec(index = 2)]
+                Unsigned((::core::primitive::bool, _0)),
+                #[codec(index = 3)]
+                Emergency,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct RawSolution<_0> {
+                pub solution: _0,
+                pub score: runtime_types::sp_npos_elections::ElectionScore,
+                pub round: ::core::primitive::u32,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct ReadySolution {
+                pub supports: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
+                    ::subxt::utils::AccountId32,
+                    runtime_types::sp_npos_elections::Support<::subxt::utils::AccountId32>,
+                )>,
+                pub score: runtime_types::sp_npos_elections::ElectionScore,
+                pub compute: runtime_types::pallet_election_provider_multi_phase::ElectionCompute,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct RoundSnapshot<_0, _1> {
+                pub voters: ::std::vec::Vec<_1>,
+                pub targets: ::std::vec::Vec<_0>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct SolutionOrSnapshotSize {
+                #[codec(compact)]
+                pub voters: ::core::primitive::u32,
+                #[codec(compact)]
+                pub targets: ::core::primitive::u32,
+            }
+        }
         pub mod pallet_gear {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1952,7 +2944,9 @@ pub mod runtime_types {
                         block_count: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2019,7 +3013,9 @@ pub mod runtime_types {
                     #[doc = "Voucher can't be redemmed"]
                     FailureRedeemingVoucher,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2116,7 +3112,9 @@ pub mod runtime_types {
             }
             pub mod schedule {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct HostFnWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
@@ -2191,7 +3189,9 @@ pub mod runtime_types {
                     pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2282,7 +3282,9 @@ pub mod runtime_types {
                     pub i64rotr: ::core::primitive::u32,
                     pub i32rotr: ::core::primitive::u32,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Limits {
                     pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
@@ -2296,7 +3298,9 @@ pub mod runtime_types {
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct MemoryWeights {
                     pub lazy_pages_signal_read: runtime_types::sp_weights::weight_v2::Weight,
                     pub lazy_pages_signal_write: runtime_types::sp_weights::weight_v2::Weight,
@@ -2312,7 +3316,9 @@ pub mod runtime_types {
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Schedule {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
@@ -2332,7 +3338,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2349,17 +3357,23 @@ pub mod runtime_types {
                         debug_mode_on: ::core::primitive::bool,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct DebugData {
                     pub dispatch_queue:
                         ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
                     pub programs:
                         ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {}
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2368,12 +3382,16 @@ pub mod runtime_types {
                     #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
                     DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct ProgramDetails {
                     pub id: runtime_types::gear_core::ids::ProgramId,
                     pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct ProgramInfo {
                     pub static_pages: runtime_types::gear_core::pages::WasmPage,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
@@ -2382,7 +3400,9 @@ pub mod runtime_types {
                     >,
                     pub code_hash: ::subxt::utils::H256,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ProgramState {
                     #[codec(index = 0)]
                     Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
@@ -2395,7 +3415,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2453,7 +3475,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2503,7 +3527,9 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_payment {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct CustomChargeTransactionPayment<_0>(
                 pub runtime_types::pallet_transaction_payment::ChargeTransactionPayment,
                 #[codec(skip)] pub ::core::marker::PhantomData<_0>,
@@ -2513,7 +3539,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2541,7 +3569,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2557,12 +3587,16 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod extension {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct StakingBlackList;
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2578,7 +3612,9 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the staking rewards pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2588,7 +3624,9 @@ pub mod runtime_types {
                     #[doc = "Failure to withdraw funds from the rewards pool."]
                     FailureToWithdrawFromPool,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2607,7 +3645,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2630,7 +3670,9 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2638,7 +3680,9 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     FailureToRedeemVoucher,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2655,7 +3699,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2709,7 +3755,9 @@ pub mod runtime_types {
                         best_finalized_block_number: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2736,7 +3784,9 @@ pub mod runtime_types {
                     #[doc = "A given equivocation report is valid but already previously reported."]
                     DuplicateOffenceReport,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2755,7 +3805,9 @@ pub mod runtime_types {
                     Resumed,
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct StoredPendingChange<_0> {
                 pub scheduled_at: _0,
                 pub delay: _0,
@@ -2766,7 +3818,9 @@ pub mod runtime_types {
                     )>,
                 pub forced: ::core::option::Option<_0>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum StoredState<_0> {
                 #[codec(index = 0)]
                 Live,
@@ -2782,7 +3836,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Identity pallet declaration."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3049,7 +4105,9 @@ pub mod runtime_types {
                     #[doc = "controller of an account is maliciously registered as a sub-account."]
                     quit_sub,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3107,7 +4165,9 @@ pub mod runtime_types {
                     #[doc = "Error that occurs when there is an issue paying for judgement."]
                     JudgementPaymentFailed,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3175,17 +4235,19 @@ pub mod runtime_types {
             pub mod types {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct BitFlags<_0>(
                     pub ::core::primitive::u64,
                     #[codec(skip)] pub ::core::marker::PhantomData<_0>,
                 );
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Data {
                     #[codec(index = 0)]
                     None,
@@ -3264,7 +4326,9 @@ pub mod runtime_types {
                     #[codec(index = 37)]
                     ShaThree256([::core::primitive::u8; 32usize]),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum IdentityField {
                     #[codec(index = 1)]
                     Display,
@@ -3283,7 +4347,9 @@ pub mod runtime_types {
                     #[codec(index = 128)]
                     Twitter,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct IdentityInfo {
                     pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         runtime_types::pallet_identity::types::Data,
@@ -3298,7 +4364,9 @@ pub mod runtime_types {
                     pub image: runtime_types::pallet_identity::types::Data,
                     pub twitter: runtime_types::pallet_identity::types::Data,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Judgement<_0> {
                     #[codec(index = 0)]
                     Unknown,
@@ -3315,7 +4383,9 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     Erroneous,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct RegistrarInfo<_0, _1> {
                     pub account: _1,
                     pub fee: _0,
@@ -3323,7 +4393,9 @@ pub mod runtime_types {
                         runtime_types::pallet_identity::types::IdentityField,
                     >,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Registration<_0> {
                     pub judgements: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         ::core::primitive::u32,
@@ -3338,7 +4410,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3353,7 +4427,9 @@ pub mod runtime_types {
                         signature: runtime_types::pallet_im_online::sr25519::app_sr25519::Signature,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3363,7 +4439,9 @@ pub mod runtime_types {
                     #[doc = "Duplicated heartbeat."]
                     DuplicatedHeartbeat,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3392,16 +4470,24 @@ pub mod runtime_types {
                 pub mod app_sr25519 {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct Public(pub runtime_types::sp_core::sr25519::Public);
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct Signature(pub runtime_types::sp_core::sr25519::Signature);
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct BoundedOpaqueNetworkState {
                 pub peer_id: runtime_types::bounded_collections::weak_bounded_vec::WeakBoundedVec<
                     ::core::primitive::u8,
@@ -3413,7 +4499,9 @@ pub mod runtime_types {
                         >,
                     >,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Heartbeat<_0> {
                 pub block_number: _0,
                 pub network_state: runtime_types::sp_core::offchain::OpaqueNetworkState,
@@ -3426,7 +4514,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3565,7 +4655,9 @@ pub mod runtime_types {
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3611,7 +4703,9 @@ pub mod runtime_types {
                     #[doc = "The data to be stored is already stored."]
                     AlreadyStored,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3652,24 +4746,766 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Multisig<_0, _1, _2> {
                 pub when: runtime_types::pallet_multisig::Timepoint<_0>,
                 pub deposit: _1,
                 pub depositor: _2,
                 pub approvals: runtime_types::bounded_collections::bounded_vec::BoundedVec<_2>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Timepoint<_0> {
                 pub height: _0,
                 pub index: _0,
+            }
+        }
+        pub mod pallet_nomination_pools {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Stake funds with a pool. The amount to bond is transferred from the member to the"]
+                    #[doc = "pools account and immediately increases the pools bond."]
+                    #[doc = ""]
+                    #[doc = "# Note"]
+                    #[doc = ""]
+                    #[doc = "* An account can only be a member of a single pool."]
+                    #[doc = "* An account cannot join the same pool multiple times."]
+                    #[doc = "* This call will *not* dust the member account, so the member must have at least"]
+                    #[doc = "  `existential deposit + amount` in their account."]
+                    #[doc = "* Only a pool with [`PoolState::Open`] can be joined"]
+                    join {
+                        #[codec(compact)]
+                        amount: ::core::primitive::u128,
+                        pool_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Bond `extra` more funds from `origin` into the pool to which they already belong."]
+                    #[doc = ""]
+                    #[doc = "Additional funds can come from either the free balance of the account, of from the"]
+                    #[doc = "accumulated rewards, see [`BondExtra`]."]
+                    #[doc = ""]
+                    #[doc = "Bonding extra funds implies an automatic payout of all pending rewards as well."]
+                    #[doc = "See `bond_extra_other` to bond pending rewards of `other` members."]
+                    bond_extra {
+                        extra: runtime_types::pallet_nomination_pools::BondExtra<
+                            ::core::primitive::u128,
+                        >,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "A bonded member can use this to claim their payout based on the rewards that the pool"]
+                    #[doc = "has accumulated since their last claimed payout (OR since joining if this is their first"]
+                    #[doc = "time claiming rewards). The payout will be transferred to the member's account."]
+                    #[doc = ""]
+                    #[doc = "The member will earn rewards pro rata based on the members stake vs the sum of the"]
+                    #[doc = "members in the pools stake. Rewards do not \"expire\"."]
+                    #[doc = ""]
+                    #[doc = "See `claim_payout_other` to caim rewards on bahalf of some `other` pool member."]
+                    claim_payout,
+                    #[codec(index = 3)]
+                    #[doc = "Unbond up to `unbonding_points` of the `member_account`'s funds from the pool. It"]
+                    #[doc = "implicitly collects the rewards one last time, since not doing so would mean some"]
+                    #[doc = "rewards would be forfeited."]
+                    #[doc = ""]
+                    #[doc = "Under certain conditions, this call can be dispatched permissionlessly (i.e. by any"]
+                    #[doc = "account)."]
+                    #[doc = ""]
+                    #[doc = "# Conditions for a permissionless dispatch."]
+                    #[doc = ""]
+                    #[doc = "* The pool is blocked and the caller is either the root or bouncer. This is refereed to"]
+                    #[doc = "  as a kick."]
+                    #[doc = "* The pool is destroying and the member is not the depositor."]
+                    #[doc = "* The pool is destroying, the member is the depositor and no other members are in the"]
+                    #[doc = "  pool."]
+                    #[doc = ""]
+                    #[doc = "## Conditions for permissioned dispatch (i.e. the caller is also the"]
+                    #[doc = "`member_account`):"]
+                    #[doc = ""]
+                    #[doc = "* The caller is not the depositor."]
+                    #[doc = "* The caller is the depositor, the pool is destroying and no other members are in the"]
+                    #[doc = "  pool."]
+                    #[doc = ""]
+                    #[doc = "# Note"]
+                    #[doc = ""]
+                    #[doc = "If there are too many unlocking chunks to unbond with the pool account,"]
+                    #[doc = "[`Call::pool_withdraw_unbonded`] can be called to try and minimize unlocking chunks."]
+                    #[doc = "The [`StakingInterface::unbond`] will implicitly call [`Call::pool_withdraw_unbonded`]"]
+                    #[doc = "to try to free chunks if necessary (ie. if unbound was called and no unlocking chunks"]
+                    #[doc = "are available). However, it may not be possible to release the current unlocking chunks,"]
+                    #[doc = "in which case, the result of this call will likely be the `NoMoreChunks` error from the"]
+                    #[doc = "staking system."]
+                    unbond {
+                        member_account:
+                            ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        #[codec(compact)]
+                        unbonding_points: ::core::primitive::u128,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "Call `withdraw_unbonded` for the pools account. This call can be made by any account."]
+                    #[doc = ""]
+                    #[doc = "This is useful if their are too many unlocking chunks to call `unbond`, and some"]
+                    #[doc = "can be cleared by withdrawing. In the case there are too many unlocking chunks, the user"]
+                    #[doc = "would probably see an error like `NoMoreChunks` emitted from the staking system when"]
+                    #[doc = "they attempt to unbond."]
+                    pool_withdraw_unbonded {
+                        pool_id: ::core::primitive::u32,
+                        num_slashing_spans: ::core::primitive::u32,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "Withdraw unbonded funds from `member_account`. If no bonded funds can be unbonded, an"]
+                    #[doc = "error is returned."]
+                    #[doc = ""]
+                    #[doc = "Under certain conditions, this call can be dispatched permissionlessly (i.e. by any"]
+                    #[doc = "account)."]
+                    #[doc = ""]
+                    #[doc = "# Conditions for a permissionless dispatch"]
+                    #[doc = ""]
+                    #[doc = "* The pool is in destroy mode and the target is not the depositor."]
+                    #[doc = "* The target is the depositor and they are the only member in the sub pools."]
+                    #[doc = "* The pool is blocked and the caller is either the root or bouncer."]
+                    #[doc = ""]
+                    #[doc = "# Conditions for permissioned dispatch"]
+                    #[doc = ""]
+                    #[doc = "* The caller is the target and they are not the depositor."]
+                    #[doc = ""]
+                    #[doc = "# Note"]
+                    #[doc = ""]
+                    #[doc = "If the target is the depositor, the pool will be destroyed."]
+                    withdraw_unbonded {
+                        member_account:
+                            ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        num_slashing_spans: ::core::primitive::u32,
+                    },
+                    #[codec(index = 6)]
+                    #[doc = "Create a new delegation pool."]
+                    #[doc = ""]
+                    #[doc = "# Arguments"]
+                    #[doc = ""]
+                    #[doc = "* `amount` - The amount of funds to delegate to the pool. This also acts of a sort of"]
+                    #[doc = "  deposit since the pools creator cannot fully unbond funds until the pool is being"]
+                    #[doc = "  destroyed."]
+                    #[doc = "* `index` - A disambiguation index for creating the account. Likely only useful when"]
+                    #[doc = "  creating multiple pools in the same extrinsic."]
+                    #[doc = "* `root` - The account to set as [`PoolRoles::root`]."]
+                    #[doc = "* `nominator` - The account to set as the [`PoolRoles::nominator`]."]
+                    #[doc = "* `bouncer` - The account to set as the [`PoolRoles::bouncer`]."]
+                    #[doc = ""]
+                    #[doc = "# Note"]
+                    #[doc = ""]
+                    #[doc = "In addition to `amount`, the caller will transfer the existential deposit; so the caller"]
+                    #[doc = "needs at have at least `amount + existential_deposit` transferrable."]
+                    create {
+                        #[codec(compact)]
+                        amount: ::core::primitive::u128,
+                        root: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        nominator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        bouncer: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "Create a new delegation pool with a previously used pool id"]
+                    #[doc = ""]
+                    #[doc = "# Arguments"]
+                    #[doc = ""]
+                    #[doc = "same as `create` with the inclusion of"]
+                    #[doc = "* `pool_id` - `A valid PoolId."]
+                    create_with_pool_id {
+                        #[codec(compact)]
+                        amount: ::core::primitive::u128,
+                        root: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        nominator: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        bouncer: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        pool_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 8)]
+                    #[doc = "Nominate on behalf of the pool."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this call must be signed by the pool nominator or the pool"]
+                    #[doc = "root role."]
+                    #[doc = ""]
+                    #[doc = "This directly forward the call to the staking pallet, on behalf of the pool bonded"]
+                    #[doc = "account."]
+                    nominate {
+                        pool_id: ::core::primitive::u32,
+                        validators: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                    },
+                    #[codec(index = 9)]
+                    #[doc = "Set a new state for the pool."]
+                    #[doc = ""]
+                    #[doc = "If a pool is already in the `Destroying` state, then under no condition can its state"]
+                    #[doc = "change again."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this call must be either:"]
+                    #[doc = ""]
+                    #[doc = "1. signed by the bouncer, or the root role of the pool,"]
+                    #[doc = "2. if the pool conditions to be open are NOT met (as described by `ok_to_be_open`), and"]
+                    #[doc = "   then the state of the pool can be permissionlessly changed to `Destroying`."]
+                    set_state {
+                        pool_id: ::core::primitive::u32,
+                        state: runtime_types::pallet_nomination_pools::PoolState,
+                    },
+                    #[codec(index = 10)]
+                    #[doc = "Set a new metadata for the pool."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this call must be signed by the bouncer, or the root role of the"]
+                    #[doc = "pool."]
+                    set_metadata {
+                        pool_id: ::core::primitive::u32,
+                        metadata: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                    #[codec(index = 11)]
+                    #[doc = "Update configurations for the nomination pools. The origin for this call must be"]
+                    #[doc = "Root."]
+                    #[doc = ""]
+                    #[doc = "# Arguments"]
+                    #[doc = ""]
+                    #[doc = "* `min_join_bond` - Set [`MinJoinBond`]."]
+                    #[doc = "* `min_create_bond` - Set [`MinCreateBond`]."]
+                    #[doc = "* `max_pools` - Set [`MaxPools`]."]
+                    #[doc = "* `max_members` - Set [`MaxPoolMembers`]."]
+                    #[doc = "* `max_members_per_pool` - Set [`MaxPoolMembersPerPool`]."]
+                    #[doc = "* `global_max_commission` - Set [`GlobalMaxCommission`]."]
+                    set_configs {
+                        min_join_bond: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::core::primitive::u128,
+                        >,
+                        min_create_bond: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::core::primitive::u128,
+                        >,
+                        max_pools: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::core::primitive::u32,
+                        >,
+                        max_members: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::core::primitive::u32,
+                        >,
+                        max_members_per_pool: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::core::primitive::u32,
+                        >,
+                        global_max_commission: runtime_types::pallet_nomination_pools::ConfigOp<
+                            runtime_types::sp_arithmetic::per_things::Perbill,
+                        >,
+                    },
+                    #[codec(index = 12)]
+                    #[doc = "Update the roles of the pool."]
+                    #[doc = ""]
+                    #[doc = "The root is the only entity that can change any of the roles, including itself,"]
+                    #[doc = "excluding the depositor, who can never change."]
+                    #[doc = ""]
+                    #[doc = "It emits an event, notifying UIs of the role change. This event is quite relevant to"]
+                    #[doc = "most pool members and they should be informed of changes to pool roles."]
+                    update_roles {
+                        pool_id: ::core::primitive::u32,
+                        new_root: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::subxt::utils::AccountId32,
+                        >,
+                        new_nominator: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::subxt::utils::AccountId32,
+                        >,
+                        new_bouncer: runtime_types::pallet_nomination_pools::ConfigOp<
+                            ::subxt::utils::AccountId32,
+                        >,
+                    },
+                    #[codec(index = 13)]
+                    #[doc = "Chill on behalf of the pool."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this call must be signed by the pool nominator or the pool"]
+                    #[doc = "root role, same as [`Pallet::nominate`]."]
+                    #[doc = ""]
+                    #[doc = "This directly forward the call to the staking pallet, on behalf of the pool bonded"]
+                    #[doc = "account."]
+                    chill { pool_id: ::core::primitive::u32 },
+                    #[codec(index = 14)]
+                    #[doc = "`origin` bonds funds from `extra` for some pool member `member` into their respective"]
+                    #[doc = "pools."]
+                    #[doc = ""]
+                    #[doc = "`origin` can bond extra funds from free balance or pending rewards when `origin =="]
+                    #[doc = "other`."]
+                    #[doc = ""]
+                    #[doc = "In the case of `origin != other`, `origin` can only bond extra pending rewards of"]
+                    #[doc = "`other` members assuming set_claim_permission for the given member is"]
+                    #[doc = "`PermissionlessAll` or `PermissionlessCompound`."]
+                    bond_extra_other {
+                        member: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        extra: runtime_types::pallet_nomination_pools::BondExtra<
+                            ::core::primitive::u128,
+                        >,
+                    },
+                    #[codec(index = 15)]
+                    #[doc = "Allows a pool member to set a claim permission to allow or disallow permissionless"]
+                    #[doc = "bonding and withdrawing."]
+                    #[doc = ""]
+                    #[doc = "By default, this is `Permissioned`, which implies only the pool member themselves can"]
+                    #[doc = "claim their pending rewards. If a pool member wishes so, they can set this to"]
+                    #[doc = "`PermissionlessAll` to allow any account to claim their rewards and bond extra to the"]
+                    #[doc = "pool."]
+                    #[doc = ""]
+                    #[doc = "# Arguments"]
+                    #[doc = ""]
+                    #[doc = "* `origin` - Member of a pool."]
+                    #[doc = "* `actor` - Account to claim reward. // improve this"]
+                    set_claim_permission {
+                        permission: runtime_types::pallet_nomination_pools::ClaimPermission,
+                    },
+                    #[codec(index = 16)]
+                    #[doc = "`origin` can claim payouts on some pool member `other`'s behalf."]
+                    #[doc = ""]
+                    #[doc = "Pool member `other` must have a `PermissionlessAll` or `PermissionlessWithdraw` in order"]
+                    #[doc = "for this call to be successful."]
+                    claim_payout_other { other: ::subxt::utils::AccountId32 },
+                    #[codec(index = 17)]
+                    #[doc = "Set the commission of a pool."]
+                    #[doc = "Both a commission percentage and a commission payee must be provided in the `current`"]
+                    #[doc = "tuple. Where a `current` of `None` is provided, any current commission will be removed."]
+                    #[doc = ""]
+                    #[doc = "- If a `None` is supplied to `new_commission`, existing commission will be removed."]
+                    set_commission {
+                        pool_id: ::core::primitive::u32,
+                        new_commission: ::core::option::Option<(
+                            runtime_types::sp_arithmetic::per_things::Perbill,
+                            ::subxt::utils::AccountId32,
+                        )>,
+                    },
+                    #[codec(index = 18)]
+                    #[doc = "Set the maximum commission of a pool."]
+                    #[doc = ""]
+                    #[doc = "- Initial max can be set to any `Perbill`, and only smaller values thereafter."]
+                    #[doc = "- Current commission will be lowered in the event it is higher than a new max"]
+                    #[doc = "  commission."]
+                    set_commission_max {
+                        pool_id: ::core::primitive::u32,
+                        max_commission: runtime_types::sp_arithmetic::per_things::Perbill,
+                    },
+                    #[codec(index = 19)]
+                    #[doc = "Set the commission change rate for a pool."]
+                    #[doc = ""]
+                    #[doc = "Initial change rate is not bounded, whereas subsequent updates can only be more"]
+                    #[doc = "restrictive than the current."]
+                    set_commission_change_rate {
+                        pool_id: ::core::primitive::u32,
+                        change_rate: runtime_types::pallet_nomination_pools::CommissionChangeRate<
+                            ::core::primitive::u32,
+                        >,
+                    },
+                    #[codec(index = 20)]
+                    #[doc = "Claim pending commission."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this call must be signed by the `root` role of the pool. Pending"]
+                    #[doc = "commission is paid out and added to total claimed commission`. Total pending commission"]
+                    #[doc = "is reset to zero. the current."]
+                    claim_commission { pool_id: ::core::primitive::u32 },
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                pub enum DefensiveError {
+                    #[codec(index = 0)]
+                    NotEnoughSpaceInUnbondPool,
+                    #[codec(index = 1)]
+                    PoolNotFound,
+                    #[codec(index = 2)]
+                    RewardPoolNotFound,
+                    #[codec(index = 3)]
+                    SubPoolsNotFound,
+                    #[codec(index = 4)]
+                    BondedStashKilledPrematurely,
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "A (bonded) pool id does not exist."]
+                    PoolNotFound,
+                    #[codec(index = 1)]
+                    #[doc = "An account is not a member."]
+                    PoolMemberNotFound,
+                    #[codec(index = 2)]
+                    #[doc = "A reward pool does not exist. In all cases this is a system logic error."]
+                    RewardPoolNotFound,
+                    #[codec(index = 3)]
+                    #[doc = "A sub pool does not exist."]
+                    SubPoolsNotFound,
+                    #[codec(index = 4)]
+                    #[doc = "An account is already delegating in another pool. An account may only belong to one"]
+                    #[doc = "pool at a time."]
+                    AccountBelongsToOtherPool,
+                    #[codec(index = 5)]
+                    #[doc = "The member is fully unbonded (and thus cannot access the bonded and reward pool"]
+                    #[doc = "anymore to, for example, collect rewards)."]
+                    FullyUnbonding,
+                    #[codec(index = 6)]
+                    #[doc = "The member cannot unbond further chunks due to reaching the limit."]
+                    MaxUnbondingLimit,
+                    #[codec(index = 7)]
+                    #[doc = "None of the funds can be withdrawn yet because the bonding duration has not passed."]
+                    CannotWithdrawAny,
+                    #[codec(index = 8)]
+                    #[doc = "The amount does not meet the minimum bond to either join or create a pool."]
+                    #[doc = ""]
+                    #[doc = "The depositor can never unbond to a value less than"]
+                    #[doc = "`Pallet::depositor_min_bond`. The caller does not have nominating"]
+                    #[doc = "permissions for the pool. Members can never unbond to a value below `MinJoinBond`."]
+                    MinimumBondNotMet,
+                    #[codec(index = 9)]
+                    #[doc = "The transaction could not be executed due to overflow risk for the pool."]
+                    OverflowRisk,
+                    #[codec(index = 10)]
+                    #[doc = "A pool must be in [`PoolState::Destroying`] in order for the depositor to unbond or for"]
+                    #[doc = "other members to be permissionlessly unbonded."]
+                    NotDestroying,
+                    #[codec(index = 11)]
+                    #[doc = "The caller does not have nominating permissions for the pool."]
+                    NotNominator,
+                    #[codec(index = 12)]
+                    #[doc = "Either a) the caller cannot make a valid kick or b) the pool is not destroying."]
+                    NotKickerOrDestroying,
+                    #[codec(index = 13)]
+                    #[doc = "The pool is not open to join"]
+                    NotOpen,
+                    #[codec(index = 14)]
+                    #[doc = "The system is maxed out on pools."]
+                    MaxPools,
+                    #[codec(index = 15)]
+                    #[doc = "Too many members in the pool or system."]
+                    MaxPoolMembers,
+                    #[codec(index = 16)]
+                    #[doc = "The pools state cannot be changed."]
+                    CanNotChangeState,
+                    #[codec(index = 17)]
+                    #[doc = "The caller does not have adequate permissions."]
+                    DoesNotHavePermission,
+                    #[codec(index = 18)]
+                    #[doc = "Metadata exceeds [`Config::MaxMetadataLen`]"]
+                    MetadataExceedsMaxLen,
+                    #[codec(index = 19)]
+                    #[doc = "Some error occurred that should never happen. This should be reported to the"]
+                    #[doc = "maintainers."]
+                    Defensive(runtime_types::pallet_nomination_pools::pallet::DefensiveError),
+                    #[codec(index = 20)]
+                    #[doc = "Partial unbonding now allowed permissionlessly."]
+                    PartialUnbondNotAllowedPermissionlessly,
+                    #[codec(index = 21)]
+                    #[doc = "The pool's max commission cannot be set higher than the existing value."]
+                    MaxCommissionRestricted,
+                    #[codec(index = 22)]
+                    #[doc = "The supplied commission exceeds the max allowed commission."]
+                    CommissionExceedsMaximum,
+                    #[codec(index = 23)]
+                    #[doc = "Not enough blocks have surpassed since the last commission update."]
+                    CommissionChangeThrottled,
+                    #[codec(index = 24)]
+                    #[doc = "The submitted changes to commission change rate are not allowed."]
+                    CommissionChangeRateNotAllowed,
+                    #[codec(index = 25)]
+                    #[doc = "There is no pending commission to claim."]
+                    NoPendingCommission,
+                    #[codec(index = 26)]
+                    #[doc = "No commission current has been set."]
+                    NoCommissionCurrentSet,
+                    #[codec(index = 27)]
+                    #[doc = "Pool id currently in use."]
+                    PoolIdInUse,
+                    #[codec(index = 28)]
+                    #[doc = "Pool id provided is not correct/usable."]
+                    InvalidPoolId,
+                    #[codec(index = 29)]
+                    #[doc = "Bonding extra is restricted to the exact pending reward amount."]
+                    BondExtraRestricted,
+                }
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Events of this pallet."]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "A pool has been created."]
+                    Created {
+                        depositor: ::subxt::utils::AccountId32,
+                        pool_id: ::core::primitive::u32,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "A member has became bonded in a pool."]
+                    Bonded {
+                        member: ::subxt::utils::AccountId32,
+                        pool_id: ::core::primitive::u32,
+                        bonded: ::core::primitive::u128,
+                        joined: ::core::primitive::bool,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "A payout has been made to a member."]
+                    PaidOut {
+                        member: ::subxt::utils::AccountId32,
+                        pool_id: ::core::primitive::u32,
+                        payout: ::core::primitive::u128,
+                    },
+                    #[codec(index = 3)]
+                    #[doc = "A member has unbonded from their pool."]
+                    #[doc = ""]
+                    #[doc = "- `balance` is the corresponding balance of the number of points that has been"]
+                    #[doc = "  requested to be unbonded (the argument of the `unbond` transaction) from the bonded"]
+                    #[doc = "  pool."]
+                    #[doc = "- `points` is the number of points that are issued as a result of `balance` being"]
+                    #[doc = "dissolved into the corresponding unbonding pool."]
+                    #[doc = "- `era` is the era in which the balance will be unbonded."]
+                    #[doc = "In the absence of slashing, these values will match. In the presence of slashing, the"]
+                    #[doc = "number of points that are issued in the unbonding pool will be less than the amount"]
+                    #[doc = "requested to be unbonded."]
+                    Unbonded {
+                        member: ::subxt::utils::AccountId32,
+                        pool_id: ::core::primitive::u32,
+                        balance: ::core::primitive::u128,
+                        points: ::core::primitive::u128,
+                        era: ::core::primitive::u32,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "A member has withdrawn from their pool."]
+                    #[doc = ""]
+                    #[doc = "The given number of `points` have been dissolved in return of `balance`."]
+                    #[doc = ""]
+                    #[doc = "Similar to `Unbonded` event, in the absence of slashing, the ratio of point to balance"]
+                    #[doc = "will be 1."]
+                    Withdrawn {
+                        member: ::subxt::utils::AccountId32,
+                        pool_id: ::core::primitive::u32,
+                        balance: ::core::primitive::u128,
+                        points: ::core::primitive::u128,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "A pool has been destroyed."]
+                    Destroyed { pool_id: ::core::primitive::u32 },
+                    #[codec(index = 6)]
+                    #[doc = "The state of a pool has changed"]
+                    StateChanged {
+                        pool_id: ::core::primitive::u32,
+                        new_state: runtime_types::pallet_nomination_pools::PoolState,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "A member has been removed from a pool."]
+                    #[doc = ""]
+                    #[doc = "The removal can be voluntary (withdrawn all unbonded funds) or involuntary (kicked)."]
+                    MemberRemoved {
+                        pool_id: ::core::primitive::u32,
+                        member: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 8)]
+                    #[doc = "The roles of a pool have been updated to the given new roles. Note that the depositor"]
+                    #[doc = "can never change."]
+                    RolesUpdated {
+                        root: ::core::option::Option<::subxt::utils::AccountId32>,
+                        bouncer: ::core::option::Option<::subxt::utils::AccountId32>,
+                        nominator: ::core::option::Option<::subxt::utils::AccountId32>,
+                    },
+                    #[codec(index = 9)]
+                    #[doc = "The active balance of pool `pool_id` has been slashed to `balance`."]
+                    PoolSlashed {
+                        pool_id: ::core::primitive::u32,
+                        balance: ::core::primitive::u128,
+                    },
+                    #[codec(index = 10)]
+                    #[doc = "The unbond pool at `era` of pool `pool_id` has been slashed to `balance`."]
+                    UnbondingPoolSlashed {
+                        pool_id: ::core::primitive::u32,
+                        era: ::core::primitive::u32,
+                        balance: ::core::primitive::u128,
+                    },
+                    #[codec(index = 11)]
+                    #[doc = "A pool's commission setting has been changed."]
+                    PoolCommissionUpdated {
+                        pool_id: ::core::primitive::u32,
+                        current: ::core::option::Option<(
+                            runtime_types::sp_arithmetic::per_things::Perbill,
+                            ::subxt::utils::AccountId32,
+                        )>,
+                    },
+                    #[codec(index = 12)]
+                    #[doc = "A pool's maximum commission setting has been changed."]
+                    PoolMaxCommissionUpdated {
+                        pool_id: ::core::primitive::u32,
+                        max_commission: runtime_types::sp_arithmetic::per_things::Perbill,
+                    },
+                    #[codec(index = 13)]
+                    #[doc = "A pool's commission `change_rate` has been changed."]
+                    PoolCommissionChangeRateUpdated {
+                        pool_id: ::core::primitive::u32,
+                        change_rate: runtime_types::pallet_nomination_pools::CommissionChangeRate<
+                            ::core::primitive::u32,
+                        >,
+                    },
+                    #[codec(index = 14)]
+                    #[doc = "Pool commission has been claimed."]
+                    PoolCommissionClaimed {
+                        pool_id: ::core::primitive::u32,
+                        commission: ::core::primitive::u128,
+                    },
+                }
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum BondExtra<_0> {
+                #[codec(index = 0)]
+                FreeBalance(_0),
+                #[codec(index = 1)]
+                Rewards,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct BondedPoolInner {
+                pub commission: runtime_types::pallet_nomination_pools::Commission,
+                pub member_counter: ::core::primitive::u32,
+                pub points: ::core::primitive::u128,
+                pub roles:
+                    runtime_types::pallet_nomination_pools::PoolRoles<::subxt::utils::AccountId32>,
+                pub state: runtime_types::pallet_nomination_pools::PoolState,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum ClaimPermission {
+                #[codec(index = 0)]
+                Permissioned,
+                #[codec(index = 1)]
+                PermissionlessCompound,
+                #[codec(index = 2)]
+                PermissionlessWithdraw,
+                #[codec(index = 3)]
+                PermissionlessAll,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct Commission {
+                pub current: ::core::option::Option<(
+                    runtime_types::sp_arithmetic::per_things::Perbill,
+                    ::subxt::utils::AccountId32,
+                )>,
+                pub max: ::core::option::Option<runtime_types::sp_arithmetic::per_things::Perbill>,
+                pub change_rate: ::core::option::Option<
+                    runtime_types::pallet_nomination_pools::CommissionChangeRate<
+                        ::core::primitive::u32,
+                    >,
+                >,
+                pub throttle_from: ::core::option::Option<::core::primitive::u32>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct CommissionChangeRate<_0> {
+                pub max_increase: runtime_types::sp_arithmetic::per_things::Perbill,
+                pub min_delay: _0,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum ConfigOp<_0> {
+                #[codec(index = 0)]
+                Noop,
+                #[codec(index = 1)]
+                Set(_0),
+                #[codec(index = 2)]
+                Remove,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct PoolMember {
+                pub pool_id: ::core::primitive::u32,
+                pub points: ::core::primitive::u128,
+                pub last_recorded_reward_counter:
+                    runtime_types::sp_arithmetic::fixed_point::FixedU128,
+                pub unbonding_eras:
+                    runtime_types::bounded_collections::bounded_btree_map::BoundedBTreeMap<
+                        ::core::primitive::u32,
+                        ::core::primitive::u128,
+                    >,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct PoolRoles<_0> {
+                pub depositor: _0,
+                pub root: ::core::option::Option<_0>,
+                pub nominator: ::core::option::Option<_0>,
+                pub bouncer: ::core::option::Option<_0>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub enum PoolState {
+                #[codec(index = 0)]
+                Open,
+                #[codec(index = 1)]
+                Blocked,
+                #[codec(index = 2)]
+                Destroying,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct RewardPool {
+                pub last_recorded_reward_counter:
+                    runtime_types::sp_arithmetic::fixed_point::FixedU128,
+                pub last_recorded_total_payouts: ::core::primitive::u128,
+                pub total_rewards_claimed: ::core::primitive::u128,
+                pub total_commission_pending: ::core::primitive::u128,
+                pub total_commission_claimed: ::core::primitive::u128,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct SubPools {
+                pub no_era: runtime_types::pallet_nomination_pools::UnbondPool,
+                pub with_era:
+                    runtime_types::bounded_collections::bounded_btree_map::BoundedBTreeMap<
+                        ::core::primitive::u32,
+                        runtime_types::pallet_nomination_pools::UnbondPool,
+                    >,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct UnbondPool {
+                pub points: ::core::primitive::u128,
+                pub balance: ::core::primitive::u128,
+            }
+        }
+        pub mod pallet_offences {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                #[doc = "Events type."]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "There is an offence reported of the given `kind` happened at the `session_index` and"]
+                    #[doc = "(kind-specific) time slot. This event is not deposited for duplicate slashes."]
+                    #[doc = "\\[kind, timeslot\\]."]
+                    Offence {
+                        kind: [::core::primitive::u8; 16usize],
+                        timeslot: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                }
             }
         }
         pub mod pallet_preimage {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3700,7 +5536,9 @@ pub mod runtime_types {
                     #[doc = "NOTE: THIS MUST NOT BE CALLED ON `hash` MORE TIMES THAN `request_preimage`."]
                     unrequest_preimage { hash: ::subxt::utils::H256 },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3722,7 +5560,9 @@ pub mod runtime_types {
                     #[doc = "The preimage request cannot be removed since no outstanding requests exist."]
                     NotRequested,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3736,7 +5576,9 @@ pub mod runtime_types {
                     Cleared { hash: ::subxt::utils::H256 },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum RequestStatus<_0, _1> {
                 #[codec(index = 0)]
                 Unrequested {
@@ -3755,7 +5597,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3930,7 +5774,9 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3958,7 +5804,9 @@ pub mod runtime_types {
                     #[doc = "Cannot add self as proxy."]
                     NoSelfProxy,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4001,13 +5849,17 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Announcement<_0, _1, _2> {
                 pub real: _0,
                 pub call_hash: _1,
                 pub height: _2,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ProxyDefinition<_0, _1, _2> {
                 pub delegate: _0,
                 pub proxy_type: _1,
@@ -4018,7 +5870,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4097,7 +5951,9 @@ pub mod runtime_types {
                         max: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4128,7 +5984,9 @@ pub mod runtime_types {
                     #[doc = "The origin is not sufficiently privileged to do the operation."]
                     NoPermission,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4158,22 +6016,26 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::CompactAs,
+                ::subxt :: ext :: codec :: CompactAs,
                 Debug,
-                crate::gp::Decode,
-                crate::gp::DecodeAsType,
-                crate::gp::Encode,
+                crate :: gp :: Decode,
+                crate :: gp :: DecodeAsType,
+                crate :: gp :: Encode,
             )]
             pub struct MemberRecord {
                 pub rank: ::core::primitive::u16,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Tally {
                 pub bare_ayes: ::core::primitive::u32,
                 pub ayes: ::core::primitive::u32,
                 pub nays: ::core::primitive::u32,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum VoteRecord {
                 #[codec(index = 0)]
                 Aye(::core::primitive::u32),
@@ -4185,7 +6047,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4283,7 +6147,9 @@ pub mod runtime_types {
                         maybe_hash: ::core::option::Option<::subxt::utils::H256>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call2 {
                     #[codec(index = 0)]
@@ -4381,7 +6247,9 @@ pub mod runtime_types {
                         maybe_hash: ::core::option::Option<::subxt::utils::H256>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4424,7 +6292,9 @@ pub mod runtime_types {
                     #[doc = "The preimage does not exist."]
                     PreimageNotExist,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error2 {
                     #[codec(index = 0)]
@@ -4467,7 +6337,9 @@ pub mod runtime_types {
                     #[doc = "The preimage does not exist."]
                     PreimageNotExist,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4578,7 +6450,9 @@ pub mod runtime_types {
                         hash: ::subxt::utils::H256,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event2 {
                     #[codec(index = 0)]
@@ -4680,7 +6554,9 @@ pub mod runtime_types {
             }
             pub mod types {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum Curve {
                     #[codec(index = 0)]
                     LinearDecreasing {
@@ -4702,17 +6578,23 @@ pub mod runtime_types {
                         y_offset: runtime_types::sp_arithmetic::fixed_point::FixedI64,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct DecidingStatus<_0> {
                     pub since: _0,
                     pub confirming: ::core::option::Option<_0>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Deposit<_0, _1> {
                     pub who: _0,
                     pub amount: _1,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum ReferendumInfo<_0, _1, _2, _3, _4, _5, _6, _7> {
                     #[codec(index = 0)]
                     Ongoing(
@@ -4770,7 +6652,9 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     Killed(_2),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct ReferendumStatus<_0, _1, _2, _3, _4, _5, _6, _7> {
                     pub track: _0,
                     pub origin: _1,
@@ -4788,7 +6672,9 @@ pub mod runtime_types {
                     pub in_queue: ::core::primitive::bool,
                     pub alarm: ::core::option::Option<(_2, _7)>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct TrackInfo<_0, _1> {
                     pub name: ::std::string::String,
                     pub max_deciding: _1,
@@ -4806,7 +6692,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4867,7 +6755,9 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4886,7 +6776,9 @@ pub mod runtime_types {
                     #[doc = "Attempt to use a non-named function on a named task."]
                     Named,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Events type."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4929,7 +6821,9 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Scheduled<_0, _1, _2, _3, _4> {
                 pub maybe_id: ::core::option::Option<_0>,
                 pub priority: ::core::primitive::u8,
@@ -4944,7 +6838,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4976,7 +6872,9 @@ pub mod runtime_types {
                     #[doc = "  `T::Keys::key_ids()` which is fixed."]
                     purge_keys,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the session pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4995,7 +6893,9 @@ pub mod runtime_types {
                     #[doc = "Key setting account is not live, so it's impossible to associate keys."]
                     NoAccount,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5014,7 +6914,10 @@ pub mod runtime_types {
                 pub mod pallet {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                     pub enum Call {
@@ -5428,7 +7331,10 @@ pub mod runtime_types {
                         },
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum ConfigOp<_0> {
                         #[codec(index = 0)]
@@ -5439,7 +7345,10 @@ pub mod runtime_types {
                         Remove,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                     pub enum Error {
@@ -5524,7 +7433,10 @@ pub mod runtime_types {
                         BoundNotMet,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                     pub enum Event {
@@ -5621,30 +7533,40 @@ pub mod runtime_types {
             }
             pub mod slashing {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct SlashingSpans {
                     pub span_index: ::core::primitive::u32,
                     pub last_start: ::core::primitive::u32,
                     pub last_nonzero_slash: ::core::primitive::u32,
                     pub prior: ::std::vec::Vec<::core::primitive::u32>,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct SpanRecord<_0> {
                     pub slashed: _0,
                     pub paid_out: _0,
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ActiveEraInfo {
                 pub index: ::core::primitive::u32,
                 pub start: ::core::option::Option<::core::primitive::u64>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct EraRewardPoints<_0> {
                 pub total: ::core::primitive::u32,
                 pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Exposure<_0, _1> {
                 #[codec(compact)]
                 pub total: _1,
@@ -5653,7 +7575,9 @@ pub mod runtime_types {
                 pub others:
                     ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Forcing {
                 #[codec(index = 0)]
                 NotForcing,
@@ -5664,13 +7588,17 @@ pub mod runtime_types {
                 #[codec(index = 3)]
                 ForceAlways,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct IndividualExposure<_0, _1> {
                 pub who: _0,
                 #[codec(compact)]
                 pub value: _1,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Nominations {
                 pub targets: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                     ::subxt::utils::AccountId32,
@@ -5678,7 +7606,9 @@ pub mod runtime_types {
                 pub submitted_in: ::core::primitive::u32,
                 pub suppressed: ::core::primitive::bool,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum RewardDestination<_0> {
                 #[codec(index = 0)]
                 Staked,
@@ -5691,7 +7621,9 @@ pub mod runtime_types {
                 #[codec(index = 4)]
                 None,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct StakingLedger {
                 pub stash: ::subxt::utils::AccountId32,
                 #[codec(compact)]
@@ -5705,7 +7637,9 @@ pub mod runtime_types {
                     ::core::primitive::u32,
                 >,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct UnappliedSlash<_0, _1> {
                 pub validator: _0,
                 pub own: _1,
@@ -5713,14 +7647,18 @@ pub mod runtime_types {
                 pub reporters: ::std::vec::Vec<_0>,
                 pub payout: _1,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct UnlockChunk<_0> {
                 #[codec(compact)]
                 pub value: _0,
                 #[codec(compact)]
                 pub era: ::core::primitive::u32,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ValidatorPrefs {
                 #[codec(compact)]
                 pub commission: runtime_types::sp_arithmetic::per_things::Perbill,
@@ -5731,7 +7669,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5781,14 +7721,18 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the Sudo pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Sender must be the Sudo account"]
                     RequireSudo,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5815,7 +7759,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5845,7 +7791,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5858,9 +7806,13 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ChargeTransactionPayment(#[codec(compact)] pub ::core::primitive::u128);
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Releases {
                 #[codec(index = 0)]
                 V1Ancient,
@@ -5872,7 +7824,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5943,7 +7897,9 @@ pub mod runtime_types {
                         proposal_id: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the treasury pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -5963,7 +7919,9 @@ pub mod runtime_types {
                     #[doc = "Proposal has not been approved."]
                     ProposalNotApproved,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6017,7 +7975,9 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Proposal<_0, _1> {
                 pub proposer: _0,
                 pub value: _1,
@@ -6029,7 +7989,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6129,14 +8091,18 @@ pub mod runtime_types {
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Too many calls batched."]
                     TooManyCalls,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6173,7 +8139,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6273,7 +8241,9 @@ pub mod runtime_types {
                         schedule2_index: ::core::primitive::u32,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Error for the vesting pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6293,7 +8263,9 @@ pub mod runtime_types {
                     #[doc = "Failed to create a new schedule because some parameter was invalid."]
                     InvalidScheduleParams,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6312,14 +8284,18 @@ pub mod runtime_types {
             }
             pub mod vesting_info {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct VestingInfo<_0, _1> {
                     pub locked: _0,
                     pub per_block: _0,
                     pub starting_block: _1,
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Releases {
                 #[codec(index = 0)]
                 V0,
@@ -6331,7 +8307,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6349,7 +8327,9 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6368,7 +8348,9 @@ pub mod runtime_types {
                     #[doc = "The call was already whitelisted; No-Op."]
                     CallAlreadyWhitelisted,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6392,53 +8374,65 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod fixed_point {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct FixedI64(pub ::core::primitive::i64);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct FixedU128(pub ::core::primitive::u128);
             }
             pub mod per_things {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
+                )]
+                pub struct PerU16(pub ::core::primitive::u16);
+                #[derive(
+                    ::subxt :: ext :: codec :: CompactAs,
+                    Debug,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct Perbill(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct Percent(pub ::core::primitive::u8);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct Permill(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::CompactAs,
+                    ::subxt :: ext :: codec :: CompactAs,
                     Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
+                    crate :: gp :: Decode,
+                    crate :: gp :: DecodeAsType,
+                    crate :: gp :: Encode,
                 )]
                 pub struct Perquintill(pub ::core::primitive::u64);
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum ArithmeticError {
                 #[codec(index = 0)]
                 Underflow,
@@ -6452,7 +8446,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
         }
@@ -6460,12 +8456,16 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
             pub mod digests {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum NextConfigDescriptor {
                     #[codec(index = 1)]
                     V1 {
@@ -6473,7 +8473,9 @@ pub mod runtime_types {
                         allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
                     },
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub enum PreDigest {
                     #[codec(index = 1)]
                     Primary(runtime_types::sp_consensus_babe::digests::PrimaryPreDigest),
@@ -6484,19 +8486,25 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     SecondaryVRF(runtime_types::sp_consensus_babe::digests::SecondaryVRFPreDigest),
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct PrimaryPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
                     pub vrf_output: [::core::primitive::u8; 32usize],
                     pub vrf_proof: [::core::primitive::u8; 64usize],
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct SecondaryPlainPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct SecondaryVRFPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -6504,7 +8512,9 @@ pub mod runtime_types {
                     pub vrf_proof: [::core::primitive::u8; 64usize],
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum AllowedSlots {
                 #[codec(index = 0)]
                 PrimarySlots,
@@ -6513,7 +8523,9 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 PrimaryAndSecondaryVRFSlots,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct BabeEpochConfiguration {
                 pub c: (::core::primitive::u64, ::core::primitive::u64),
                 pub allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
@@ -6523,12 +8535,18 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Public(pub runtime_types::sp_core::ed25519::Public);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Signature(pub runtime_types::sp_core::ed25519::Signature);
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Equivocation<_0, _1> {
                 #[codec(index = 0)]
                 Prevote(
@@ -6547,7 +8565,9 @@ pub mod runtime_types {
                     >,
                 ),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct EquivocationProof<_0, _1> {
                 pub set_id: ::core::primitive::u64,
                 pub equivocation: runtime_types::sp_consensus_grandpa::Equivocation<_0, _1>,
@@ -6555,7 +8575,9 @@ pub mod runtime_types {
         }
         pub mod sp_consensus_slots {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct EquivocationProof<_0, _1> {
                 pub offender: _1,
                 pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -6563,11 +8585,11 @@ pub mod runtime_types {
                 pub second_header: _0,
             }
             #[derive(
-                ::subxt::ext::codec::CompactAs,
+                ::subxt :: ext :: codec :: CompactAs,
                 Debug,
-                crate::gp::Decode,
-                crate::gp::DecodeAsType,
-                crate::gp::Encode,
+                crate :: gp :: Decode,
+                crate :: gp :: DecodeAsType,
+                crate :: gp :: Encode,
             )]
             pub struct Slot(pub ::core::primitive::u64);
         }
@@ -6575,26 +8597,38 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod crypto {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct KeyTypeId(pub [::core::primitive::u8; 4usize]);
             }
             pub mod ecdsa {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Signature(pub [::core::primitive::u8; 65usize]);
             }
             pub mod ed25519 {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
             pub mod offchain {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct OpaqueMultiaddr(pub ::std::vec::Vec<::core::primitive::u8>);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct OpaqueNetworkState {
                     pub peer_id: runtime_types::sp_core::OpaquePeerId,
                     pub external_addresses:
@@ -6603,15 +8637,41 @@ pub mod runtime_types {
             }
             pub mod sr25519 {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct OpaquePeerId(pub ::std::vec::Vec<::core::primitive::u8>);
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum Void {}
+        }
+        pub mod sp_npos_elections {
+            use super::runtime_types;
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct ElectionScore {
+                pub minimal_stake: ::core::primitive::u128,
+                pub sum_stake: ::core::primitive::u128,
+                pub sum_stake_squared: ::core::primitive::u128,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct Support<_0> {
+                pub total: ::core::primitive::u128,
+                pub voters: ::std::vec::Vec<(_0, ::core::primitive::u128)>,
+            }
         }
         pub mod sp_runtime {
             use super::runtime_types;
@@ -6620,14 +8680,20 @@ pub mod runtime_types {
                 pub mod digest {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct Digest {
                         pub logs:
                             ::std::vec::Vec<runtime_types::sp_runtime::generic::digest::DigestItem>,
                     }
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum DigestItem {
                         #[codec(index = 6)]
@@ -6654,7 +8720,10 @@ pub mod runtime_types {
                 pub mod era {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub enum Era {
                         #[codec(index = 0)]
@@ -7174,7 +9243,10 @@ pub mod runtime_types {
                 pub mod header {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct Header<_0, _1> {
                         pub parent_hash: ::subxt::utils::H256,
@@ -7190,7 +9262,10 @@ pub mod runtime_types {
                 pub mod unchecked_extrinsic {
                     use super::runtime_types;
                     #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                        Debug,
+                        crate :: gp :: Decode,
+                        crate :: gp :: DecodeAsType,
+                        crate :: gp :: Encode,
                     )]
                     pub struct UncheckedExtrinsic<_0, _1, _2, _3>(
                         pub ::std::vec::Vec<::core::primitive::u8>,
@@ -7200,10 +9275,14 @@ pub mod runtime_types {
             }
             pub mod traits {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct BlakeTwo256;
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum DispatchError {
                 #[codec(index = 0)]
                 Other,
@@ -7232,17 +9311,23 @@ pub mod runtime_types {
                 #[codec(index = 12)]
                 Unavailable,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct DispatchErrorWithPostInfo<_0> {
                 pub post_info: _0,
                 pub error: runtime_types::sp_runtime::DispatchError,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct ModuleError {
                 pub index: ::core::primitive::u8,
                 pub error: [::core::primitive::u8; 4usize],
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum MultiSignature {
                 #[codec(index = 0)]
                 Ed25519(runtime_types::sp_core::ed25519::Signature),
@@ -7251,7 +9336,9 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Ecdsa(runtime_types::sp_core::ecdsa::Signature),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum TokenError {
                 #[codec(index = 0)]
                 NoFunds,
@@ -7268,7 +9355,9 @@ pub mod runtime_types {
                 #[codec(index = 6)]
                 Unsupported,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum TransactionalError {
                 #[codec(index = 0)]
                 LimitReached,
@@ -7278,16 +9367,33 @@ pub mod runtime_types {
         }
         pub mod sp_session {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct MembershipProof {
                 pub session: ::core::primitive::u32,
                 pub trie_nodes: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
                 pub validator_count: ::core::primitive::u32,
             }
         }
+        pub mod sp_staking {
+            use super::runtime_types;
+            pub mod offence {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
+                pub struct OffenceDetails<_0, _1> {
+                    pub offender: _1,
+                    pub reporters: ::std::vec::Vec<_0>,
+                }
+            }
+        }
         pub mod sp_version {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct RuntimeVersion {
                 pub spec_name: ::std::string::String,
                 pub impl_name: ::std::string::String,
@@ -7304,7 +9410,9 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod weight_v2 {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct Weight {
                     #[codec(compact)]
                     pub ref_time: ::core::primitive::u64,
@@ -7312,79 +9420,21 @@ pub mod runtime_types {
                     pub proof_size: ::core::primitive::u64,
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct RuntimeDbWeight {
                 pub read: ::core::primitive::u64,
                 pub write: ::core::primitive::u64,
-            }
-        }
-        pub mod substrate_validator_set {
-            use super::runtime_types;
-            pub mod pallet {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
-                pub enum Call {
-                    #[codec(index = 0)]
-                    #[doc = "Add a new validator."]
-                    #[doc = ""]
-                    #[doc = "New validator's session keys should be set in Session pallet before"]
-                    #[doc = "calling this."]
-                    #[doc = ""]
-                    #[doc = "The origin can be configured using the `AddRemoveOrigin` type in the"]
-                    #[doc = "host runtime. Can also be set to sudo/root."]
-                    add_validator {
-                        validator_id: ::subxt::utils::AccountId32,
-                    },
-                    #[codec(index = 1)]
-                    #[doc = "Remove a validator."]
-                    #[doc = ""]
-                    #[doc = "The origin can be configured using the `AddRemoveOrigin` type in the"]
-                    #[doc = "host runtime. Can also be set to sudo/root."]
-                    remove_validator {
-                        validator_id: ::subxt::utils::AccountId32,
-                    },
-                    #[codec(index = 2)]
-                    #[doc = "Add an approved validator again when it comes back online."]
-                    #[doc = ""]
-                    #[doc = "For this call, the dispatch origin must be the validator itself."]
-                    add_validator_again {
-                        validator_id: ::subxt::utils::AccountId32,
-                    },
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
-                pub enum Error {
-                    #[codec(index = 0)]
-                    #[doc = "Target (post-removal) validator count is below the minimum."]
-                    TooLowValidatorCount,
-                    #[codec(index = 1)]
-                    #[doc = "Validator is already in the validator set."]
-                    Duplicate,
-                    #[codec(index = 2)]
-                    #[doc = "Validator is not approved for re-addition."]
-                    ValidatorNotApproved,
-                    #[codec(index = 3)]
-                    #[doc = "Only the validator can add itself back after coming online."]
-                    BadOrigin,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
-                pub enum Event {
-                    #[codec(index = 0)]
-                    #[doc = "New validator addition initiated. Effective in ~2 sessions."]
-                    ValidatorAdditionInitiated(::subxt::utils::AccountId32),
-                    #[codec(index = 1)]
-                    #[doc = "Validator removal initiated. Effective in ~2 sessions."]
-                    ValidatorRemovalInitiated(::subxt::utils::AccountId32),
-                }
             }
         }
         pub mod vara_runtime {
             use super::runtime_types;
             pub mod extensions {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+                )]
                 pub struct DisableValueTransfers;
             }
             pub mod governance {
@@ -7394,7 +9444,10 @@ pub mod runtime_types {
                     pub mod pallet_custom_origins {
                         use super::runtime_types;
                         #[derive(
-                            Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                            Debug,
+                            crate :: gp :: Decode,
+                            crate :: gp :: DecodeAsType,
+                            crate :: gp :: Encode,
                         )]
                         pub enum Origin {
                             #[codec(index = 0)]
@@ -7451,7 +9504,168 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
+            pub struct NposSolution16 {
+                pub votes1: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes2: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    (
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ),
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes3: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 2usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes4: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 3usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes5: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 4usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes6: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 5usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes7: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 6usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes8: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 7usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes9: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 8usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes10: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 9usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes11: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 10usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes12: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 11usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes13: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 12usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes14: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 13usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes15: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 14usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+                pub votes16: ::std::vec::Vec<(
+                    ::subxt::ext::codec::Compact<::core::primitive::u32>,
+                    [(
+                        ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                        ::subxt::ext::codec::Compact<
+                            runtime_types::sp_arithmetic::per_things::PerU16,
+                        >,
+                    ); 15usize],
+                    ::subxt::ext::codec::Compact<::core::primitive::u16>,
+                )>,
+            }
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum OriginCaller {
                 #[codec(index = 0)]
                 system(
@@ -7464,7 +9678,9 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Void(runtime_types::sp_core::Void),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum ProxyType {
                 #[codec(index = 0)]
                 Any,
@@ -7479,9 +9695,13 @@ pub mod runtime_types {
                 #[codec(index = 5)]
                 CancelProxy,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct Runtime;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum RuntimeCall {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Call),
@@ -7505,6 +9725,8 @@ pub mod runtime_types {
                 Session(runtime_types::pallet_session::pallet::Call),
                 #[codec(index = 14)]
                 Treasury(runtime_types::pallet_treasury::pallet::Call),
+                #[codec(index = 8)]
+                Utility(runtime_types::pallet_utility::pallet::Call),
                 #[codec(index = 16)]
                 ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Call),
                 #[codec(index = 17)]
@@ -7515,10 +9737,6 @@ pub mod runtime_types {
                 FellowshipReferenda(runtime_types::pallet_referenda::pallet::Call2),
                 #[codec(index = 21)]
                 Whitelist(runtime_types::pallet_whitelist::pallet::Call),
-                #[codec(index = 98)]
-                ValidatorSet(runtime_types::substrate_validator_set::pallet::Call),
-                #[codec(index = 99)]
-                Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 22)]
                 Scheduler(runtime_types::pallet_scheduler::pallet::Call),
                 #[codec(index = 23)]
@@ -7529,20 +9747,32 @@ pub mod runtime_types {
                 Proxy(runtime_types::pallet_proxy::pallet::Call),
                 #[codec(index = 26)]
                 Multisig(runtime_types::pallet_multisig::pallet::Call),
-                #[codec(index = 8)]
-                Utility(runtime_types::pallet_utility::pallet::Call),
+                #[codec(index = 27)]
+                ElectionProviderMultiPhase(
+                    runtime_types::pallet_election_provider_multi_phase::pallet::Call,
+                ),
+                #[codec(index = 29)]
+                Bounties(runtime_types::pallet_bounties::pallet::Call),
+                #[codec(index = 30)]
+                ChildBounties(runtime_types::pallet_child_bounties::pallet::Call),
+                #[codec(index = 31)]
+                NominationPools(runtime_types::pallet_nomination_pools::pallet::Call),
                 #[codec(index = 104)]
                 Gear(runtime_types::pallet_gear::pallet::Call),
                 #[codec(index = 106)]
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
+                #[codec(index = 99)]
+                Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Call),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub enum RuntimeEvent {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Event),
@@ -7564,6 +9794,8 @@ pub mod runtime_types {
                 Session(runtime_types::pallet_session::pallet::Event),
                 #[codec(index = 14)]
                 Treasury(runtime_types::pallet_treasury::pallet::Event),
+                #[codec(index = 8)]
+                Utility(runtime_types::pallet_utility::pallet::Event),
                 #[codec(index = 16)]
                 ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Event),
                 #[codec(index = 17)]
@@ -7574,10 +9806,6 @@ pub mod runtime_types {
                 FellowshipReferenda(runtime_types::pallet_referenda::pallet::Event2),
                 #[codec(index = 21)]
                 Whitelist(runtime_types::pallet_whitelist::pallet::Event),
-                #[codec(index = 98)]
-                ValidatorSet(runtime_types::substrate_validator_set::pallet::Event),
-                #[codec(index = 99)]
-                Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 22)]
                 Scheduler(runtime_types::pallet_scheduler::pallet::Event),
                 #[codec(index = 23)]
@@ -7588,20 +9816,34 @@ pub mod runtime_types {
                 Proxy(runtime_types::pallet_proxy::pallet::Event),
                 #[codec(index = 26)]
                 Multisig(runtime_types::pallet_multisig::pallet::Event),
-                #[codec(index = 8)]
-                Utility(runtime_types::pallet_utility::pallet::Event),
+                #[codec(index = 27)]
+                ElectionProviderMultiPhase(
+                    runtime_types::pallet_election_provider_multi_phase::pallet::Event,
+                ),
+                #[codec(index = 28)]
+                Offences(runtime_types::pallet_offences::pallet::Event),
+                #[codec(index = 29)]
+                Bounties(runtime_types::pallet_bounties::pallet::Event),
+                #[codec(index = 30)]
+                ChildBounties(runtime_types::pallet_child_bounties::pallet::Event),
+                #[codec(index = 31)]
+                NominationPools(runtime_types::pallet_nomination_pools::pallet::Event),
                 #[codec(index = 104)]
                 Gear(runtime_types::pallet_gear::pallet::Event),
                 #[codec(index = 106)]
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
+                #[codec(index = 99)]
+                Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Event),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Debug, crate :: gp :: Decode, crate :: gp :: DecodeAsType, crate :: gp :: Encode,
+            )]
             pub struct SessionKeys {
                 pub babe: runtime_types::sp_consensus_babe::app::Public,
                 pub grandpa: runtime_types::sp_consensus_grandpa::app::Public,
@@ -7684,6 +9926,58 @@ pub mod calls {
             }
         }
     }
+    #[doc = "Calls of pallet `Bounties`."]
+    pub enum BountiesCall {
+        ProposeBounty,
+        ApproveBounty,
+        ProposeCurator,
+        UnassignCurator,
+        AcceptCurator,
+        AwardBounty,
+        ClaimBounty,
+        CloseBounty,
+        ExtendBountyExpiry,
+    }
+    impl CallInfo for BountiesCall {
+        const PALLET: &'static str = "Bounties";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::ProposeBounty => "propose_bounty",
+                Self::ApproveBounty => "approve_bounty",
+                Self::ProposeCurator => "propose_curator",
+                Self::UnassignCurator => "unassign_curator",
+                Self::AcceptCurator => "accept_curator",
+                Self::AwardBounty => "award_bounty",
+                Self::ClaimBounty => "claim_bounty",
+                Self::CloseBounty => "close_bounty",
+                Self::ExtendBountyExpiry => "extend_bounty_expiry",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ChildBounties`."]
+    pub enum ChildBountiesCall {
+        AddChildBounty,
+        ProposeCurator,
+        AcceptCurator,
+        UnassignCurator,
+        AwardChildBounty,
+        ClaimChildBounty,
+        CloseChildBounty,
+    }
+    impl CallInfo for ChildBountiesCall {
+        const PALLET: &'static str = "ChildBounties";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::AddChildBounty => "add_child_bounty",
+                Self::ProposeCurator => "propose_curator",
+                Self::AcceptCurator => "accept_curator",
+                Self::UnassignCurator => "unassign_curator",
+                Self::AwardChildBounty => "award_child_bounty",
+                Self::ClaimChildBounty => "claim_child_bounty",
+                Self::CloseChildBounty => "close_child_bounty",
+            }
+        }
+    }
     #[doc = "Calls of pallet `ConvictionVoting`."]
     pub enum ConvictionVotingCall {
         Vote,
@@ -7703,6 +9997,26 @@ pub mod calls {
                 Self::Unlock => "unlock",
                 Self::RemoveVote => "remove_vote",
                 Self::RemoveOtherVote => "remove_other_vote",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ElectionProviderMultiPhase`."]
+    pub enum ElectionProviderMultiPhaseCall {
+        SubmitUnsigned,
+        SetMinimumUntrustedScore,
+        SetEmergencyElectionResult,
+        Submit,
+        GovernanceFallback,
+    }
+    impl CallInfo for ElectionProviderMultiPhaseCall {
+        const PALLET: &'static str = "ElectionProviderMultiPhase";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::SubmitUnsigned => "submit_unsigned",
+                Self::SetMinimumUntrustedScore => "set_minimum_untrusted_score",
+                Self::SetEmergencyElectionResult => "set_emergency_election_result",
+                Self::Submit => "submit",
+                Self::GovernanceFallback => "governance_fallback",
             }
         }
     }
@@ -7897,6 +10211,58 @@ pub mod calls {
                 Self::AsMulti => "as_multi",
                 Self::ApproveAsMulti => "approve_as_multi",
                 Self::CancelAsMulti => "cancel_as_multi",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `NominationPools`."]
+    pub enum NominationPoolsCall {
+        Join,
+        BondExtra,
+        ClaimPayout,
+        Unbond,
+        PoolWithdrawUnbonded,
+        WithdrawUnbonded,
+        Create,
+        CreateWithPoolId,
+        Nominate,
+        SetState,
+        SetMetadata,
+        SetConfigs,
+        UpdateRoles,
+        Chill,
+        BondExtraOther,
+        SetClaimPermission,
+        ClaimPayoutOther,
+        SetCommission,
+        SetCommissionMax,
+        SetCommissionChangeRate,
+        ClaimCommission,
+    }
+    impl CallInfo for NominationPoolsCall {
+        const PALLET: &'static str = "NominationPools";
+        fn call_name(&self) -> &'static str {
+            match self {
+                Self::Join => "join",
+                Self::BondExtra => "bond_extra",
+                Self::ClaimPayout => "claim_payout",
+                Self::Unbond => "unbond",
+                Self::PoolWithdrawUnbonded => "pool_withdraw_unbonded",
+                Self::WithdrawUnbonded => "withdraw_unbonded",
+                Self::Create => "create",
+                Self::CreateWithPoolId => "create_with_pool_id",
+                Self::Nominate => "nominate",
+                Self::SetState => "set_state",
+                Self::SetMetadata => "set_metadata",
+                Self::SetConfigs => "set_configs",
+                Self::UpdateRoles => "update_roles",
+                Self::Chill => "chill",
+                Self::BondExtraOther => "bond_extra_other",
+                Self::SetClaimPermission => "set_claim_permission",
+                Self::ClaimPayoutOther => "claim_payout_other",
+                Self::SetCommission => "set_commission",
+                Self::SetCommissionMax => "set_commission_max",
+                Self::SetCommissionChangeRate => "set_commission_change_rate",
+                Self::ClaimCommission => "claim_commission",
             }
         }
     }
@@ -8188,22 +10554,6 @@ pub mod calls {
             }
         }
     }
-    #[doc = "Calls of pallet `ValidatorSet`."]
-    pub enum ValidatorSetCall {
-        AddValidator,
-        RemoveValidator,
-        AddValidatorAgain,
-    }
-    impl CallInfo for ValidatorSetCall {
-        const PALLET: &'static str = "ValidatorSet";
-        fn call_name(&self) -> &'static str {
-            match self {
-                Self::AddValidator => "add_validator",
-                Self::RemoveValidator => "remove_validator",
-                Self::AddValidatorAgain => "add_validator_again",
-            }
-        }
-    }
     #[doc = "Calls of pallet `Vesting`."]
     pub enum VestingCall {
         Vest,
@@ -8358,6 +10708,44 @@ pub mod storage {
             }
         }
     }
+    #[doc = "Storage of pallet `Bounties`."]
+    pub enum BountiesStorage {
+        BountyCount,
+        Bounties,
+        BountyDescriptions,
+        BountyApprovals,
+    }
+    impl StorageInfo for BountiesStorage {
+        const PALLET: &'static str = "Bounties";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::BountyCount => "BountyCount",
+                Self::Bounties => "Bounties",
+                Self::BountyDescriptions => "BountyDescriptions",
+                Self::BountyApprovals => "BountyApprovals",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ChildBounties`."]
+    pub enum ChildBountiesStorage {
+        ChildBountyCount,
+        ParentChildBounties,
+        ChildBounties,
+        ChildBountyDescriptions,
+        ChildrenCuratorFees,
+    }
+    impl StorageInfo for ChildBountiesStorage {
+        const PALLET: &'static str = "ChildBounties";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ChildBountyCount => "ChildBountyCount",
+                Self::ParentChildBounties => "ParentChildBounties",
+                Self::ChildBounties => "ChildBounties",
+                Self::ChildBountyDescriptions => "ChildBountyDescriptions",
+                Self::ChildrenCuratorFees => "ChildrenCuratorFees",
+            }
+        }
+    }
     #[doc = "Storage of pallet `ConvictionVoting`."]
     pub enum ConvictionVotingStorage {
         VotingFor,
@@ -8369,6 +10757,36 @@ pub mod storage {
             match self {
                 Self::VotingFor => "VotingFor",
                 Self::ClassLocksFor => "ClassLocksFor",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ElectionProviderMultiPhase`."]
+    pub enum ElectionProviderMultiPhaseStorage {
+        Round,
+        CurrentPhase,
+        QueuedSolution,
+        Snapshot,
+        DesiredTargets,
+        SnapshotMetadata,
+        SignedSubmissionNextIndex,
+        SignedSubmissionIndices,
+        SignedSubmissionsMap,
+        MinimumUntrustedScore,
+    }
+    impl StorageInfo for ElectionProviderMultiPhaseStorage {
+        const PALLET: &'static str = "ElectionProviderMultiPhase";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Round => "Round",
+                Self::CurrentPhase => "CurrentPhase",
+                Self::QueuedSolution => "QueuedSolution",
+                Self::Snapshot => "Snapshot",
+                Self::DesiredTargets => "DesiredTargets",
+                Self::SnapshotMetadata => "SnapshotMetadata",
+                Self::SignedSubmissionNextIndex => "SignedSubmissionNextIndex",
+                Self::SignedSubmissionIndices => "SignedSubmissionIndices",
+                Self::SignedSubmissionsMap => "SignedSubmissionsMap",
+                Self::MinimumUntrustedScore => "MinimumUntrustedScore",
             }
         }
     }
@@ -8619,6 +11037,72 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::Multisigs => "Multisigs",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `NominationPools`."]
+    pub enum NominationPoolsStorage {
+        MinJoinBond,
+        MinCreateBond,
+        MaxPools,
+        MaxPoolMembers,
+        MaxPoolMembersPerPool,
+        GlobalMaxCommission,
+        PoolMembers,
+        CounterForPoolMembers,
+        BondedPools,
+        CounterForBondedPools,
+        RewardPools,
+        CounterForRewardPools,
+        SubPoolsStorage,
+        CounterForSubPoolsStorage,
+        Metadata,
+        CounterForMetadata,
+        LastPoolId,
+        ReversePoolIdLookup,
+        CounterForReversePoolIdLookup,
+        ClaimPermissions,
+    }
+    impl StorageInfo for NominationPoolsStorage {
+        const PALLET: &'static str = "NominationPools";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::MinJoinBond => "MinJoinBond",
+                Self::MinCreateBond => "MinCreateBond",
+                Self::MaxPools => "MaxPools",
+                Self::MaxPoolMembers => "MaxPoolMembers",
+                Self::MaxPoolMembersPerPool => "MaxPoolMembersPerPool",
+                Self::GlobalMaxCommission => "GlobalMaxCommission",
+                Self::PoolMembers => "PoolMembers",
+                Self::CounterForPoolMembers => "CounterForPoolMembers",
+                Self::BondedPools => "BondedPools",
+                Self::CounterForBondedPools => "CounterForBondedPools",
+                Self::RewardPools => "RewardPools",
+                Self::CounterForRewardPools => "CounterForRewardPools",
+                Self::SubPoolsStorage => "SubPoolsStorage",
+                Self::CounterForSubPoolsStorage => "CounterForSubPoolsStorage",
+                Self::Metadata => "Metadata",
+                Self::CounterForMetadata => "CounterForMetadata",
+                Self::LastPoolId => "LastPoolId",
+                Self::ReversePoolIdLookup => "ReversePoolIdLookup",
+                Self::CounterForReversePoolIdLookup => "CounterForReversePoolIdLookup",
+                Self::ClaimPermissions => "ClaimPermissions",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Offences`."]
+    pub enum OffencesStorage {
+        Reports,
+        ConcurrentReportsIndex,
+        ReportsByKindIndex,
+    }
+    impl StorageInfo for OffencesStorage {
+        const PALLET: &'static str = "Offences";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Reports => "Reports",
+                Self::ConcurrentReportsIndex => "ConcurrentReportsIndex",
+                Self::ReportsByKindIndex => "ReportsByKindIndex",
             }
         }
     }
@@ -8912,22 +11396,6 @@ pub mod storage {
             }
         }
     }
-    #[doc = "Storage of pallet `ValidatorSet`."]
-    pub enum ValidatorSetStorage {
-        Validators,
-        ApprovedValidators,
-        OfflineValidators,
-    }
-    impl StorageInfo for ValidatorSetStorage {
-        const PALLET: &'static str = "ValidatorSet";
-        fn storage_name(&self) -> &'static str {
-            match self {
-                Self::Validators => "Validators",
-                Self::ApprovedValidators => "ApprovedValidators",
-                Self::OfflineValidators => "OfflineValidators",
-            }
-        }
-    }
     #[doc = "Storage of pallet `Vesting`."]
     pub enum VestingStorage {
         Vesting,
@@ -9055,6 +11523,15 @@ pub mod impls {
                     )?,
                 ));
             }
+            if pallet_name == "Utility" {
+                return Ok(Event::Utility(
+                    crate::metadata::utility::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
             if pallet_name == "ConvictionVoting" {
                 return Ok(Event::ConvictionVoting(
                     crate::metadata::conviction_voting::Event::decode_with_metadata(
@@ -9094,24 +11571,6 @@ pub mod impls {
             if pallet_name == "Whitelist" {
                 return Ok(Event::Whitelist(
                     crate::metadata::whitelist::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "ValidatorSet" {
-                return Ok(Event::ValidatorSet(
-                    crate::metadata::validator_set::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Sudo" {
-                return Ok(Event::Sudo(
-                    crate::metadata::sudo::Event::decode_with_metadata(
                         &mut &*pallet_bytes,
                         pallet_ty,
                         metadata,
@@ -9163,9 +11622,45 @@ pub mod impls {
                     )?,
                 ));
             }
-            if pallet_name == "Utility" {
-                return Ok(Event::Utility(
-                    crate::metadata::utility::Event::decode_with_metadata(
+            if pallet_name == "ElectionProviderMultiPhase" {
+                return Ok(Event::ElectionProviderMultiPhase(
+                    crate::metadata::election_provider_multi_phase::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
+            if pallet_name == "Offences" {
+                return Ok(Event::Offences(
+                    crate::metadata::offences::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
+            if pallet_name == "Bounties" {
+                return Ok(Event::Bounties(
+                    crate::metadata::bounties::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
+            if pallet_name == "ChildBounties" {
+                return Ok(Event::ChildBounties(
+                    crate::metadata::child_bounties::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
+            if pallet_name == "NominationPools" {
+                return Ok(Event::NominationPools(
+                    crate::metadata::nomination_pools::Event::decode_with_metadata(
                         &mut &*pallet_bytes,
                         pallet_ty,
                         metadata,
@@ -9193,6 +11688,15 @@ pub mod impls {
             if pallet_name == "GearVoucher" {
                 return Ok(Event::GearVoucher(
                     crate::metadata::gear_voucher::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
+            if pallet_name == "Sudo" {
+                return Ok(Event::Sudo(
+                    crate::metadata::sudo::Event::decode_with_metadata(
                         &mut &*pallet_bytes,
                         pallet_ty,
                         metadata,
@@ -9257,6 +11761,9 @@ pub mod exports {
     pub mod treasury {
         pub use super::runtime_types::pallet_treasury::pallet::Event;
     }
+    pub mod utility {
+        pub use super::runtime_types::pallet_utility::pallet::Event;
+    }
     pub mod conviction_voting {
         pub use super::runtime_types::pallet_conviction_voting::pallet::Event;
     }
@@ -9271,12 +11778,6 @@ pub mod exports {
     }
     pub mod whitelist {
         pub use super::runtime_types::pallet_whitelist::pallet::Event;
-    }
-    pub mod validator_set {
-        pub use super::runtime_types::substrate_validator_set::pallet::Event;
-    }
-    pub mod sudo {
-        pub use super::runtime_types::pallet_sudo::pallet::Event;
     }
     pub mod scheduler {
         pub use super::runtime_types::pallet_scheduler::pallet::Event;
@@ -9293,8 +11794,20 @@ pub mod exports {
     pub mod multisig {
         pub use super::runtime_types::pallet_multisig::pallet::Event;
     }
-    pub mod utility {
-        pub use super::runtime_types::pallet_utility::pallet::Event;
+    pub mod election_provider_multi_phase {
+        pub use super::runtime_types::pallet_election_provider_multi_phase::pallet::Event;
+    }
+    pub mod offences {
+        pub use super::runtime_types::pallet_offences::pallet::Event;
+    }
+    pub mod bounties {
+        pub use super::runtime_types::pallet_bounties::pallet::Event;
+    }
+    pub mod child_bounties {
+        pub use super::runtime_types::pallet_child_bounties::pallet::Event;
+    }
+    pub mod nomination_pools {
+        pub use super::runtime_types::pallet_nomination_pools::pallet::Event;
     }
     pub mod gear {
         pub use super::runtime_types::pallet_gear::pallet::Event;
@@ -9304,6 +11817,9 @@ pub mod exports {
     }
     pub mod gear_voucher {
         pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
+    }
+    pub mod sudo {
+        pub use super::runtime_types::pallet_sudo::pallet::Event;
     }
     pub mod airdrop {
         pub use super::runtime_types::pallet_airdrop::pallet::Event;

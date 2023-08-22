@@ -82,7 +82,7 @@ fn format(stream: &[u8]) -> String {
     String::from_utf8_lossy(&out)
         .to_string()
         .replace(":: subxt", "::subxt")
-        .replace(" :: ", "::")
+    // .replace(" :: ", "::")
 }
 
 // Get the path of the compiled package.
