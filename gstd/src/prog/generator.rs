@@ -22,7 +22,7 @@ use crate::{
     common::errors::Result, prog, util::with_optimized_encode, ActorId, CodeId, MessageId,
 };
 use gstd_codegen::wait_create_program_for_reply;
-use scale_info::scale::{alloc::vec::Vec, Decode, Encode};
+use scale_info::scale::{alloc::vec::Vec, Encode};
 
 /// Helper to create programs without setting the salt manually.
 pub struct ProgramGenerator(u64);

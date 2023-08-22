@@ -419,7 +419,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
-    let decodable_traits = vec![utils::ident("Decode")];
+    let decodable_traits = vec![syn::parse_quote!(crate::codec::Decode)];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(
@@ -524,7 +524,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
 
     // Generate generics.
     let decodable_ty = utils::ident("D");
-    let decodable_traits = vec![utils::ident("Decode")];
+    let decodable_traits = vec![syn::parse_quote!(crate::codec::Decode)];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(

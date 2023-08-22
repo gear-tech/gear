@@ -18,7 +18,7 @@
 
 use crate::{common::errors::Result, util::with_optimized_encode, ActorId, CodeId, MessageId};
 use gstd_codegen::wait_create_program_for_reply;
-use scale_info::scale::{Decode, Encode};
+use scale_info::scale::Encode;
 
 /// Same as [`create_program_bytes`](super::create_program_bytes), but allows
 /// initialize program with the encodable payload.

@@ -24,7 +24,7 @@ use crate::{
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Output};
+use scale_info::scale::Output;
 
 /// Message handle.
 ///
