@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::collections::BTreeSet;
 use core_processor::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,
@@ -33,7 +33,7 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::WasmPage,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
