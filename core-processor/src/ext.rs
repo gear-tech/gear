@@ -53,6 +53,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
+use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -287,16 +288,67 @@ impl ProcessorExternalities for Ext {
 
 impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                static_pages
-                    .iter_from_zero()
-                    .chain(allocations.iter().copied())
-                    .flat_map(|p| p.to_pages_iter())
-                    .collect()
-            };
+        let ProcessorContext {
+            allocations_context,
+            message_context,
+            gas_counter,
+            gas_reserver,
+            system_reservation,
+            program_candidates_data,
+            program_rents,
+            ..
+        } = self.context;
 
-        self.into_ext_info_inner(memory, pages_for_data)
+        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+
+        // Accessed pages are all pages, that had been released and are in allocations set or static.
+        let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
+        log::trace!("accessed pages numbers = {:?}", accessed_pages);
+
+        let mut pages_data = BTreeMap::new();
+        for page in accessed_pages {
+            let mut buf = PageBuf::new_zeroed();
+            memory.read(page.offset(), &mut buf)?;
+            pages_data.insert(page, buf);
+        }
+
+        let (outcome, mut context_store) = message_context.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            reply_deposits,
+        } = outcome.drain();
+
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
+        context_store.set_reservation_nonce(&gas_reserver);
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
+
+        let info = ExtInfo {
+            gas_amount: gas_counter.to_amount(),
+            gas_reserver,
+            system_reservation_context,
+            allocations: (allocations != initial_allocations)
+                .then_some(allocations)
+                .unwrap_or_default(),
+            pages_data,
+            generated_dispatches,
+            awakening,
+            reply_deposits,
+            context_store,
+            program_candidates_data,
+            program_rents,
+        };
+        Ok(info)
     }
 
     fn gas_amount(&self) -> GasAmount {
@@ -304,11 +356,11 @@ impl BackendExternalities for Ext {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-        _gas_counter: &mut u64,
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        Ok(())
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
@@ -999,67 +1051,6 @@ impl Ext {
                 )
             })
             .map_err(Into::into)
-    }
-
-    /// Into ext info inner impl.
-    /// `pages_for_data` returns vector of pages which data will be stored in info.
-    pub fn into_ext_info_inner(
-        self,
-        memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> Result<ExtInfo, MemoryError> {
-        let ProcessorContext {
-            allocations_context,
-            message_context,
-            gas_counter,
-            gas_reserver,
-            system_reservation,
-            program_candidates_data,
-            program_rents,
-            ..
-        } = self.context;
-
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
-        let mut pages_data = BTreeMap::new();
-        for page in pages_for_data(static_pages, &allocations) {
-            let mut buf = PageBuf::new_zeroed();
-            memory.read(page.offset(), &mut buf)?;
-            pages_data.insert(page, buf);
-        }
-
-        let (outcome, mut context_store) = message_context.drain();
-        let ContextOutcomeDrain {
-            outgoing_dispatches: generated_dispatches,
-            awakening,
-            reply_deposits,
-        } = outcome.drain();
-
-        let system_reservation_context = SystemReservationContext {
-            current_reservation: system_reservation,
-            previous_reservation: context_store.system_reservation(),
-        };
-
-        context_store.set_reservation_nonce(&gas_reserver);
-        if let Some(reservation) = system_reservation {
-            context_store.add_system_reservation(reservation);
-        }
-
-        let info = ExtInfo {
-            gas_amount: gas_counter.to_amount(),
-            gas_reserver,
-            system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
-            pages_data,
-            generated_dispatches,
-            awakening,
-            reply_deposits,
-            context_store,
-            program_candidates_data,
-            program_rents,
-        };
-        Ok(info)
     }
 }
 

@@ -3904,6 +3904,7 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "gear-lazy-pages-common",
  "gear-wasm-instrument",
  "log",
  "proptest",

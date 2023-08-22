@@ -46,18 +46,7 @@ pub struct LazyPagesExt {
 
 impl BackendExternalities for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                // Accessed pages are all pages, that had been released and are in allocations set or static.
-                let mut accessed_pages = lazy_pages::get_write_accessed_pages();
-                accessed_pages.retain(|p| {
-                    let wasm_page = p.to_page();
-                    wasm_page < static_pages || allocations.contains(&wasm_page)
-                });
-                log::trace!("accessed pages numbers = {:?}", accessed_pages);
-                accessed_pages
-            };
-        self.inner.into_ext_info_inner(memory, pages_for_data)
+        self.inner.into_ext_info(memory)
     }
 
     fn gas_amount(&self) -> GasAmount {
@@ -69,7 +58,7 @@ impl BackendExternalities for LazyPagesExt {
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
+        Ext::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
