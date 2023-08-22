@@ -244,7 +244,7 @@ test-syscalls-integrity-release:
 # Misc section
 .PHONY: doc
 doc:
-	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options -D warnings" cargo doc --no-deps \
+	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
 		-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
