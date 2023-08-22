@@ -36,8 +36,8 @@ use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type AccountId = u64;
-type BlockNumber = u64;
+pub type AccountId = u64;
+pub type BlockNumber = u64;
 type Balance = u128;
 
 pub const BLOCK_AUTHOR: AccountId = 255;

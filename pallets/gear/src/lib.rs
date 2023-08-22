@@ -486,6 +486,8 @@ pub mod pallet {
         ProgramNotFound,
         /// Voucher can't be redemmed
         FailureRedeemingVoucher,
+        /// The program rent logic is disabled.
+        ProgramRentDisabled,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1849,7 +1851,7 @@ pub mod pallet {
 
             ensure!(
                 <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramNotFound
+                Error::<T>::ProgramRentDisabled,
             );
 
             ProgramStorageOf::<T>::update_active_program(
@@ -1883,7 +1885,7 @@ pub mod pallet {
 
             ensure!(
                 <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramNotFound
+                Error::<T>::ProgramRentDisabled
             );
 
             let session_end_block =
@@ -1928,7 +1930,7 @@ pub mod pallet {
 
             ensure!(
                 <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramNotFound
+                Error::<T>::ProgramRentDisabled
             );
 
             ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
@@ -1954,7 +1956,7 @@ pub mod pallet {
 
             ensure!(
                 <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramNotFound
+                Error::<T>::ProgramRentDisabled
             );
 
             ensure!(
