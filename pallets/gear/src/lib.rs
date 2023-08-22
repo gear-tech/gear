@@ -606,8 +606,6 @@ pub mod pallet {
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
-            let program_id = ProgramId::generate(code_and_id.code_id(), &salt);
-
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
                 salt.try_into()
@@ -617,12 +615,6 @@ pub mod pallet {
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
-            );
-
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !Self::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
             );
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
@@ -648,6 +640,12 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
+
+            let program_id = packet.destination(message_id, None);
+
+            if Self::program_exists(program_id) {
+                unreachable!("Program id uniqueness rule violated: generated existing program id");
+            }
 
             ExtManager::<T>::default().set_program(
                 program_id,
@@ -1237,7 +1235,7 @@ pub mod pallet {
 
             if Self::program_exists(program_id) {
                 unreachable!("Program id uniqueness rule violated: generated existing program id");
-             }
+            }
 
             let program_event = Event::ProgramChanged {
                 id: program_id,
