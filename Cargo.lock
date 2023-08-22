@@ -3734,6 +3734,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "log",
+ "num_enum",
  "parity-scale-codec",
  "rand 0.8.5",
  "scale-info",
@@ -3868,6 +3869,7 @@ name = "gear-core"
 version = "0.3.1"
 dependencies = [
  "blake2-rfc",
+ "byteorder",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
@@ -3940,6 +3942,7 @@ dependencies = [
 name = "gear-lazy-pages-common"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "derive_more",
  "gear-backend-common",
  "gear-common",
@@ -4134,6 +4137,7 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -6895,6 +6899,26 @@ checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
  "hermit-abi 0.3.2",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
+dependencies = [
+ "num_enum_derive",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.28",
 ]
 
 [[package]]
