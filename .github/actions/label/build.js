@@ -27,18 +27,21 @@ const skip = async ({ github }) => {
     ref: REF,
   });
 
-  if (check_runs.length === 0) return true;
-
   const runs = linux
     ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
     : check_runs.filter((run) => run.name === "build / macox-x86");
 
-  if (runs.length === 0) return false;
+  // Skip this action by default.
+  let skipped = false;
   for (run of runs) {
-    if (run.conclusion !== "skipped") return true;
+    // Process this action only if the previous build has been skipped.
+    if (run.name === "build" && run.conclusion === "skipped") skipped = true;
+
+    // If there is already a build, skip this action without more conditions.
+    if (run.name === "build / linux" || run.name === "build / macox-x86") return true;
   }
 
-  return false;
+  return !skipped;
 };
 
 /**
