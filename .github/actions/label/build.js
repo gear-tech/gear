@@ -100,12 +100,16 @@ const dispatchWorkflow = async ({ core, github }) => {
     head_sha: HEAD_SHA,
   });
 
-  if (workflow_runs.length != 1) {
+  if (workflow_runs.length === 0) {
     core.setFailed(`Incorrect workflow runs`);
     return;
   }
 
-  return workflow_runs[0];
+  let sorted_runs = workflow_runs.sort((a, b) => {
+    return new Date(b.created_at) - new Date(a.created_at);
+  })
+
+  return sorted_runs[0]
 };
 
 /// List jobs of workflow run.
