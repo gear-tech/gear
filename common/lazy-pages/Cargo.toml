@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 derive_more.workspace = true
 log.workspace = true
+byteorder.workspace = true
 
 gear-core.workspace = true
 gear-backend-common.workspace = true
@@ -24,4 +25,5 @@ std = [
     "gear-runtime-interface/std",
     "sp-std/std",
     "log/std",
+    "byteorder/std"
 ]

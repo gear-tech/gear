@@ -18,7 +18,7 @@
 
 #[cfg(not(feature = "std"))]
 pub(crate) mod wasm {
-    use gstd::{debug, msg, prelude::*, String, Vec};
+    use gstd::{debug, msg, prelude::*, str::FromStr, String, Vec};
 
     #[derive(Default)]
     pub(crate) struct State {

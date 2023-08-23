@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 64] = [
+const RT_ALLOWED_IMPORTS: [&str; 67] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -37,6 +37,7 @@ const RT_ALLOWED_IMPORTS: [&str; 64] = [
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
+    "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",
     "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
@@ -67,6 +68,8 @@ const RT_ALLOWED_IMPORTS: [&str; 64] = [
     "ext_offchain_network_state_version_1",
     "ext_offchain_random_seed_version_1",
     "ext_offchain_submit_transaction_version_1",
+    "ext_offchain_local_storage_clear_version_1",
+    "ext_offchain_timestamp_version_1",
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
@@ -133,12 +136,22 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
         .ok_or("Import section not found")?
         .entries();
 
+    let mut unexpected_imports = vec![];
+
     for import in imports {
         if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
         {
-            return Err(format!("Unexpected import `{}`", import.field()));
+            unexpected_imports.push(import.field().to_string());
         }
     }
+
+    if !unexpected_imports.is_empty() {
+        return Err(format!(
+            "Unexpected imports found: {}",
+            unexpected_imports.join(", "),
+        ));
+    }
+
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
 }
