@@ -12,7 +12,7 @@ concurrency:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    if: contains(['A0-pleasereview', 'E2-forcemacos', 'A4-insubstantial', 'A2-mergeoncegreen'], github.event.label.name)
+    if: github.event.label.name === 'A0-pleasereview' || github.event.label.name === 'E2-forcemacos' || github.event.label.name === 'A4-insubstantial' ||  github.event.label.name === "A2-mergeoncegreen"
     steps:
       - uses: actions/checkout@v3
         with:
