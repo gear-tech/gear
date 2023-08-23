@@ -279,11 +279,10 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
             "Unable to find WASM blob version in WASM blob",
             None::<String>,
         ));
-        assert_matches!(
+        assert!(matches!(
             wasm_blob_version_result,
-            Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string(),
-            "Error does not match: {wasm_blob_version_result:?}",
-        );
+            Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
+        ), "Error does not match: {wasm_blob_version_result:?}");
     }
 
     Ok(())
