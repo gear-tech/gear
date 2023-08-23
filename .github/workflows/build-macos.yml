@@ -1,0 +1,56 @@
+name: Build MacOS
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  TERM: xterm-256color
+  BINARYEN_VERSION: version_111
+
+jobs:
+  x86:
+    runs-on: macos-latest
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "ACTIONS: Setup caching"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: "Install: protobuf"
+        run: brew install protobuf
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Build: Node"
+        run: >-
+          cargo build
+          -p gear-cli --features=lazy-pages
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run
+          -p "pallet-*"
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          --features=lazy-pages

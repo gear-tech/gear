@@ -26,7 +26,6 @@ pub mod env;
 pub mod funcs_tree;
 pub mod memory;
 pub mod runtime;
-pub mod state;
 
 pub use env::WasmiEnvironment;
 pub use memory::MemoryWrap;

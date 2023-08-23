@@ -20,10 +20,24 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
+extern crate alloc;
 
+use alloc::string::String;
+use codec::{Decode, Encode};
 use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;
+use sp_wasm_interface::ReturnValue;
+
+#[derive(Clone, Copy, Debug)]
+pub enum Instantiate {
+    /// The first version of instantiate method and syscalls.
+    Version1,
+    /// The second version of syscalls changes their signatures to
+    /// accept global gas value as its first argument and return the remaining
+    /// gas value as its first result tuple element. The approach eliminates
+    /// redundant host calls to get/set WASM-global value.
+    Version2,
+}
 
 /// Error error that can be returned from host function.
 #[derive(Encode, Decode, RuntimeDebug)]
@@ -53,9 +67,9 @@ pub enum ExternEntity {
 #[codec(crate = codec)]
 pub struct Entry {
     /// Module name of which corresponding entity being defined.
-    pub module_name: Vec<u8>,
+    pub module_name: String,
     /// Field name in which corresponding entity being defined.
-    pub field_name: Vec<u8>,
+    pub field_name: String,
     /// External entity being defined.
     pub entity: ExternEntity,
 }
@@ -93,7 +107,7 @@ pub const ERR_OUT_OF_BOUNDS: u32 = -2i32 as u32;
 /// For FFI purposes.
 pub const ERR_EXECUTION: u32 = -3i32 as u32;
 
-/// A global variable has been sucessfully changed.
+/// A global variable has been successfully changed.
 ///
 /// For FFI purposes.
 pub const ERROR_GLOBALS_OK: u32 = 0;
@@ -107,6 +121,23 @@ pub const ERROR_GLOBALS_NOT_FOUND: u32 = u32::MAX;
 ///
 /// For FFI purposes.
 pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
+
+/// Typed value that can be returned from a wasm function
+/// through the dispatch thunk.
+/// Additionally contains globals values.
+#[derive(Clone, Copy, PartialEq, Encode, Decode, Debug)]
+#[codec(crate = codec)]
+pub struct WasmReturnValue {
+    pub gas: i64,
+    pub inner: ReturnValue,
+}
+
+impl WasmReturnValue {
+    pub const ENCODED_MAX_SIZE: usize = 8 + ReturnValue::ENCODED_MAX_SIZE;
+}
+
+// TODO #3057
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 
 #[cfg(test)]
 mod tests {
@@ -125,16 +156,16 @@ mod tests {
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"kernel"[..].into(),
-                field_name: b"memory"[..].into(),
+                module_name: "kernel".to_string(),
+                field_name: "memory".to_string(),
                 entity: ExternEntity::Memory(1337),
             }],
         });
 
         roundtrip(EnvironmentDefinition {
             entries: vec![Entry {
-                module_name: b"env"[..].into(),
-                field_name: b"abort"[..].into(),
+                module_name: "env".to_string(),
+                field_name: "abort".to_string(),
                 entity: ExternEntity::Function(228),
             }],
         });

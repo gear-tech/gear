@@ -93,7 +93,7 @@ pub trait WasmProgram: Debug {
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {data}");
     }
 }
 
@@ -127,6 +127,7 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 }
 
 impl From<&[u8]> for ProgramIdWrapper {
+    #[track_caller]
     fn from(other: &[u8]) -> Self {
         if other.len() != 32 {
             panic!("Invalid identifier: {:?}", other)
@@ -158,6 +159,7 @@ impl From<String> for ProgramIdWrapper {
 }
 
 impl From<&str> for ProgramIdWrapper {
+    #[track_caller]
     fn from(other: &str) -> Self {
         let id = other.strip_prefix("0x").unwrap_or(other);
 
@@ -248,6 +250,7 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, nonce, path)
     }
 
+    #[track_caller]
     pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -294,6 +297,7 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, opt_code, Some(meta_code))
     }
 
+    #[track_caller]
     pub fn from_opt_and_meta_code_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -345,6 +349,7 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload, 0)
     }
 
+    #[track_caller]
     pub fn send_bytes_with_value<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
         &self,
         from: ID,
@@ -381,6 +386,7 @@ impl<'a> Program<'a> {
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
+    #[track_caller]
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -454,6 +460,7 @@ impl<'a> Program<'a> {
         self.manager.borrow().balance_of(&self.id())
     }
 
+    #[track_caller]
     fn wasm_path(extension: &str) -> PathBuf {
         let current_dir = env::current_dir().expect("Unable to get current dir");
         let path_file = current_dir.join(".binpath");
@@ -504,6 +511,7 @@ impl<'a> Program<'a> {
     }
 }
 
+#[track_caller]
 fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
     let path = env::current_dir()
         .expect("Unable to get root directory of the project")
@@ -697,6 +705,7 @@ mod tests {
     }
 
     impl Drop for CleanupFolderOnDrop {
+        #[track_caller]
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
         }
@@ -704,22 +713,19 @@ mod tests {
 
     #[test]
     fn save_load_memory_dump() {
+        use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            420,
-            demo_capacitor::WASM_BINARY.to_vec(),
-            None,
-        );
+        let mut prog =
+            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
 
         let signer = 42;
 
-        // Init capacitor with CAPACITY = 15
-        prog.send_bytes(signer, b"15");
+        // Init capacitor with limit = 15
+        prog.send(signer, InitMessage::Capacitor("15".to_string()));
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = dbg!(prog.send_bytes(signer, b"10"));
         let log = Log::builder()
             .source(prog.id())
@@ -730,21 +736,22 @@ mod tests {
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
         };
-        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
+        // dbg!(log.clone());
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
 
-        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())

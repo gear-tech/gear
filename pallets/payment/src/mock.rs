@@ -70,6 +70,7 @@ construct_runtime!(
         GearPayment: pallet_gear_payment,
         GearProgram: pallet_gear_program,
         GearVoucher: pallet_gear_voucher,
+        GearBank: pallet_gear_bank,
     }
 );
 
@@ -177,12 +178,17 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
@@ -261,19 +267,29 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 
 pub struct DelegateFeeAccountBuilder;
 // We want to test the way the fee delegate is calculated in real runtime
-// for the `send_reply_with_voucher` call. Hence, the actual trait implementation is used.
-// For the `send_message_with_voucher` call, a mock implementation is used.
+// for the gasless `send_reply` call. Hence, the actual trait implementation is used.
+// For the gasless `send_message` call, a mock implementation is used.
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher { .. }) => {
-                Some(FEE_PAYER)
+            RuntimeCall::Gear(pallet_gear::Call::send_message { prepaid, .. }) => {
+                prepaid.then_some(FEE_PAYER)
             }
-            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
-                reply_to_id, ..
-            }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
-                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
-            ),
+            RuntimeCall::Gear(pallet_gear::Call::send_reply {
+                reply_to_id,
+                prepaid,
+                ..
+            }) => {
+                if *prepaid {
+                    <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
+                        |stored_message| {
+                            GearVoucher::voucher_account_id(who, &stored_message.source())
+                        },
+                    )
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -308,6 +324,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 1_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

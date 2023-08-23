@@ -94,7 +94,12 @@ pub trait GearApi<BlockHash, ResponseType> {
     ) -> RpcResult<GasInfo>;
 
     #[method(name = "gear_readState")]
-    fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Bytes>;
+    fn read_state(
+        &self,
+        program_id: H256,
+        payload: Bytes,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Bytes>;
 
     #[method(name = "gear_readStateUsingWasm")]
     fn read_state_using_wasm(
@@ -321,11 +326,12 @@ where
     fn read_state(
         &self,
         program_id: H256,
+        payload: Bytes,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_state(at_hash, program_id))
+        self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.to_vec()))
             .map(Bytes)
     }
 

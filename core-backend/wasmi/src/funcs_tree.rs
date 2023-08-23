@@ -18,11 +18,11 @@
 
 //! `build` function that collects all the syscalls.
 
-use crate::{runtime::CallerWrap, state::HostState, wasmi::Caller};
+use crate::{runtime::CallerWrap, wasmi::Caller};
 use alloc::collections::{BTreeMap, BTreeSet};
 use gear_backend_common::{
-    funcs::FuncsHandler as CommonFuncsHandler, runtime::RunFallibleError, BackendAllocSyscallError,
-    BackendExternalities, BackendSyscallError,
+    funcs::FuncsHandler as CommonFuncsHandler, runtime::RunFallibleError, state::HostState,
+    BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
 };
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{core::Trap, Func, Memory, Store};
@@ -43,10 +43,12 @@ impl FunctionBuilder {
 macro_rules! wrap_common_func_internal_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext, Memory>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-                $func(&mut ctx, $($arg_name,)*).map(|ret| (ret,))
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
+                $func(&mut ctx, 0, $($arg_name,)*).map(|(_, r)| (r,))
             };
             Func::wrap(store, func)
         }
@@ -56,10 +58,13 @@ macro_rules! wrap_common_func_internal_ret {
 macro_rules! wrap_common_func_internal_no_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext, Memory>>, $($arg_name,)*| -> Result<(), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-                $func(&mut ctx, $($arg_name,)*)
+                // Zero-value argument is an unused gas value for wasmi backend as well
+                // as the first element of the result tuple.
+                $func(&mut ctx, 0, $($arg_name,)*)
+                .map(|(_, r)| r)
             };
             Func::wrap(store, func)
         }
@@ -90,7 +95,7 @@ macro_rules! wrap_common_func {
 }
 
 pub(crate) fn build<Ext>(
-    store: &mut Store<HostState<Ext>>,
+    store: &mut Store<HostState<Ext, Memory>>,
     memory: Memory,
     forbidden_funcs: BTreeSet<SysCallName>,
 ) -> BTreeMap<SysCallName, Func>
@@ -158,7 +163,6 @@ where
         f.build(ReplyDeposit, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_deposit, (3) -> ())(store, forbidden, memory)),
         f.build(UnreserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::unreserve_gas, (2) -> ())(store, forbidden, memory)),
         f.build(OutOfGas, |_| wrap_common_func!(CommonFuncsHandler::out_of_gas, () -> ())(store, false, memory)),
-        f.build(OutOfAllowance, |_| wrap_common_func!(CommonFuncsHandler::out_of_allowance, () -> ())(store, false, memory)),
         f.build(SystemReserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::system_reserve_gas, (2) -> ())(store, forbidden, memory)),
     ]
     .into();

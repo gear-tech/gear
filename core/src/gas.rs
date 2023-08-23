@@ -147,22 +147,6 @@ impl GasCounter {
         }
     }
 
-    /// Refund `amount` of gas.
-    pub fn refund(&mut self, amount: u64) -> ChargeResult {
-        if amount > self.burned {
-            return ChargeResult::NotEnough;
-        }
-        match self.left.checked_add(amount) {
-            None => ChargeResult::NotEnough,
-            Some(new_left) => {
-                self.left = new_left;
-                self.burned -= amount;
-
-                ChargeResult::Enough
-            }
-        }
-    }
-
     /// Report how much gas is left.
     pub fn left(&self) -> u64 {
         self.left
@@ -276,13 +260,6 @@ impl GasAllowanceCounter {
             ChargeResult::NotEnough
         }
     }
-
-    /// Refund `amount` of gas.
-    pub fn refund(&mut self, amount: u64) {
-        let new_value = self.0.checked_add(amount as u128);
-
-        self.0 = new_value.unwrap_or(u128::MAX);
-    }
 }
 
 /// Charging error
@@ -306,12 +283,33 @@ pub trait CountersOwner {
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
-    /// Set gas limit and gas allowance left.
-    fn set_gas_left(&mut self, gas_left: GasLeft);
+    /// Currently set gas counter type.
+    fn current_counter_type(&self) -> CounterType;
+    /// Decreases gas left by fetched single numeric of actual counter.
+    fn decrease_current_counter_to(&mut self, amount: u64);
+    /// Returns minimal amount of gas counters and set the type of current counter.
+    fn define_current_counter(&mut self) -> u64;
+    /// Returns value of gas counter currently set.
+    fn current_counter_value(&self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
+        match self.current_counter_type() {
+            CounterType::GasLimit => gas,
+            CounterType::GasAllowance => allowance,
+        }
+    }
+}
+
+/// Enum representing current type of gas counter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum CounterType {
+    /// Gas limit counter.
+    GasLimit,
+    /// Gas allowance counter.
+    GasAllowance,
 }
 
 /// Gas limit and gas allowance left.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,
@@ -327,10 +325,7 @@ impl From<(u64, u64)> for GasLeft {
 
 impl From<(i64, i64)> for GasLeft {
     fn from((gas, allowance): (i64, i64)) -> Self {
-        Self {
-            gas: gas as u64,
-            allowance: allowance as u64,
-        }
+        (gas as u64, allowance as u64).into()
     }
 }
 
@@ -375,13 +370,6 @@ mod tests {
 
         let mut counter = GasCounter::new(10);
         assert_eq!(counter.charge(token), ChargeResult::NotEnough);
-    }
-
-    #[test]
-    fn refund_fails() {
-        let mut counter = GasCounter::new(200);
-        assert_eq!(counter.charge_if_enough(100u64), ChargeResult::Enough);
-        assert_eq!(counter.refund(500), ChargeResult::NotEnough);
     }
 
     #[test]
