@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Initialization, Operation, Reply, Request};
-use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
+use gstd::{collections::BTreeSet, debug, exec, msg, prelude::*, ActorId, MessageId};
 
 static mut STATE: Option<NodeState> = None;
 

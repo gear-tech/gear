@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Program, Reply, Request};
-use alloc::{collections::BTreeSet, vec::Vec};
 use core::future::Future;
-use gstd::{debug, lock::Mutex, msg, ActorId};
+use gstd::{collections::BTreeSet, debug, msg, prelude::*, sync::Mutex, ActorId};
 use parity_scale_codec::{Decode, Encode};
 
 static mut STATE: Option<ProgramState> = None;
