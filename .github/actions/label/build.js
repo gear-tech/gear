@@ -29,7 +29,7 @@ const skip = async ({ github }) => {
 
   const runs = linux
     ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
-    : check_runs.filter((run) => run.name === "build / macox-x86");
+    : check_runs.filter((run) => run.name === "build / macos-x86");
 
   // Skip this action by default.
   let skipped = false;
@@ -38,7 +38,7 @@ const skip = async ({ github }) => {
     if (run.name === "build" && run.conclusion === "skipped") skipped = true;
 
     // If there is already a build, skip this action without more conditions.
-    if (run.name === "build / linux" || run.name === "build / macox-x86") return true;
+    if (run.name === "build / linux" || run.name === "build / macos-x86") return true;
   }
 
   return !skipped;

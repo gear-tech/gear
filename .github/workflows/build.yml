@@ -16,7 +16,7 @@ on:
         description: "Pull request title that triggers this workflow."
       number:
         type: string
-        description: "Pull reqeust number that triggers this workflow"
+        description: "Pull request number that triggers this workflow"
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
