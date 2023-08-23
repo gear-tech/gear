@@ -45,10 +45,15 @@ pub enum HandleAction {
     AcrossWaits,
     ZeroReserve,
     ForbiddenCallInSignal([u8; 32]),
-    ForbiddenCall,
+    ForbiddenAction,
     SaveSignal(SignalCode),
     ExceedMemory,
     UnreachableInstruction,
+    InvalidDebugCall,
+    ForbiddenCall,
+    UnrecoverableExt,
+    IncorrectFree,
+    WaitWithoutSendingMessage,
 }
 
 pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
@@ -60,7 +65,7 @@ mod wasm {
     use gstd::{
         debug,
         errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
-        exec,
+        exec::{self, gas_available},
         ext::oom_panic,
         msg,
         prelude::*,
@@ -197,7 +202,7 @@ mod wasm {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 exec::wait();
             }
-            HandleAction::ForbiddenCall => {
+            HandleAction::ForbiddenAction => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
 
                 msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0)
@@ -218,6 +223,38 @@ mod wasm {
 
                 #[cfg(target_arch = "wasm32")]
                 core::arch::wasm32::unreachable();
+            }
+            HandleAction::InvalidDebugCall => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                let invalid_string = unsafe { core::str::from_utf8_unchecked(&[0, 159, 146, 150]) };
+                debug!("{}", invalid_string);
+            }
+            HandleAction::ForbiddenCall => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                gas_available();
+            }
+            HandleAction::UnrecoverableExt => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                exec::wait_up_to(0);
+            }
+            HandleAction::IncorrectFree => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                extern "C" {
+                    fn free(ptr: *mut u8) -> *mut u8;
+                }
+
+                unsafe {
+                    free(usize::MAX as *mut u8);
+                }
+            }
+            HandleAction::WaitWithoutSendingMessage => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                exec::wait();
             }
         }
     }

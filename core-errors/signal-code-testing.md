@@ -1,37 +1,50 @@
 # Signal codes testing
 
 ## Contents
-1. Summary
-1. Cases
-    1. Panic (execution errors) signal codes
-        1. Userspace panic
-        1. Ran out of gas
-        1. Backend error
-        1. Memory overflow
-        1. Unreachable instruction
-    1. Non-execution signal codes
-        1. Removed from waitlist
+1. [Summary](#summary)
+1. [Testing technique](#testing-technique)
+1. [Cases](#cases)
+    1. [Execution signal codes](#execution)
+        1. [Userspace panic](#userspace-panic)
+        1. [Ran out of gas](#run-out-of-gas)
+        1. [Backend error](#backend-error)
+        1. [Memory overflow](#memory-overflow)
+        1. [Unreachable instruction](#unreachable-instruction)
+    1. [Non-execution signal codes](#non-execution)
+        1. [Removed from waitlist](#removed-from-waitlist)
 
 ## Summary
-We are testing the signal codes that are returned by the runtime. The signal codes may be returned by the runtime during the execution of program or when something meaningful happens outside of the execution of the program (like the message gets removed from the waitlist).
+<a name="summary"></a>
 
-We want to test all the cases where a signals code gets sent and make sure that the program acquired the correct signal code, so that the program can react accordingly. 
+Our goal is to test _all_ cases where a signal code gets sent and ensure that it is sent and handled correctly.
 
-The signal codes are defined in the `SignalCode` enum in [core-errors/src/simple.rs](./src/simple.rs).
+Signal codes might be returned during the program's execution or when a significant event occurs outside the program's execution, such as when a message is removed from the waitlist.
 
-Below we will list all the cases that we want to test and a reference test for each case. The reference test is a test that demonstrates the case and checks that the program got the correct signal code.
+You can find signal codes list in the `SignalCode` enum, located in [core-errors/src/simple.rs](./src/simple.rs).
+
+## Testing technique
+<a name="testing-technique"></a>
+
+In the following section you can find all cases of signal codes. Each case is accompanied by a reference smart contract code and a corresponding reference test. This reference test will demonstrate the specific case, trigger the sending of signal code, and verify that the smart contract receives the appropriate signal code.
+
+Each test will reserve gas before action. This step ensures that the program doesn't run out of gas during the `handle_signal` execution.
+
+Tests code will be written as if it were written in the `gear` pallet, because actual testing of these cases is done in the `gear` pallet.
 
 ## Cases
+<a name="cases"></a>
 
-### Panic (execution errors) signal codes
+### Execution signal codes (<small>`SignalCode::Execution`</small>)
+<a name="execution"></a>
 
-These signal codes are sent when the execution of the program cannot be continued. All of these signal codes contains a `SimpleExecutionError` (see [core-errors/src/simple.rs](./src/simple.rs)) inside.
+These signal codes are sent when the program's execution cannot proceed. Every one of these signal codes contains a `SimpleExecutionError` (refer to [core-errors/src/simple.rs](./src/simple.rs)) within.
 
 #### Userspace panic
+<a name="userspace-panic"></a>
 
-This signal code is sent whenever runtime notices every Rust panic, including the ones like `unreachable!()`, `assert!()`, `unimplemented!()`, etc.
+This signal code is sent when the runtime detects any Rust panic, such as through `panic!()`, `unreachable!()`, `assert!()`, `unimplemented!()`, and so on.
 
-> In fact, this signal code is sent whenever the executor catches a Trap and sends a `TrapExplanation::Panic`. The `TrapExplanation::Panic` is sent every time the `gr_panic` function is called inside the runtime. So to fully cover this case we need just to somehow call the `gr_panic` function – and it will cover all other cases where `gr_panic` may be called.
+> In fact, this signal code is sent when the executor catches a Trap and issues a `TrapExplanation::Panic`. The `TrapExplanation::Panic` is sent every time the `gr_panic` syscall is invoked within the runtime. So to fully cover this case we need just to call the `gr_panic` function – and it will cover all other cases where `gr_panic` might be called.
 
 <details>
 <summary>Program to be uploaded</summary>
@@ -39,7 +52,13 @@ This signal code is sent whenever runtime notices every Rust panic, including th
 ```rust
 #![no_std]
 
-use gstd::{errors::{SignalCode, SimpleExecutionError}, msg, prelude::*};
+use gstd::{
+    ActorId,
+    errors::{SignalCode, SimpleExecutionError},
+    exec,
+    msg,
+    prelude::*
+};
 
 static mut INITIATOR: ActorId = ActorId::zero();
 
@@ -50,6 +69,8 @@ extern "C" fn init() {
 
 #[no_mangle]
 extern "C" fn handle() {
+    exec::system_reserve_gas(1_000_000_000).unwrap();
+
     panic!("Gotcha!");
 }
 
@@ -91,29 +112,20 @@ fn test_userspace_panic_works() {
         0,
     ));
 
-    // Ensure that program is uploaded correctly
     let pid = get_last_program_id();
-    assert!(Gear::is_active(pid));
-
-    // Initialize program
-    assert_ok!(Gear::send_message(
-        RuntimeOrigin::signed(USER_1),
-        pid,
-        DEFAULT_SALT.to_vec(),
-        GAS_LIMIT,
-        0,
-    ));
 
     run_to_next_block(None);
 
-    // Ensure that program is initialized correctly
+    // Ensure that program is uploaded and initialized correctly
+    assert!(Gear::is_active(pid));
     assert!(Gear::is_initialized(pid));
+
 
     // Send the message to trigger signal sending
     assert_ok!(Gear::send_message(
         RuntimeOrigin::signed(USER_1),
         pid,
-        b"please, panic".encode(),
+        [].into(),
         GAS_LIMIT,
         0,
     ));
@@ -135,13 +147,1003 @@ fn test_userspace_panic_works() {
 </details>
 
 #### Ran out of gas
+<a name="run-out-of-gas"></a>
+
+This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. This trap may be caused by:
+- Failing to charge gas during the program's execution because the gas runs out
+
+    When this happens, the syscall `out_of_gas` gets called. This case can be tested simply by running empty loop in the program.
+
+    <details>
+    <summary>Program to be uploaded</summary>
+
+    ```rust
+    #![no_std]
+
+    use gstd::{
+        ActorId,
+        errors::{SignalCode, SimpleExecutionError},
+        exec,
+        prelude::*,
+        msg,
+    };
+
+    static mut INITIATOR: ActorId = ActorId::zero();
+
+    #[no_mangle]
+    extern "C" fn init() {
+        unsafe { INITIATOR = msg::source() };
+    }
+
+    #[no_mangle]
+    extern "C" fn handle() {
+        exec::system_reserve_gas(1_000_000_000).unwrap();
+
+        #[allow(clippy::empty_loop)]
+        loop {}
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        let signal_received = msg::signal_code()
+            .expect("Incorrect call")
+            .expect("Unsupported code");
+
+        if signal_received == SignalCode::Execution(SimpleExecutionError::RanOutOfGas) {
+            msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+        } else {
+            msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+        }
+    }
+    ```
+
+    </details>
+
+    <details>
+    <summary>Test</summary>
+
+    ```rust
+    const USER_1: AccountId = 1;
+    const DEFAULT_SALT: &[u8; 4] = b"salt";
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    #[test]
+    fn test_signal_run_out_of_gas_works() {
+        use demo_signal_run_out_of_gas::{WASM_BINARY};
+
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Send the message to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            [].into(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let mid = get_last_message_id();
+
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        run_to_next_block(None);
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    }
+    ```
+    </details>
+- Gas runs out during plain or lazy pages memory access.
+
+    This case is quite tricky to test, because accurately predicting the amount of gas consumed during program execution and estimating gas usage upon memory access can be difficult. As a result, the test for this case is not provided here.
 
 #### Backend error
+<a name="backend-error"></a>
+
+There are two cases of fails when this signal code is sent:
+- `TrapExplanation::ForbiddenFunction`
+
+    This case is sent when:
+    - One of forbidden syscalls are called.
+
+        In this case the syscall `gr_forbidden` will be called, resulting in execution stop. Forbidden syscalls are:
+        - `gas_available` while calculating gas amount
+        - `source`, `reply`, `reply_push`, `reply_commit`, `reply_commit_wgas`, `reply_input`, `reply_input_wgas`, `reservation_reply`, `reservation_reply_commit`, `system_reserve_gas` when called in `handle_signal`
+
+        <details>
+        <summary>Program to be uploaded</summary>
+
+        ```rust
+        #![no_std]
+
+        use gear_core::ids::ProgramId;
+        use gstd::{
+            ActorId,
+            errors::{SignalCode, SimpleExecutionError}, 
+            exec,
+            prelude::*,
+            msg,
+        };
+
+        static mut INITIATOR: ActorId = ActorId::zero();
+
+        #[no_mangle]
+        extern "C" fn init() {
+            unsafe { INITIATOR = msg::source() };
+        }
+
+        #[no_mangle]
+        extern "C" fn handle() {
+            exec::system_reserve_gas(1_000_000_000).unwrap();
+
+            exec::gas_available();
+        }
+
+        #[no_mangle]
+        extern "C" fn handle_signal() {
+            let signal_received = msg::signal_code()
+                .expect("Incorrect call")
+                .expect("Unsupported code");
+
+            if signal_received == SignalCode::Execution(SimpleExecutionError::BackendError) {
+                msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+            } else {
+                msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+            }
+        }
+        ```
+
+        </details>
+
+        <details>
+        <summary>Test</summary>
+
+        ```rust
+        const USER_1: AccountId = 1;
+        const DEFAULT_SALT: &[u8; 4] = b"salt";
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        #[test]
+        fn test_signal_backend_error_forbidden_function_works() {
+            use demo_signal_backend_error_forbidden_function::{WASM_BINARY};
+
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                0.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Send the message to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                [].into(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+            run_to_next_block(None);
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        }
+        ```
+        </details>
+        
+
+    - Some interactions with system actor are made:
+        - Sending message
+        - Sending message using reservation
+        - Replying to message
+        - Replying to message using reservation
+        - Creating a new program with System ID as Program ID
+
+        Below is the test for sending message to the system actor.
+        <details>
+        <summary>Program to be uploaded</summary>
+
+        ```rust
+        #![no_std]
+
+        use gear_core::ids::ProgramId;
+        use gstd::{
+            ActorId,
+            errors::{SignalCode, SimpleExecutionError},
+            exec,
+            prelude::*,
+            msg,
+        };
+
+        static mut INITIATOR: ActorId = ActorId::zero();
+
+        #[no_mangle]
+        extern "C" fn init() {
+            unsafe { INITIATOR = msg::source() };
+        }
+
+        #[no_mangle]
+        extern "C" fn handle() {
+            exec::system_reserve_gas(1_000_000_000).unwrap();
+
+            msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0)
+                    .expect("cannot send message");
+        }
+
+        #[no_mangle]
+        extern "C" fn handle_signal() {
+            let signal_received = msg::signal_code()
+                .expect("Incorrect call")
+                .expect("Unsupported code");
+
+            if signal_received == SignalCode::Execution(SimpleExecutionError::BackendError) {
+                msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+            } else {
+                msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+            }
+        }
+        ```
+
+        </details>
+
+        <details>
+        <summary>Test</summary>
+
+        ```rust
+        const USER_1: AccountId = 1;
+        const DEFAULT_SALT: &[u8; 4] = b"salt";
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        #[test]
+        fn test_signal_backend_error_system_actor_sending_works() {
+            use demo_signal_backend_error_system_actor_sending::{WASM_BINARY};
+
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                0.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Send the message to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                [].into(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+            run_to_next_block(None);
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        }
+        ```
+        </details>
+        
+- `TrapExplanation::UnrecoverableExt`
+
+    This case is sent when:
+    - A syscall `debug` gets called with invalid string.
+
+        <details>
+        <summary>Program to be uploaded</summary>
+
+        ```rust
+        #![no_std]
+
+        use gstd::{
+            ActorId,
+            debug,
+            errors::{SignalCode, SimpleExecutionError}, 
+            exec,
+            prelude::*,
+            msg,
+        };
+
+        static mut INITIATOR: ActorId = ActorId::zero();
+
+        #[no_mangle]
+        extern "C" fn init() {
+            unsafe { INITIATOR = msg::source() };
+        }
+
+        #[no_mangle]
+        extern "C" fn handle() {
+            exec::system_reserve_gas(1_000_000_000).unwrap();
+
+            let invalid_string = unsafe { core::str::from_utf8_unchecked(&[0, 159, 146, 150]) };
+            debug!("{}", invalid_string);
+        }
+
+        #[no_mangle]
+        extern "C" fn handle_signal() {
+            let signal_received = msg::signal_code()
+                .expect("Incorrect call")
+                .expect("Unsupported code");
+
+            if signal_received == SignalCode::Execution(SimpleExecutionError::BackendError) {
+                msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+            } else {
+                msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+            }
+        }
+        ```
+
+        </details>
+
+        <details>
+        <summary>Test</summary>
+
+        ```rust
+        const USER_1: AccountId = 1;
+        const DEFAULT_SALT: &[u8; 4] = b"salt";
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        #[test]
+        fn test_signal_backend_error_incorrect_debug_string_works() {
+            use demo_signal_backend_error_incorrect_debug_string::{WASM_BINARY};
+
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                0.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Send the message to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                [].into(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+            run_to_next_block(None);
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        }
+        ```
+        </details>
+    - Whenever `UnrecoverableExtError` happens, i.e. when `wait_up_to` called with 0 as parameter.
+
+        <details>
+        <summary>Program to be uploaded</summary>
+
+        ```rust
+        #![no_std]
+
+        use gstd::{
+            ActorId,
+            errors::{SignalCode, SimpleExecutionError},
+            exec,
+            prelude::*,
+            msg,
+        };
+
+        static mut INITIATOR: ActorId = ActorId::zero();
+
+        #[no_mangle]
+        extern "C" fn init() {
+            unsafe { INITIATOR = msg::source() };
+        }
+
+        #[no_mangle]
+        extern "C" fn handle() {
+            exec::system_reserve_gas(1_000_000_000).unwrap();
+
+            exec::wait_up_to(0);
+        }
+
+        #[no_mangle]
+        extern "C" fn handle_signal() {
+            let signal_received = msg::signal_code()
+                .expect("Incorrect call")
+                .expect("Unsupported code");
+
+            if signal_received == SignalCode::Execution(SimpleExecutionError::BackendError) {
+                msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+            } else {
+                msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+            }
+        }
+        ```
+
+        </details>
+
+        <details>
+        <summary>Test</summary>
+
+        ```rust
+        const USER_1: AccountId = 1;
+        const DEFAULT_SALT: &[u8; 4] = b"salt";
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        #[test]
+        fn test_signal_backend_error_unrecoverable_ext_works() {
+            use demo_signal_backend_error_unrecoverable_ext::{WASM_BINARY};
+
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                0.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Send the message to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                [].into(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+            run_to_next_block(None);
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        }
+        ```
+        </details>
+        
+    - When memory accessed out of bounds during lazy pages access.
+
+        This case will be hard to test as there is no way to intentionally trigger lazy pages reading inside the program, so the test is not provided here.
 
 #### Memory overflow
+<a name="memory-overflow"></a>
+
+This signal is sent when the `oom_panic` syscall gets called. This occurs when the program attempts to allocate more memory than it is allowed to, leading to `oom_panic` syscall and then to `TrapExplanation::ProgramAllocOutOfBounds` trap. To test this signal code, one can directly call the `oom_panic` syscall.
+
+<details>
+<summary>Program to be uploaded</summary>
+
+```rust
+#![no_std]
+
+use gstd::{
+    ActorId,
+    errors::{SignalCode, SimpleExecutionError}, 
+    exec,
+    ext::oom_panic,
+    prelude::*,
+    msg,
+};
+
+static mut INITIATOR: ActorId = ActorId::zero();
+
+#[no_mangle]
+extern "C" fn init() {
+    unsafe { INITIATOR = msg::source() };
+}
+
+#[no_mangle]
+extern "C" fn handle() {
+    exec::system_reserve_gas(1_000_000_000).unwrap();
+
+    oom_panic();
+}
+
+#[no_mangle]
+extern "C" fn handle_signal() {
+    let signal_received = msg::signal_code()
+        .expect("Incorrect call")
+        .expect("Unsupported code");
+
+    if signal_received == SignalCode::Execution(SimpleExecutionError::MemoryOverflow) {
+        msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+    } else {
+        msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+    }
+}
+```
+
+</details>
+
+<details>
+<summary>Test</summary>
+
+```rust
+const USER_1: AccountId = 1;
+const DEFAULT_SALT: &[u8; 4] = b"salt";
+const GAS_LIMIT: u64 = 10_000_000_000;
+
+#[test]
+fn test_signal_memory_overflow_works() {
+    use demo_signal_memory_overflow::{WASM_BINARY};
+
+    // Upload program
+    assert_ok!(Gear::upload_program(
+        RuntimeOrigin::signed(USER_1),
+        WASM_BINARY.to_vec(),
+        DEFAULT_SALT.to_vec(),
+        0.encode(),
+        GAS_LIMIT,
+        0,
+    ));
+
+    let pid = get_last_program_id();
+
+    run_to_next_block(None);
+
+    // Ensure that program is uploaded and initialized correctly
+    assert!(Gear::is_active(pid));
+    assert!(Gear::is_initialized(pid));
+
+
+    // Send the message to trigger signal sending
+    assert_ok!(Gear::send_message(
+        RuntimeOrigin::signed(USER_1),
+        pid,
+        [].into(),
+        GAS_LIMIT,
+        0,
+    ));
+
+    run_to_next_block(None);
+
+    let mid = get_last_message_id();
+
+    // Assert that system reserve gas node is removed
+    assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+    run_to_next_block(None);
+    assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+    // Ensure that signal code sent is signal code we saved
+    let mail_msg = get_last_mail(USER_1);
+    assert_eq!(mail_msg.payload_bytes(), true.encode());
+}
+```
+</details>
 
 #### Unreachable instruction
+<a name="unreachable-instruction"></a>
+
+This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This can occur when:
+- There's an attempt to free memory that hasn't been allocated.
+
+    This error gets explicitly returned when the `free` syscall gets called with number of memory page that was not allocated. To test this case, one can simply call the `free` syscall using an invalid page number.
+
+    Since `free` syscall is not explicitly exported in any of user-space libraries, the `extern "C"` function import must be used to call it.
+
+    For this test, `usize::MAX` is used as invalid page number. In our memory system, `0` is considered a valid page number, whereas the `usize::MAX` page number is reserved.
+
+    <details>
+    <summary>Program to be uploaded</summary>
+
+    ```rust
+    #![no_std]
+
+    use gstd::{
+        ActorId,
+        errors::{SignalCode, SimpleExecutionError},
+        exec,
+        prelude::*,
+        msg,
+    };
+
+    static mut INITIATOR: ActorId = ActorId::zero();
+
+    extern "C" {
+        fn free(ptr: *mut u8) -> *mut u8;
+    }
+
+    #[no_mangle]
+    extern "C" fn init() {
+        unsafe { INITIATOR = msg::source() };
+    }
+
+    #[no_mangle]
+    extern "C" fn handle() {
+        exec::system_reserve_gas(1_000_000_000).unwrap();
+
+        unsafe {
+            free(usize::MAX as *mut u8);
+        }
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        let signal_received = msg::signal_code()
+            .expect("Incorrect call")
+            .expect("Unsupported code");
+
+        if signal_received == SignalCode::Execution(SimpleExecutionError::UnreachableInstruction) {
+            msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+        } else {
+            msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+        }
+    }
+    ```
+
+    </details>
+
+    <details>
+    <summary>Test</summary>
+
+    ```rust
+    const USER_1: AccountId = 1;
+    const DEFAULT_SALT: &[u8; 4] = b"salt";
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    #[test]
+    fn test_signal_unreachable_instruction_incorrect_free_works() {
+        use demo_signal_unreachable_instruction_incorrect_free::{WASM_BINARY};
+
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Send the message to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            [].into(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let mid = get_last_message_id();
+
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        run_to_next_block(None);
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    }
+    ```
+    </details>
+
+
+- Terminating backend with `failure` reason and failed executor.
+
+    To test this case, a `success` termination reason must be received during a backend failure. This case cannot be triggered by the program itself, so the test is not provided here.
+- Called plain `unreachable` WASM instruction.
+
+    > Please note that `unreachable!()` Rust macro is not the same as `unreachable` WASM instruction. The Rust macro simply calls `panic!()` and will not cause this signal code to be sent.
+
+    <details>
+    <summary>Program to be uploaded</summary>
+
+    ```rust
+    #![no_std]
+
+    use gstd::{
+        ActorId,
+        errors::{SignalCode, SimpleExecutionError},
+        exec,
+        prelude::*,
+        msg,
+    };
+
+    static mut INITIATOR: ActorId = ActorId::zero();
+
+    #[no_mangle]
+    extern "C" fn init() {
+        unsafe { INITIATOR = msg::source() };
+    }
+
+    #[no_mangle]
+    extern "C" fn handle() {
+        exec::system_reserve_gas(1_000_000_000).unwrap();
+
+        #[cfg(target_arch = "wasm32")]
+        core::arch::wasm32::unreachable();
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        let signal_received = msg::signal_code()
+            .expect("Incorrect call")
+            .expect("Unsupported code");
+
+        if signal_received == SignalCode::Execution(SimpleExecutionError::UnreachableInstruction) {
+            msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+        } else {
+            msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+        }
+    }
+    ```
+
+    </details>
+
+    <details>
+    <summary>Test</summary>
+
+    ```rust
+    const USER_1: AccountId = 1;
+    const DEFAULT_SALT: &[u8; 4] = b"salt";
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    #[test]
+    fn test_signal_unreachable_instruction_wasm_works() {
+        use demo_signal_unreachable_instruction_wasm::{WASM_BINARY};
+
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Send the message to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            [].into(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let mid = get_last_message_id();
+
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        run_to_next_block(None);
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    }
+    ```
+    </details>
 
 ### Non-execution signal codes
+<a name="non-execution"></a>
 
-#### Removed from waitlist
+#### Removed from waitlist (<small>`SignalCode::RemovedFromWaitlist`</small>)
+<a name="removed-from-waitlist"></a>
+
+This signal will be sent whenever the `remove_from_waitlist` method of `TaskHandler` is called (refer to the `gear` pallet, `manager.rs`). To test this, one can trigger wait in program. Once the waiting period expires, `remove_from_waitlist` will be invoked and will result in the sending of the signal.
+
+
+<details>
+<summary>Program to be uploaded</summary>
+
+```rust
+#![no_std]
+
+use gstd::{
+    ActorId,
+    errors::{SignalCode, SimpleExecutionError},
+    exec,
+    prelude::*,
+    msg,
+};
+
+static mut INITIATOR: ActorId = ActorId::zero();
+
+#[no_mangle]
+extern "C" fn init() {
+    unsafe { INITIATOR = msg::source() };
+}
+
+#[no_mangle]
+extern "C" fn handle() {
+    exec::system_reserve_gas(1_000_000_000).unwrap();
+
+    exec::wait();
+}
+
+#[no_mangle]
+extern "C" fn handle_signal() {
+    let signal_received = msg::signal_code()
+        .expect("Incorrect call")
+        .expect("Unsupported code");
+
+    if signal_received == SignalCode::RemovedFromWaitlist {
+        msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+    } else {
+        msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+    }
+}
+```
+
+</details>
+
+<details>
+<summary>Test</summary>
+
+```rust
+const USER_1: AccountId = 1;
+const DEFAULT_SALT: &[u8; 4] = b"salt";
+const GAS_LIMIT: u64 = 10_000_000_000;
+
+#[test]
+fn test_signal_removed_from_waitlist() {
+    use demo_signal_removed_from_waitlist::{WASM_BINARY};
+
+    // Upload program
+    assert_ok!(Gear::upload_program(
+        RuntimeOrigin::signed(USER_1),
+        WASM_BINARY.to_vec(),
+        DEFAULT_SALT.to_vec(),
+        0.encode(),
+        GAS_LIMIT,
+        0,
+    ));
+
+    let pid = get_last_program_id();
+
+    run_to_next_block(None);
+
+    // Ensure that program is uploaded and initialized correctly
+    assert!(Gear::is_active(pid));
+    assert!(Gear::is_initialized(pid));
+
+    // Send the message to trigger signal sending
+    assert_ok!(Gear::send_message(
+        RuntimeOrigin::signed(USER_1),
+        pid,
+        [].into(),
+        GAS_LIMIT,
+        0,
+    ));
+
+    run_to_next_block(None);
+
+    let mid = get_last_message_id();
+
+    // Ensuring that gas is reserved
+    assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+    // Getting block number when waitlist expiration should happen
+    let mut expiration = None;
+
+    System::events().iter().for_each(|e| {
+        if let MockRuntimeEvent::Gear(Event::MessageWaited {
+            expiration: exp, ..
+        }) = e.event
+        {
+            expiration = Some(exp);
+        }
+    });
+
+    let expiration = expiration.unwrap();
+
+    // Hack to fast spend blocks till expiration
+    System::set_block_number(expiration - 1);
+    Gear::set_block_number(expiration - 1);
+
+    // Expiring that message
+    run_to_next_block(None);
+
+    // Ensure that signal code sent is signal code we saved
+    let mail_msg = get_last_mail(USER_1);
+    assert_eq!(mail_msg.payload_bytes(), true.encode());
+}
+```
+</details>

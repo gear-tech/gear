@@ -2215,6 +2215,7 @@ dependencies = [
  "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gsys",
  "gtest",
  "parity-scale-codec",
 ]

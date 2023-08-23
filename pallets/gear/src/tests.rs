@@ -10118,10 +10118,34 @@ fn signal_userspace_panic_works() {
 }
 
 #[test]
-fn signal_backend_error_works() {
+fn signal_backend_error_forbidden_action_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::ForbiddenAction,
+    );
+}
+
+#[test]
+fn signal_backend_error_forbidden_call_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),
         demo_signal_entry::HandleAction::ForbiddenCall,
+    );
+}
+
+#[test]
+fn signal_backend_error_invalid_debug_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::InvalidDebugCall,
+    );
+}
+
+#[test]
+fn signal_backend_error_unrecoverable_ext_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::UnrecoverableExt,
     );
 }
 
@@ -10134,11 +10158,98 @@ fn signal_unreachable_instruction_works() {
 }
 
 #[test]
+fn signal_unreachable_instruction_incorrect_free_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::IncorrectFree,
+    );
+}
+
+#[test]
 fn signal_memory_overflow_works() {
     test_signal_code_works(
         SimpleExecutionError::MemoryOverflow.into(),
         demo_signal_entry::HandleAction::ExceedMemory,
     );
+}
+
+#[test]
+fn signal_removed_from_waitlist_works() {
+    const GAS_LIMIT: u64 = 10_000_000_000;
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SaveSignal(SignalCode::RemovedFromWaitlist).encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitWithoutSendingMessage.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Ensuring that gas is reserved
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        // Getting block number when waitlist expiration should happen
+        let mut expiration = None;
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::MessageWaited {
+                expiration: exp, ..
+            }) = e.event
+            {
+                expiration = Some(exp);
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        // Hack to fast spend blocks till expiration
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number(expiration - 1);
+
+        // Expiring that message
+        run_to_next_block(None);
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    });
 }
 
 #[test]
@@ -14119,22 +14230,12 @@ mod utils {
                 0,
             ));
 
-            // Ensure that program is uploaded correctly
             let pid = get_last_program_id();
-            assert!(Gear::is_active(pid));
-
-            // Initialize program
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                [].to_vec(),
-                GAS_LIMIT,
-                0,
-            ));
 
             run_to_next_block(None);
 
-            // Ensure that program is initialized correctly
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
             assert!(Gear::is_initialized(pid));
 
             // Save signal code to be compared with
