@@ -250,7 +250,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
         let module = Module::new(store.engine(), code).map_err(|e| {
-            log::error!(target: TARGET, "Failed to create module: {e}");
+            log::trace!(target: TARGET, "Failed to create module: {e}");
             Error::Module
         })?;
         let mut linker = Linker::new(store.engine());
@@ -348,11 +348,11 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
         }
 
         let instance_pre = linker.instantiate(&mut store, &module).map_err(|e| {
-            log::error!(target: TARGET, "Error instantiating module: {:?}", e);
+            log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
             Error::Module
         })?;
         let instance = instance_pre.start(&mut store).map_err(|e| {
-            log::error!(target: TARGET, "Error starting module: {:?}", e);
+            log::trace!(target: TARGET, "Error starting module: {:?}", e);
             Error::Module
         })?;
 
@@ -380,7 +380,7 @@ impl<State: 'static> super::SandboxInstance<State> for Instance<State> {
             vec![RuntimeValue::ExternRef(wasmi::ExternRef::null()); func_ty.results().len()];
 
         func.call(&mut store, &args, &mut results).map_err(|e| {
-            log::error!(target: TARGET, "invocation error: {e}");
+            log::trace!(target: TARGET, "invocation error: {e}");
             Error::Execution
         })?;
 
@@ -522,7 +522,7 @@ mod tests {
 		(module
 			(import "env" "assert" (func $assert (param i32)))
 			(global (;0;) (mut i64) (i64.const 0x20000))
-			(export "{GLOBAL_NAME_GAS}" (global 0)) 
+			(export "{GLOBAL_NAME_GAS}" (global 0))
 
 			(func (export "call") (param $x i32) (param $y i64)
 				;; assert that $x = 0x12345678
@@ -558,8 +558,8 @@ mod tests {
             r#"
 		(module
 		    (global (;0;) (mut i64) (i64.const 0x20000))
-			(export "{GLOBAL_NAME_GAS}" (global 0)) 
-		
+			(export "{GLOBAL_NAME_GAS}" (global 0))
+
 			(func (export "call") (param $x i32) (result i32)
 				(i32.add
 					(get_local $x)
@@ -596,7 +596,7 @@ mod tests {
 			;; It's actually returns i32, but imported as if it returned i64
 			(import "env" "returns_i32" (func $returns_i32 (result i64)))
 			(global (;0;) (mut i64) (i64.const 0x20000))
-			(export "{GLOBAL_NAME_GAS}" (global 0)) 
+			(export "{GLOBAL_NAME_GAS}" (global 0))
 
 			(func (export "call")
 				(drop
