@@ -37,6 +37,7 @@ use subxt::{
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 const DEFAULT_TIMEOUT: u64 = 60_000;
+const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
 struct Params(Option<Box<RawValue>>);
 
@@ -67,7 +68,7 @@ impl RpcClient {
                     // *WARNING*:
                     // After updating jsonrpsee to 0.20.0 and higher
                     // use another method created only for that.
-                    .max_request_body_size(100 * 1024 * 1024)
+                    .max_request_body_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
