@@ -37,7 +37,7 @@ pub enum Command {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::Command;
-    use gstd::{lock::Mutex, msg, prelude::*, ActorId};
+    use gstd::{msg, prelude::*, sync::Mutex, ActorId};
 
     static mut DESTINATION: ActorId = ActorId::zero();
     static MUTEX: Mutex<u32> = Mutex::new(0);

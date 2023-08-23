@@ -28,10 +28,10 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::{EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
+    constants::currency::{DOLLARS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
     AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig, StakingRewardsConfig,
-    SudoConfig, SystemConfig, ValidatorSetConfig, VestingConfig, WASM_BINARY,
+    ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
@@ -577,12 +577,6 @@ fn testnet_genesis(
             code: wasm_binary.to_vec(),
         },
         balances: BalancesConfig { balances },
-        validator_set: ValidatorSetConfig {
-            initial_validators: initial_authorities
-                .iter()
-                .map(|x| x.0.clone())
-                .collect::<Vec<_>>(),
-        },
         babe: BabeConfig {
             authorities: Default::default(),
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -622,6 +616,11 @@ fn testnet_genesis(
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
         transaction_payment: Default::default(),
         treasury: Default::default(),
+        nomination_pools: NominationPoolsConfig {
+            min_create_bond: 10 * DOLLARS,
+            min_join_bond: DOLLARS,
+            ..Default::default()
+        },
         vesting: VestingConfig { vesting: vec![] },
         staking_rewards: StakingRewardsConfig {
             non_stakeable: Perquintill::from_rational(4108_u64, 10_000_u64), // 41.08%

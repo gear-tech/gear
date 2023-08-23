@@ -115,7 +115,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             // about future contract execution correctness, because gas limit or allowance exceed.
             match status {
                 Status::Normal => Ok(false),
-                Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                Status::GasLimitExceeded => {
                     log::trace!(
                         "Gas limit or allowance exceed, so removes protection from all wasm memory \
                         and continues execution until the end of current wasm block"
