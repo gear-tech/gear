@@ -138,20 +138,22 @@ impl ExtBuilder {
             .build_storage::<Runtime>()
             .unwrap();
 
-        pallet_balances::GenesisConfig::<Runtime> {
-            balances: self
-                .initial_authorities
-                .iter()
-                .map(|x| (x.0.clone(), self.stash))
-                .chain(
-                    self.endowed_accounts
-                        .iter()
-                        .map(|k| (k.clone(), self.endowment)),
-                )
-                .collect(),
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
+        let mut balances = self
+            .initial_authorities
+            .iter()
+            .map(|x| (x.0.clone(), self.stash))
+            .chain(
+                self.endowed_accounts
+                    .iter()
+                    .map(|k| (k.clone(), self.endowment)),
+            )
+            .collect::<Vec<_>>();
+
+        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+
+        pallet_balances::GenesisConfig::<Runtime> { balances }
+            .assimilate_storage(&mut storage)
+            .unwrap();
 
         SessionConfig {
             keys: self
@@ -477,8 +479,14 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     10 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalance
+                pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
+
+            // TODO: delete lines below (issue #3081).
+            core::mem::drop(Balances::deposit_creating(
+                &alice.to_account_id(),
+                10 * UNITS,
+            ));
 
             // Locked funds can't be transferred to a program as a message `value`
             assert_ok!(Gear::upload_program(
@@ -504,7 +512,7 @@ fn tokens_locking_works() {
                     11 * UNITS,
                     false,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalance
+                pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
         });
 }

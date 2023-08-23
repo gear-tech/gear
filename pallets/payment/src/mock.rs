@@ -70,6 +70,7 @@ construct_runtime!(
         GearPayment: pallet_gear_payment,
         GearProgram: pallet_gear_program,
         GearVoucher: pallet_gear_voucher,
+        GearBank: pallet_gear_bank,
     }
 );
 
@@ -177,12 +178,17 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
@@ -318,6 +324,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 1_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

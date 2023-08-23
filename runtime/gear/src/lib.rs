@@ -54,6 +54,7 @@ use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
@@ -451,12 +452,17 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+    pub BankAddress: AccountId = BANK_ADDRESS.into();
+}
+
+impl pallet_gear_bank::Config for Runtime {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
@@ -612,6 +618,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -647,6 +654,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
     }
 );
 

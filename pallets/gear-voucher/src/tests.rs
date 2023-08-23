@@ -68,12 +68,15 @@ fn voucher_redemption_works() {
         assert_eq!(Balances::free_balance(synthesized), 5_000);
 
         // Redemption ok
-        assert_ok!(Voucher::redeem_with_id(BOB, program_id, 2_000,));
+        assert_ok!(Balances::reserve(
+            &Voucher::voucher_id(BOB, program_id),
+            2_000
+        ));
 
         // Redemption fails
         assert_noop!(
-            Voucher::redeem_with_id(BOB, program_id, 100_000_000),
-            Error::<Test>::FailureToRedeemVoucher
+            Balances::reserve(&Voucher::voucher_id(BOB, program_id), 100_000_000),
+            pallet_balances::Error::<Test>::InsufficientBalance
         );
     });
 }

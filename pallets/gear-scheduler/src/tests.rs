@@ -22,7 +22,6 @@ extern crate alloc;
 
 use crate::{mock::*, *};
 use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
-use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
@@ -71,7 +70,8 @@ fn populate_wl_from(
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
     WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
-    Balances::reserve(&src, GasPrice::gas_price(DEFAULT_GAS)).expect("Cannot reserve gas");
+    GearBank::deposit_gas::<<Test as pallet_gear::Config>::GasPrice>(&src, DEFAULT_GAS)
+        .expect("Cannot reserve gas");
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
     // Locking funds for holding.
     GasHandlerOf::<Test>::lock(
@@ -151,11 +151,11 @@ fn gear_handles_tasks() {
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
-        assert_eq!(Balances::reserved_balance(BLOCK_AUTHOR), 0);
+        assert_eq!(GearBank::account_total(&BLOCK_AUTHOR), 0);
 
         // USER_1 initial balance.
         let user1_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::account_total(&USER_1), 0);
 
         // Appending task and message to wl.
         let bn = 5;
@@ -170,7 +170,7 @@ fn gear_handles_tasks() {
             user1_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::account_total(&USER_1),
             GasPrice::gas_price(DEFAULT_GAS)
         );
 
@@ -193,7 +193,7 @@ fn gear_handles_tasks() {
             user1_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::account_total(&USER_1),
             GasPrice::gas_price(DEFAULT_GAS)
         );
 
@@ -216,7 +216,7 @@ fn gear_handles_tasks() {
             block_author_balance + cost
         );
         assert_eq!(Balances::free_balance(USER_1), user1_balance - cost);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::account_total(&USER_1), 0);
     });
 }
 
@@ -239,15 +239,15 @@ fn gear_handles_outdated_tasks() {
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
-        assert_eq!(Balances::reserved_balance(BLOCK_AUTHOR), 0);
+        assert_eq!(GearBank::account_total(&BLOCK_AUTHOR), 0);
 
         // USER_1 initial balance.
         let user1_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::account_total(&USER_1), 0);
 
         // USER_2 initial balance.
         let user2_balance = Balances::free_balance(USER_2);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::account_total(&USER_2), 0);
 
         // Appending twice task and message to wl.
         let bn = 5;
@@ -265,7 +265,7 @@ fn gear_handles_outdated_tasks() {
             user1_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::account_total(&USER_1),
             GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
@@ -273,7 +273,7 @@ fn gear_handles_outdated_tasks() {
             user2_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_2),
+            GearBank::account_total(&USER_2),
             GasPrice::gas_price(DEFAULT_GAS)
         );
 
@@ -297,7 +297,7 @@ fn gear_handles_outdated_tasks() {
             user1_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::account_total(&USER_1),
             GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
@@ -305,7 +305,7 @@ fn gear_handles_outdated_tasks() {
             user2_balance - GasPrice::gas_price(DEFAULT_GAS)
         );
         assert_eq!(
-            Balances::reserved_balance(USER_2),
+            GearBank::account_total(&USER_2),
             GasPrice::gas_price(DEFAULT_GAS)
         );
 
@@ -323,13 +323,13 @@ fn gear_handles_outdated_tasks() {
             assert!(!out_of_rent_reply_exists(USER_1, mid1, pid1));
             assert!(out_of_rent_reply_exists(USER_2, mid2, pid2));
             assert_eq!(Balances::free_balance(USER_2), user2_balance - cost1);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::account_total(&USER_2), 0);
         } else {
             assert!(task_and_wl_message_exist(mid2, pid2, bn));
             assert!(out_of_rent_reply_exists(USER_1, mid1, pid1));
             assert!(!out_of_rent_reply_exists(USER_2, mid2, pid2));
             assert_eq!(Balances::free_balance(USER_1), user1_balance - cost1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::account_total(&USER_1), 0);
         }
 
         assert_eq!(
@@ -361,7 +361,7 @@ fn gear_handles_outdated_tasks() {
             Balances::free_balance(USER_1) + Balances::free_balance(USER_2),
             user1_balance + user2_balance - cost1 - cost2
         );
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::account_total(&USER_1), 0);
+        assert_eq!(GearBank::account_total(&USER_2), 0);
     });
 }

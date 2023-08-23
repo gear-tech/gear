@@ -16,4 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub type Migrations = ();
+use crate::*;
+
+pub type Migrations = (runtime_common::migrations::MigrateToGearBank<Runtime, GasConverter>,);

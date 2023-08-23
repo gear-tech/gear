@@ -2700,18 +2700,15 @@ pub mod runtime_types {
                     #[doc = "Value doesn't cover ExistentialDeposit."]
                     ValueLessThanMinimal,
                     #[codec(index = 11)]
-                    #[doc = "Messages storage corrupted."]
-                    MessagesStorageCorrupted,
-                    #[codec(index = 12)]
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
-                    #[codec(index = 13)]
+                    #[codec(index = 12)]
                     #[doc = "Block count doesn't cover MinimalResumePeriod."]
                     ResumePeriodLessThanMinimal,
-                    #[codec(index = 14)]
+                    #[codec(index = 13)]
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
-                    #[codec(index = 15)]
+                    #[codec(index = 14)]
                     #[doc = "Voucher can't be redemmed"]
                     FailureRedeemingVoucher,
                 }
@@ -3021,6 +3018,38 @@ pub mod runtime_types {
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                }
+            }
+        }
+        pub mod pallet_gear_bank {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BankAccount<_0> {
+                    pub gas: _0,
+                    pub value: _0,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Insufficient user balance."]
+                    InsufficientBalance,
+                    #[codec(index = 1)]
+                    #[doc = "Insufficient user's bank account gas balance."]
+                    InsufficientGasBalance,
+                    #[codec(index = 2)]
+                    #[doc = "Insufficient user's bank account gas balance."]
+                    InsufficientValueBalance,
+                    #[codec(index = 3)]
+                    #[doc = "Insufficient bank account balance."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    InsufficientBankBalance,
+                    #[codec(index = 4)]
+                    #[doc = "Deposit of funds that will not keep bank account alive."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    InsufficientDeposit,
                 }
             }
         }
@@ -10147,6 +10176,20 @@ pub mod storage {
                 Self::ExecuteInherent => "ExecuteInherent",
                 Self::BlockNumber => "BlockNumber",
                 Self::LastGearBlockNumber => "LastGearBlockNumber",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearBank`."]
+    pub enum GearBankStorage {
+        Bank,
+        UnusedValue,
+    }
+    impl StorageInfo for GearBankStorage {
+        const PALLET: &'static str = "GearBank";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Bank => "Bank",
+                Self::UnusedValue => "UnusedValue",
             }
         }
     }

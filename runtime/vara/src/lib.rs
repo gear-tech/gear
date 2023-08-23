@@ -64,6 +64,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
@@ -945,12 +946,17 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+    pub BankAddress: AccountId = BANK_ADDRESS.into();
+}
+
+impl pallet_gear_bank::Config for Runtime {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
@@ -1146,6 +1152,7 @@ construct_runtime!(
         GearPayment: pallet_gear_payment = 105,
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
+        GearBank: pallet_gear_bank = 108,
 
         // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
@@ -1210,6 +1217,7 @@ construct_runtime!(
         GearPayment: pallet_gear_payment = 105,
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
+        GearBank: pallet_gear_bank = 108,
 
         // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,

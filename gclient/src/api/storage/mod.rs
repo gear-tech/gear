@@ -29,7 +29,7 @@ use gsdk::{
     ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::user,
-        pallet_balances::AccountData,
+        pallet_balances::AccountData, pallet_gear_bank::pallet::BankAccount,
     },
 };
 
@@ -102,6 +102,19 @@ impl GearApi {
             .info_at(&account_id.into_account_id().to_ss58check(), block_hash)
             .await?
             .data)
+    }
+
+    /// Get bank account data by `account_id` at specified block.
+    pub(crate) async fn bank_data_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<BankAccount<u128>> {
+        Ok(self
+            .0
+            .api()
+            .bank_info_at(account_id.into_account_id(), block_hash)
+            .await?)
     }
 
     /// Get the total balance of the account identified by `account_id`.

@@ -55,15 +55,16 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        GearScheduler: pallet_gear_scheduler::{Pallet},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        System: system,
+        Timestamp: pallet_timestamp,
+        Authorship: pallet_authorship,
+        Balances: pallet_balances,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
+        Gear: pallet_gear,
+        GearGas: pallet_gear_gas,
     }
 );
 
@@ -131,12 +132,17 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
@@ -217,6 +223,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

@@ -37,7 +37,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub(crate) type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
+pub(crate) type BalanceOf<T> = <<T as pallet_gear_bank::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -118,7 +118,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
-            <<T as pallet_gear::Config>::Currency as Currency<_>>::transfer(
+            <<T as pallet_gear_bank::Config>::Currency as Currency<_>>::transfer(
                 &source,
                 &dest,
                 amount,
