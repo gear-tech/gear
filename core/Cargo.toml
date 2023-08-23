@@ -24,6 +24,9 @@ hashbrown.workspace = true
 static_assertions.workspace = true
 paste = { workspace = true }
 enum-iterator.workspace = true
+byteorder.workspace = true
+
+# Optional dependencies
 serde = { workspace = true, features = [ "derive" ], optional = true }
 
 [dev-dependencies]

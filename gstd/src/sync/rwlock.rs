@@ -53,7 +53,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// case of the `inc` command.
 ///
 /// ```
-/// use gstd::{lock::RwLock, msg, ActorId};
+/// use gstd::{msg, sync::RwLock, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static RWLOCK: RwLock<u32> = RwLock::new(0);
@@ -310,7 +310,7 @@ impl<T> DerefMut for RwLockWriteGuard<'_, T> {
 /// they can be inferred automatically.
 ///
 /// ```
-/// use gstd::lock::{RwLock, RwLockReadFuture, RwLockReadGuard};
+/// use gstd::sync::{RwLock, RwLockReadFuture, RwLockReadGuard};
 ///
 /// #[gstd::async_main]
 /// async fn main() {
@@ -334,7 +334,7 @@ pub struct RwLockReadFuture<'a, T> {
 /// # Examples
 ///
 /// ```
-/// use gstd::lock::{RwLock, RwLockWriteFuture, RwLockWriteGuard};
+/// use gstd::sync::{RwLock, RwLockWriteFuture, RwLockWriteGuard};
 ///
 /// #[gstd::async_main]
 /// async fn main() {
