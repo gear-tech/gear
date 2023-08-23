@@ -26,7 +26,7 @@ use gsdk::{
 };
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
-use std::{assert_matches::assert_matches, borrow::Cow, process::Command, str::FromStr};
+use std::{borrow::Cow, process::Command, str::FromStr};
 use subxt::{config::Header, error::RpcError, Error as SubxtError};
 
 fn dev_node() -> Node {
