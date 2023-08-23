@@ -63,6 +63,11 @@ impl RpcClient {
         if url.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
+                    // Actually that stand for the response too.
+                    // *WARNING*:
+                    // After updating jsonrpsee to 0.20.0 and higher
+                    // use another method created only for that.
+                    .max_request_body_size(100 * 1024 * 1024)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
