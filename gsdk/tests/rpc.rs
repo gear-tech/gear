@@ -18,8 +18,6 @@
 
 //! Requires node to be built in release mode
 
-#![feature(assert_matches)]
-
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
@@ -279,10 +277,13 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
             "Unable to find WASM blob version in WASM blob",
             None::<String>,
         ));
-        assert!(matches!(
-            wasm_blob_version_result,
-            Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
-        ), "Error does not match: {wasm_blob_version_result:?}");
+        assert!(
+            matches!(
+                wasm_blob_version_result,
+                Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
+            ),
+            "Error does not match: {wasm_blob_version_result:?}"
+        );
     }
 
     Ok(())
