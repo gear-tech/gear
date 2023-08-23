@@ -2,6 +2,7 @@
  * Javascript module for the label action.
  */
 
+const TWO_HOURS = 1000 * 60 * 60 * 2;
 const [owner, repo] = ["gear-tech", "gear"];
 const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
 const linux = LABEL === "A0-pleasereview"
@@ -71,6 +72,27 @@ const createChecks = async ({ core, github }) => {
 
   return status;
 };
+
+/**
+ * Timeout for the workflow.
+ *
+ * Cancel all new created checks if the workflow is not
+ * completed in 2 hours.
+ */
+const timeout = ({ checks, core, github }) => {
+  setTimeout(async () => {
+    for (check of checks) {
+      core.info(`Timeout check ${check.name}`);
+      await github.rest.checks.update({
+        owner,
+        repo,
+        check_run_id: check.id,
+        status: "completed",
+        conclusion: "timed_out",
+      });
+    }
+  }, TWO_HOURS)
+}
 
 /**
  *  Dispatch the target workflow.
@@ -149,6 +171,10 @@ module.exports = async ({ github, core }) => {
   core.info(`Dispatched workflow ${run.html_url}`);
   let labelChecks = await createChecks({ core, github });
 
+  // Set up timeouts for the checks.
+  timeout({ checks: Object.values(labelChecks), core, github });
+
+  // Wait for the jobs to be completed.
   while (true) {
     const jobs = await listJobs({ github, core, run_id: run.id });
     completed = jobs.filter((job) => job.status === "completed").length;
