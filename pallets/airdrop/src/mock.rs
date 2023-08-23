@@ -67,6 +67,7 @@ parameter_types! {
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: Balance = 1;
     pub const OutgoingLimit: u32 = 1024;
+    pub const CostMultiplier: u32 = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
@@ -162,6 +163,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
+    type CostMultiplier = CostMultiplier;
     type DebugInfo = ();
     type ProgramStorage = GearProgram;
     type CodeStorage = GearProgram;

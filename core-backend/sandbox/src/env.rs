@@ -236,6 +236,7 @@ where
     fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
         builder.add_func(BlockHeight, wrap_common_func!(FuncsHandler::block_height, (2) -> ()));
         builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (2) -> ()));
+        builder.add_func(CostMultiplier, wrap_common_func!(FuncsHandler::cost_multiplier, (2) -> ()));
         builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (8) -> ()));
         builder.add_func(CreateProgramWGas, wrap_common_func!(FuncsHandler::create_program_wgas, (9) -> ()));
         builder.add_func(Debug, wrap_common_func!(FuncsHandler::debug, (3) -> ()));

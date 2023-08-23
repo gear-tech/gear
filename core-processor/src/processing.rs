@@ -57,6 +57,7 @@ where
 
     let BlockConfig {
         block_info,
+        cost_multiplier,
         max_pages,
         page_costs,
         existential_deposit,
@@ -75,6 +76,7 @@ where
 
     let execution_settings = ExecutionSettings {
         block_info,
+        cost_multiplier,
         existential_deposit,
         max_pages,
         page_costs,

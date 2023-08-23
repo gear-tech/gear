@@ -68,6 +68,7 @@ where
 
     BlockConfig {
         block_info,
+        cost_multiplier: T::CostMultiplier::get(),
         max_pages: T::Schedule::get().limits.memory_pages.into(),
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,

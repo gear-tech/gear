@@ -314,6 +314,19 @@ where
             .map_err(Into::into)
     }
 
+    #[host(cost = RuntimeCosts::CostMultiplier)]
+    pub fn cost_multiplier(
+        ctx: &mut R,
+        gas: u64,
+        cost_multiplier_ptr: u32,
+    ) -> Result<(u64, ()), R::Error> {
+        let cost_multiplier = ctx.ext_mut().cost_multiplier()?;
+
+        let write_cost_multiplier = ctx.register_write_as(cost_multiplier_ptr);
+        ctx.write_as(write_cost_multiplier, cost_multiplier.to_le_bytes())
+            .map_err(Into::into)
+    }
+
     #[host(cost = RuntimeCosts::Random)]
     pub fn random(
         ctx: &mut R,

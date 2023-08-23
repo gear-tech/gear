@@ -203,6 +203,9 @@ pub trait Externalities {
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError>;
 
+    /// Get current cost multiplier.
+    fn cost_multiplier(&self) -> Result<u32, Self::UnrecoverableError>;
+
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::FallibleError>;
 

@@ -124,6 +124,7 @@ where
         f.build(Free, |forbidden| wrap_common_func!(CommonFuncsHandler::free, (1) -> (1))(store, forbidden, memory)),
         f.build(BlockHeight, |forbidden| wrap_common_func!(CommonFuncsHandler::block_height, (1) -> ())(store, forbidden, memory)),
         f.build(BlockTimestamp, |forbidden| wrap_common_func!(CommonFuncsHandler::block_timestamp, (1) -> ())(store, forbidden, memory)),
+        f.build(CostMultiplier, |forbidden| wrap_common_func!(CommonFuncsHandler::cost_multiplier, (1) -> ())(store, forbidden, memory)),
         f.build(ReservationSend, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_send, (5) -> ())(store, forbidden, memory)),
         f.build(ReservationSendCommit, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_send_commit, (4) -> ())(store, forbidden, memory)),
         f.build(Reply, |forbidden| wrap_common_func!(CommonFuncsHandler::reply, (4) -> ())(store, forbidden, memory)),

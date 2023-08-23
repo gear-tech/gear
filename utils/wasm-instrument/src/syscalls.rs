@@ -76,6 +76,7 @@ pub enum SysCallName {
     // Execution environmental data
     BlockHeight,
     BlockTimestamp,
+    CostMultiplier,
     GasAvailable,
     ValueAvailable,
 
@@ -110,6 +111,7 @@ impl SysCallName {
             SysCallName::Alloc => "alloc",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
+            SysCallName::CostMultiplier => "gr_cost_multiplier",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
             SysCallName::ReplyDeposit => "gr_reply_deposit",

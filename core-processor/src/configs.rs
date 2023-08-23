@@ -144,6 +144,8 @@ impl PageCosts {
 pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
+    /// Cost multiplier.
+    pub cost_multiplier: u32,
     /// Max amount of pages in program memory during execution.
     pub max_pages: WasmPage,
     /// Pages costs.
@@ -176,6 +178,8 @@ pub struct ExecutionSettings {
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
+    /// Cost multiplier.
+    pub cost_multiplier: u32,
     /// Max allowed page numbers for wasm program.
     pub max_pages: WasmPage,
     /// Allocations config.

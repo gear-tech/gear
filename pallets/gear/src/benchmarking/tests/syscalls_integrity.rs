@@ -78,6 +78,7 @@ where
             SysCallName::Value => check_gr_value::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
+            SysCallName::CostMultiplier => check_gr_cost_multiplier::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
@@ -781,6 +782,24 @@ where
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
+}
+
+fn check_gr_cost_multiplier<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    // run_tester::<T, _, _, T::AccountId>(|_, _| {
+    //     let current_height: u32 = SystemPallet::<T>::block_number().unique_saturated_into();
+    //     let height_delta = 15;
+    //     utils::run_to_block::<T>(current_height + height_delta, None);
+
+    //     let mp = vec![Kind::BlockHeight(current_height + height_delta + 1)]
+    //         .encode()
+    //         .into();
+
+    //     (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    // })
 }
 
 fn check_gr_reserve_gas<T>()

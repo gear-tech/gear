@@ -206,6 +206,10 @@ pub mod pallet {
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
+        /// Cost multiplier.
+        #[pallet::constant]
+        type CostMultiplier: Get<u32>;
+
         type DebugInfo: DebugInfo;
 
         /// Implementation of a storage for program binary codes.
@@ -1055,6 +1059,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
+                cost_multiplier: T::CostMultiplier::get(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,

@@ -593,6 +593,16 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 321_988
             .saturating_add(Weight::from_parts(105_008_310, 0).saturating_mul(r.into()))
     }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_cost_multiplier(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 85_627_000 picoseconds.
+        Weight::from_parts(85_563_243, 0)
+            // Standard Error: 311_752
+            .saturating_add(Weight::from_parts(105_877_332, 0).saturating_mul(r.into()))
+    }
     /// The range of component `n` is `[0, 20]`.
     fn gr_random(n: u32, ) -> Weight {
         // Proof Size summary in bytes:

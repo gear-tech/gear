@@ -796,6 +796,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
+            cost_multiplier: 1,
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,

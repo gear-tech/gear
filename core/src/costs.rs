@@ -142,6 +142,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_block_timestamp`.
     pub gr_block_timestamp: u64,
 
+    /// Weight of calling `gr_cost_multiplier`.
+    pub gr_cost_multiplier: u64,
+
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
@@ -350,6 +353,8 @@ pub enum RuntimeCosts {
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
     BlockTimestamp,
+    /// Weight of calling `gr_cost_multiplier`.
+    CostMultiplier,
     /// Weight of calling `gr_random`.
     Random,
     /// Weight of calling `gr_reply_deposit`.
@@ -472,6 +477,7 @@ impl RuntimeCosts {
             ReadPerByte(len) => cost_per_byte(s.gr_read_per_byte, len),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
+            CostMultiplier => s.gr_cost_multiplier,
             Random => s.gr_random,
             ReplyDeposit => s.gr_reply_deposit,
             Send(len) => cost_with_weight_per_byte!(gr_send, len),

@@ -160,6 +160,7 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const CostMultiplier: u32 = 1;
 }
 
 thread_local! {
@@ -213,6 +214,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
+    type CostMultiplier = CostMultiplier;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
