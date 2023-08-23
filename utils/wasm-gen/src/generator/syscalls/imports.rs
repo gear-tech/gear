@@ -34,7 +34,7 @@ use gear_wasm_instrument::{
     },
     syscalls::SysCallName,
 };
-use gsys::HashWithValue;
+use gsys::Hash;
 use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
@@ -282,25 +282,42 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         };
 
         // subtract to be sure we are in memory boundaries.
-        let pid_value_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
-        let rid_pid_value_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
+        let rid_pid_value_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
+        let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Amount of gas to reserve
             Instruction::GetLocal(4),
             // Duration of the reservation
             Instruction::GetLocal(5),
-            // Pointer to the LengthWithHash struct
+            // Pointer to the ErrorWithHash struct
             Instruction::GetLocal(6),
             Instruction::Call(reserve_gas_idx as u32),
-            // Pointer to the LengthWithHash struct
+            // Pointer to the ErrorWithHash struct
             Instruction::GetLocal(6),
-            // Load LengthWithHash.length
+            // Load ErrorWithHash.error
             Instruction::I32Load(2, 0),
-            // Check if LengthWithHash.length == 0
+            // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
-            // If LengthWithHash.length == 0
+            // If ErrorWithHash.error == 0
             Instruction::If(BlockType::NoResult),
+            // Copy the Hash struct (32 bytes) containing the reservation id.
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 4),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
             // Copy the HashWithValue struct (48 bytes) containing
             // the recipient and value after the obtained reservation ID
             Instruction::I32Const(pid_value_ptr),
