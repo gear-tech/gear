@@ -32,7 +32,7 @@ fn instruction_weights_heuristics_test() {
         _phantom: core::marker::PhantomData,
 
         i64const: 160,
-        i64load: 7_000,
+        i64load: 11_575,
         i32load: 8_000,
         i64store: 29_000,
         i32store: 20_000,
@@ -141,7 +141,7 @@ fn page_costs_heuristic_test() {
         lazy_pages_signal_write_after_read: 9_500_000.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
-        lazy_pages_host_func_write_after_read: 8_700_000.into(),
+        lazy_pages_host_func_write_after_read: 10_687_730.into(),
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),

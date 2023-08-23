@@ -82,6 +82,67 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn value_counter_set_correctly_for_interruptions() {
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    // Equivalent of:
+    //
+    // use gstd::{msg, exec};
+    //
+    // #[no_mangle]
+    // extern "C" fn handle() {
+    //     msg::send(msg::source(), exec::value_available(), 0).unwrap();
+    //     msg::send_bytes(Default::default(), [], msg::value()).unwrap();
+    //     exec::wait_for(1);
+    // }
+    //
+    // Message auto wakes on the next block after execution and
+    // does everything again from the beginning.
+    //
+    // So for the first run we expect source to receive
+    // `value_available` == `init_value` + msg value.
+    // For second run we expect just `init_value`.
+    let handle = Calls::builder()
+        .source("source_store")
+        .value("value_store")
+        .value_available_as_vec("value_available_store")
+        .send_wgas("source_store", "value_available_store", 0)
+        .send_value(Arg::new([0u8; 32]), Arg::new(vec![]), "value_store")
+        .wait_for(1);
+
+    let scheme = Scheme::predefined(Calls::builder().noop(), handle, Calls::builder().noop());
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const INIT_VALUE: u128 = 123_123_123;
+        const VALUE: u128 = 10_000;
+
+        let (_mid, pid) = init_constructor_with_value(scheme, INIT_VALUE);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            VALUE,
+            false
+        ));
+
+        run_to_next_block(None);
+        let msg = maybe_last_message(USER_1).expect("Message should be");
+        let value_available =
+            u128::decode(&mut msg.payload_bytes()).expect("Failed to decode value available");
+        assert_eq!(value_available, INIT_VALUE + VALUE);
+
+        run_to_next_block(None);
+        let msg = maybe_last_message(USER_1).expect("Message should be");
+        let value_available =
+            u128::decode(&mut msg.payload_bytes()).expect("Failed to decode value available");
+        assert_eq!(value_available, INIT_VALUE);
+    });
+}
+
+#[test]
 fn calculate_gas_returns_not_block_limit() {
     use demo_program_generator::{CHILD_WAT, WASM_BINARY};
 
