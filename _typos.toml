@@ -4,6 +4,9 @@ extend-ignore-re = [
     "\"hel\""
 ]
 
+[files]
+extend-exclude = ["gsdk/src/metadata/generated.rs"]
+
 [default.extend-words]
 # typo in sp-state-machine, won't fix here for now.
 overlayed = "overlayed"

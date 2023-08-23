@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    collections::BTreeMap,
     config::WaitType,
     errors::{Error, Result},
-    exec, BTreeMap, Config, MessageId,
+    exec, Config, MessageId,
 };
 use core::cmp::Ordering;
 use hashbrown::HashMap;

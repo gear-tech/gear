@@ -21,9 +21,8 @@
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
 use crate::{
-    async_runtime::signals,
     errors::{Error, IntoResult, Result},
-    msg::{utils, CodecMessageFuture, MessageFuture},
+    msg::utils,
     prelude::ops::RangeBounds,
     util::with_optimized_encode,
     ActorId, MessageId, ReservationId,
