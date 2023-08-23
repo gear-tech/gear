@@ -13,8 +13,9 @@ jobs:
   dispatch:
     runs-on: ubuntu-latest
     if: >-
-      github.event.label.name == 'A0-pleasereview'
-      || github.event.label.name == 'E2-forcemacos'
+      github.event.label.name === 'A0-pleasereview'
+      || github.event.label.name === 'E2-forcemacos'
+      || github.event.label.name === 'A4-insubstantial'
     steps:
       - uses: actions/checkout@v3
         with:
