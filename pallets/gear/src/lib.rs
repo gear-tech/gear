@@ -408,7 +408,7 @@ pub mod pallet {
         },
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
-        QueueProcessingReverted,
+        QueueNotProcessed,
 
         /// Program resume session has been started.
         ProgramResumeSessionStarted {
@@ -538,7 +538,7 @@ pub mod pallet {
             // If not (while the queue processing enabled), fire an event and revert
             // the Gear internal block number increment made in `on_initialize()`.
             if GearRunInBlock::<T>::take().is_none() && Self::execute_inherent() {
-                Self::deposit_event(Event::QueueProcessingReverted);
+                Self::deposit_event(Event::QueueNotProcessed);
                 BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
             }
 

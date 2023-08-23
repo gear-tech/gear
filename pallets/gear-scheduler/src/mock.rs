@@ -256,7 +256,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         assert!(!System::events().iter().any(|e| {
             matches!(
                 e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
             )
         }))
     }

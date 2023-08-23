@@ -378,7 +378,7 @@ pub fn run_to_block_maybe_with_queue(
             assert!(!System::events().iter().any(|e| {
                 matches!(
                     e.event,
-                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
                 )
             }))
         }

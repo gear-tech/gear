@@ -2802,7 +2802,7 @@ pub mod runtime_types {
                     },
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
-                    QueueProcessingReverted,
+                    QueueNotProcessed,
                     #[codec(index = 9)]
                     #[doc = "Program resume session has been started."]
                     ProgramResumeSessionStarted {
