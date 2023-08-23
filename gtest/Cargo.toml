@@ -11,8 +11,11 @@ gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-wasmi = { workspace = true, features = ["std"] }
 core-processor = { workspace = true, features = ["std"] }
+gear-lazy-pages-common = { workspace = true, features = ["std"] }
 gear-wasm-builder.workspace = true
 gear-utils.workspace = true
+
+sp-io = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }

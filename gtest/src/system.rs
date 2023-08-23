@@ -37,8 +37,13 @@ impl Default for System {
 }
 
 impl System {
+    pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
+
     /// Create a new system.
     pub fn new() -> Self {
+        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+            Self::PAGE_STORAGE_PREFIX
+        ));
         Default::default()
     }
 
