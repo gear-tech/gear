@@ -247,6 +247,7 @@ impl SysCallName {
             Self::OomPanic => SysCallSignature::gr([]),
             Self::BlockHeight => SysCallSignature::gr([Ptr(None)]),
             Self::BlockTimestamp => SysCallSignature::gr([Ptr(None)]),
+            Self::CostMultiplier => SysCallSignature::gr([Ptr(None)]),
             Self::Exit => SysCallSignature::gr([Ptr(None)]),
             Self::GasAvailable => SysCallSignature::gr([Ptr(None)]),
             Self::PayProgramRent => SysCallSignature::gr([Ptr(None), Ptr(None)]),

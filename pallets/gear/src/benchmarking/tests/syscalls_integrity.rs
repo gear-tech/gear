@@ -789,17 +789,13 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    // run_tester::<T, _, _, T::AccountId>(|_, _| {
-    //     let current_height: u32 = SystemPallet::<T>::block_number().unique_saturated_into();
-    //     let height_delta = 15;
-    //     utils::run_to_block::<T>(current_height + height_delta, None);
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let cm = T::CostMultiplier::get();
 
-    //     let mp = vec![Kind::BlockHeight(current_height + height_delta + 1)]
-    //         .encode()
-    //         .into();
+        let mp = vec![Kind::CostMultiplier(cm)].encode().into();
 
-    //     (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    // })
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
 }
 
 fn check_gr_reserve_gas<T>()
