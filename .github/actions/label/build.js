@@ -4,7 +4,9 @@
 
 const [owner, repo] = ["gear-tech", "gear"];
 const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
-const linux = LABEL === "A0-pleasereview" || LABEL === "A4-insubstantial";
+const linux = LABEL === "A0-pleasereview"
+  || LABEL === "A4-insubstantial"
+  || LABEL === "A2-mergeongreen";
 const checks = linux ? ["linux", "win-cross"] : ["x86"];
 const workflow_id = linux
   ? ".github/workflows/build.yml"
