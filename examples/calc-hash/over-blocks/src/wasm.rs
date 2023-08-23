@@ -15,7 +15,9 @@ extern "C" fn handle() {
 
     match method {
         Method::Start { expected, id, src } => {
-            registry.entry(id).or_insert_with(|| Package::new(expected, src));
+            registry
+                .entry(id)
+                .or_insert_with(|| Package::new(expected, src));
 
             let pkg = registry.get(&id).expect("Calculation not found.");
 

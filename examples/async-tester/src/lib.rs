@@ -10,9 +10,7 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
+mod wasm;
 
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq)]
 pub enum Kind {

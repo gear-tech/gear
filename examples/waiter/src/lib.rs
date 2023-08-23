@@ -15,6 +15,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![no_std]
 
 use gstd::{ActorId, Vec};
@@ -29,9 +30,7 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
+mod wasm;
 
 pub fn system_reserve() -> u64 {
     gstd::Config::system_reserve()

@@ -35,41 +35,7 @@ pub enum Request {
 }
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    use super::*;
-    use gstd::{exec, msg, prelude::*, MessageId};
-
-    static mut ECHOES: Option<BTreeMap<MessageId, u32>> = None;
-
-    fn process_request(request: Request) {
-        match request {
-            Request::EchoWait(n) => {
-                unsafe {
-                    ECHOES
-                        .get_or_insert_with(BTreeMap::new)
-                        .insert(msg::id(), n)
-                };
-                exec::wait();
-            }
-            Request::Wake(id) => exec::wake(id.into()).unwrap(),
-        }
-    }
-
-    #[no_mangle]
-    extern "C" fn init() {
-        msg::reply((), 0).unwrap();
-    }
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        if let Some(reply) = unsafe { ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) }
-        {
-            msg::reply(reply, 0).unwrap();
-        } else {
-            msg::load::<Request>().map(process_request).unwrap();
-        }
-    }
-}
+mod wasm;
 
 #[cfg(test)]
 mod tests {

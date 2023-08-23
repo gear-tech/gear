@@ -26,6 +26,4 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
+mod wasm;

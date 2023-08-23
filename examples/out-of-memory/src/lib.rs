@@ -29,16 +29,5 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(target_arch = "wasm32")]
-mod wasm {
-    use alloc::alloc::Layout;
-
-    #[no_mangle]
-    extern "C" fn init() {
-        unsafe {
-            // Force rustc not to remove memory import
-            *(10usize as *mut u8) = 10;
-        }
-        alloc::alloc::handle_alloc_error(Layout::new::<[u8; 64 * 1024]>());
-    }
-}
+#[cfg(not(feature = "std"))]
+mod wasm;

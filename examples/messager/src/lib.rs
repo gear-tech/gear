@@ -27,9 +27,7 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
+mod wasm;
 
 pub const SEND_REPLY: &[u8] = b"send";
 pub const REPLY_REPLY: &[u8] = b"reply";

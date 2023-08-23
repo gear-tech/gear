@@ -36,14 +36,16 @@ async fn main() {
         Kind::SendCommit => {
             let handle = MessageHandle::init().expect("init message failed");
             handle.push(&encoded_kind).expect("push payload failed");
-            handle.commit_for_reply(msg::source(), 0, 0)
+            handle
+                .commit_for_reply(msg::source(), 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendCommitWithGas(gas) => {
             let handle = MessageHandle::init().expect("init message failed");
             handle.push(&encoded_kind).expect("push payload failed");
-            handle.commit_with_gas_for_reply(msg::source(), gas, 0, 0)
+            handle
+                .commit_with_gas_for_reply(msg::source(), gas, 0, 0)
                 .expect("send message failed")
                 .await
         }

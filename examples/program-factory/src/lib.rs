@@ -48,60 +48,7 @@ const CHILD_CODE_HASH: [u8; 32] =
     hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a");
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    use super::{CreateProgram, CHILD_CODE_HASH};
-    use gstd::{msg, prog, ActorId};
-
-    static mut COUNTER: i32 = 0;
-    static mut ORIGIN: Option<ActorId> = None;
-
-    #[no_mangle]
-    extern "C" fn init() {
-        unsafe { ORIGIN = Some(msg::source()) };
-    }
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        match msg::load().expect("provided invalid payload") {
-            CreateProgram::Default => {
-                let submitted_code = CHILD_CODE_HASH.into();
-                let (_message_id, new_program_id) = prog::create_program_bytes_with_gas(
-                    submitted_code,
-                    unsafe { COUNTER.to_le_bytes() },
-                    [],
-                    10_000_000_000,
-                    0,
-                )
-                .unwrap();
-                msg::send_bytes(new_program_id, [], 0).unwrap();
-
-                unsafe { COUNTER += 1 };
-            }
-            CreateProgram::Custom(custom_child_data) => {
-                for (code_hash, salt, gas_limit) in custom_child_data {
-                    let submitted_code = code_hash.into();
-                    let (_message_id, new_program_id) = prog::create_program_bytes_with_gas(
-                        submitted_code,
-                        &salt,
-                        [],
-                        gas_limit,
-                        0,
-                    )
-                    .unwrap();
-                    msg::send_bytes(new_program_id, [], 0).expect("Failed to send message");
-                }
-            }
-        };
-    }
-
-    #[no_mangle]
-    extern "C" fn handle_reply() {
-        if !msg::reply_code().unwrap().is_success() {
-            let origin = unsafe { ORIGIN.unwrap() };
-            msg::send_bytes(origin, [], 0).unwrap();
-        }
-    }
-}
+mod wasm;
 
 #[cfg(test)]
 mod tests {
