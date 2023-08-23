@@ -204,13 +204,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
+        let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
+
         if self.is_not_send_sys_call(invocable) {
             log::trace!(
                 " -- Generating build call for non-send sys-call {}",
                 invocable.to_str()
             );
-            let fallible = invocable.is_fallible();
-            return self.build_call(invocable.into_signature(), fallible, call_indexes_handle);
+            return self.build_call(signature, fallible, call_indexes_handle);
         }
 
         log::trace!(
@@ -218,7 +219,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             invocable.to_str()
         );
 
-        let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
         // The value for the first param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
         signature.params.remove(0);
@@ -434,7 +434,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             params
                 .last()
                 .expect("The last argument of fallible syscall must be pointer to error code"),
-            ParamType::Ptr(..)
+            ParamType::Ptr(None)
         ));
         assert_eq!(params.len(), param_setters.len());
 
@@ -459,33 +459,34 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         // error codes as described here. Also we don't assert that only `alloc` and `free`
         // will have their first arguments equal to `ParamType::Alloc` and `ParamType::Free`.
         let results_len = signature.results.len();
-        if results_len != 0 {
-            assert_eq!(results_len, 1);
 
-            let error_code = match signature.params[0] {
-                ParamType::Alloc => {
-                    // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
-                    -1
-                }
-                ParamType::Free => {
-                    // Free syscall: returns 1 in case of error.
-                    1
-                }
-                _ => {
-                    unimplemented!()
-                }
-            };
-
-            vec![
-                Instruction::I32Const(error_code),
-                Instruction::I32Eq,
-                Instruction::If(BlockType::NoResult),
-                Instruction::Unreachable,
-                Instruction::End,
-            ]
-        } else {
-            vec![]
+        if results_len == 0 {
+            return vec![];
         }
+
+        assert_eq!(results_len, 1);
+
+        let error_code = match signature.params[0] {
+            ParamType::Alloc => {
+                // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
+                -1
+            }
+            ParamType::Free => {
+                // Free syscall: returns 1 in case of error.
+                1
+            }
+            _ => {
+                unimplemented!("Only alloc and free are supported for now")
+            }
+        };
+
+        vec![
+            Instruction::I32Const(error_code),
+            Instruction::I32Eq,
+            Instruction::If(BlockType::NoResult),
+            Instruction::Unreachable,
+            Instruction::End,
+        ]
     }
 
     fn insert_sys_call_instructions(&mut self, instructions: &[Instruction]) -> Result<()> {
