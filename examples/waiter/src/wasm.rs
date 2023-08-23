@@ -22,13 +22,16 @@ use crate::{
 };
 use core::ops::{Deref, DerefMut};
 use futures::future;
-use gstd::{errors::Error, exec, format, lock, msg, MessageId};
+use gstd::{
+    exec, format, msg,
+    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
-static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
-static mut MUTEX_LOCK_GUARD: Option<lock::MutexGuard<()>> = None;
-static mut RW_LOCK: lock::RwLock<()> = lock::RwLock::new(());
-static mut R_LOCK_GUARD: Option<lock::RwLockReadGuard<()>> = None;
-static mut W_LOCK_GUARD: Option<lock::RwLockWriteGuard<()>> = None;
+static mut MUTEX: Mutex<()> = Mutex::new(());
+static mut MUTEX_LOCK_GUARD: Option<MutexGuard<()>> = None;
+static mut RW_LOCK: RwLock<()> = RwLock::new(());
+static mut R_LOCK_GUARD: Option<RwLockReadGuard<()>> = None;
+static mut W_LOCK_GUARD: Option<RwLockWriteGuard<()>> = None;
 
 #[gstd::async_main]
 async fn main() {
@@ -152,8 +155,8 @@ fn process_wait_subcommand(subcommand: WaitSubcommand) {
 }
 
 async fn process_mx_lock_continuation(
-    static_lock_guard: &'static mut Option<lock::MutexGuard<'static, ()>>,
-    lock_guard: lock::MutexGuard<'static, ()>,
+    static_lock_guard: &'static mut Option<MutexGuard<'static, ()>>,
+    lock_guard: MutexGuard<'static, ()>,
     continuation: MxLockContinuation,
 ) {
     match continuation {
