@@ -54,7 +54,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Ptr(None), (0..=513 * 0x10000 - 1).into()),
                 (ParamType::Gas, (0..=250_000_000_000).into()),
                 (ParamType::MessagePosition, (0..=10).into()),
-                (ParamType::Duration, (0..=100).into()),
+                (ParamType::Duration, (1..=8).into()),
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
                 (ParamType::Alloc, (0..=512).into()),

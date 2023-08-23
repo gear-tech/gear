@@ -71,9 +71,6 @@ impl GearCalls {
 
 impl<'a> Arbitrary<'a> for GearCalls {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        // Newline to easily browse logs.
-        println!("\n");
-
         log::trace!("New GearCalls generation: random data received {}", u.len());
 
         if u.len() < MIN_GEAR_CALLS_BYTES {

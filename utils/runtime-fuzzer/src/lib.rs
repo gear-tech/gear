@@ -53,8 +53,6 @@ fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
 
         for gear_call in gear_calls {
             let call_res = execute_gear_call(sender.clone(), gear_call);
-            // Newline to easily browse logs.
-            println!();
             log::info!("Extrinsic result: {call_res:?}");
 
             // Run task and message queues with max possible gas limit.
