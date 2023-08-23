@@ -84,8 +84,16 @@ impl Calls {
         self.add_call(Call::Value).store(key)
     }
 
+    pub fn value_available(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::ValueAvailable).store(key)
+    }
+
     pub fn value_as_vec(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Value).store_vec(key)
+    }
+
+    pub fn value_available_as_vec(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::ValueAvailable).store_vec(key)
     }
 
     pub fn message_id(self, key: impl AsRef<str>) -> Self {
@@ -258,6 +266,10 @@ impl Calls {
 
     pub fn wait(self) -> Self {
         self.add_call(Call::Wait)
+    }
+
+    pub fn wait_for(self, duration: impl Into<Arg<u32>>) -> Self {
+        self.add_call(Call::WaitFor(duration.into()))
     }
 
     pub fn wake(self, message_id: impl Into<Arg<[u8; 32]>>) -> Self {

@@ -76,12 +76,12 @@ fn read_write_flag_works() {
     }
 
     init_with_handler::<TestHandler>(
-        LazyPagesVersion::Version2,
+        LazyPagesVersion::Version1,
         vec![
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str("")],
+        vec![LimitedStr::from_small_str("gear_gas")],
         Default::default(),
     )
     .unwrap();
@@ -134,12 +134,12 @@ fn test_mprotect_pages() {
     env_logger::init();
 
     init_with_handler::<TestHandler>(
-        LazyPagesVersion::Version2,
+        LazyPagesVersion::Version1,
         vec![
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str("")],
+        vec![LimitedStr::from_small_str("gear_gas")],
         Default::default(),
     )
     .unwrap();

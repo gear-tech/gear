@@ -479,7 +479,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Similar to [`wait_for_reply`], but works with functions that create programs:
+/// Similar to [`macro@wait_for_reply`], but works with functions that create programs:
 /// It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
