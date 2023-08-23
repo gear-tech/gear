@@ -47,7 +47,7 @@ mod wasm {
         ptr,
         task::{Context, RawWaker, RawWakerVTable, Waker},
     };
-    use gstd::{lock::RwLock, msg, prelude::*, ActorId};
+    use gstd::{msg, prelude::*, sync::RwLock, ActorId};
 
     static mut DESTINATION: ActorId = ActorId::zero();
     static RW_LOCK: RwLock<u32> = RwLock::new(0);

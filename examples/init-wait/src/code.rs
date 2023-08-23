@@ -1,4 +1,4 @@
-use gstd::{exec, msg, BTreeMap, MessageId};
+use gstd::{exec, msg, collections::BTreeMap, MessageId};
 
 #[derive(PartialEq, Debug)]
 enum State {

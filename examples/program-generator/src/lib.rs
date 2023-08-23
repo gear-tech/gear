@@ -39,7 +39,7 @@ pub const CHILD_WAT: &str = r#"
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{prelude::*, prog::ProgramGenerator, CodeId};
+    use gstd::{collections::BTreeSet, prelude::*, prog::ProgramGenerator, CodeId};
 
     fn check_salt_uniqueness() {
         let salts: Vec<_> = (0..10).map(|_| ProgramGenerator::get_salt()).collect();

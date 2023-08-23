@@ -49,7 +49,7 @@ mod utils;
 
 use crate::{
     common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
-    globals::GlobalsContext,
+    globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
 
@@ -152,7 +152,6 @@ pub fn initialize_for_program(
         })?;
 
         let execution_ctx = LazyPagesExecutionContext {
-            version: runtime_ctx.version,
             page_sizes: runtime_ctx.page_sizes,
             weights,
             wasm_mem_addr,
@@ -306,8 +305,8 @@ pub fn status() -> Result<Status, Error> {
 pub enum InitError {
     #[display(fmt = "Wrong page sizes amount: get {_0}, must be {_1}")]
     WrongSizesAmount(usize, usize),
-    #[display(fmt = "Wrong global names amount: get {_0}, must be {_1}")]
-    WrongGlobalNamesAmount(usize, usize),
+    #[display(fmt = "Wrong global names: expected {_0}, found {_1}")]
+    WrongGlobalNames(String, String),
     #[display(fmt = "Not suitable page sizes")]
     NotSuitablePageSizes,
     #[display(fmt = "Can not set signal handler: {_0}")]
@@ -385,7 +384,7 @@ pub(crate) fn reset_init_flag() {
 
 /// Initialize lazy-pages for current thread.
 fn init_with_handler<H: UserSignalHandler>(
-    version: LazyPagesVersion,
+    _version: LazyPagesVersion,
     page_sizes: Vec<u32>,
     global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
@@ -417,10 +416,12 @@ fn init_with_handler<H: UserSignalHandler>(
         return Err(NotSuitablePageSizes);
     }
 
-    if global_names.len() != version.globals_count() {
-        return Err(WrongGlobalNamesAmount(
-            global_names.len(),
-            version.globals_count(),
+    // TODO: check globals from context issue #3057
+    // we only need to check the globals that are used to keep the state consistent in older runtimes.
+    if global_names[GlobalNo::Gas as usize].as_str() != "gear_gas" {
+        return Err(WrongGlobalNames(
+            "gear_gas".to_string(),
+            global_names[GlobalNo::Gas as usize].to_string(),
         ));
     }
 
@@ -428,7 +429,6 @@ fn init_with_handler<H: UserSignalHandler>(
     LAZY_PAGES_CONTEXT.with(|ctx| {
         ctx.borrow_mut()
             .set_runtime_context(LazyPagesRuntimeContext {
-                version,
                 page_sizes,
                 global_names,
                 pages_storage_prefix,

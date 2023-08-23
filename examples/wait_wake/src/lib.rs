@@ -37,7 +37,7 @@ pub enum Request {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{exec, msg, prelude::*, MessageId};
+    use gstd::{collections::BTreeMap, exec, msg, prelude::*, MessageId};
 
     static mut ECHOES: Option<BTreeMap<MessageId, u32>> = None;
 
