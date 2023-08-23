@@ -46,10 +46,10 @@ pub struct InitMessage {
 
 impl InitMessage {
     /// Create InitMessage from InitPacket.
-    pub fn from_packet(id: MessageId, packet: InitPacket, nonce: Option<usize>) -> Self {
+    pub fn from_packet(id: MessageId, packet: InitPacket) -> Self {
         Self {
             id,
-            destination: packet.destination(id, nonce),
+            destination: packet.destination(Some(id)),
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -157,11 +157,11 @@ impl InitPacket {
     }
 
     /// Packet destination (newly created program id).
-    pub fn destination(&self, message_id: MessageId, nonce: Option<usize>) -> ProgramId {
-        if let Some(nonce) = nonce {
-            ProgramId::generate_with_nonce(self.code_id, self.salt.inner(), message_id, nonce)
+    pub fn destination(&self, message_id: Option<MessageId>) -> ProgramId {
+        if let Some(id) = message_id {
+            ProgramId::generate_with_id(self.code_id, self.salt.inner(), id)
         } else {
-            ProgramId::generate(self.code_id, self.salt.inner(), message_id)
+            ProgramId::generate(self.code_id, self.salt.inner())
         }
     }
 

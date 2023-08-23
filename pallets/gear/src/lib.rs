@@ -641,7 +641,7 @@ pub mod pallet {
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
-            let program_id = packet.destination(message_id, None);
+            let program_id = packet.destination(None);
 
             if Self::program_exists(program_id) {
                 unreachable!("Program id uniqueness rule violated: generated existing program id");
@@ -1224,14 +1224,14 @@ pub mod pallet {
             let block_number = Self::block_number();
             let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
+            let program_id = packet.destination(None);
+
             ExtManager::<T>::default().set_program(
-                packet.destination(message_id, None),
+                program_id,
                 &code_info,
                 message_id,
                 expiration_block,
             );
-
-            let program_id = packet.destination(message_id, None);
 
             if Self::program_exists(program_id) {
                 unreachable!("Program id uniqueness rule violated: generated existing program id");

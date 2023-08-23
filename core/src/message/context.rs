@@ -286,14 +286,9 @@ impl MessageContext {
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
 
-        let message =
-            InitMessage::from_packet(message_id, packet, Some(self.store.initialized.len()));
+        let message = InitMessage::from_packet(message_id, packet);
 
         let program_id = message.destination();
-
-        if program_id == ProgramId::SYSTEM {
-            return Err(Error::SyscallUsageError);
-        }
 
         if self.store.initialized.contains(&program_id) {
             return Err(Error::DuplicateInit);

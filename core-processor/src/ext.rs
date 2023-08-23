@@ -904,6 +904,8 @@ impl Externalities for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
+        // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
+
         self.safe_gasfull_sends(&packet)?;
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
