@@ -16,7 +16,7 @@ jobs:
       github.event.label.name == 'A0-pleasereview'
       || github.event.label.name == 'E2-forcemacos'
       || github.event.label.name == 'A4-insubstantial'
-      || github.event.label.name == "A2-mergeoncegreen"
+      || github.event.label.name == 'A2-mergeoncegreen'
     steps:
       - uses: actions/checkout@v3
         with:
