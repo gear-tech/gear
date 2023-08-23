@@ -2711,7 +2711,7 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "Voucher can't be redemmed"]
                     FailureRedeemingVoucher,
-                    #[codec(index = 16)]
+                    #[codec(index = 15)]
                     #[doc = "Gear::run() already included in current block."]
                     GearRunAlreadyInBlock,
                 }
