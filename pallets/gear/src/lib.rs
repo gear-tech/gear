@@ -503,10 +503,11 @@ pub mod pallet {
         }
     }
 
-    /// The Gear block number before processing messages.
+    /// A guard to prohibit all but the first execution of `pallet_gear::run()` call in a block.
     ///
-    /// A helper variable that mirrors the `BlockNumber` at the beginning of a block.
-    /// Allows to gauge the actual `BlockNumber` progress.
+    /// Set to `Some(())` if the extrinsic is executed for the first time in a block.
+    /// All subsequent attempts would fail with `Error::<T>::GearRunAlreadyInBlock` error.
+    /// Set back to `None` in the `on_finalize()` hook at the end of the block.
     #[pallet::storage]
     pub(crate) type GearRunInBlock<T> = StorageValue<_, ()>;
 
