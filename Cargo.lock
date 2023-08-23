@@ -3569,14 +3569,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3615,7 +3615,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3659,7 +3659,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3714,7 +3714,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-codegen"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-common"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "actor-system-error",
  "blake2-rfc",
@@ -3758,7 +3758,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-wasmi"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "derive_more",
  "gear-backend-common",
@@ -3796,7 +3796,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap 4.3.21",
  "frame-benchmarking",
@@ -3830,7 +3830,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3858,7 +3858,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "quote",
  "syn 2.0.28",
@@ -3866,7 +3866,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -3888,7 +3888,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3897,7 +3897,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "actor-system-error",
  "derive_more",
@@ -3955,7 +3955,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4076,6 +4076,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
@@ -4122,12 +4123,16 @@ dependencies = [
  "frame-system-benchmarking",
  "gear-backend-common",
  "gear-common",
+ "gear-core",
  "gear-core-processor",
  "gear-runtime-primitives",
  "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
  "pallet-session",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4289,7 +4294,7 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "cc",
 ]
@@ -4377,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-backend-common",
@@ -4547,7 +4552,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4561,7 +4566,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4585,7 +4590,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -4636,7 +4641,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4645,7 +4650,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bs58",
  "futures",
@@ -4674,7 +4679,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.3.1"
+version = "0.3.2"
 
 [[package]]
 name = "gtest"
@@ -7087,6 +7092,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7354,6 +7360,7 @@ dependencies = [
  "page_size 0.5.0",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
@@ -7381,6 +7388,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bank"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
@@ -7399,6 +7424,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7429,7 +7455,6 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
@@ -7484,6 +7509,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7580,6 +7606,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -13419,6 +13446,7 @@ dependencies = [
  "pallet-conviction-voting",
  "pallet-election-provider-multi-phase",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
