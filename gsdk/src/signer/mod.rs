@@ -23,17 +23,19 @@ use crate::{
     result::{Error, Result},
     Api,
 };
-use calls::{SignerCalls, SignerStorage};
+use calls::SignerCalls;
 use core::ops::Deref;
 pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
 use std::sync::Arc;
+use storage::SignerStorage;
 
 mod calls;
 mod pair_signer;
 mod rpc;
+mod storage;
 mod utils;
 
 /// Signer representation that provides access to gear API.
