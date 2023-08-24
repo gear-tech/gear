@@ -360,7 +360,9 @@ impl Default for SelectableParams {
     fn default() -> Self {
         Self {
             call_indirect_enabled: true,
-            allowed_instructions: vec![Numeric, Reference, Parametric, Variable, Table, Memory, Control],
+            allowed_instructions: vec![
+                Numeric, Reference, Parametric, Variable, Table, Memory, Control,
+            ],
             max_instructions: 100_000,
             min_funcs: 15,
             max_funcs: 30,
