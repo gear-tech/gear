@@ -205,7 +205,7 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
-        const SALT: &[u8] = b"program_for_pallet";
+        const SALT: &[u8] = b"program_from_user";
 
         let argument = [SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
@@ -213,7 +213,7 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId, MessageId and salt
     pub fn generate_with_id(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
-        const SALT: &[u8] = b"program_for_wasm";
+        const SALT: &[u8] = b"program_from_wasm";
 
         let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt].concat();
         hash(&argument).into()
