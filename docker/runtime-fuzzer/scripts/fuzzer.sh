@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VOLUME_DIR='/home/ubuntu/fuzzer/fuzzing-seeds-dir/'
+VOLUME_DIR='/home/ubuntu/fuzzing-seeds-dir/'
 CORPUS_DIR='/home/ubuntu/fuzzer/corpus/'
 ARTIFACT_DIR='/home/ubuntu/fuzzer/artifacts'
 ARCHIVE_PATH="/opt/download-archives/"
@@ -42,8 +42,8 @@ function start_container {
     docker run -d --pull=always \
         -e TERM=xterm-256color \
         -v "${VOLUME_DIR}:/fuzzing-seeds-dir" \
-        -v "${CORPUS_DIR}:/corpus" \
-        -v "${ARTIFACT_DIR}:/gear/utils/runtime-fuzzer/fuzz/artifactis/main"\
+        -v "${CORPUS_DIR}:/corpus/main" \
+        -v "${ARTIFACT_DIR}:/gear/utils/runtime-fuzzer/fuzz/artifactis/main" \
         --name ${CONTAINER_NAME} ${IMAGE}
     fi
     # Wait for the container to stop
@@ -81,8 +81,8 @@ function start {
         echo "Start archiving logs"
         archive_logs
 	_check_container_runtime
-        # Clean up the container
-        docker rm ${CONTAINER_NAME}
+    # Clean up the container
+    docker rm ${CONTAINER_NAME}
 	docker rmi ${IMAGE}
 	# Clean archives older than 30 days
 	find ${ARCHIVE_PATH} -name "node-fuzzer_logs*.tar.gz" -type f -mtime +30 -delete 
