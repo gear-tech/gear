@@ -141,7 +141,7 @@ fn page_costs_heuristic_test() {
         lazy_pages_signal_write_after_read: 8_624_904.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
-        lazy_pages_host_func_write_after_read: 8_294_669.into(),
+        lazy_pages_host_func_write_after_read: 9_245_597.into(),
         load_page_data: 8_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),

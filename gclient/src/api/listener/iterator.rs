@@ -90,7 +90,7 @@ impl EventProcessor for EventListener {
 
 impl EventListener {
     /// Look through finalized blocks to find the
-    /// [`QueueProcessingReverted`](https://docs.gear.rs/pallet_gear/pallet/enum.Event.html#variant.QueueProcessingReverted)
+    /// [`QueueNotProcessed`](https://docs.gear.rs/pallet_gear/pallet/enum.Event.html#variant.QueueNotProcessed)
     /// event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
         while let Some(events) = self.0.next_events().await {
@@ -98,7 +98,7 @@ impl EventListener {
             let events_bh = events.block_hash();
 
             if let Some(res) = self.proc_events_inner(events, |e| {
-                matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(events_bh)
+                matches!(e, Event::Gear(GearEvent::QueueNotProcessed)).then_some(events_bh)
             }) {
                 return Ok(res);
             }

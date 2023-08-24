@@ -21,6 +21,7 @@ pub enum Call {
     Source,
     ReplyCode,
     Value,
+    ValueAvailable,
     Send(
         Arg<[u8; 32]>,
         Arg<Vec<u8>>,
@@ -37,6 +38,7 @@ pub enum Call {
     Load,
     LoadBytes,
     Wait,
+    WaitFor(Arg<u32>),
     Wake(Arg<[u8; 32]>),
     MessageId,
     Loop,
@@ -263,6 +265,12 @@ mod wasm {
             Some(msg::value().encode())
         }
 
+        fn value_available(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::ValueAvailable)).then(|| unreachable!());
+
+            Some(exec::value_available().encode())
+        }
+
         fn load(self) -> Option<Vec<u8>> {
             (!matches!(self, Self::Load)).then(|| unreachable!());
 
@@ -279,6 +287,16 @@ mod wasm {
             (!matches!(self, Self::Wait)).then(|| unreachable!());
 
             exec::wait()
+        }
+
+        fn wait_for(self) -> ! {
+            let Self::WaitFor(duration) = self else {
+                unreachable!()
+            };
+
+            let duration = duration.value();
+
+            exec::wait_for(duration)
         }
 
         fn wake(self) -> Option<Vec<u8>> {
@@ -320,9 +338,11 @@ mod wasm {
                 Call::Noop => None,
                 Call::IfElse(..) => self.if_else(previous),
                 Call::Value => self.value(),
+                Call::ValueAvailable => self.value_available(),
                 Call::Load => self.load(),
                 Call::LoadBytes => self.load_bytes(),
                 Call::Wait => self.wait(),
+                Call::WaitFor(..) => self.wait_for(),
                 Call::Wake(..) => self.wake(),
                 Call::MessageId => self.message_id(),
                 #[allow(clippy::empty_loop)]

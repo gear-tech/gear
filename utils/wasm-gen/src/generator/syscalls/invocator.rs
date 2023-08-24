@@ -211,8 +211,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         invocable: InvocableSysCall,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
-        // Newline to easily browse logs.
-        println!();
         log::trace!(
             "Random data before building {} sys-call invoke instructions - {}",
             invocable.to_str(),
@@ -575,8 +573,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     }
 
     fn resolves_calls_indexes(&mut self) {
-        // Newline to easily browse logs.
-        println!();
         log::trace!("Resolving calls indexes");
 
         let imports_num = self.module.count_import_funcs() as u32;
