@@ -10412,6 +10412,10 @@ fn signal_backend_error_forbidden_action_works() {
 }
 
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "This test works only when built in debug mode, because in release mode the gr_debug syscall won't have effect"
+)]
 fn signal_backend_error_invalid_debug_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),

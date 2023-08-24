@@ -386,6 +386,8 @@ There are two cases of fails when this signal code is sent:
     This case is sent when:
     - A syscall `debug` gets called with invalid string.
 
+        This test will not work in `release` production mode, because the `gr_debug` syscall will be optimized out. To test this case, one must run the test in `debug` mode.
+
         <details>
         <summary>Program to be uploaded</summary>
 
