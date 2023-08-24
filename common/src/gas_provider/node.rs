@@ -203,6 +203,21 @@ pub struct ChildrenRefs {
     unspec_refs: u32,
 }
 
+impl<
+        ExternalId: Clone,
+        Id: Clone + Copy,
+        Balance: Default + Zero + Clone + Copy + sp_runtime::traits::Saturating,
+    > GasNode<ExternalId, Id, Balance>
+{
+    /// Returns total gas value inside GasNode.
+    pub fn total_value(&self) -> Balance {
+        self.value()
+            .unwrap_or_default()
+            .saturating_add(self.lock().total_locked())
+            .saturating_add(self.system_reserve().unwrap_or_default())
+    }
+}
+
 impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy>
     GasNode<ExternalId, Id, Balance>
 {

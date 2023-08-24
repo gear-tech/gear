@@ -316,22 +316,14 @@ pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
     type VoucherId;
     type Error;
 
-    fn redeem_with_id(
-        who: AccountId,
-        program: ProgramId,
-        amount: Balance,
-    ) -> Result<Self::VoucherId, Self::Error>;
+    fn voucher_id(who: AccountId, program: ProgramId) -> Self::VoucherId;
 }
 
-impl<AccountId, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
+impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
     type VoucherId = AccountId;
     type Error = &'static str;
 
-    fn redeem_with_id(
-        _who: AccountId,
-        _program: ProgramId,
-        _amount: Balance,
-    ) -> Result<AccountId, Self::Error> {
-        Err("Payment vouchers are not supported")
+    fn voucher_id(_who: AccountId, _program: ProgramId) -> Self::VoucherId {
+        unimplemented!()
     }
 }

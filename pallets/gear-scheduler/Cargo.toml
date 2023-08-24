@@ -32,6 +32,7 @@ sp-io.workspace = true
 
 [dev-dependencies]
 core-processor = { workspace = true, features = ["std"] }
+pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
@@ -59,6 +60,7 @@ std = [
 	"primitive-types/std",
 	"sp-io/std",
 	"sp-runtime/std",
+    "core-processor/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

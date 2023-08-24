@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
@@ -44,10 +43,12 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
-    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf,
-    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
-    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
+    pallet,
+    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event, GasAllowanceOf,
+    GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf, ProgramStorageOf, QueueOf,
+    RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule,
+    TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -1353,8 +1354,9 @@ fn delayed_send_user_message_payment() {
         );
 
         // Gas should be reserved while message is being held in storage.
-        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), delay_holding_fee);
+        let total_balance =
+            Balances::free_balance(USER_1) + GearBank::<Test>::account_total(&USER_1);
 
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
@@ -1383,7 +1385,7 @@ fn delayed_send_user_message_payment() {
         assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
         // Check balances match and gas charging is correct.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
@@ -1458,7 +1460,7 @@ fn delayed_send_user_message_with_reservation() {
         // `delay` + 1 locked for using dispatch stash storage.
         // Other gas nodes have been consumed with all gas released to the user.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             mailbox_gas_threshold + delay_holding_fee
         );
 
@@ -1499,7 +1501,7 @@ fn delayed_send_user_message_with_reservation() {
         // for the `delay` number of blocks spent in the dispatch stash so that the "+ 1" security
         // margin remained unused and was simply added back to the `Cut` node value.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             mailbox_gas_threshold + reserve_for_fee
         );
     }
@@ -1561,8 +1563,9 @@ fn delayed_send_program_message_payment() {
         );
 
         // Gas should be reserved while message is being held in storage.
-        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), delay_holding_fee);
+        let total_balance =
+            Balances::free_balance(USER_1) + GearBank::<Test>::account_total(&USER_1);
 
         // Run blocks to release message.
         run_to_block(delay + 2, None);
@@ -1582,7 +1585,7 @@ fn delayed_send_program_message_payment() {
         assert_last_dequeued(2);
 
         // Check that gas was charged correctly.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
@@ -1678,7 +1681,7 @@ fn delayed_send_program_message_with_reservation() {
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -1697,7 +1700,7 @@ fn delayed_send_program_message_with_reservation() {
         // Check that last event is MessagesDispatched.
         assert_last_dequeued(2);
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
     }
 
     init_logger();
@@ -1789,7 +1792,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -1808,7 +1811,7 @@ fn delayed_send_program_message_with_low_reservation() {
         // Check that last event is MessagesDispatched.
         assert_last_dequeued(2);
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
     }
 
     init_logger();
@@ -1874,7 +1877,7 @@ fn delayed_program_creation_no_code() {
         ));
 
         let free_balance = Balances::free_balance(USER_1);
-        let reserved_balance = Balances::reserved_balance(USER_1);
+        let reserved_balance = GearBank::<Test>::account_total(&USER_1);
 
         run_to_next_block(None);
         // Delayed message sent.
@@ -1902,7 +1905,7 @@ fn delayed_program_creation_no_code() {
                 - delay_holding_fee
                 - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
-        assert!(Balances::reserved_balance(USER_1).is_zero());
+        assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
 }
 
@@ -2246,14 +2249,14 @@ fn mailbox_rent_out_of_rent() {
 
         for data in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2341,14 +2344,14 @@ fn mailbox_rent_claimed() {
 
         for (data, duration) in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2430,14 +2433,14 @@ fn mailbox_sending_instant_transfer() {
 
         for (gas_limit, value) in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2506,12 +2509,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         // Gas limit is too high
@@ -2771,7 +2774,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -2907,7 +2910,7 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             user1_potential_msgs_spends
         );
 
@@ -3668,7 +3671,7 @@ fn mailbox_works() {
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
         );
 
@@ -4042,18 +4045,18 @@ fn send_reply_value_claiming_works() {
             next_block += 1;
 
             let user_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             assert!(MailboxOf::<Test>::contains(&USER_1, &reply_to_id));
 
             assert_eq!(
-                Balances::reserved_balance(USER_2),
+                GearBank::<Test>::account_total(&USER_2),
                 GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
             );
 
             // nothing changed
             assert_eq!(Balances::free_balance(USER_1), user_balance);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             // auto-claim of "locked_value" + send is here
             assert_ok!(Gear::send_reply(
@@ -4071,8 +4074,8 @@ fn send_reply_value_claiming_works() {
                 Balances::free_balance(USER_1),
                 user_balance + locked_value - currently_sent
             );
-            assert_eq!(Balances::reserved_balance(USER_1), currently_sent);
-            assert_eq!(Balances::reserved_balance(USER_2), 0,);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), currently_sent);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0,);
         }
     })
 }
@@ -4085,9 +4088,9 @@ fn claim_value_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let sender_balance = Balances::free_balance(USER_2);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
         let claimer_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
         let gas_sent = 10_000_000_000;
         let value_sent = 1000;
@@ -4131,8 +4134,8 @@ fn claim_value_works() {
             reply_to_id,
         ));
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
         let expected_claimer_balance = claimer_balance + value_sent;
         assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
@@ -6427,6 +6430,7 @@ fn resume_program_works() {
             btree::{Reply, Request},
             InitMessage, WASM_BINARY,
         };
+        use frame_support::traits::ReservableCurrency;
 
         let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
@@ -7422,7 +7426,7 @@ fn no_redundant_gas_value_after_exiting() {
 
         // before execution
         let free_after_send = Balances::free_balance(USER_1);
-        let reserved_after_send = Balances::reserved_balance(USER_1);
+        let reserved_after_send = GearBank::<Test>::account_total(&USER_1);
         assert_eq!(reserved_after_send, GasPrice::gas_price(gas_spent));
 
         run_to_block(3, None);
@@ -7441,7 +7445,7 @@ fn no_redundant_gas_value_after_exiting() {
         );
 
         // reserved balance after execution is zero
-        let reserved_after_execution = Balances::reserved_balance(USER_1);
+        let reserved_after_execution = GearBank::<Test>::account_total(&USER_1);
         assert!(reserved_after_execution.is_zero());
     })
 }
@@ -8596,7 +8600,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(user_balance_before_calculating, user_initial_balance);
         // Zero because no message added into mailbox.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         assert_ok!(Gear::send_message(
@@ -8638,14 +8642,14 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         let reserve_for = CostsPerBlockOf::<Test>::reserve_for();
 
         let user_1_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
         let user_2_balance = Balances::free_balance(USER_2);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
         let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
         assert_eq!(
-            Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+            GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
             0
         );
 
@@ -13751,6 +13755,57 @@ fn wasm_ref_types_doesnt_work() {
     });
 }
 
+/// Test that the `Gear::run()` extrinsic can only run once per block,
+/// even if somehow included in a block multiple times.
+#[test]
+fn gear_run_only_runs_once_per_block() {
+    use frame_support::{
+        dispatch::RawOrigin,
+        traits::{OnFinalize, OnInitialize},
+    };
+
+    fn init_block(bn: u32) {
+        System::set_block_number(bn);
+        GasAllowanceOf::<Test>::put(1_000_000_000);
+        Gear::on_initialize(bn);
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        init_block(2);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+        // Second run in a block is not allowed
+        assert_noop!(
+            Gear::run(RawOrigin::None.into(), None,),
+            Error::<Test>::GearRunAlreadyInBlock
+        );
+        Gear::on_finalize(2);
+
+        // Everything goes back to normal in the next block
+        init_block(3);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+    })
+}
+
+/// Test that the Gear internal block numbering is consistent.
+#[test]
+fn gear_block_number_math_adds_up() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(100, None);
+        assert_eq!(Gear::block_number(), 100);
+
+        run_to_block_maybe_with_queue(120, None, None);
+        assert_eq!(System::block_number(), 120);
+        assert_eq!(Gear::block_number(), 100);
+
+        System::reset_events();
+        run_to_block(150, None);
+        assert_eq!(System::block_number(), 150);
+        assert_eq!(Gear::block_number(), 130);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -13759,7 +13814,8 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, CurrencyOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
+        SentOf,
     };
     use common::{
         event::*,
@@ -13865,7 +13921,10 @@ mod utils {
     ) {
         let account_id = AccountId::from_origin(origin.into_origin());
         assert_eq!(Balances::free_balance(account_id), free.into());
-        assert_eq!(Balances::reserved_balance(account_id), reserved.into());
+        assert_eq!(
+            GearBank::<Test>::account_total(&account_id),
+            reserved.into()
+        );
     }
 
     #[track_caller]
@@ -13903,7 +13962,7 @@ mod utils {
     }
 
     pub(super) fn get_ed() -> u128 {
-        <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
+        CurrencyOf::<Test>::minimum_balance().unique_saturated_into()
     }
 
     #[track_caller]
