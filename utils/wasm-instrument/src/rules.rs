@@ -1,5 +1,5 @@
 use core::num::NonZeroU32;
-use wasm_instrument::{
+use gwasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
     parity_wasm::elements::{self, Instruction},
 };

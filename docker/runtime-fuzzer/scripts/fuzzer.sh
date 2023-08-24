@@ -14,7 +14,7 @@ function _check_need_arch {
         echo "Archiving doesn't needed due to OOM error"
         return 0
     else
-        echo "Procceed with archiving"
+        echo "Proceed with archiving"
         return 1
     fi
 }
@@ -25,7 +25,7 @@ function _check_container_runtime {
     STOP=$(docker inspect --format='{{.State.FinishedAt}}' ${CONTAINER_NAME})
     START_TIMESTAMP=$(date --date=$START +%s)
     STOP_TIMESTAMP=$(date --date=$STOP +%s) 
-    echo "Conatiner worked for: $(($STOP_TIMESTAMP-$START_TIMESTAMP)) seconds"
+    echo "Container worked for: $(($STOP_TIMESTAMP-$START_TIMESTAMP)) seconds"
 }
 
 # Function to start the container and wait for it to stop

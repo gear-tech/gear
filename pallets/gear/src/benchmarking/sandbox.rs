@@ -26,20 +26,23 @@ use super::{
 
 use common::Origin;
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory},
-    SandboxEnvironmentBuilder, SandboxInstance,
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory, Store},
+    SandboxEnvironmentBuilder, SandboxInstance, SandboxStore,
 };
 
 /// Minimal execution environment without any exported functions.
 pub struct Sandbox {
     instance: Instance<()>,
+    store: Store<()>,
     _memory: Option<Memory>,
 }
 
 impl Sandbox {
     /// Invoke the `handle` function of a program code and panic on any execution error.
     pub fn invoke(&mut self) {
-        self.instance.invoke("handle", &[], &mut ()).unwrap();
+        self.instance
+            .invoke(&mut self.store, "handle", &[])
+            .unwrap();
     }
 }
 
@@ -52,11 +55,13 @@ where
     /// to the instance as the module declares as imported.
     fn from(module: &WasmModule<T>) -> Self {
         let mut env_builder = EnvironmentDefinitionBuilder::new();
-        let memory = module.add_memory(&mut env_builder);
-        let instance = Instance::new(&module.code, &env_builder, &mut ())
+        let mut store = Store::new(());
+        let memory = module.add_memory(&mut store, &mut env_builder);
+        let instance = Instance::new(&mut store, &module.code, &env_builder)
             .expect("Failed to create benchmarking Sandbox instance");
         Self {
             instance,
+            store,
             _memory: memory,
         }
     }
@@ -72,11 +77,13 @@ impl Sandbox {
     {
         let module: WasmModule<T> = module.into();
         let mut env_builder = EnvironmentDefinitionBuilder::new();
-        let memory = module.add_memory(&mut env_builder);
-        let instance = Instance::new(&module.code, &env_builder, &mut ())
+        let mut store = Store::new(());
+        let memory = module.add_memory(&mut store, &mut env_builder);
+        let instance = Instance::new(&mut store, &module.code, &env_builder)
             .expect("Failed to create benchmarking Sandbox instance");
         Self {
             instance,
+            store,
             _memory: memory,
         }
     }

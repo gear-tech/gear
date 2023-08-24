@@ -1,15 +1,15 @@
 [package]
 name = "gcli"
+description = "Gear program CLI"
+keywords = ["gear", "cli", "wasm"]
+categories = ["command-line-interface", "command-line-utilities", "wasm"]
+documentation = "https://docs.rs/gcli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "gear program cli"
-repository = "https://github.com/gear-tech/gear/tree/master/program"
 license.workspace = true
-documentation = "https://docs.rs/gear-program"
-homepage = "https://github.com/gear-tech/gear/tree/master/program"
-keywords = ["gear", "cli", "wasm"]
-readme = "./README.md"
+homepage.workspace = true
+repository.workspace = true
 
 [[bin]]
 path = "bin/gcli.rs"

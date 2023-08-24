@@ -24,7 +24,7 @@ mod param;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
-use gsys::HashWithValue;
+use gsys::{Hash, HashWithValue};
 use std::ops::RangeInclusive;
 
 pub use amount::*;
@@ -38,21 +38,10 @@ impl SysCallsConfigBuilder {
     pub fn new(injection_amounts: SysCallsInjectionAmounts) -> Self {
         Self(SysCallsConfig {
             injection_amounts,
-            random_mem_access: false,
             params_config: SysCallsParamsConfig::default(),
             sending_message_destination: MessageDestination::default(),
             log_info: None,
         })
-    }
-
-    /// Define whether memory access is performed to random pointers.
-    ///
-    /// # Note:
-    /// To be removed in next refactoring iterations.
-    pub fn with_unchecked_memory_access(mut self, flag: bool) -> Self {
-        self.0.random_mem_access = flag;
-
-        self
     }
 
     /// Set config for sys-calls params.
@@ -72,7 +61,12 @@ impl SysCallsConfigBuilder {
 
     /// Set whether `gr_send*` sys-calls must use some address from `addresses` collection
     /// as a message destination.
-    pub fn with_data_offset_msg_dest(mut self, addresses: NonEmpty<HashWithValue>) -> Self {
+    pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
+        let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
+            hash: pid.into(),
+            value: 0,
+        }))
+        .expect("collected from non empty");
         self.0.sending_message_destination = MessageDestination::ExistingAddresses(addresses);
 
         self
@@ -108,9 +102,6 @@ impl SysCallsConfigBuilder {
 /// United config for all entities in sys-calls generator module.
 #[derive(Debug, Clone, Default)]
 pub struct SysCallsConfig {
-    // # Note:
-    // To be removed in next refactoring iterations
-    random_mem_access: bool,
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
     sending_message_destination: MessageDestination,
@@ -118,11 +109,6 @@ pub struct SysCallsConfig {
 }
 
 impl SysCallsConfig {
-    /// Get flag whether memory access should be to same random pointer or with random value.
-    pub fn random_mem_access(&self) -> bool {
-        self.random_mem_access
-    }
-
     /// Get possible number of times (range) the sys-call can be injected in the wasm.
     pub fn injection_amounts(&self, name: SysCallName) -> RangeInclusive<u32> {
         self.injection_amounts.get(name)

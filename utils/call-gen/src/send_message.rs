@@ -18,17 +18,20 @@
 
 //! Send message args generator.
 
-use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
+use crate::{
+    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
+    Seed,
+};
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
 // destination, payload, gas, value
-type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
+type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128, bool);
 
 /// Send message args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl_convert_traits!(
@@ -40,12 +43,12 @@ impl_convert_traits!(
 
 impl GeneratableCallArgs for SendMessageArgs {
     type FuzzerArgs = (NonEmpty<ProgramId>, Seed);
-    type ConstArgs = (u64,);
+    type ConstArgs<C: GearWasmGenConfigsBundle> = (u64,);
 
     /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.
-    fn generate<Rng: CallGenRng>(
+    fn generate<Rng: CallGenRng, Config>(
         (existing_programs, rng_seed): Self::FuzzerArgs,
-        (gas_limit,): Self::ConstArgs,
+        (gas_limit,): Self::ConstArgs<()>,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -64,6 +67,8 @@ impl GeneratableCallArgs for SendMessageArgs {
         // TODO #2203
         let value = 0;
 
-        Self((destination, payload, gas_limit, value))
+        let prepaid = false;
+
+        Self((destination, payload, gas_limit, value, prepaid))
     }
 }

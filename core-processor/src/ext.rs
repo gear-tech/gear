@@ -26,7 +26,7 @@ use gear_backend_common::{
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
@@ -34,8 +34,8 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{
-        ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter,
+        ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
+        GasCounter, GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -153,7 +153,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
 }
 
 impl BackendSyscallError for UnrecoverableExtError {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::UnrecoverableExt(err)).into()
@@ -163,7 +163,7 @@ impl BackendSyscallError for UnrecoverableExtError {
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {
-        RunFallibleError::TerminationReason(self.into_termination_reason())
+        RunFallibleError::UndefinedTerminationReason(self.into_termination_reason())
     }
 }
 
@@ -207,12 +207,12 @@ impl From<FallibleExtError> for RunFallibleError {
         match err {
             FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
             FallibleExtError::ForbiddenFunction => {
-                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::Actor(
                     ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
                 ))
             }
             FallibleExtError::Charge(err) => {
-                RunFallibleError::TerminationReason(TerminationReason::from(err))
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::from(err))
             }
         }
     }
@@ -244,6 +244,8 @@ impl BackendAllocSyscallError for AllocExtError {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
+    /// Actual gas counter type within wasm module's global.
+    pub current_counter: CounterType,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -255,8 +257,16 @@ impl ProcessorExternalities for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
+        let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
+        {
+            CounterType::GasLimit
+        } else {
+            CounterType::GasAllowance
+        };
+
         Self {
             context,
+            current_counter,
             outgoing_gasless: 0,
         }
     }
@@ -301,7 +311,7 @@ impl BackendExternalities for Ext {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
@@ -433,10 +443,9 @@ impl Ext {
             return Err(ChargeError::GasLimitExceeded);
         }
         if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            if gas_counter.refund(amount) != ChargeResult::Enough {
-                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
-                unreachable!("Cannot refund {amount} for `gas_counter`");
-            }
+            // Here might be refunds for gas counter, but it's meaningless since
+            // on gas allowance exceed we totally roll up the message and give
+            // it another try in next block with the same initial resources.
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -471,40 +480,57 @@ impl CountersOwner for Ext {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: self.context.gas_counter.left(),
-            allowance: self.context.gas_allowance_counter.left(),
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+            .into()
+    }
+
+    fn current_counter_type(&self) -> CounterType {
+        self.current_counter
+    }
+
+    fn decrease_current_counter_to(&mut self, amount: u64) {
+        // For possible cases of non-atomic charges on backend side when global
+        // value is less than appropriate at the backend.
+        //
+        // Example:
+        // * While executing program calls some syscall.
+        // * Syscall ends up with unrecoverable error - gas limit exceeded.
+        // * We have to charge it so we leave backend and whole execution with 0 inner counter.
+        // * Meanwhile global is not zero, so for this case we have to skip decreasing.
+        if self.current_counter_value() <= amount {
+            log::trace!("Skipped decrease to global value");
+            return;
+        }
+
+        let GasLeft { gas, allowance } = self.gas_left();
+
+        let diff = match self.current_counter_type() {
+            CounterType::GasLimit => gas.checked_sub(amount),
+            CounterType::GasAllowance => allowance.checked_sub(amount),
+        }
+        .unwrap_or_else(|| unreachable!("Checked above"));
+
+        if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas limit left bigger than before")
+        }
+
+        if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas allowance left bigger than before")
         }
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        let GasLeft { gas, allowance } = gas_left;
+    fn define_current_counter(&mut self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
 
-        let gas_left = self.context.gas_counter.left();
-        if gas_left > gas {
-            if self.context.gas_counter.charge_if_enough(gas_left - gas) != ChargeResult::Enough {
-                // We checked above that `gas_left` is bigger than `gas`
-                unreachable!("Cannot charge {gas} from `gas_counter`");
-            }
+        if gas <= allowance {
+            self.current_counter = CounterType::GasLimit;
+            gas
         } else {
-            self.context.gas_counter.refund(gas - gas_left);
-        }
-
-        let allowance_left = self.context.gas_allowance_counter.left();
-        if allowance_left > allowance {
-            if self
-                .context
-                .gas_allowance_counter
-                .charge_if_enough(allowance_left - allowance)
-                != ChargeResult::Enough
-            {
-                // We checked above that `allowance_left` is bigger than `allowance`
-                unreachable!("Cannot charge {allowance} from `gas_allowance_counter`");
-            }
-        } else {
-            self.context
-                .gas_allowance_counter
-                .refund(allowance - allowance_left);
+            self.current_counter = CounterType::GasAllowance;
+            allowance
         }
     }
 }
@@ -737,7 +763,11 @@ impl Externalities for Ext {
     }
 
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        let program_id = self.program_id()?;
+        let message_id = self.message_id()?;
+
+        log::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+
         Ok(())
     }
 
@@ -1180,10 +1210,7 @@ mod tests {
         let initial_gas = 100;
         let initial_allowance = 10000;
 
-        let gas_left = GasLeft {
-            gas: initial_gas,
-            allowance: initial_allowance,
-        };
+        let gas_left = (initial_gas, initial_allowance).into();
 
         let existing_page = 99.into();
         let non_existing_page = 100.into();

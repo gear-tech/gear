@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 gsys.workspace = true
 gear-core-errors.workspace = true
+gear-stack-buffer.workspace = true
 codec = { workspace = true, optional = true }
 static_assertions.workspace = true
 

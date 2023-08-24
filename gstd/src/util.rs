@@ -19,9 +19,78 @@
 //! Utility functions.
 
 pub use scale_info::MetaType;
-use scale_info::{scale::Encode, PortableRegistry, Registry};
+use scale_info::{
+    scale::{Encode, MaxEncodedLen, Output},
+    PortableRegistry, Registry,
+};
 
-use crate::prelude::{Box, String, Vec};
+use crate::prelude::{
+    mem::{transmute, MaybeUninit},
+    Box, String, Vec,
+};
+
+/// Items implementing [`MaybeMaxEncodedLen`] **might** have a statically known
+/// maximum encoded size.
+pub(crate) trait MaybeMaxEncodedLen: Encode {
+    /// If the data type implements [`MaxEncodedLen`], this method returns
+    /// `Some(<Type as MaxEncodedLen>::max_encoded_len())`.
+    ///
+    /// Otherwise, this method returns [`None`].
+    fn maybe_max_encoded_len() -> Option<usize>;
+}
+
+/// Default implementation for all types that implement [`Encode`], but not
+/// [`MaxEncodedLen`].
+impl<T: Encode> MaybeMaxEncodedLen for T {
+    default fn maybe_max_encoded_len() -> Option<usize> {
+        None
+    }
+}
+
+/// Specialization for types that implement [`MaxEncodedLen`].
+impl<T: MaxEncodedLen> MaybeMaxEncodedLen for T {
+    fn maybe_max_encoded_len() -> Option<usize> {
+        Some(T::max_encoded_len())
+    }
+}
+
+/// An auxiliary function that reduces gas consumption during payload encoding.
+pub(crate) fn with_optimized_encode<T, E: MaybeMaxEncodedLen>(
+    payload: E,
+    f: impl FnOnce(&[u8]) -> T,
+) -> T {
+    struct ExternalBufferOutput<'a> {
+        buffer: &'a mut [MaybeUninit<u8>],
+        offset: usize,
+    }
+
+    impl<'a> Output for ExternalBufferOutput<'a> {
+        fn write(&mut self, bytes: &[u8]) {
+            // SAFETY: same as
+            // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.
+            // This code transmutes `bytes: &[T]` to `bytes: &[MaybeUninit<T>]`. These types
+            // can be safely transmuted since they have the same layout. Then `bytes:
+            // &[MaybeUninit<T>]` is written to uninitialized memory via `copy_from_slice`.
+            let end_offset = self.offset + bytes.len();
+            let this = unsafe { self.buffer.get_unchecked_mut(self.offset..end_offset) };
+            this.copy_from_slice(unsafe { transmute(bytes) });
+            self.offset = end_offset;
+        }
+    }
+
+    let size = E::maybe_max_encoded_len().unwrap_or_else(|| payload.encoded_size());
+    gcore::stack_buffer::with_byte_buffer(size, |buffer| {
+        let mut output = ExternalBufferOutput { buffer, offset: 0 };
+        payload.encode_to(&mut output);
+        let ExternalBufferOutput { buffer, offset } = output;
+        // SAFETY: same as `MaybeUninit::slice_assume_init_ref(&buffer[..offset])`.
+        // `ExternalBufferOutput` writes data to uninitialized memory. So we can take
+        // slice `&buffer[..offset]` and say that it was initialized earlier
+        // because the buffer from `0` to `offset` was initialized.
+        let payload = unsafe { &*(&buffer[..offset] as *const _ as *const [u8]) };
+        f(payload)
+    })
+}
 
 /// Generate a registry from given meta types and encode it to hex.
 pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {

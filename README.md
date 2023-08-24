@@ -41,20 +41,20 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 1. :open_hands: The easiest way to get started with Gear is to use a demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io).
 
-2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/getting-started-in-5-minutes) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going.
+2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going.
 
-3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-dapps). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
+3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-foundation). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
 
 4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
-5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/developing-contracts/gear-program) of the Gear Wiki for more details about how to implement and run your dApp in Gear.
+5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/docs/developing-contracts/introduction) of the Gear Wiki for more details about how to implement and run your dApp in Gear.
 
 ## Run Gear Node
 
 For Linux/MacOS users install script is available:
 
   ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | sh 
+  curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | sh
   ```
 
 Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
@@ -72,10 +72,10 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     gear
     ```
 
-3. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and `--tmp` for storing the state in temporary storage:
+3. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and storing the state in temporary storage:
 
     ```bash
-    gear --dev --tmp
+    gear --dev
     ```
 
 4. Get more info about usage details, flags, available options and subcommands:
@@ -86,7 +86,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 ## Implement and run your own blockchain application
 
-1. Gear provides dApp [application templates](https://github.com/gear-dapps) that cover various use cases - DeFi, DAO, NFT and more. Write your own smart contract or take one from the available templates. Adapt a template in accordance to your business needs.
+1. Gear provides dApp [application templates](https://github.com/gear-foundation) that cover various use cases - DeFi, DAO, NFT and more. Write your own smart contract or take one from the available templates. Adapt a template in accordance with your business needs.
 
 2. Test your smart contract off-chain, test it on-chain using a local node, then upload to Gear network.
 
@@ -101,9 +101,9 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 * [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - Standard library for Gear smart contracts.
 
-* [gear-js](https://github.com/gear-tech/gear-js/tree/main/api) - jsonrpc API of Gear backend.
+* [gear-js](https://github.com/gear-tech/gear-js/tree/main/api) - JSON-RPC API of Gear backend.
 
-* [examples](https://github.com/gear-dapps) - Gear smart contract examples.
+* [examples](https://github.com/gear-foundation) - Gear smart contract examples.
 
 Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 
@@ -124,7 +124,7 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 
 ### :fire: Key features
 
- - Programs run in WASM VM (near-native code execution speed)
+ - Programs run in Wasm VM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
  - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
  - dApp in minutes using Gear libraries
@@ -160,8 +160,7 @@ To resolve the interoperability issue, Parity technologies focused on creating a
   - Polkadot - a blockchain of blockchains. Provides a “relay chain” (the primary blockchain) that enables “parachains” (functional blockchains) to be deployed on top of it. All parachains are interconnected, creating a massive network of multifunctional blockchain services.
   - Substrate - a modular framework that allows to create custom-built blockchains with consensus mechanism, core functionality and security out of the box.
 
-Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama
-Substrate serves as a layer of communication between the relay chain and the parachain
+Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama. Substrate serves as a layer of communication between the relay chain and the parachain.
 
 # How does it work?
 
@@ -177,8 +176,8 @@ Performance charts can be seen here: https://gear-tech.github.io/performance-cha
 
 # Contribution
 
-You can request a new feature by creating a new Issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
-Here are some features in-prog or planned: https://github.com/gear-tech/gear/issues
+You can request a new feature by [creating a new issue](https://github.com/gear-tech/gear/issues/new/choose) or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
+Here are some features in progress or planned: https://github.com/gear-tech/gear/issues
 
 # License
 

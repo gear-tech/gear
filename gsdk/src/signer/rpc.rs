@@ -17,15 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! RPC calls with signer
-#![allow(clippy::too_many_arguments)]
-use crate::{result::Result, signer::Signer, types::GasInfo};
+
+use crate::{result::Result, signer::SignerInner, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
+use std::sync::Arc;
 
-impl Signer {
+/// Implementation of calls to node RPC for [`Signer`].
+#[derive(Clone)]
+pub struct SignerRpc(pub(crate) Arc<SignerInner>);
+
+impl SignerRpc {
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
+        AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
+    }
+
+    /// Get self balance.
+    pub async fn get_balance(&self) -> Result<u128> {
+        self.0
+            .as_ref()
+            .api()
+            .get_balance(&self.0.as_ref().address())
+            .await
     }
 
     /// gear_calculateInitCreateGas
@@ -38,7 +52,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_create_gas(
                 origin.unwrap_or_else(|| self.source()),
                 code_id,
@@ -60,7 +75,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_upload_gas(
                 origin.unwrap_or_else(|| self.source()),
                 code,
@@ -82,7 +98,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_handle_gas(
                 origin.unwrap_or_else(|| self.source()),
                 destination,
@@ -104,7 +121,8 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
+            .api
             .calculate_reply_gas(
                 origin.unwrap_or_else(|| self.source()),
                 message_id,

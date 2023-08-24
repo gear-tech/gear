@@ -128,6 +128,7 @@ fn test_userspace_panic_works() {
         [].into(),
         GAS_LIMIT,
         0,
+        false,
     ));
 
     run_to_next_block(None);
@@ -236,6 +237,7 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
             [].into(),
             GAS_LIMIT,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -360,6 +362,7 @@ There are two cases of fails when this signal code is sent:
                 [].into(),
                 GAS_LIMIT,
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -467,6 +470,7 @@ There are two cases of fails when this signal code is sent:
                 [].into(),
                 GAS_LIMIT,
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -567,6 +571,7 @@ There are two cases of fails when this signal code is sent:
                 [].into(),
                 GAS_LIMIT,
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -677,6 +682,7 @@ fn test_signal_memory_overflow_works() {
         [].into(),
         GAS_LIMIT,
         0,
+        false,
     ));
 
     run_to_next_block(None);
@@ -794,6 +800,7 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
             [].into(),
             GAS_LIMIT,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -902,6 +909,7 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
             [].into(),
             GAS_LIMIT,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1010,6 +1018,7 @@ fn test_signal_removed_from_waitlist() {
         [].into(),
         GAS_LIMIT,
         0,
+        false,
     ));
 
     run_to_next_block(None);

@@ -109,9 +109,9 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
             .ok_or("Cannot find export section")?
             .entries()
             .iter()
-            .find(|export| export.field() == export_name) else
-        {
-            continue
+            .find(|export| export.field() == export_name)
+        else {
+            continue;
         };
 
         let index = match export.internal() {
