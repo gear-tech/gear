@@ -112,7 +112,7 @@ where
         BlockHashOrNumber::Hash(hash) => (block_hash_to_number::<Block>(&rpc, hash).await?, hash),
     };
 
-    // Get the state at the height corresponging to previous block.
+    // Get the state at the height corresponding to previous block.
     let previous_hash =
         block_number_to_hash::<Block>(&rpc, current_number.saturating_sub(One::one())).await?;
     log::info!(
@@ -139,7 +139,7 @@ where
     header.digest_mut().pop();
 
     // In case the `Gear::run()` extrinsic has been dropped due to panic, we re-insert it here.
-    // Timestamp inherent is alwasy present hence `extrinsics` vector is not empty
+    // Timestamp inherent is always present hence `extrinsics` vector is not empty
     assert!(!extrinsics.is_empty());
 
     if command.force_run {
