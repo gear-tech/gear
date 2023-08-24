@@ -609,7 +609,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
+            //let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
@@ -1202,7 +1202,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
+            //let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
