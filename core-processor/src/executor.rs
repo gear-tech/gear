@@ -293,7 +293,20 @@ where
     let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
 
     // Creating value counter.
-    let value_counter = ValueCounter::new(balance + dispatch.value());
+    //
+    // NOTE: Value available equals free balance with message value if value
+    // wasn't transferred to program yet.
+    //
+    // In case of second execution (between waits) - message value already
+    // included in free balance or wasted.
+    let value_available = balance.saturating_add(
+        dispatch
+            .context()
+            .is_none()
+            .then(|| dispatch.value())
+            .unwrap_or_default(),
+    );
+    let value_counter = ValueCounter::new(value_available);
 
     let context = ProcessorContext {
         gas_counter,

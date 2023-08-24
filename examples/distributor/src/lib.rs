@@ -57,7 +57,7 @@ mod wasm {
 
     use alloc::collections::BTreeSet;
     use core::future::Future;
-    use gstd::{debug, lock::Mutex, msg};
+    use gstd::{debug, msg, sync::Mutex};
 
     static mut STATE: Option<ProgramState> = None;
 

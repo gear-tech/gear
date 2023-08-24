@@ -25,10 +25,11 @@ use crate::{
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
             pallet_balances::AccountData,
+            pallet_gear_bank::pallet::BankAccount,
         },
         storage::{
-            GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage, SessionStorage,
-            SystemStorage, TimestampStorage,
+            GearBankStorage, GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage,
+            SessionStorage, SystemStorage, TimestampStorage,
         },
     },
     result::{Error, Result},
@@ -194,6 +195,21 @@ impl Api {
             gas_nodes.push((*gas_node_id, gas_node));
         }
         Ok(gas_nodes)
+    }
+}
+
+// pallet-gear-bank
+impl Api {
+    /// Get Gear bank account data at specified block.
+    #[storage_fetch]
+    pub async fn bank_info_at(
+        &self,
+        account_id: AccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<BankAccount<u128>> {
+        let addr = Self::storage(GearBankStorage::Bank, vec![Value::from_bytes(account_id)]);
+
+        self.fetch_storage_at(&addr, block_hash).await
     }
 }
 

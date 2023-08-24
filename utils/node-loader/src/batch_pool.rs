@@ -358,7 +358,7 @@ async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
         let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;
-            if matches!(event, Event::Gear(GearEvent::QueueProcessingReverted)) {
+            if matches!(event, Event::Gear(GearEvent::QueueNotProcessed)) {
                 let crash_err = CrashAlert::MsgProcessingStopped;
                 tracing::info!("{crash_err} at block hash {bh:?}");
                 return Err(crash_err.into());

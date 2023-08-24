@@ -90,6 +90,7 @@ pallet-gear-scheduler.workspace = true
 pallet-gear-messenger.workspace = true
 pallet-gear-program.workspace = true
 pallet-gear.workspace = true
+pallet-gear-bank.workspace = true
 pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
@@ -136,6 +137,7 @@ std = [
 	"pallet-election-provider-multi-phase/std",
 	"pallet-gear-gas/std",
 	"pallet-gear/std",
+	"pallet-gear-bank/std",
 	"pallet-gear-debug?/std",
 	"pallet-gear-messenger/std",
 	"pallet-gear-payment/std",
@@ -219,6 +221,7 @@ try-runtime = [
 	"pallet-gear-program/try-runtime",
 	"pallet-gear-staking-rewards/try-runtime",
 	"pallet-gear-gas/try-runtime",
+	"pallet-gear-bank/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
 	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
@@ -254,6 +257,7 @@ try-runtime = [
 	"pallet-whitelist/try-runtime",
 	"pallet-airdrop/try-runtime",
 	"pallet-bags-list/try-runtime",
+	"runtime-common/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [

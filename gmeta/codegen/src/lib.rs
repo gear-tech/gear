@@ -426,7 +426,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
 
                 #[no_mangle]
                 extern "C" fn metadata() {
-                    let mut funcs = ::gstd::BTreeMap::new();
+                    let mut funcs = ::gstd::collections::BTreeMap::new();
                     let mut registry = ::gmeta::Registry::new();
 
                     #(#type_registrations)*
