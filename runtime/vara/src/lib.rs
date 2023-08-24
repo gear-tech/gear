@@ -164,9 +164,11 @@ const_assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
 
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
-/// It's 2/3 sec for vara runtime with 2 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight =
-    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 2 / 3, u64::MAX);
+/// It's 3/3 sec for vara runtime with 3 second block duration.
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+    WEIGHT_REF_TIME_PER_MILLIS * MILLISECS_PER_BLOCK / 3,
+    u64::MAX,
+);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
