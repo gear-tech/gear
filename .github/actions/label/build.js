@@ -2,7 +2,6 @@
  * Javascript module for the label action.
  */
 
-const TWO_HOURS = 1000 * 60 * 60 * 2;
 const [owner, repo] = ["gear-tech", "gear"];
 const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
 const linux =
@@ -35,8 +34,8 @@ const skip = async ({ core, github }) => {
 
   const runs = linux
     ? check_runs.filter(
-        (run) => run.name === "build" || run.name === "build / linux"
-      )
+      (run) => run.name === "build" || run.name === "build / linux"
+    )
     : check_runs.filter((run) => run.name === "build / macos-x86");
 
   // Skip this action by default.
@@ -44,8 +43,7 @@ const skip = async ({ core, github }) => {
   for (run of runs) {
     // Process this action only if the previous build has been skipped.
     if (
-      (run.name === "build" && run.conclusion === "skipped") ||
-      (run.name === "build / linux" && run.conclusion === "timed_out")
+      (run.name === "build" && run.conclusion === "skipped")
     )
       skipped = true;
 
@@ -79,32 +77,6 @@ const createChecks = async ({ core, github }) => {
   }
 
   return status;
-};
-
-/**
- * Timeout for the workflow.
- *
- * Cancel all new created checks if the workflow is not
- * completed in 2 hours.
- */
-const timeout = ({ checks, core, github }) => {
-  setTimeout(async () => {
-    for (check of checks) {
-      if (check.status === "completed") {
-        core.info(`Check ${check.name} is already completed`);
-        continue;
-      }
-
-      core.info(`Timeout check ${check.name}`);
-      await github.rest.checks.update({
-        owner,
-        repo,
-        check_run_id: check.id,
-        status: "completed",
-        conclusion: "timed_out",
-      });
-    }
-  }, TWO_HOURS);
 };
 
 /**
@@ -183,9 +155,6 @@ module.exports = async ({ github, core }) => {
   const run = await dispatchWorkflow({ core, github });
   core.info(`Dispatched workflow ${run.html_url}`);
   let labelChecks = await createChecks({ core, github });
-
-  // Set up timeouts for the checks.
-  timeout({ checks: Object.values(labelChecks), core, github });
 
   // Wait for the jobs to be completed.
   while (true) {
