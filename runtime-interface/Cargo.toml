@@ -23,6 +23,7 @@ derive_more.workspace = true
 static_assertions.workspace = true
 region = { workspace = true, optional = true }
 gear-sandbox-host = { workspace = true, optional = true }
+byteorder.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -34,6 +35,7 @@ std = [
 	"sp-runtime-interface/std",
 	"sp-std/std",
 	"sp-wasm-interface/std",
+	"byteorder/std",
 	"codec/std",
 	"log",
 	"gear-lazy-pages",

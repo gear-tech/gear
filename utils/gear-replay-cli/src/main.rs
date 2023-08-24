@@ -146,7 +146,7 @@ async fn main() -> sc_cli::Result<()> {
         BlockHashOrNumber::Hash(hash) => (block_hash_to_number::<Block>(&rpc, hash).await?, hash),
     };
 
-    // Get the state at the height corresponging to previous block.
+    // Get the state at the height corresponding to previous block.
     let previous_hash =
         block_number_to_hash::<Block>(&rpc, current_number.saturating_sub(One::one())).await?;
     log::info!(

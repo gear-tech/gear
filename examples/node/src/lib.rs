@@ -120,7 +120,7 @@ fn process(request: Request) -> Reply {
                         return Reply::Success;
                     }
                     TransitionState::Ready => {
-                        // this means we successfully commited and we can
+                        // this means we successfully committed and we can
                         // drop the transition returning success
                         debug!("Returning final commit signal");
 
