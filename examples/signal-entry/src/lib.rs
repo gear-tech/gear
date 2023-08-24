@@ -50,7 +50,6 @@ pub enum HandleAction {
     ExceedMemory,
     UnreachableInstruction,
     InvalidDebugCall,
-    ForbiddenCall,
     UnrecoverableExt,
     IncorrectFree,
     WaitWithoutSendingMessage,
@@ -65,7 +64,7 @@ mod wasm {
     use gstd::{
         debug,
         errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
-        exec::{self, gas_available},
+        exec,
         ext::oom_panic,
         msg,
         prelude::*,
@@ -227,13 +226,9 @@ mod wasm {
             HandleAction::InvalidDebugCall => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
 
+                #[allow(clippy::invalid_utf8_in_unchecked)]
                 let invalid_string = unsafe { core::str::from_utf8_unchecked(&[0, 159, 146, 150]) };
                 debug!("{}", invalid_string);
-            }
-            HandleAction::ForbiddenCall => {
-                exec::system_reserve_gas(1_000_000_000).unwrap();
-
-                gas_available();
             }
             HandleAction::UnrecoverableExt => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();

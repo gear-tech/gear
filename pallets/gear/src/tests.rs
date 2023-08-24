@@ -10126,14 +10126,6 @@ fn signal_backend_error_forbidden_action_works() {
 }
 
 #[test]
-fn signal_backend_error_forbidden_call_works() {
-    test_signal_code_works(
-        SimpleExecutionError::BackendError.into(),
-        demo_signal_entry::HandleAction::ForbiddenCall,
-    );
-}
-
-#[test]
 fn signal_backend_error_invalid_debug_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),

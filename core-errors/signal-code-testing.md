@@ -266,109 +266,7 @@ There are two cases of fails when this signal code is sent:
     This case is sent when:
     - One of forbidden syscalls are called.
 
-        In this case the syscall `gr_forbidden` will be called, resulting in execution stop. Forbidden syscalls are:
-        - `gas_available` while calculating gas amount
-        - `source`, `reply`, `reply_push`, `reply_commit`, `reply_commit_wgas`, `reply_input`, `reply_input_wgas`, `reservation_reply`, `reservation_reply_commit`, `system_reserve_gas` when called in `handle_signal`
-
-        <details>
-        <summary>Program to be uploaded</summary>
-
-        ```rust
-        #![no_std]
-
-        use gear_core::ids::ProgramId;
-        use gstd::{
-            ActorId,
-            errors::{SignalCode, SimpleExecutionError}, 
-            exec,
-            prelude::*,
-            msg,
-        };
-
-        static mut INITIATOR: ActorId = ActorId::zero();
-
-        #[no_mangle]
-        extern "C" fn init() {
-            unsafe { INITIATOR = msg::source() };
-        }
-
-        #[no_mangle]
-        extern "C" fn handle() {
-            exec::system_reserve_gas(1_000_000_000).unwrap();
-
-            exec::gas_available();
-        }
-
-        #[no_mangle]
-        extern "C" fn handle_signal() {
-            let signal_received = msg::signal_code()
-                .expect("Incorrect call")
-                .expect("Unsupported code");
-
-            if signal_received == SignalCode::Execution(SimpleExecutionError::BackendError) {
-                msg::send(unsafe { INITIATOR }, true, 0).unwrap();
-            } else {
-                msg::send(unsafe { INITIATOR }, false, 0).unwrap();
-            }
-        }
-        ```
-
-        </details>
-
-        <details>
-        <summary>Test</summary>
-
-        ```rust
-        const USER_1: AccountId = 1;
-        const DEFAULT_SALT: &[u8; 4] = b"salt";
-        const GAS_LIMIT: u64 = 10_000_000_000;
-
-        #[test]
-        fn test_signal_backend_error_forbidden_function_works() {
-            use demo_signal_backend_error_forbidden_function::{WASM_BINARY};
-
-            // Upload program
-            assert_ok!(Gear::upload_program(
-                RuntimeOrigin::signed(USER_1),
-                WASM_BINARY.to_vec(),
-                DEFAULT_SALT.to_vec(),
-                0.encode(),
-                GAS_LIMIT,
-                0,
-            ));
-
-            let pid = get_last_program_id();
-
-            run_to_next_block(None);
-
-            // Ensure that program is uploaded and initialized correctly
-            assert!(Gear::is_active(pid));
-            assert!(Gear::is_initialized(pid));
-
-            // Send the message to trigger signal sending
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                [].into(),
-                GAS_LIMIT,
-                0,
-            ));
-
-            run_to_next_block(None);
-
-            let mid = get_last_message_id();
-
-            // Assert that system reserve gas node is removed
-            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
-            run_to_next_block(None);
-            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
-
-            // Ensure that signal code sent is signal code we saved
-            let mail_msg = get_last_mail(USER_1);
-            assert_eq!(mail_msg.payload_bytes(), true.encode());
-        }
-        ```
-        </details>
+        In this case the syscall `gr_forbidden` will be called, resulting in execution stop. As of now, the only forbidden syscall are `gas_available` while calculating gas amount, so there is no way to test this case, because the message sent from the program won't be sent while calculating gas amount.
         
 
     - Some interactions with system actor are made:
@@ -511,6 +409,7 @@ There are two cases of fails when this signal code is sent:
         extern "C" fn handle() {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
+            #[allow(clippy::invalid_utf8_in_unchecked)]
             let invalid_string = unsafe { core::str::from_utf8_unchecked(&[0, 159, 146, 150]) };
             debug!("{}", invalid_string);
         }
