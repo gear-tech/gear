@@ -5,9 +5,10 @@
 const TWO_HOURS = 1000 * 60 * 60 * 2;
 const [owner, repo] = ["gear-tech", "gear"];
 const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
-const linux = LABEL === "A0-pleasereview"
-  || LABEL === "A4-insubstantial"
-  || LABEL === "A2-mergeoncegreen";
+const linux =
+  LABEL === "A0-pleasereview" ||
+  LABEL === "A4-insubstantial" ||
+  LABEL === "A2-mergeoncegreen";
 const checks = linux ? ["linux", "win-cross"] : ["x86"];
 const workflow_id = linux
   ? ".github/workflows/build.yml"
@@ -33,7 +34,9 @@ const skip = async ({ core, github }) => {
   core.info(`check runs: ${check_runs}`);
 
   const runs = linux
-    ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
+    ? check_runs.filter(
+        (run) => run.name === "build" || run.name === "build / linux"
+      )
     : check_runs.filter((run) => run.name === "build / macos-x86");
 
   // Skip this action by default.
@@ -43,7 +46,8 @@ const skip = async ({ core, github }) => {
     if (run.name === "build" && run.conclusion === "skipped") skipped = true;
 
     // If there is already a build, skip this action without more conditions.
-    if (run.name === "build / linux" || run.name === "build / macos-x86") return true;
+    if (run.name === "build / linux" || run.name === "build / macos-x86")
+      return true;
   }
 
   return !skipped;
@@ -82,6 +86,11 @@ const createChecks = async ({ core, github }) => {
 const timeout = ({ checks, core, github }) => {
   setTimeout(async () => {
     for (check of checks) {
+      if (check.status === "completed") {
+        core.info(`Check ${check.name} is already completed`);
+        continue;
+      }
+
       core.info(`Timeout check ${check.name}`);
       await github.rest.checks.update({
         owner,
@@ -91,8 +100,8 @@ const timeout = ({ checks, core, github }) => {
         conclusion: "timed_out",
       });
     }
-  }, TWO_HOURS)
-}
+  }, TWO_HOURS);
+};
 
 /**
  *  Dispatch the target workflow.
@@ -106,7 +115,7 @@ const dispatchWorkflow = async ({ core, github }) => {
     inputs: {
       title: TITLE,
       number: NUMBER,
-    }
+    },
   });
 
   // Wait for the workflow to be dispatched.
@@ -129,9 +138,9 @@ const dispatchWorkflow = async ({ core, github }) => {
 
   let sorted_runs = workflow_runs.sort((a, b) => {
     return new Date(b.created_at) - new Date(a.created_at);
-  })
+  });
 
-  return sorted_runs[0]
+  return sorted_runs[0];
 };
 
 /// List jobs of workflow run.
