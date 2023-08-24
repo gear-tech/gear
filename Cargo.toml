@@ -23,6 +23,7 @@ members = [
     "examples/async-init",
     "examples/async-signal-entry",
     "examples/async-tester",
+    "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
     "examples/compose",
