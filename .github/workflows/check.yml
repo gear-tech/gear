@@ -55,7 +55,6 @@ jobs:
             exit 1
           fi
 
-
       - name: "Check: Compiling gstd on stable"
         run: cargo +stable check -p gstd
 
