@@ -73,6 +73,8 @@ pub enum Meta {
 }
 
 impl Meta {
+    const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
+
     fn format_metadata(meta: &MetadataRepr, fmt: &mut fmt::Formatter) -> fmt::Result {
         let registry =
             PortableRegistry::decode(&mut meta.registry.as_ref()).map_err(|_| fmt::Error)?;
@@ -107,19 +109,25 @@ impl Meta {
 
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
-            String,
-        >(
-            method.into(),
-            wasm,
-            None,
-            None,
-            Default::default(),
-            u64::MAX,
-            BlockInfo::default(),
-        )
-        .map_err(Error::WasmExecution)
+        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+            Self::PAGE_STORAGE_PREFIX
+        ));
+
+        sp_io::TestExternalities::default().execute_with(|| {
+            core_processor::informational::execute_for_reply::<
+                gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+                String,
+            >(
+                method.into(),
+                wasm,
+                None,
+                None,
+                Default::default(),
+                u64::MAX,
+                BlockInfo::default(),
+            )
+            .map_err(Error::WasmExecution)
+        })
     }
 
     /// Decode metawasm from wasm binary.
