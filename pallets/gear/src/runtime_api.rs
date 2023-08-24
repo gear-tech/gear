@@ -20,7 +20,7 @@ use super::*;
 use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use gear_core::pages::WasmPage;
+use gear_core::{pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -31,6 +31,7 @@ pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
     pub program_pages: Option<BTreeMap<GearPage, PageBuf>>,
+    pub memory_infix: MemoryInfix,
 }
 
 impl<T: Config> Pallet<T>
@@ -267,6 +268,7 @@ where
             instrumented_code,
             allocations,
             program_pages,
+            memory_infix: program.memory_infix,
         })
     }
 
@@ -345,6 +347,7 @@ where
             instrumented_code,
             allocations,
             program_pages,
+            memory_infix,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -357,7 +360,7 @@ where
             instrumented_code,
             program_pages,
             Some(allocations),
-            Some(program_id),
+            Some((program_id, memory_infix)),
             payload,
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
@@ -379,6 +382,7 @@ where
             instrumented_code,
             allocations,
             program_pages,
+            memory_infix,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -391,7 +395,7 @@ where
             instrumented_code,
             program_pages,
             Some(allocations),
-            Some(program_id),
+            Some((program_id, memory_infix)),
             Default::default(),
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,

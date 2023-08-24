@@ -79,16 +79,19 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
                     Some(match program {
-                        v1::Program::Active(p) => Program::Active(common::ActiveProgram {
-                            allocations: p.allocations,
-                            pages_with_data: p.pages_with_data,
-                            gas_reservation_map: p.gas_reservation_map,
-                            code_hash: p.code_hash,
-                            code_exports: p.code_exports,
-                            static_pages: p.static_pages,
-                            state: p.state,
-                            expiration_block,
-                        }),
+                        v1::Program::Active(_p) => {
+                            //     Program::Active(common::ActiveProgram {
+                            //     allocations: p.allocations,
+                            //     pages_with_data: p.pages_with_data,
+                            //     gas_reservation_map: p.gas_reservation_map,
+                            //     code_hash: p.code_hash,
+                            //     code_exports: p.code_exports,
+                            //     static_pages: p.static_pages,
+                            //     state: p.state,
+                            //     expiration_block,
+                            // }),
+                            todo!()
+                        }
                         v1::Program::Exited(id) => Program::Exited(id),
                         v1::Program::Terminated(id) => Program::Terminated(id),
                     })

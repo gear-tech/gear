@@ -130,6 +130,7 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
 
         let program = Program::from_parts(
             destination_id,
+            actor_data.memory_infix,
             code,
             actor_data.allocations,
             actor_data.initialized,

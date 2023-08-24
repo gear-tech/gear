@@ -47,7 +47,7 @@ use gear_core::{
         WasmEntryPoint,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    program::Program,
+    program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
 use scale_info::{
@@ -469,7 +469,7 @@ pub fn execute_for_reply<E, EP>(
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<GearPage, PageBuf>>,
     allocations: Option<BTreeSet<WasmPage>>,
-    program_id: Option<ProgramId>,
+    program_info: Option<(ProgramId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,
@@ -480,7 +480,8 @@ where
     <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
     EP: WasmEntryPoint,
 {
-    let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
+    let (program_id, memory_infix) = program_info.unwrap_or_default();
+    let program = Program::new(program_id, memory_infix, instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
         pages_initial_data.unwrap_or_default();
     let static_pages = program.static_pages();

@@ -159,6 +159,7 @@ impl TestActor {
                 initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
                 gas_reservation_map,
+                memory_infix: program.memory_infix(),
             },
             program,
             pages_data,
@@ -451,7 +452,7 @@ impl ExtManager {
                 program.code().clone(),
                 Some(memory_pages),
                 Some(program.allocations().clone()),
-                Some(*program_id),
+                Some((*program_id, program.memory_infix())),
                 Default::default(),
                 u64::MAX,
                 self.block_info,
@@ -1074,7 +1075,7 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
-                    let candidate = CoreProgram::new(candidate_id, code);
+                    let candidate = CoreProgram::new(candidate_id, Default::default(), code);
                     self.store_new_actor(
                         candidate_id,
                         Program::new(candidate, code_id, Default::default(), Default::default()),

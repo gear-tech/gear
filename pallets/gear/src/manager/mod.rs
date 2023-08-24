@@ -239,6 +239,7 @@ where
                 initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
+                memory_infix: active.memory_infix,
             }),
         })
     }
@@ -269,6 +270,7 @@ where
             state: common::ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
+            memory_infix: Default::default(),
         };
 
         ProgramStorageOf::<T>::add_program(program_id, program)

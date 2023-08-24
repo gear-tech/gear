@@ -319,7 +319,7 @@ impl<'a> Program<'a> {
         }
 
         let program_id = id.clone().into().0;
-        let program = CoreProgram::new(program_id, code);
+        let program = CoreProgram::new(program_id, Default::default(), code);
 
         Self::program_with_id(
             system,
