@@ -43,7 +43,11 @@ const skip = async ({ core, github }) => {
   let skipped = false;
   for (run of runs) {
     // Process this action only if the previous build has been skipped.
-    if (run.name === "build" && run.conclusion === "skipped") skipped = true;
+    if (
+      (run.name === "build" && run.conclusion === "skipped") ||
+      (run.name === "build / linux" && run.conclusion === "timed_out")
+    )
+      skipped = true;
 
     // If there is already a build, skip this action without more conditions.
     if (run.name === "build / linux" || run.name === "build / macos-x86")
@@ -225,7 +229,7 @@ module.exports = async ({ github, core }) => {
 
     if (completed === checks.length) {
       core.info("All jobs completed.");
-      break;
+      return;
     } else {
       await sleep(10000);
     }
