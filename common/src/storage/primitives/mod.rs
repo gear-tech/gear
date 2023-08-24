@@ -29,6 +29,7 @@ mod double_map;
 mod iterable;
 mod key;
 mod map;
+mod triple_map;
 mod value;
 
 // Public exports from primitive modules.
@@ -41,6 +42,7 @@ pub use iterable::{
 };
 pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
 pub use map::{AppendMapStorage, MapStorage};
+pub use triple_map::TripleMapStorage;
 pub use value::ValueStorage;
 
 use frame_support::{
