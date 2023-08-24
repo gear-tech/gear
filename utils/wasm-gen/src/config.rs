@@ -32,7 +32,10 @@
 //!             InstructionKind::Numeric,
 //!             InstructionKind::Reference,
 //!             InstructionKind::Parametric,
-//!             InstructionKind::Variable
+//!             InstructionKind::Variable,
+//!             InstructionKind::Table,
+//!             InstructionKind::Memory,
+//!             InstructionKind::Control,
 //!         ],
 //!         max_instructions: 100_000,
 //!         min_funcs: 15,
