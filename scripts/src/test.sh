@@ -86,8 +86,9 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
+  CORPUS_PATH="$2"
   RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+  cargo fuzz run --release --sanitizer=none main $CORPUS_PATH -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
 }
 
 test_fuzzer_reproduction() {

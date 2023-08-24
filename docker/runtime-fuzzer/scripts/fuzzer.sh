@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-VOLUME_DIR='/home/ubuntu/fuzzing-seeds-dir/'
+VOLUME_DIR='/home/ubuntu/fuzzer/fuzzing-seeds-dir/'
+CORPUS_DIR='/home/ubuntu/fuzzer/corpus/'
+ARTIFACT_DIR='/home/ubuntu/fuzzer/artifacts'
 ARCHIVE_PATH="/opt/download-archives/"
 CONTAINER_NAME=node-fuzzer
 IMAGE='ghcr.io/gear-tech/gear-node-fuzzer:latest'
@@ -40,6 +42,8 @@ function start_container {
     docker run -d --pull=always \
         -e TERM=xterm-256color \
         -v "${VOLUME_DIR}:/fuzzing-seeds-dir" \
+        -v "${CORPUS_DIR}:/corpus" \
+        -v "${ARTIFACT_DIR}:/gear/utils/runtime-fuzzer/fuzz/artifactis/main"\
         --name ${CONTAINER_NAME} ${IMAGE}
     fi
     # Wait for the container to stop
