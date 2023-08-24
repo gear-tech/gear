@@ -34,7 +34,9 @@
 //!             InstructionKind::Parametric,
 //!             InstructionKind::Variable
 //!         ],
-//!         max_instructions: 100_000
+//!         max_instructions: 100_000,
+//!         min_funcs: 15,
+//!         max_funcs: 30
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
