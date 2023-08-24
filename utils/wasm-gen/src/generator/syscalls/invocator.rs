@@ -40,8 +40,13 @@ pub(crate) enum ProcessedSysCallParams {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
     },
-    MemoryArray,
-    MemoryPtrValue,
+    MemoryArray {
+        pointer_allowed_values: Option<SysCallParamAllowedValues>,
+        length_allowed_values: Option<SysCallParamAllowedValues>,
+    },
+    MemoryPtrValue {
+        allowed_values: Option<SysCallParamAllowedValues>,
+    },
 }
 
 pub(crate) fn process_sys_call_params(
@@ -63,9 +68,15 @@ pub(crate) fn process_sys_call_params(
                     // because it will be chosen in accordance to the wasm module
                     // memory pages config.
                     skip_next_param = true;
-                    ProcessedSysCallParams::MemoryArray
+
+                    ProcessedSysCallParams::MemoryArray {
+                        pointer_allowed_values: params_config.get_rule(&param),
+                        length_allowed_values: params_config.get_rule(&ParamType::Size),
+                    }
                 })
-                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
+                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue {
+                    allowed_values: params_config.get_rule(&param),
+                }),
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -336,6 +347,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
         let mut setters = Vec::with_capacity(params.len());
+
         for processed_param in process_sys_call_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSysCallParams::Alloc => {
@@ -375,25 +387,39 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::MemoryArray => {
-                    let upper_limit = mem_size.saturating_sub(1);
+                ProcessedSysCallParams::MemoryArray {
+                    pointer_allowed_values,
+                    length_allowed_values,
+                } => {
+                    let upper_limit = mem_size.saturating_sub(1) as i32;
 
-                    let pointer_beyond = self.unstructured.int_in_range(0..=upper_limit)?;
-                    let offset = self.unstructured.int_in_range(0..=pointer_beyond)?;
+                    let offset = if let Some(pointer_allowed_values) = pointer_allowed_values {
+                        pointer_allowed_values.get_i32(&mut self.unstructured)?
+                    } else {
+                        self.unstructured.int_in_range(0..=upper_limit)? as i32
+                    };
 
-                    let first = ParamSetter::I32(offset as i32);
-                    let second = ParamSetter::I32((pointer_beyond - offset) as i32);
-                    log::trace!("  ----  Memory array {first}, {second}");
+                    let length = if let Some(length_allowed_values) = length_allowed_values {
+                        length_allowed_values.get_i32(&mut self.unstructured)?
+                    } else {
+                        self.unstructured.int_in_range(0..=(upper_limit - offset))? as i32
+                    };
 
-                    setters.push(first);
-                    setters.push(second);
+                    log::trace!("  ----  Memory array {offset}, {length}");
+
+                    setters.push(ParamSetter::I32(offset));
+                    setters.push(ParamSetter::I32(length));
                 }
-                ProcessedSysCallParams::MemoryPtrValue => {
-                    // Subtract a bit more so entities from `gsys` fit.
-                    let upper_limit = mem_size.saturating_sub(100);
-                    let offset = self.unstructured.int_in_range(0..=upper_limit)?;
+                ProcessedSysCallParams::MemoryPtrValue { allowed_values } => {
+                    let offset = if let Some(allowed_values) = allowed_values {
+                        allowed_values.get_i32(&mut self.unstructured)?
+                    } else {
+                        // Subtract a bit more so entities from `gsys` fit.
+                        let upper_limit = mem_size.saturating_sub(100);
+                        self.unstructured.int_in_range(0..=upper_limit)? as i32
+                    };
 
-                    let setter = ParamSetter::I32(offset as i32);
+                    let setter = ParamSetter::I32(offset);
                     log::trace!("  ----  Memory pointer value - {setter}");
 
                     setters.push(setter);

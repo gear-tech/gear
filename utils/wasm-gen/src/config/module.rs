@@ -64,7 +64,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_tables,
             memory64_enabled,
             min_exports,
-            max_funcs,
             min_imports,
             multi_value_enabled,
             reference_types_enabled,
@@ -74,7 +73,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             simd_enabled,
             float_enabled,
             memory_grow_enabled,
-            min_funcs,
             max_data_segments,
             min_data_segments,
             max_types,
@@ -85,6 +83,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             call_indirect_enabled,
             allowed_instructions,
             max_instructions,
+            min_funcs,
+            max_funcs,
         } = selectable_params;
 
         let ArbitraryParams {
@@ -293,7 +293,6 @@ pub struct ConstantParams {
     memory64_enabled: bool,
     min_exports: usize,
     min_data_segments: usize,
-    max_funcs: usize,
     min_imports: usize,
     multi_value_enabled: bool,
     reference_types_enabled: bool,
@@ -303,7 +302,6 @@ pub struct ConstantParams {
     simd_enabled: bool,
     float_enabled: bool,
     memory_grow_enabled: bool,
-    min_funcs: usize,
     min_types: usize,
 }
 
@@ -330,8 +328,6 @@ impl Default for ConstantParams {
             max_exports: 0,
             min_imports: 0,
             max_imports: 0,
-            min_funcs: 15,
-            max_funcs: 30,
             max_data_segments: 0,
             min_data_segments: 0,
             max_types: 100,
@@ -352,6 +348,12 @@ pub struct SelectableParams {
     /// Maximum amount of instructions that `wasm-gen`
     /// can generate before inserting syscalls.
     pub max_instructions: usize,
+    /// Minimum amount of functions `wasm-gen` will insert
+    /// into generated wasm.
+    pub min_funcs: usize,
+    /// Maximum amount of functions `wasm-gen` will insert
+    /// into generated wasm.
+    pub max_funcs: usize,
 }
 
 impl Default for SelectableParams {
@@ -360,6 +362,8 @@ impl Default for SelectableParams {
             call_indirect_enabled: true,
             allowed_instructions: vec![Numeric, Reference, Parametric, Variable, Table, Memory],
             max_instructions: 100_000,
+            min_funcs: 15,
+            max_funcs: 30,
         }
     }
 }

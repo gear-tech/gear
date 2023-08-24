@@ -19,16 +19,24 @@
 use super::*;
 use arbitrary::Unstructured;
 use gear_backend_common::{TerminationReason, TrapExplanation};
-use gear_core::{code::Code, pages::WASM_PAGE_SIZE};
+use gear_core::{
+    code::Code,
+    ids::{MessageId, ProgramId},
+    memory::Memory,
+    message::{IncomingMessage, Payload},
+    pages::WASM_PAGE_SIZE,
+};
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{Instruction, Module},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    },
+    syscalls::ParamType,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::mem;
-use wasm_smith::InstructionKind;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -160,72 +168,113 @@ fn injecting_addresses_works() {
 }
 
 #[test]
-fn ignore_fallible_syscall_result_works() {
+fn error_processing_works_for_fallible_syscalls() {
     use gear_backend_common::ActorTerminationReason;
 
-    // Sometimes there can be situations when fallible syscall will not fall:
-    //  - wasm-gen generates wasm such as this syscall wasn't called
-    //  - rng provided data that don't causes syscall fall
-    //  - this syscall is very durable to wrong input or accepts a wide variety of values
-    // so we just want a majority of fallible syscalls to fall.
-    let unreachable_executed = majority_fallible_syscalls_exited_with_expected_termination_reason(
-        false,
-        0,
-        TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown)),
-    );
-    assert!(unreachable_executed);
+    let fallible_syscalls = SysCallName::instrumentable()
+        .into_iter()
+        .filter(|sc| InvocableSysCall::Loose(*sc).is_fallible());
 
-    let success = majority_fallible_syscalls_exited_with_expected_termination_reason(
-        true,
-        0,
-        TerminationReason::Actor(ActorTerminationReason::Success),
-    );
-    assert!(success);
+    for syscall in fallible_syscalls {
+        let (params_config, initial_memory_write, payload) =
+            get_params_for_syscall_to_fail(&syscall);
+
+        // Assert that syscalls results will be processed.
+        let termination_reason = execute_wasm_with_syscall_injected(
+            syscall,
+            false,
+            params_config.clone(),
+            initial_memory_write.clone(),
+            payload.clone(),
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown)),
+            "syscall: {}",
+            syscall.to_str()
+        );
+
+        // Assert that syscall results will be ignored.
+        let termination_reason = execute_wasm_with_syscall_injected(
+            syscall,
+            true,
+            params_config,
+            initial_memory_write,
+            payload,
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success),
+            "syscall: {}",
+            syscall.to_str()
+        );
+    }
 }
 
-fn majority_fallible_syscalls_exited_with_expected_termination_reason(
-    ignore_fallible_errors: bool,
-    rng_seed: u64,
-    expected_result: TerminationReason,
-) -> bool {
-    use gear_backend_common::ActorTerminationReason;
+#[derive(Clone)]
+struct MemoryWrite {
+    offset: u32,
+    content: Vec<u8>,
+}
 
-    let fallible_syscalls: Vec<_> = SysCallName::instrumentable()
-        .into_iter()
-        .filter(|sc| InvocableSysCall::Loose(*sc).is_fallible())
-        .collect();
+fn get_params_for_syscall_to_fail(
+    syscall: &SysCallName,
+) -> (SysCallsParamsConfig, Option<MemoryWrite>, Payload) {
+    match *syscall {
+        SysCallName::ReplyPush => {
+            let mut params_config = SysCallsParamsConfig::constant_value(i32::MAX as i64);
+            params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
 
-    let mut returned_as_expected_amount = 0;
-    for syscall in &fallible_syscalls {
-        println!("Syscall: {}", syscall.to_str());
-
-        let reason = execute_wasm_with_syscall_injected(*syscall, ignore_fallible_errors, rng_seed);
-        let as_expected = reason == expected_result;
-
-        if !as_expected {
-            println!(
-                "Another termination reason detected: {}",
-                match reason {
-                    TerminationReason::Actor(ActorTerminationReason::Success) =>
-                        "success".to_string(),
-                    TerminationReason::Actor(ActorTerminationReason::Trap(expl)) =>
-                        format!("trap {expl}"),
-                    TerminationReason::Actor(..) => "actor termination reason".to_string(),
-                    TerminationReason::System(..) => "system termination reason".to_string(),
-                }
-            );
+            (params_config, None, Payload::default())
         }
+        SysCallName::ReplyPushInput => {
+            let mut params_config = SysCallsParamsConfig::constant_value(i32::MAX as i64);
+            params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
 
-        returned_as_expected_amount += as_expected as usize;
+            let mut payload = Payload::default();
+            payload.extend_with(0);
+
+            params_config.add_rule(
+                ParamType::Size,
+                // offset = length = MAX_PAYLOAD_SIZE / 2, so MAX_PAYLOAD_SIZE / 2 would be read
+                // when the payload with max possible length is provided.
+                SysCallParamAllowedValues::constant(payload.inner().len() as i64 / 2),
+            );
+
+            (params_config, None, payload)
+        }
+        SysCallName::Read => {
+            let mut params_config = SysCallsParamsConfig::constant_value(0);
+            params_config.add_rule(
+                ParamType::Size,
+                SysCallParamAllowedValues::constant(i32::MAX as i64),
+            );
+            (params_config, None, Payload::default())
+        }
+        SysCallName::PayProgramRent => (
+            SysCallsParamsConfig::constant_value(0),
+            Some(MemoryWrite {
+                offset: 0,
+                content: std::iter::repeat(255).take(128).collect(),
+            }),
+            Payload::default(),
+        ),
+        _ => (
+            SysCallsParamsConfig::constant_value(0),
+            None,
+            Payload::default(),
+        ),
     }
-
-    returned_as_expected_amount >= fallible_syscalls.len() - 2
 }
 
 fn execute_wasm_with_syscall_injected(
     syscall: SysCallName,
     ignore_fallible_errors: bool,
-    rng_seed: u64,
+    params_config: SysCallsParamsConfig,
+    initial_memory_write: Option<MemoryWrite>,
+    payload: Payload,
 ) -> TerminationReason {
     use gear_backend_common::{BackendReport, Environment};
     use gear_backend_wasmi::WasmiEnvironment;
@@ -237,13 +286,10 @@ fn execute_wasm_with_syscall_injected(
     };
     use gear_core_processor::{configs::PageCosts, ProcessorContext, ProcessorExternalities};
 
-    const INITIAL_PAGES: u16 = 1024;
-    const INJECTED_SYSCALLS: u32 = 1024;
+    const INITIAL_PAGES: u16 = 1;
+    const INJECTED_SYSCALLS: u32 = 8;
 
-    let mut rng = SmallRng::seed_from_u64(rng_seed);
-    let mut buf = vec![0; UNSTRUCTURED_SIZE];
-    rng.fill_bytes(&mut buf);
-
+    let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
 
     let mut injection_amounts = SysCallsInjectionAmounts::all_never();
@@ -257,6 +303,7 @@ fn execute_wasm_with_syscall_injected(
             })
             .with_sys_calls_config(
                 SysCallsConfigBuilder::new(injection_amounts)
+                    .with_params_config(params_config)
                     .set_ignore_fallible_syscall_errors(ignore_fallible_errors)
                     .build(),
             )
@@ -265,8 +312,10 @@ fn execute_wasm_with_syscall_injected(
             .build(),
         SelectableParams {
             call_indirect_enabled: false,
-            allowed_instructions: vec![InstructionKind::Numeric],
-            max_instructions: 10,
+            allowed_instructions: vec![],
+            max_instructions: 0,
+            min_funcs: 1,
+            max_funcs: 1,
         },
     );
 
@@ -280,6 +329,15 @@ fn execute_wasm_with_syscall_injected(
     )
     .unwrap();
     let code = module.into_bytes().unwrap();
+
+    let init_msg = IncomingMessage::new(
+        MessageId::default(),
+        ProgramId::default(),
+        payload,
+        0,
+        0,
+        None,
+    );
 
     let default_pc = ProcessorContext {
         gas_counter: GasCounter::new(0),
@@ -297,7 +355,7 @@ fn execute_wasm_with_syscall_injected(
             Default::default(),
         ),
         message_context: MessageContext::new(
-            Default::default(),
+            IncomingDispatch::new(DispatchKind::Init, init_msg, None),
             Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
@@ -316,7 +374,7 @@ fn execute_wasm_with_syscall_injected(
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
-        rent_cost: 0,
+        rent_cost: 10,
     };
 
     let ext = gear_core_processor::Ext::new(default_pc);
@@ -330,7 +388,15 @@ fn execute_wasm_with_syscall_injected(
     .unwrap();
 
     let report = env
-        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
+        .execute(|mem, _, _| -> Result<(), u32> {
+            if let Some(mem_write) = initial_memory_write {
+                return mem
+                    .write(mem_write.offset, &mem_write.content)
+                    .map_err(|_| 1);
+            };
+
+            Ok(())
+        })
         .unwrap();
 
     let BackendReport {

@@ -33,6 +33,27 @@ use std::{collections::HashMap, ops::RangeInclusive};
 pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
+    /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
+    pub fn constant_value(value: i64) -> Self {
+        let allowed_values: SysCallParamAllowedValues = (value..=value).into();
+        Self(
+            [
+                ParamType::Size,
+                ParamType::Ptr(None),
+                ParamType::Gas,
+                ParamType::MessagePosition,
+                ParamType::Duration,
+                ParamType::Delay,
+                ParamType::Handler,
+                ParamType::Alloc,
+                ParamType::Free,
+            ]
+            .into_iter()
+            .map(|param_type| (param_type, allowed_values.clone()))
+            .collect(),
+        )
+    }
+
     /// Get allowed values for the `param`.
     pub fn get_rule(&self, param: &ParamType) -> Option<SysCallParamAllowedValues> {
         self.0.get(param).cloned()
@@ -60,8 +81,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Alloc, (0..=512).into()),
                 (ParamType::Free, (0..=512).into()),
             ]
-            .iter()
-            .cloned()
+            .into_iter()
             .collect(),
         )
     }
@@ -84,6 +104,14 @@ impl SysCallParamAllowedValues {
     /// it's value.
     pub fn zero() -> Self {
         Self(0..=0)
+    }
+
+    /// Constant param value.
+    ///
+    /// That means that for particular param `value` will be always
+    /// it's value.
+    pub fn constant(value: i64) -> Self {
+        Self(value..=value)
     }
 }
 
