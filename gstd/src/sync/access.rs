@@ -18,7 +18,7 @@
 
 //! This module gives mechanism of waking for async lockers.
 
-use crate::{prelude::VecDeque, MessageId};
+use crate::{collections::VecDeque, MessageId};
 use core::cell::UnsafeCell;
 
 // Option<VecDeque> to make new `const fn`

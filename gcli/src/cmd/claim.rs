@@ -32,7 +32,7 @@ impl Claim {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let message_id = self.message_id.to_hash()?.into();
 
-        signer.claim_value(message_id).await?;
+        signer.calls.claim_value(message_id).await?;
 
         Ok(())
     }

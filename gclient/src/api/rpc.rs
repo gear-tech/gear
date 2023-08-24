@@ -65,6 +65,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .rpc
             .calculate_create_gas(origin, code_id, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -109,6 +110,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .rpc
             .calculate_upload_gas(origin, code, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -158,6 +160,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .rpc
             .calculate_handle_gas(origin, destination, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -203,6 +206,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .rpc
             .calculate_reply_gas(origin, message_id, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)

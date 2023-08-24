@@ -36,15 +36,16 @@ use gear_core::{
     memory::{Memory, MemoryError, MemoryInterval},
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
-use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use scale_info::scale::{Decode, DecodeAll, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
-#[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = scale)]
+/// 0 index is reserved for an ok result.
+#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
 pub enum ProcessAccessError {
-    OutOfBounds,
-    GasLimitExceeded,
-    GasAllowanceExceeded,
+    OutOfBounds = 1,
+    GasLimitExceeded = 2,
 }
 
 #[derive(Debug, Clone, derive_more::From)]
@@ -76,9 +77,9 @@ impl BackendSyscallError for MemoryAccessError {
             // previously it was able to figure out that gas ended up in
             // pre-process charges: now we need actual counter type, so
             // it will be parsed and handled further (issue #3018).
-            MemoryAccessError::ProcessAccess(
-                ProcessAccessError::GasLimitExceeded | ProcessAccessError::GasAllowanceExceeded,
-            ) => UndefinedTerminationReason::ProcessAccessErrorResourcesExceed,
+            MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
+                UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
+            }
             MemoryAccessError::Decode => unreachable!(),
         }
     }
@@ -371,7 +372,7 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
         // # Safety:
         //
         // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-        // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+        // `MaybeUninit` is presented on stack as a contiguous sequence of bytes.
         //
         // It's also safe to construct T from any bytes, because we use the fn
         // only for reading primitive const-size types that are `[repr(C)]`,

@@ -18,7 +18,7 @@
 
 //! Runtime implementation for wasmi backend.
 
-use crate::{memory::MemoryWrapRef, state::HostState};
+use crate::memory::MemoryWrapRef;
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -27,6 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::{RunFallibleError, Runtime},
+    state::{HostState, State},
     ActorTerminationReason, BackendExternalities, BackendState, TrapExplanation,
     UndefinedTerminationReason,
 };
@@ -37,8 +38,7 @@ use wasmi::{
     AsContextMut, Caller, Memory as WasmiMemory,
 };
 
-use crate::state::State;
-
+#[track_caller]
 pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
     caller: &'a mut Caller<'b, Option<Ext>>,
 ) -> &'a mut Ext {
@@ -48,6 +48,7 @@ pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
+#[track_caller]
 pub(crate) fn caller_host_state_take<'a, 'b: 'a, Ext>(
     caller: &'a mut Caller<'b, Option<Ext>>,
 ) -> Ext {
@@ -58,7 +59,7 @@ pub(crate) fn caller_host_state_take<'a, 'b: 'a, Ext>(
 }
 
 pub(crate) struct CallerWrap<'a, Ext> {
-    pub caller: Caller<'a, HostState<Ext>>,
+    pub caller: Caller<'a, HostState<Ext, WasmiMemory>>,
     pub manager: MemoryAccessManager<Ext>,
     pub memory: WasmiMemory,
 }
@@ -134,7 +135,7 @@ impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ex
 impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     #[track_caller]
     pub fn prepare(
-        caller: Caller<'a, HostState<Ext>>,
+        caller: Caller<'a, HostState<Ext, WasmiMemory>>,
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Result<Self, Trap> {
@@ -170,13 +171,13 @@ impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<Ext> {
+    pub fn host_state_mut(&mut self) -> &mut State<Ext, WasmiMemory> {
         caller_host_state_mut(&mut self.caller)
     }
 
     #[track_caller]
     pub fn memory<'b, 'c: 'b>(
-        caller: &'b mut Caller<'c, Option<State<Ext>>>,
+        caller: &'b mut Caller<'c, Option<State<Ext, WasmiMemory>>>,
         memory: WasmiMemory,
     ) -> MemoryWrapRef<'b, Ext> {
         MemoryWrapRef::<'b, _> {

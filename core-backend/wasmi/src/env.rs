@@ -18,16 +18,13 @@
 
 //! wasmi environment for running a module.
 
-use crate::{
-    funcs_tree,
-    memory::MemoryWrap,
-    state::{HostState, State},
-};
+use crate::{funcs_tree, memory::MemoryWrap};
 use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
+    state::{HostState, State},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
     BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,
@@ -73,7 +70,7 @@ where
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
-    store: Store<HostState<Ext>>,
+    store: Store<HostState<Ext, Memory>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
@@ -81,7 +78,7 @@ where
 
 struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance,
-    store: Option<Store<HostState<Ext>>>,
+    store: Option<Store<HostState<Ext, Memory>>>,
 }
 
 impl<Ext: Externalities> GlobalsAccessProvider<Ext> {
@@ -144,9 +141,9 @@ where
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
-        let mut store: Store<HostState<EnvExt>> = Store::new(&engine, None);
+        let mut store: Store<HostState<EnvExt, Memory>> = Store::new(&engine, None);
 
-        let mut linker: Linker<HostState<EnvExt>> = Linker::new();
+        let mut linker: Linker<HostState<EnvExt, Memory>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory =
@@ -180,6 +177,7 @@ where
 
         let runtime = State {
             ext,
+            memory,
             termination_reason: ActorTerminationReason::Success.into(),
         };
 
@@ -321,7 +319,7 @@ where
             .take()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
-        let (ext, _, termination_reason) = state.terminate(res, gas as u64);
+        let (ext, termination_reason) = state.terminate(res, gas as u64);
 
         Ok(BackendReport {
             termination_reason,

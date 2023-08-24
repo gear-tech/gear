@@ -653,7 +653,7 @@ pub(crate) fn nominators_total_balance() -> u128 {
         .fold(0_u128, |acc, x| acc.saturating_add(x))
 }
 
-// Retuns the chain state as a tuple
+// Returns the chain state as a tuple
 // (`total_issuance`, `stakeable_amount`, `treasury_balance`, `staking_rewards_pool_balance`)
 pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
     (

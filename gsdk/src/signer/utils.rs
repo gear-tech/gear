@@ -18,23 +18,22 @@
 
 //! Utils
 
+use std::sync::Arc;
+
+use super::SignerInner;
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, Error, TxInBlock,
+    config::GearConfig, metadata::CallInfo, result::Result, signer::SignerRpc, Error, TxInBlock,
 };
 use scale_value::Composite;
 use subxt::blocks::ExtrinsicEvents;
 
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-impl Signer {
-    /// Get self balance
-    pub async fn balance(&self) -> Result<u128> {
-        self.api().get_balance(&self.address()).await
-    }
-
+impl SignerInner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let after = before.saturating_sub(self.balance().await?);
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let after = before.saturating_sub(signer_rpc.get_balance().await?);
         log::info!("	Balance spent: {after}");
 
         Ok(())
@@ -46,7 +45,7 @@ impl Signer {
     ///
     /// # You may not need this.
     ///
-    /// Read the docs of [`Signer`] to checkout the wrappred transactions,
+    /// Read the docs of [`Signer`](`super::Signer`) to checkout the wrappred transactions,
     /// we need this function only when we want to execute a transaction
     /// which has not been wrapped in `gsdk`.
     ///
@@ -74,7 +73,7 @@ impl Signer {
     /// // The code above euqals to:
     ///
     /// {
-    ///    let in_block = signer.transfer(dest, value).await?;
+    ///    let in_block = signer.calls.transfer(dest, value).await?;
     /// }
     ///
     /// // ...

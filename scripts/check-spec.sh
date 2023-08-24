@@ -22,7 +22,7 @@ check_spec() {
             else
                 print "" # Ok case. We had our spec bumped
         else if ($1 - $2 >= 50 && $2 == 100)
-            print "" # Ok case. We have reseted the network
+            print "" # Ok case. We have reset the network
         else if ($1 != $2)
             print "equal",$1
     }')"

@@ -190,7 +190,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_account = utils::default_account();
-        <T as pallet::Config>::Currency::deposit_creating(
+        CurrencyOf::<T>::deposit_creating(
             &default_account,
             100_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -380,7 +380,7 @@ where
     let wasm_module = alloc_free_test_wasm::<T>();
 
     let default_account = utils::default_account();
-    <T as pallet::Config>::Currency::deposit_creating(
+    CurrencyOf::<T>::deposit_creating(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -409,6 +409,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -468,7 +469,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let message_sender = benchmarking::account::<T::AccountId>("some_user", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(
+        CurrencyOf::<T>::deposit_creating(
             &message_sender,
             50_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -763,6 +764,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -801,6 +803,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -961,7 +964,7 @@ where
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
-    <T as pallet::Config>::Currency::deposit_creating(
+    CurrencyOf::<T>::deposit_creating(
         &child_deployer,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -977,7 +980,7 @@ where
 
     // Set default code-hash for create program calls
     let default_account = utils::default_account();
-    <T as pallet::Config>::Currency::deposit_creating(
+    CurrencyOf::<T>::deposit_creating(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -1004,6 +1007,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send message");
         }
@@ -1015,6 +1019,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
+                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send reply");
         }
@@ -1035,9 +1040,9 @@ where
 
     // Manually reset the storage
     Gear::<T>::reset();
-    <T as pallet::Config>::Currency::slash(
+    CurrencyOf::<T>::slash(
         &Id::from_origin(tester_pid.into_origin()),
-        <T as pallet::Config>::Currency::free_balance(&Id::from_origin(tester_pid.into_origin())),
+        CurrencyOf::<T>::free_balance(&Id::from_origin(tester_pid.into_origin())),
     );
 }
 
