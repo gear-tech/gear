@@ -40,13 +40,8 @@ pub(crate) enum ProcessedSysCallParams {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
     },
-    MemoryArray {
-        pointer_allowed_values: Option<SysCallParamAllowedValues>,
-        length_allowed_values: Option<SysCallParamAllowedValues>,
-    },
-    MemoryPtrValue {
-        allowed_values: Option<SysCallParamAllowedValues>,
-    },
+    MemoryArray,
+    MemoryPtrValue,
 }
 
 pub(crate) fn process_sys_call_params(
@@ -69,14 +64,9 @@ pub(crate) fn process_sys_call_params(
                     // memory pages config.
                     skip_next_param = true;
 
-                    ProcessedSysCallParams::MemoryArray {
-                        pointer_allowed_values: params_config.get_rule(&param),
-                        length_allowed_values: params_config.get_rule(&ParamType::Size),
-                    }
+                    ProcessedSysCallParams::MemoryArray
                 })
-                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue {
-                    allowed_values: params_config.get_rule(&param),
-                }),
+                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -393,37 +383,21 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::MemoryArray {
-                    pointer_allowed_values,
-                    length_allowed_values,
-                } => {
+                ProcessedSysCallParams::MemoryArray => {
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
-                    let offset = if let Some(pointer_allowed_values) = pointer_allowed_values {
-                        pointer_allowed_values.get_i32(self.unstructured)?
-                    } else {
-                        self.unstructured.int_in_range(0..=upper_limit)?
-                    };
-
-                    let length = if let Some(length_allowed_values) = length_allowed_values {
-                        length_allowed_values.get_i32(self.unstructured)?
-                    } else {
-                        self.unstructured.int_in_range(0..=(upper_limit - offset))?
-                    };
+                    let offset = self.unstructured.int_in_range(0..=upper_limit)?;
+                    let length = self.unstructured.int_in_range(0..=(upper_limit - offset))?;
 
                     log::trace!("  ----  Memory array {offset}, {length}");
 
                     setters.push(ParamSetter::new_i32(offset));
                     setters.push(ParamSetter::new_i32(length));
                 }
-                ProcessedSysCallParams::MemoryPtrValue { allowed_values } => {
-                    let offset = if let Some(allowed_values) = allowed_values {
-                        allowed_values.get_i32(self.unstructured)?
-                    } else {
-                        // Subtract a bit more so entities from `gsys` fit.
-                        let upper_limit = mem_size.saturating_sub(100);
-                        self.unstructured.int_in_range(0..=upper_limit)? as i32
-                    };
+                ProcessedSysCallParams::MemoryPtrValue => {
+                    // Subtract a bit more so entities from `gsys` fit.
+                    let upper_limit = mem_size.saturating_sub(100);
+                    let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
                     let setter = ParamSetter::new_i32(offset);
                     log::trace!("  ----  Memory pointer value - {offset}");
@@ -444,7 +418,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     }
 
     fn build_result_processing_ignored(signature: SysCallSignature) -> Vec<Instruction> {
-        std::iter::repeat(Instruction::Drop)
+        iter::repeat(Instruction::Drop)
             .take(signature.results.len())
             .collect()
     }

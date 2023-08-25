@@ -29,6 +29,10 @@ use std::{collections::HashMap, ops::RangeInclusive};
 /// This is basically a map, which creates a relationship between each kind of
 /// param, that a sys-call can have, and allowed values ("rules") for each of
 /// the params.
+///
+/// # Note:
+/// If you set the rule for [`ParamType::Ptr`] then it wouldn't be applied as
+/// we select value for the pointers in accordance with current memory size.
 #[derive(Debug, Clone)]
 pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
@@ -39,7 +43,6 @@ impl SysCallsParamsConfig {
         Self(
             [
                 ParamType::Size,
-                ParamType::Ptr(None),
                 ParamType::Gas,
                 ParamType::MessagePosition,
                 ParamType::Duration,
@@ -61,6 +64,9 @@ impl SysCallsParamsConfig {
 
     /// Set allowed values for the `param`.
     pub fn add_rule(&mut self, param: ParamType, allowed_values: SysCallParamAllowedValues) {
+        matches!(param, ParamType::Ptr(..))
+            .then(|| panic!("ParamType::Ptr(..) isn't supported in SysCallsParamsConfig"));
+
         self.0.insert(param, allowed_values);
     }
 }
@@ -70,9 +76,8 @@ impl Default for SysCallsParamsConfig {
         Self(
             [
                 (ParamType::Size, (0..=0x10000).into()),
-                // There are no rules for memory arrays as they are chose in accordance
-                // to memory pages config.
-                (ParamType::Ptr(None), (0..=513 * 0x10000 - 1).into()),
+                // There are no rules for memory arrays and pointers as they are chosen
+                // in accordance to memory pages config.
                 (ParamType::Gas, (0..=250_000_000_000).into()),
                 (ParamType::MessagePosition, (0..=10).into()),
                 (ParamType::Duration, (1..=8).into()),

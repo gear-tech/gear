@@ -21,18 +21,14 @@ use arbitrary::Unstructured;
 use gear_backend_common::{TerminationReason, TrapExplanation};
 use gear_core::{
     code::Code,
-    ids::{MessageId, ProgramId},
     memory::Memory,
-    message::{IncomingMessage, Payload},
+    message::{IncomingMessage, ReplyPacket},
     pages::WASM_PAGE_SIZE,
 };
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::{
-    parity_wasm::{
-        self,
-        elements::{Instruction, Module},
-    },
-    syscalls::ParamType,
+use gear_wasm_instrument::parity_wasm::{
+    self,
+    elements::{Instruction, Module},
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -176,8 +172,7 @@ fn error_processing_works_for_fallible_syscalls() {
         .filter(|sc| InvocableSysCall::Loose(*sc).is_fallible());
 
     for syscall in fallible_syscalls {
-        let (params_config, initial_memory_write, payload) =
-            get_params_for_syscall_to_fail(&syscall);
+        let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(&syscall);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_syscall_injected(
@@ -185,7 +180,6 @@ fn error_processing_works_for_fallible_syscalls() {
             false,
             params_config.clone(),
             initial_memory_write.clone(),
-            payload.clone(),
         );
 
         assert_eq!(
@@ -196,13 +190,8 @@ fn error_processing_works_for_fallible_syscalls() {
         );
 
         // Assert that syscall results will be ignored.
-        let termination_reason = execute_wasm_with_syscall_injected(
-            syscall,
-            true,
-            params_config,
-            initial_memory_write,
-            payload,
-        );
+        let termination_reason =
+            execute_wasm_with_syscall_injected(syscall, true, params_config, initial_memory_write);
 
         assert_eq!(
             termination_reason,
@@ -221,52 +210,19 @@ struct MemoryWrite {
 
 fn get_params_for_syscall_to_fail(
     syscall: &SysCallName,
-) -> (SysCallsParamsConfig, Option<MemoryWrite>, Payload) {
-    match *syscall {
-        SysCallName::ReplyPush => {
-            let mut params_config = SysCallsParamsConfig::all_constant_value(i32::MAX as i64);
-            params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
+) -> (SysCallsParamsConfig, Option<MemoryWrite>) {
+    let memory_write = match *syscall {
+        SysCallName::PayProgramRent => Some(MemoryWrite {
+            offset: 0,
+            content: vec![255; WASM_PAGE_SIZE],
+        }),
+        _ => None,
+    };
 
-            (params_config, None, Payload::default())
-        }
-        SysCallName::ReplyPushInput => {
-            let mut params_config = SysCallsParamsConfig::all_constant_value(i32::MAX as i64);
-            params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
-
-            let mut payload = Payload::default();
-            payload.extend_with(0);
-
-            params_config.add_rule(
-                ParamType::Size,
-                // offset = length = MAX_PAYLOAD_SIZE / 2, so MAX_PAYLOAD_SIZE / 2 would be read
-                // when the payload with max possible length is provided.
-                SysCallParamAllowedValues::constant(payload.inner().len() as i64 / 2),
-            );
-
-            (params_config, None, payload)
-        }
-        SysCallName::Read => {
-            let mut params_config = SysCallsParamsConfig::all_constant_value(0);
-            params_config.add_rule(
-                ParamType::Size,
-                SysCallParamAllowedValues::constant(i32::MAX as i64),
-            );
-            (params_config, None, Payload::default())
-        }
-        SysCallName::PayProgramRent => (
-            SysCallsParamsConfig::all_constant_value(0),
-            Some(MemoryWrite {
-                offset: 0,
-                content: vec![255; 128],
-            }),
-            Payload::default(),
-        ),
-        _ => (
-            SysCallsParamsConfig::all_constant_value(0),
-            None,
-            Payload::default(),
-        ),
-    }
+    (
+        SysCallsParamsConfig::all_constant_value(i32::MAX as i64),
+        memory_write,
+    )
 }
 
 fn execute_wasm_with_syscall_injected(
@@ -274,7 +230,6 @@ fn execute_wasm_with_syscall_injected(
     ignore_fallible_errors: bool,
     params_config: SysCallsParamsConfig,
     initial_memory_write: Option<MemoryWrite>,
-    payload: Payload,
 ) -> TerminationReason {
     use gear_backend_common::{BackendReport, Environment};
     use gear_backend_wasmi::WasmiEnvironment;
@@ -327,21 +282,16 @@ fn execute_wasm_with_syscall_injected(
         .into_bytes()
         .expect("Failed to serialize WASM module");
 
-    let init_msg = IncomingMessage::new(
-        MessageId::default(),
-        ProgramId::default(),
-        payload,
-        0,
-        0,
-        None,
+    let mut message_context = MessageContext::new(
+        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
+        Default::default(),
+        ContextSettings::new(0, 0, 0, 0, 0, 0),
     );
+    // Imitate that reply was already sent.
+    let _ = message_context.reply_commit(ReplyPacket::auto(), None);
 
     let processor_context = ProcessorContext {
-        message_context: MessageContext::new(
-            IncomingDispatch::new(DispatchKind::Init, init_msg, None),
-            Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
-        ),
+        message_context,
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
         ..ProcessorContext::default()
