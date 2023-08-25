@@ -53,7 +53,7 @@ where
 
         log::info!("🚚 Running migration to gear-bank with current spec version {version:?}");
 
-        if version < 320 {
+        if version <= 330 {
             let mut ops = 0u64;
 
             // Depositing gas from gas nodes.
@@ -64,6 +64,8 @@ where
                 let gas_amount = gas_node.total_value();
 
                 let gas_price = P::gas_price(gas_amount);
+                log::debug!("Gas nodes: {node_id:?} = {gas_amount} ({gas_price:?})");
+                log::debug!("Gas nodes external: {external:?} = {:?}; {:?}", Balances::<T>::free_balance(&external), Balances::<T>::reserved_balance(&external));
                 Balances::<T>::unreserve(&external, gas_price);
                 GearBank::<T>::deposit_gas::<P>(&external, gas_amount)
                     .expect("Failed to deposit gas");
