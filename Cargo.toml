@@ -128,7 +128,7 @@ primitive-types = { version = "0.12.1", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.1.0"
 quick-xml = "0.28"
-quote = { version = "1.0.26", default-features = false }
+quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
 rayon = "1.7"
 regex = "^1.9"
