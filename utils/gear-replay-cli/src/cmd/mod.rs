@@ -16,7 +16,5 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[tokio::main]
-async fn main() -> sc_cli::Result<()> {
-    gear_replay_cli::run().await
-}
+pub mod gear_run;
+pub mod replay_block;
