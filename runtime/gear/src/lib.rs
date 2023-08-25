@@ -485,7 +485,13 @@ impl pallet_gear::Config for Runtime {
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
+
+    #[cfg(feature = "runtime-benchmarks")]
+    type ProgramRentEnabled = ConstBool<true>;
+
+    #[cfg(not(feature = "runtime-benchmarks"))]
     type ProgramRentEnabled = ConstBool<false>;
+
     type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 

@@ -931,6 +931,7 @@ fn disabled_program_rent() {
     use test_syscalls::{Kind, WASM_BINARY as TEST_SYSCALLS_BINARY};
 
     assert!(!<<Test as pallet_gear::Config>::ProgramRentEnabled as Get<bool>>::get());
+    assert!(<Test as pallet_gear::Config>::ProgramRentDisabledDelta::get() > 0);
 
     init_logger();
     new_test_ext().execute_with(|| {
