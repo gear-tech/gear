@@ -232,7 +232,7 @@ fn execute_wasm_with_syscall_injected(
     initial_memory_write: Option<MemoryWrite>,
 ) -> TerminationReason {
     use gear_backend_common::{BackendReport, Environment};
-    use gear_backend_wasmi::WasmiEnvironment;
+    use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
     use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 
@@ -298,7 +298,7 @@ fn execute_wasm_with_syscall_injected(
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);
-    let env = WasmiEnvironment::new(
+    let env = SandboxEnvironment::new(
         ext,
         &code,
         DispatchKind::Init,

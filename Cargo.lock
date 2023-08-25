@@ -4367,7 +4367,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "gear-backend-common",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gear-core-processor",
  "gear-utils",
