@@ -43,8 +43,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
+        ContextOutcomeDrain, ContextSettings, GasLimit, HandlePacket, IncomingDispatch, InitPacket,
+        MessageContext, Packet, ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
@@ -104,6 +104,48 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+}
+
+impl Default for ProcessorContext {
+    fn default() -> ProcessorContext {
+        ProcessorContext {
+            gas_counter: GasCounter::new(0),
+            gas_allowance_counter: GasAllowanceCounter::new(0),
+            gas_reserver: GasReserver::new(
+                &<IncomingDispatch as Default>::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            system_reservation: None,
+            value_counter: ValueCounter::new(0),
+            allocations_context: AllocationsContext::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            message_context: MessageContext::new(
+                Default::default(),
+                Default::default(),
+                ContextSettings::new(0, 0, 0, 0, 0, 0),
+            ),
+            block_info: Default::default(),
+            max_pages: 512.into(),
+            page_costs: Default::default(),
+            existential_deposit: 0,
+            program_id: Default::default(),
+            program_candidates_data: Default::default(),
+            program_rents: Default::default(),
+            host_fn_weights: Default::default(),
+            forbidden_funcs: Default::default(),
+            mailbox_threshold: 0,
+            waitlist_cost: 0,
+            dispatch_hold_cost: 0,
+            reserve_for: 0,
+            reservation: 0,
+            random_data: ([0u8; 32].to_vec(), 0),
+            rent_cost: 0,
+        }
+    }
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -1127,45 +1169,10 @@ mod tests {
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            let default_pc = ProcessorContext {
-                gas_counter: GasCounter::new(0),
-                gas_allowance_counter: GasAllowanceCounter::new(0),
-                gas_reserver: GasReserver::new(
-                    &<IncomingDispatch as Default>::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                system_reservation: None,
-                value_counter: ValueCounter::new(0),
-                allocations_context: AllocationsContext::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                message_context: MessageContext::new(
-                    Default::default(),
-                    Default::default(),
-                    ContextSettings::new(0, 0, 0, 0, 0, 0),
-                ),
-                block_info: Default::default(),
-                max_pages: 512.into(),
+            Self(ProcessorContext {
                 page_costs: PageCosts::new_for_tests(),
-                existential_deposit: 0,
-                program_id: Default::default(),
-                program_candidates_data: Default::default(),
-                program_rents: Default::default(),
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: 0,
-                waitlist_cost: 0,
-                dispatch_hold_cost: 0,
-                reserve_for: 0,
-                reservation: 0,
-                random_data: ([0u8; 32].to_vec(), 0),
-                rent_cost: 0,
-            };
-
-            Self(default_pc)
+                ..ProcessorContext::default()
+            })
         }
 
         fn build(self) -> ProcessorContext {

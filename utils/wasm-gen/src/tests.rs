@@ -278,17 +278,13 @@ fn execute_wasm_with_syscall_injected(
 ) -> TerminationReason {
     use gear_backend_common::{BackendReport, Environment};
     use gear_backend_wasmi::WasmiEnvironment;
-    use gear_core::{
-        gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-        memory::AllocationsContext,
-        message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
-        reservation::GasReserver,
-    };
-    use gear_core_processor::{configs::PageCosts, ProcessorContext, ProcessorExternalities};
+    use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
+    use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
 
+    // We create Unstructured from zeroes here as we just need any
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
 
@@ -308,7 +304,6 @@ fn execute_wasm_with_syscall_injected(
                     .build(),
             )
             .with_entry_points_config(EntryPointsSet::Init)
-            .with_recursions_removed(true)
             .build(),
         SelectableParams {
             call_indirect_enabled: false,
@@ -342,41 +337,14 @@ fn execute_wasm_with_syscall_injected(
     );
 
     let processor_context = ProcessorContext {
-        gas_counter: GasCounter::new(0),
-        gas_allowance_counter: GasAllowanceCounter::new(0),
-        gas_reserver: GasReserver::new(
-            &<IncomingDispatch as Default>::default(),
-            Default::default(),
-            Default::default(),
-        ),
-        system_reservation: None,
-        value_counter: ValueCounter::new(0),
-        allocations_context: AllocationsContext::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
         message_context: MessageContext::new(
             IncomingDispatch::new(DispatchKind::Init, init_msg, None),
             Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
-        block_info: Default::default(),
         max_pages: INITIAL_PAGES.into(),
-        page_costs: PageCosts::new_for_tests(),
-        existential_deposit: 0,
-        program_id: Default::default(),
-        program_candidates_data: Default::default(),
-        program_rents: Default::default(),
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold: 0,
-        waitlist_cost: 0,
-        dispatch_hold_cost: 0,
-        reserve_for: 0,
-        reservation: 0,
-        random_data: ([0u8; 32].to_vec(), 0),
         rent_cost: 10,
+        ..ProcessorContext::default()
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);
