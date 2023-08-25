@@ -132,7 +132,6 @@ std = [
 	"scopeguard/use_std",
 	"core-processor/std",
 	"gear-backend-sandbox/std",
-	"gear-backend-wasmi/std",
 	"gear-lazy-pages-common/std",
 	"scale-info/std",
 	"sp-io/std",
