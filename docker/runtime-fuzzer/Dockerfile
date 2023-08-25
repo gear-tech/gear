@@ -22,8 +22,8 @@ RUN apt update -y && \
     # Set rights \
     chmod +x ./scripts/gear.sh && \
     # Create dir for corpus \
-    mkdir /corpus
+    mkdir -p /corpus/main
 
 # Run the fuzzer
 ENTRYPOINT ["./scripts/gear.sh"]
-CMD ["test", "fuzz", "/corpus"]
+CMD ["test", "fuzz", "/corpus/main"]

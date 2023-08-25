@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VOLUME_DIR='/home/ubuntu/fuzzing-seeds-dir/'
+VOLUME_DIR='/home/ubuntu/fuzzer/fuzzing-seeds-dir/'
 CORPUS_DIR='/home/ubuntu/fuzzer/corpus/'
 ARTIFACT_DIR='/home/ubuntu/fuzzer/artifacts'
 ARCHIVE_PATH="/opt/download-archives/"
