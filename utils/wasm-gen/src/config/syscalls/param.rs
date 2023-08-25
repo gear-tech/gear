@@ -34,7 +34,7 @@ pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
     /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
-    pub fn constant_value(value: i64) -> Self {
+    pub fn all_constant_value(value: i64) -> Self {
         let allowed_values: SysCallParamAllowedValues = (value..=value).into();
         Self(
             [

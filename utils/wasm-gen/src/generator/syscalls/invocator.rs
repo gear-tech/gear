@@ -134,6 +134,7 @@ impl<'a, 'b>
     }
 }
 
+/// Newtype used to mark that some instruction is used to push values to stack before syscall execution.
 #[derive(Clone)]
 struct ParamSetter(Instruction);
 

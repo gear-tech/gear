@@ -224,13 +224,13 @@ fn get_params_for_syscall_to_fail(
 ) -> (SysCallsParamsConfig, Option<MemoryWrite>, Payload) {
     match *syscall {
         SysCallName::ReplyPush => {
-            let mut params_config = SysCallsParamsConfig::constant_value(i32::MAX as i64);
+            let mut params_config = SysCallsParamsConfig::all_constant_value(i32::MAX as i64);
             params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
 
             (params_config, None, Payload::default())
         }
         SysCallName::ReplyPushInput => {
-            let mut params_config = SysCallsParamsConfig::constant_value(i32::MAX as i64);
+            let mut params_config = SysCallsParamsConfig::all_constant_value(i32::MAX as i64);
             params_config.add_rule(ParamType::Ptr(None), SysCallParamAllowedValues::zero());
 
             let mut payload = Payload::default();
@@ -246,7 +246,7 @@ fn get_params_for_syscall_to_fail(
             (params_config, None, payload)
         }
         SysCallName::Read => {
-            let mut params_config = SysCallsParamsConfig::constant_value(0);
+            let mut params_config = SysCallsParamsConfig::all_constant_value(0);
             params_config.add_rule(
                 ParamType::Size,
                 SysCallParamAllowedValues::constant(i32::MAX as i64),
@@ -254,15 +254,15 @@ fn get_params_for_syscall_to_fail(
             (params_config, None, Payload::default())
         }
         SysCallName::PayProgramRent => (
-            SysCallsParamsConfig::constant_value(0),
+            SysCallsParamsConfig::all_constant_value(0),
             Some(MemoryWrite {
                 offset: 0,
-                content: std::iter::repeat(255).take(128).collect(),
+                content: vec![255; 128],
             }),
             Payload::default(),
         ),
         _ => (
-            SysCallsParamsConfig::constant_value(0),
+            SysCallsParamsConfig::all_constant_value(0),
             None,
             Payload::default(),
         ),
@@ -327,8 +327,10 @@ fn execute_wasm_with_syscall_injected(
         &gear_wasm_instrument::rules::CustomConstantCostRules::new(0, 0, 0),
         "env",
     )
-    .unwrap();
-    let code = module.into_bytes().unwrap();
+    .expect("WASM module instrumentation failed");
+    let code = module
+        .into_bytes()
+        .expect("Failed to serialize WASM module");
 
     let init_msg = IncomingMessage::new(
         MessageId::default(),
@@ -339,7 +341,7 @@ fn execute_wasm_with_syscall_injected(
         None,
     );
 
-    let default_pc = ProcessorContext {
+    let processor_context = ProcessorContext {
         gas_counter: GasCounter::new(0),
         gas_allowance_counter: GasAllowanceCounter::new(0),
         gas_reserver: GasReserver::new(
@@ -377,7 +379,7 @@ fn execute_wasm_with_syscall_injected(
         rent_cost: 10,
     };
 
-    let ext = gear_core_processor::Ext::new(default_pc);
+    let ext = gear_core_processor::Ext::new(processor_context);
     let env = WasmiEnvironment::new(
         ext,
         &code,
@@ -385,7 +387,7 @@ fn execute_wasm_with_syscall_injected(
         vec![DispatchKind::Init].into_iter().collect(),
         INITIAL_PAGES.into(),
     )
-    .unwrap();
+    .expect("Failed to create environment");
 
     let report = env
         .execute(|mem, _, _| -> Result<(), u32> {
@@ -397,7 +399,7 @@ fn execute_wasm_with_syscall_injected(
 
             Ok(())
         })
-        .unwrap();
+        .expect("Failed to execute WASM module");
 
     let BackendReport {
         termination_reason, ..
