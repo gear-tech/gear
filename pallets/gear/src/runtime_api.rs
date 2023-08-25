@@ -257,6 +257,7 @@ where
 
     pub(crate) fn read_state_using_wasm_impl(
         program_id: ProgramId,
+        payload: Vec<u8>,
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
@@ -286,8 +287,9 @@ where
 
         let instrumented_code = code_and_id.into_parts().0;
 
+        let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id, Default::default())?);
+        payload.append(&mut Self::read_state_impl(program_id, payload_arg)?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),

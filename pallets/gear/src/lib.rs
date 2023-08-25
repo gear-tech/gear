@@ -687,6 +687,7 @@ pub mod pallet {
 
         pub fn read_state_using_wasm(
             program_id: H256,
+            payload: Vec<u8>,
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
@@ -696,7 +697,7 @@ pub mod pallet {
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
                 .map_err(String::into_bytes)
         }
 

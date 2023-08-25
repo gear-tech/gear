@@ -2038,8 +2038,14 @@ fn read_state_using_wasm_works() {
         let func1 = "last_wallet";
         assert!(META_EXPORTS_V1.contains(&func1));
 
-        let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
-            .expect("Failed to read state");
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            func1,
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         assert_eq!(res, expected);
 
@@ -2059,6 +2065,7 @@ fn read_state_using_wasm_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
@@ -2078,6 +2085,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_number",
             META_WASM_V3.to_vec(),
             None,
@@ -2091,6 +2099,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
             None,
@@ -2149,9 +2158,14 @@ fn wasm_metadata_generation_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let m1 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V1.to_vec(), None)
-                .expect("Failed to read state");
+        let m1 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata1 =
             gmeta::MetawasmData::decode(&mut m1.as_ref()).expect("Failed to decode metadata");
@@ -2162,9 +2176,14 @@ fn wasm_metadata_generation_works() {
         expected_exports_1.sort();
         assert_eq!(exports1, expected_exports_1);
 
-        let m2 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V2.to_vec(), None)
-                .expect("Failed to read state");
+        let m2 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V2.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata2 =
             gmeta::MetawasmData::decode(&mut m2.as_ref()).expect("Failed to decode metadata");
@@ -2212,17 +2231,30 @@ fn read_state_using_wasm_errors() {
         // Inexistent function
         assert!(Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "inexistent",
             meta_wasm.clone(),
             None
         )
         .is_err());
         // Empty function
-        assert!(
-            Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "empty",
+            meta_wasm.clone(),
+            None
+        )
+        .is_err());
         // Greed function
-        assert!(Gear::read_state_using_wasm_impl(program_id, "loop", meta_wasm, None).is_err());
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "loop",
+            meta_wasm,
+            None
+        )
+        .is_err());
     });
 }
 

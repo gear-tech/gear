@@ -262,11 +262,12 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.read_state_bytes_using_wasm_at(program_id, fn_name, wasm, argument, None)
+        self.read_state_bytes_using_wasm_at(program_id, payload, fn_name, wasm, argument, None)
             .await
     }
 
@@ -274,6 +275,7 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm_at(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
@@ -282,7 +284,14 @@ impl GearApi {
         let response: String = self
             .0
             .api()
-            .read_state_using_wasm(H256(program_id.into()), fn_name, wasm, argument, at)
+            .read_state_using_wasm(
+                H256(program_id.into()),
+                payload,
+                fn_name,
+                wasm,
+                argument,
+                at,
+            )
             .await?;
         crate::utils::hex_to_vec(response).map_err(Into::into)
     }
@@ -291,11 +300,12 @@ impl GearApi {
     pub async fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
     ) -> Result<D> {
-        self.read_state_using_wasm_at(program_id, fn_name, wasm, argument, None)
+        self.read_state_using_wasm_at(program_id, payload, fn_name, wasm, argument, None)
             .await
     }
 
@@ -304,6 +314,7 @@ impl GearApi {
     pub async fn read_state_using_wasm_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
@@ -312,6 +323,7 @@ impl GearApi {
         let bytes = self
             .read_state_bytes_using_wasm_at(
                 program_id,
+                payload,
                 fn_name,
                 wasm,
                 argument.map(|v| v.encode()),
@@ -327,18 +339,22 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm_by_path(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.read_state_bytes_using_wasm_by_path_at(program_id, fn_name, path, argument, None)
-            .await
+        self.read_state_bytes_using_wasm_by_path_at(
+            program_id, payload, fn_name, path, argument, None,
+        )
+        .await
     }
 
     /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<Vec<u8>>,
@@ -346,6 +362,7 @@ impl GearApi {
     ) -> Result<Vec<u8>> {
         self.read_state_bytes_using_wasm_at(
             program_id,
+            payload,
             fn_name,
             utils::code_from_os(path.as_ref())?,
             argument,
@@ -359,11 +376,12 @@ impl GearApi {
     pub async fn read_state_using_wasm_by_path<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<E>,
     ) -> Result<D> {
-        self.read_state_using_wasm_by_path_at(program_id, fn_name, path, argument, None)
+        self.read_state_using_wasm_by_path_at(program_id, payload, fn_name, path, argument, None)
             .await
     }
 
@@ -371,6 +389,7 @@ impl GearApi {
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
+        payload: Vec<u8>,
         fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<E>,
@@ -379,6 +398,7 @@ impl GearApi {
         let bytes = self
             .read_state_bytes_using_wasm_by_path_at(
                 program_id,
+                payload,
                 fn_name,
                 path,
                 argument.map(|v| v.encode()),
