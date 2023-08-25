@@ -131,9 +131,11 @@ fn lazy_pages_check_initial_data(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
+#[allow(clippy::too_many_arguments)]
 fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     mem: &mut EnvMem,
     program_id: ProgramId,
+    memory_infix: MemoryInfix,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
     stack_end: Option<u32>,
@@ -170,6 +172,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
         ProcessorExt::lazy_pages_init_for_program(
             mem,
             program_id,
+            memory_infix,
             stack_end,
             globals_config,
             lazy_pages_weights,
@@ -353,6 +356,7 @@ where
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program_id,
+                program.memory_infix(),
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
@@ -558,7 +562,8 @@ where
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
-                program.id(),
+                program_id,
+                memory_infix,
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
@@ -643,6 +648,7 @@ mod tests {
         fn lazy_pages_init_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
+            _memory_infix: MemoryInfix,
             _stack_end: Option<WasmPage>,
             _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
@@ -665,6 +671,7 @@ mod tests {
         fn lazy_pages_init_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
+            _memory_infix: MemoryInfix,
             _stack_end: Option<WasmPage>,
             _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,

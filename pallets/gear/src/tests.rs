@@ -6354,6 +6354,7 @@ fn resume_session_push_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6420,6 +6421,7 @@ fn resume_session_push_works() {
         assert!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none());
         assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .is_err());
@@ -6469,6 +6471,7 @@ fn resume_program_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6801,6 +6804,7 @@ fn uninitialized_program_terminates_on_pause() {
             assert_err!(
                 ProgramStorageOf::<Test>::get_program_data_for_pages(
                     program_id,
+                    program.memory_infix,
                     Some(*page).iter()
                 ),
                 pallet_gear_program::Error::<Test>::CannotFindDataForPage

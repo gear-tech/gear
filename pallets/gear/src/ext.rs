@@ -34,6 +34,7 @@ use gear_core::{
     memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{GearPage, PageU32Size, WasmPage},
+    program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
@@ -85,11 +86,19 @@ impl ProcessorExternalities for LazyPagesExt {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
+        memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
+        lazy_pages::init_for_program(
+            mem,
+            prog_id,
+            memory_infix,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        );
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {

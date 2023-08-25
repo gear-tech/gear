@@ -47,6 +47,7 @@ use gear_core::{
         ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
+    program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_errors::{
@@ -119,6 +120,7 @@ pub trait ProcessorExternalities {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
+        memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
@@ -274,6 +276,7 @@ impl ProcessorExternalities for Ext {
     fn lazy_pages_init_for_program(
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
+        _memory_infix: MemoryInfix,
         _stack_end: Option<WasmPage>,
         _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,

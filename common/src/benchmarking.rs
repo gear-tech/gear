@@ -150,6 +150,7 @@ pub fn set_program<
         .collect();
     let pages_with_data = persistent_pages_data.keys().copied().collect();
 
+    let memory_infix = Default::default();
     let program = ActiveProgram {
         allocations,
         pages_with_data,
@@ -159,10 +160,10 @@ pub fn set_program<
         state: ProgramState::Initialized,
         gas_reservation_map: GasReservationMap::default(),
         expiration_block: Zero::zero(),
-        memory_infix: Default::default(),
+        memory_infix,
     };
     for (page, page_buf) in persistent_pages_data {
-        ProgramStorage::set_program_page_data(program_id, page, page_buf);
+        ProgramStorage::set_program_page_data(program_id, memory_infix, page, page_buf);
     }
 
     ProgramStorage::add_program(program_id, program)

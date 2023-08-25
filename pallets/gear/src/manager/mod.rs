@@ -74,6 +74,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPage,
+    program::MemoryInfix,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -369,8 +370,12 @@ where
     }
 
     /// Removes memory pages of the program and transfers program balance to the `value_destination`.
-    fn clean_inactive_program(program_id: ProgramId, value_destination: ProgramId) {
-        ProgramStorageOf::<T>::remove_program_pages(program_id);
+    fn clean_inactive_program(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        value_destination: ProgramId,
+    ) {
+        ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id.into_origin());
         let balance = CurrencyOf::<T>::free_balance(program_account);
@@ -414,10 +419,14 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
 
             match p {
-                Program::Active(program) => Self::remove_gas_reservation_map(
-                    program_id,
-                    core::mem::take(&mut program.gas_reservation_map),
-                ),
+                Program::Active(program) => {
+                    Self::remove_gas_reservation_map(
+                        program_id,
+                        core::mem::take(&mut program.gas_reservation_map),
+                    );
+
+                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
+                }
                 _ if executed => unreachable!("Action executed only for active program"),
                 _ => (),
             }
@@ -435,8 +444,6 @@ where
                 );
             }
         });
-
-        Self::clean_inactive_program(program_id, origin);
 
         Pallet::<T>::deposit_event(Event::ProgramChanged {
             id: program_id,

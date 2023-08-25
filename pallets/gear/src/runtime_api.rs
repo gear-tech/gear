@@ -254,6 +254,7 @@ where
         let program_pages = Some(
             ProgramStorageOf::<T>::get_program_data_for_pages(
                 program_id,
+                program.memory_infix,
                 program.pages_with_data.iter(),
             )
             .map_err(|e| format!("Get program pages data error: {e:?}"))?,

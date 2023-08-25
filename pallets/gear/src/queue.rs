@@ -139,6 +139,7 @@ where
         let memory_pages = Pallet::<T>::get_and_track_memory_pages(
             ext_manager,
             program_id,
+            context.actor_data().memory_infix,
             &context.actor_data().pages_with_data,
             lazy_pages_enabled,
         )

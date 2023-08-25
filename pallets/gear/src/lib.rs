@@ -74,6 +74,7 @@ use gear_core::{
     memory::PageBuf,
     message::*,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
@@ -1008,6 +1009,7 @@ pub mod pallet {
         pub(crate) fn get_and_track_memory_pages(
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
+            memory_infix: MemoryInfix,
             pages_with_data: &BTreeSet<GearPage>,
             lazy_pages_enabled: bool,
         ) -> Option<BTreeMap<GearPage, PageBuf>> {
@@ -1016,6 +1018,7 @@ pub mod pallet {
             } else {
                 match ProgramStorageOf::<T>::get_program_data_for_pages(
                     program_id,
+                    memory_infix,
                     pages_with_data.iter(),
                 ) {
                     Ok(data) => data,

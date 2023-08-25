@@ -176,10 +176,18 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
 
             match p {
-                Program::Active(program) => Self::remove_gas_reservation_map(
-                    id_exited,
-                    core::mem::take(&mut program.gas_reservation_map),
-                ),
+                Program::Active(program) => {
+                    Self::remove_gas_reservation_map(
+                        id_exited,
+                        core::mem::take(&mut program.gas_reservation_map),
+                    );
+
+                    Self::clean_inactive_program(
+                        id_exited,
+                        program.memory_infix,
+                        value_destination,
+                    );
+                }
                 _ => unreachable!("Action executed only for active program"),
             }
 
@@ -188,8 +196,6 @@ where
         .unwrap_or_else(|e| {
             unreachable!("`exit` can be called only from active program: {:?}", e);
         });
-
-        Self::clean_inactive_program(id_exited, value_destination);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -333,7 +339,12 @@ where
 
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
-                ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
+                ProgramStorageOf::<T>::set_program_page_data(
+                    program_id,
+                    p.memory_infix,
+                    page,
+                    data,
+                );
                 p.pages_with_data.insert(page);
             }
         })
@@ -350,7 +361,7 @@ where
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
-                    ProgramStorageOf::<T>::remove_program_page_data(program_id, page);
+                    ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
                 }
             }
 
