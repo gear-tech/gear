@@ -18,10 +18,7 @@
 
 //! `GlobalsAccessor` realizations for native and wasm runtimes.
 
-use crate::{
-    common::{Error, GlobalNames},
-    LazyPagesVersion,
-};
+use crate::common::{Error, GlobalNames};
 use core::any::Any;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
@@ -33,23 +30,7 @@ use sp_wasm_interface::Value;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
-    Gas,
-    GasAllowance,
-}
-
-impl GlobalNo {
-    pub(crate) fn into_idx(self, version: LazyPagesVersion) -> usize {
-        match self {
-            GlobalNo::Gas => 0,
-            GlobalNo::GasAllowance => {
-                if version == LazyPagesVersion::Version1 {
-                    1
-                } else {
-                    unreachable!("GasAllowance global is deprecated since lazy-pages v2")
-                }
-            }
-        }
-    }
+    Gas = 0,
 }
 
 #[derive(Debug)]
@@ -126,18 +107,16 @@ fn apply_for_global_internal(
 }
 
 pub(crate) unsafe fn apply_for_global(
-    version: LazyPagesVersion,
     globals_ctx: &GlobalsContext,
-    global_no: GlobalNo,
+    global_name: &str,
     f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = globals_ctx.names[global_no.into_idx(version)].as_str();
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_ctx.access_ptr as *mut SandboxInstance)
                 .as_mut()
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
-            apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, name, f)
+            apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, global_name, f)
         }
         GlobalsAccessMod::NativeRuntime => {
             let inner_access_provider = (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor)
@@ -147,7 +126,7 @@ pub(crate) unsafe fn apply_for_global(
                 GlobalsAccessNativeRuntime {
                     inner_access_provider,
                 },
-                name,
+                global_name,
                 f,
             )
         }

@@ -32,8 +32,8 @@
 //! - Counting amount of messages sent from outside (from extrinsics)
 //! within the current block.
 //! - Counting amount of messages removed from queue to be processed
-//! or skipped withing the current block.
-//! - Managing continuation of queue processing withing the current block.
+//! or skipped within the current block.
+//! - Managing continuation of queue processing within the current block.
 //! - Storing and managing message queue, it's pushing and popping algorithms.
 //! - Storing and managing mailbox, it's insertion and removal algorithms,
 //! including the value claiming with Balances Pallet as `Currency`
@@ -309,7 +309,7 @@ pub mod pallet {
 
     // Private storage for queue's elements.
     #[pallet::storage]
-    pub(crate) type Dispatches<T> =
+    pub type Dispatches<T> =
         CountedStorageMap<_, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
 
     // Public wrap of the queue's elements.
@@ -334,7 +334,7 @@ pub mod pallet {
 
     // Private storage for mailbox elements.
     #[pallet::storage]
-    pub(crate) type Mailbox<T: Config> = StorageDoubleMap<
+    pub type Mailbox<T: Config> = StorageDoubleMap<
         _,
         Identity,
         T::AccountId,
@@ -388,7 +388,7 @@ pub mod pallet {
 
     // Private storage for waitlist elements.
     #[pallet::storage]
-    pub(crate) type Waitlist<T: Config> = StorageDoubleMap<
+    pub type Waitlist<T: Config> = StorageDoubleMap<
         _,
         Identity,
         ProgramId,
@@ -411,7 +411,7 @@ pub mod pallet {
 
     // Private storage for dispatch stash elements.
     #[pallet::storage]
-    pub(crate) type DispatchStash<T: Config> =
+    pub type DispatchStash<T: Config> =
         StorageMap<_, Identity, MessageId, (StoredDispatch, Interval<T::BlockNumber>)>;
 
     // Public wrap of the dispatch stash elements.

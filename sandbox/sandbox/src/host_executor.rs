@@ -20,7 +20,10 @@
 
 use codec::{Decode, Encode};
 
-use crate::{env, Error, HostFuncType, ReturnValue, Value};
+use crate::{
+    env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
+};
+use alloc::string::String;
 use gear_runtime_interface::sandbox;
 use gear_sandbox_env::WasmReturnValue;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
@@ -51,6 +54,34 @@ mod ffi {
     }
 }
 
+pub trait AsContext {}
+
+pub struct Store<T>(T);
+
+impl<T> SandboxStore<T> for Store<T> {
+    fn new(state: T) -> Self {
+        Self(state)
+    }
+}
+
+impl<T> AsContextExt<T> for Store<T> {
+    fn data_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> AsContext for Store<T> {}
+
+pub struct Caller<'a, T>(&'a mut T);
+
+impl<T> AsContextExt<T> for Caller<'_, T> {
+    fn data_mut(&mut self) -> &mut T {
+        self.0
+    }
+}
+
+impl<T> AsContext for Caller<'_, T> {}
+
 struct MemoryHandle {
     memory_idx: u32,
 }
@@ -69,8 +100,8 @@ pub struct Memory {
     handle: Rc<MemoryHandle>,
 }
 
-impl super::SandboxMemory for Memory {
-    fn new(initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
+impl<T> super::SandboxMemory<T> for Memory {
+    fn new(_store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
         let maximum = if let Some(maximum) = maximum {
             maximum
         } else {
@@ -85,7 +116,10 @@ impl super::SandboxMemory for Memory {
         }
     }
 
-    fn get(&self, offset: u32, buf: &mut [u8]) -> Result<(), Error> {
+    fn read<Context>(&self, _ctx: &Context, offset: u32, buf: &mut [u8]) -> Result<(), Error>
+    where
+        Context: AsContextExt<T>,
+    {
         let result = sandbox::memory_get(
             self.handle.memory_idx,
             offset,
@@ -99,7 +133,10 @@ impl super::SandboxMemory for Memory {
         }
     }
 
-    fn set(&self, offset: u32, val: &[u8]) -> Result<(), Error> {
+    fn write<Context>(&self, _ctx: &mut Context, offset: u32, val: &[u8]) -> Result<(), Error>
+    where
+        Context: AsContextExt<T>,
+    {
         let result = sandbox::memory_set(
             self.handle.memory_idx,
             offset,
@@ -113,17 +150,26 @@ impl super::SandboxMemory for Memory {
         }
     }
 
-    fn grow(&self, pages: u32) -> Result<u32, Error> {
-        let size = self.size();
+    fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
+    where
+        Context: AsContextExt<T>,
+    {
+        let size = self.size(ctx);
         sandbox::memory_grow(self.handle.memory_idx, pages);
         Ok(size)
     }
 
-    fn size(&self) -> u32 {
+    fn size<Context>(&self, _ctx: &Context) -> u32
+    where
+        Context: AsContextExt<T>,
+    {
         sandbox::memory_size(self.handle.memory_idx)
     }
 
-    unsafe fn get_buff(&self) -> HostPointer {
+    unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> HostPointer
+    where
+        Context: AsContextExt<T>,
+    {
         sandbox::get_buff(self.handle.memory_idx)
     }
 }
@@ -138,8 +184,8 @@ pub struct EnvironmentDefinitionBuilder<T> {
 impl<T> EnvironmentDefinitionBuilder<T> {
     fn add_entry<N1, N2>(&mut self, module: N1, field: N2, extern_entity: env::ExternEntity)
     where
-        N1: Into<Vec<u8>>,
-        N2: Into<Vec<u8>>,
+        N1: Into<String>,
+        N2: Into<String>,
     {
         let entry = env::Entry {
             module_name: module.into(),
@@ -163,31 +209,49 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
 
     fn add_host_func<N1, N2>(&mut self, module: N1, field: N2, f: HostFuncType<T>)
     where
-        N1: Into<Vec<u8>>,
-        N2: Into<Vec<u8>>,
+        N1: Into<String>,
+        N2: Into<String>,
     {
-        let f = env::ExternEntity::Function(f as u32);
+        let f = env::ExternEntity::Function(f as usize as u32);
         self.add_entry(module, field, f);
     }
 
     fn add_memory<N1, N2>(&mut self, module: N1, field: N2, mem: Memory)
     where
-        N1: Into<Vec<u8>>,
-        N2: Into<Vec<u8>>,
+        N1: Into<String>,
+        N2: Into<String>,
     {
         // We need to retain memory to keep it alive while the EnvironmentDefinitionBuilder alive.
         self.retained_memories.push(mem.clone());
 
-        let mem = env::ExternEntity::Memory(mem.handle.memory_idx as u32);
+        let mem = env::ExternEntity::Memory(mem.handle.memory_idx);
         self.add_entry(module, field, mem);
     }
 }
 
 /// Sandboxed instance of a WASM module.
 pub struct Instance<T> {
-    instance_idx: u32,
+    instance_idx: Rc<u32>,
     _retained_memories: Vec<Memory>,
     _marker: marker::PhantomData<T>,
+}
+
+impl<T> Clone for Instance<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance_idx: self.instance_idx.clone(),
+            _retained_memories: self._retained_memories.clone(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Drop for Instance<T> {
+    fn drop(&mut self) {
+        if let Some(idx) = Rc::get_mut(&mut self.instance_idx) {
+            sandbox::instance_teardown(*idx);
+        }
+    }
 }
 
 /// The primary responsibility of this thunk is to deserialize arguments and
@@ -219,10 +283,11 @@ extern "C" fn dispatch_thunk<T>(
 
         // This should be safe since mutable reference to T is passed upon the invocation.
         let state = &mut *(state as *mut T);
+        let mut caller = Caller(state);
 
         let mut result = Vec::with_capacity(WasmReturnValue::ENCODED_MAX_SIZE);
         // Pass control flow to the designated function.
-        f(state, &args).encode_to(&mut result);
+        f(&mut caller, &args).encode_to(&mut result);
 
         // Leak the result vector and return the pointer to return data.
         let result_ptr = result.as_ptr() as u64;
@@ -238,18 +303,19 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
     type EnvironmentBuilder = EnvironmentDefinitionBuilder<T>;
 
     fn new(
+        store: &mut Store<T>,
         code: &[u8],
         env_def_builder: &EnvironmentDefinitionBuilder<T>,
-        state: &mut T,
     ) -> Result<Instance<T>, Error> {
         let serialized_env_def: Vec<u8> = env_def_builder.env_def.encode();
+
         // It's very important to instantiate thunk with the right type.
         let dispatch_thunk = dispatch_thunk::<T>;
         let result = sandbox::instantiate(
-            dispatch_thunk as u32,
+            dispatch_thunk as usize as u32,
             code,
             &serialized_env_def,
-            state as *const T as _,
+            store.data_mut() as *const T as _,
         );
 
         let instance_idx = match result {
@@ -261,23 +327,28 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         // We need to retain memories to keep them alive while the Instance is alive.
         let retained_memories = env_def_builder.retained_memories.clone();
         Ok(Instance {
-            instance_idx,
+            instance_idx: Rc::new(instance_idx),
             _retained_memories: retained_memories,
             _marker: marker::PhantomData::<T>,
         })
     }
 
-    fn invoke(&mut self, name: &str, args: &[Value], state: &mut T) -> Result<ReturnValue, Error> {
+    fn invoke(
+        &mut self,
+        store: &mut Store<T>,
+        name: &str,
+        args: &[Value],
+    ) -> Result<ReturnValue, Error> {
         let serialized_args = args.to_vec().encode();
         let mut return_val = vec![0u8; ReturnValue::ENCODED_MAX_SIZE];
 
         let result = sandbox::invoke(
-            self.instance_idx,
+            *self.instance_idx,
             name,
             &serialized_args,
             return_val.as_mut_ptr() as _,
             return_val.len() as u32,
-            state as *const T as _,
+            store.data_mut() as *const T as _,
         );
 
         match result {
@@ -291,25 +362,24 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         }
     }
 
-    fn get_global_val(&self, name: &str) -> Option<Value> {
-        sandbox::get_global_val(self.instance_idx, name)
+    fn get_global_val(&self, _store: &Store<T>, name: &str) -> Option<Value> {
+        sandbox::get_global_val(*self.instance_idx, name)
     }
 
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), super::GlobalsSetError> {
-        match sandbox::set_global_val(self.instance_idx, name, value) {
+    fn set_global_val(
+        &self,
+        _store: &mut Store<T>,
+        name: &str,
+        value: Value,
+    ) -> Result<(), super::GlobalsSetError> {
+        match sandbox::set_global_val(*self.instance_idx, name, value) {
             env::ERROR_GLOBALS_OK => Ok(()),
-            env::ERROR_GLOBALS_NOT_FOUND => Err(super::GlobalsSetError::NotFound),
-            _ => Err(super::GlobalsSetError::Other),
+            env::ERROR_GLOBALS_NOT_FOUND => Err(GlobalsSetError::NotFound),
+            _ => Err(GlobalsSetError::Other),
         }
     }
 
     fn get_instance_ptr(&self) -> HostPointer {
-        sandbox::get_instance_ptr(self.instance_idx)
-    }
-}
-
-impl<T> Drop for Instance<T> {
-    fn drop(&mut self) {
-        sandbox::instance_teardown(self.instance_idx);
+        sandbox::get_instance_ptr(*self.instance_idx)
     }
 }

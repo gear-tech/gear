@@ -107,8 +107,6 @@ pub enum Status {
     Normal = 0_i64,
     /// Skips signals processing until the end of execution, set termination reason as `gas limit exceeded`.
     GasLimitExceeded,
-    /// Skips signals processing until the end of execution, set termination reason as `gas allowance exceeded`.
-    GasAllowanceExceeded,
 }
 
 impl Status {

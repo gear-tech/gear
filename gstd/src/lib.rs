@@ -131,8 +131,6 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
-#![allow(incomplete_features)]
-#![feature(specialization)]
 
 extern crate alloc;
 #[cfg(target_arch = "wasm32")]
@@ -142,12 +140,12 @@ mod async_runtime;
 mod common;
 mod config;
 pub mod exec;
-pub mod lock;
 mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
 mod reservations;
+pub mod sync;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};

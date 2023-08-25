@@ -145,6 +145,10 @@ case "$COMMAND" in
         header "Checking gear workspace"
         gear_check "$@"; ;;
 
+      runtime-imports)
+        header "Checking runtime imports"
+        runtime_imports "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         check_usage

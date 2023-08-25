@@ -19,9 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, QueueOf, SchedulingCostOf,
-    TaskPoolOf, WaitlistOf,
+    Authorship, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -33,11 +33,11 @@ use common::{
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    ActiveProgram, GasPrice, GasTree, LockId, LockableTree, Origin,
+    ActiveProgram, GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReplyReason;
-use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
@@ -211,51 +211,6 @@ where
         <T as Config>::Messenger::reset();
     }
 
-    // TODO (issue #1239):
-    // - Consider usage of `Balance` instead of gas conversions.
-    // - Consider usage of some tolerance here. Missed due to identity fee.
-    // - If tolerance applied, consider unreserve excess funds, while
-    // converting gas into value.
-    /// Moves reserved funds from account to freed funds of another account.
-    pub(crate) fn transfer_reserved(from: &T::AccountId, to: &T::AccountId, value: BalanceOf<T>) {
-        // If value is zero, nothing to do.
-        if value.is_zero() {
-            return;
-        }
-
-        // If destination account can reserve minimum balance, it means that
-        // account exists and can receive repatriation of reserved funds.
-        //
-        // Otherwise need to transfer them directly.
-
-        // Checking balance existence of destination address.
-        if CurrencyOf::<T>::can_reserve(to, CurrencyOf::<T>::minimum_balance()) {
-            // Repatriating reserved to existent account.
-            let unrevealed =
-                CurrencyOf::<T>::repatriate_reserved(from, to, value, BalanceStatus::Free)
-                    .unwrap_or_else(|e| {
-                        unreachable!("Failed to repatriate reserved funds: {:?}", e)
-                    });
-
-            // Validating unrevealed funds after repatriation.
-            if !unrevealed.is_zero() {
-                unreachable!("Reserved funds wasn't fully repatriated: {:?}", unrevealed)
-            }
-        } else {
-            // Unreserving funds from sender to transfer them directly.
-            let unrevealed = CurrencyOf::<T>::unreserve(from, value);
-
-            // Validating unrevealed funds after unreserve.
-            if !unrevealed.is_zero() {
-                unreachable!("Not all requested value was unreserved");
-            }
-
-            // Transfer to inexistent account.
-            CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-        }
-    }
-
     /// Spends given amount of gas from given `MessageId` in `GasTree`.
     ///
     /// Represents logic of burning gas by transferring gas from
@@ -276,15 +231,9 @@ where
         let external = GasHandlerOf::<T>::get_external(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Querying actual block author to reward.
-        let block_author = Authorship::<T>::author()
-            .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-
-        // Converting gas amount into value.
-        let value = T::GasPrice::gas_price(amount);
-
         // Transferring reserved funds from external user to block author.
-        Self::transfer_reserved(&external, &block_author, value);
+        GearBank::<T>::spend_gas::<T::GasPrice>(&external, amount)
+            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
@@ -308,16 +257,8 @@ where
                     "Consumed message {id}. Unreserving {gas_left} (gas) from {external:?}"
                 );
 
-                // Converting gas amount into value.
-                let value = T::GasPrice::gas_price(gas_left);
-
-                // Unreserving funds.
-                let unrevealed = CurrencyOf::<T>::unreserve(&external, value);
-
-                // Validating unrevealed funds after unreserve.
-                if !unrevealed.is_zero() {
-                    unreachable!("Not all requested value was unreserved");
-                }
+                GearBank::<T>::withdraw_gas::<T::GasPrice>(&external, gas_left)
+                    .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
         }
     }
@@ -529,7 +470,8 @@ where
         let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, &user_id, mailboxed.value().unique_saturated_into());
+        GearBank::<T>::transfer_value(&from, &user_id, mailboxed.value().unique_saturated_into())
+            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
@@ -710,8 +652,8 @@ where
 
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
-            CurrencyOf::<T>::reserve(&from, value)
-                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            GearBank::<T>::deposit_value(&from, value)
+                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         }
 
         // Saving id to allow moving dispatch further.
@@ -817,8 +759,8 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
-            CurrencyOf::<T>::reserve(&from, value)
-                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            GearBank::<T>::deposit_value(&from, value)
+                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
             GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
@@ -952,7 +894,8 @@ where
             Some(hold.expected())
         } else {
             // Transferring reserved funds.
-            Self::transfer_reserved(&from, &to, value);
+            GearBank::<T>::transfer_value(&from, &to, value)
+                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
             // Message is never reply here, because delayed reply sending forbidden.
             if message.details().is_none() {

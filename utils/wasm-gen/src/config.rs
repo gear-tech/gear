@@ -70,7 +70,7 @@
 //! }
 //! ```
 //!
-//! These types of configs instatiations are helpful if you want to call generators
+//! These types of configs instantiations are helpful if you want to call generators
 //! manually with some special (maybe not) generators state transition flow. However,
 //! for the simplest usage with crate's main generation functions (like
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])

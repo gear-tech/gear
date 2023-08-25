@@ -3569,14 +3569,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3588,7 +3588,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -3615,7 +3615,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3659,7 +3659,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3714,7 +3714,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-codegen"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-common"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "actor-system-error",
  "blake2-rfc",
@@ -3734,6 +3734,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "log",
+ "num_enum",
  "parity-scale-codec",
  "rand 0.8.5",
  "scale-info",
@@ -3753,20 +3754,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "gear-backend-wasmi"
-version = "0.2.2"
-dependencies = [
- "derive_more",
- "gear-backend-common",
- "gear-core",
- "gear-core-errors",
- "gear-wasm-instrument",
- "log",
- "parity-scale-codec",
- "wasmi 0.14.0",
 ]
 
 [[package]]
@@ -3795,7 +3782,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "clap 4.3.21",
  "frame-benchmarking",
@@ -3829,7 +3816,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3857,7 +3844,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "quote",
  "syn 2.0.28",
@@ -3865,9 +3852,10 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "blake2-rfc",
+ "byteorder",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
@@ -3886,7 +3874,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3895,7 +3883,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "actor-system-error",
  "derive_more",
@@ -3940,6 +3928,7 @@ dependencies = [
 name = "gear-lazy-pages-common"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "derive_more",
  "gear-backend-common",
  "gear-common",
@@ -3952,7 +3941,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4032,6 +4021,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "hex",
  "log",
  "parity-scale-codec",
  "sc-cli",
@@ -4072,6 +4062,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
@@ -4118,12 +4109,16 @@ dependencies = [
  "frame-system-benchmarking",
  "gear-backend-common",
  "gear-common",
+ "gear-core",
  "gear-core-processor",
  "gear-runtime-primitives",
  "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
  "pallet-session",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4134,6 +4129,7 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -4171,7 +4167,7 @@ dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "wasmi 0.13.2",
+ "wasmi 0.30.0",
  "wat",
 ]
 
@@ -4284,7 +4280,7 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "cc",
 ]
@@ -4372,11 +4368,11 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-backend-common",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
@@ -4542,7 +4538,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4556,7 +4552,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4580,7 +4576,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -4631,7 +4627,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4640,7 +4636,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "bs58",
  "futures",
@@ -4669,7 +4665,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.2.2"
+version = "0.3.2"
 
 [[package]]
 name = "gtest"
@@ -4684,7 +4680,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-backend-common",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -5195,6 +5191,12 @@ dependencies = [
  "webrtc-srtp",
  "webrtc-util",
 ]
+
+[[package]]
+name = "intx"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f38a50a899dc47a6d0ed5508e7f601a2e34c3a85303514b5d137f3c10a0c75"
 
 [[package]]
 name = "io-lifetimes"
@@ -6892,6 +6894,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_enum"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
+dependencies = [
+ "num_enum_derive",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.28",
+]
+
+[[package]]
 name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7056,6 +7078,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7157,6 +7180,43 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-bounties"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-treasury",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-child-bounties"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-bounties",
+ "pallet-treasury",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
 ]
@@ -7269,7 +7329,6 @@ dependencies = [
  "frame-system",
  "gear-backend-common",
  "gear-backend-sandbox",
- "gear-backend-wasmi",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -7286,6 +7345,7 @@ dependencies = [
  "page_size 0.5.0",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
@@ -7313,6 +7373,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bank"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
@@ -7331,6 +7409,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7362,7 +7441,6 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gear",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
@@ -7417,6 +7495,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7513,6 +7592,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7654,6 +7734,51 @@ dependencies = [
  "scale-info",
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-nomination-pools"
+version = "1.0.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-staking",
+ "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-nomination-pools-runtime-api"
+version = "1.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
+dependencies = [
+ "pallet-nomination-pools",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-offences"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+ "sp-staking",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
 ]
 
@@ -13302,9 +13427,12 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-bounties",
+ "pallet-child-bounties",
  "pallet-conviction-voting",
  "pallet-election-provider-multi-phase",
  "pallet-gear",
+ "pallet-gear-bank",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
@@ -13318,6 +13446,9 @@ dependencies = [
  "pallet-identity",
  "pallet-im-online",
  "pallet-multisig",
+ "pallet-nomination-pools",
+ "pallet-nomination-pools-runtime-api",
+ "pallet-offences",
  "pallet-preimage",
  "pallet-proxy",
  "pallet-ranked-collective",
@@ -13354,7 +13485,6 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-build-script-utils",
- "substrate-validator-set",
  "substrate-wasm-builder",
  "wat",
 ]
@@ -13925,12 +14055,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmi"
+version = "0.30.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "intx",
+ "smallvec",
+ "spin 0.9.8",
+ "wasmi_arena",
+ "wasmi_core 0.12.0",
+ "wasmparser-nostd 0.100.1",
+]
+
+[[package]]
 name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "parity-wasm 0.45.0",
 ]
+
+[[package]]
+name = "wasmi_arena"
+version = "0.4.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
 
 [[package]]
 name = "wasmi_core"
@@ -13943,7 +14091,6 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
- "region",
 ]
 
 [[package]]
@@ -13956,6 +14103,18 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
+ "region",
+]
+
+[[package]]
+name = "wasmi_core"
+version = "0.12.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "downcast-rs",
+ "libm 0.2.7",
+ "num-traits",
+ "paste",
  "region",
 ]
 
