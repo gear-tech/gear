@@ -118,7 +118,11 @@ impl pallet_authorship::Config for Test {
 
 impl pallet_balances::Config for Test {
     type MaxLocks = ();
+    type MaxHolds = ();
+    type MaxFreezes = ();
     type MaxReserves = ();
+    type FreezeIdentifier = ();
+    type HoldIdentifier = ();
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type DustRemoval = ();
