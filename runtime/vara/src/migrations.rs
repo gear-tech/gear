@@ -1,10 +1,21 @@
 use crate::*;
+use sp_runtime::traits::Get;
 
+pub struct NominationPoolsMigrationV4OldPallet;
+impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
+    fn get() -> Perbill {
+        Perbill::from_percent(10)
+    }
+}
+
+/// All migrations that will run on the next runtime upgrade.
+///
+/// Should be cleared after every release.
 pub type Migrations = (
-    pallet_gear_gas::migrations::v1::MigrateToV1<Runtime>,
-    pallet_gear_scheduler::migration::MigrateToV2<Runtime>,
-    pallet_gear_gas::migrations::v2::MigrateToV2<Runtime>,
-    pallet_gear_messenger::migrations::MigrateToV2<Runtime>,
     // unreleased
-    pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+    pallet_nomination_pools::migration::v4::MigrateV3ToV5<
+        Runtime,
+        NominationPoolsMigrationV4OldPallet,
+    >,
+    pallet_offences::migration::v1::MigrateToV1<Runtime>,
 );
