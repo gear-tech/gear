@@ -6936,7 +6936,7 @@ fn resume_program_works() {
         ));
 
         // if user doesn't have enough funds the extrinsic should fail
-        let to_reserve = Balances::free_balance(USER_3);
+        let to_reserve = Balances::free_balance(USER_3) - Balances::minimum_balance();
         CurrencyOf::<Test>::reserve(&USER_3, to_reserve).unwrap();
 
         assert_err!(
