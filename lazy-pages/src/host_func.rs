@@ -108,10 +108,14 @@ fn accesses_pages(
         .try_for_each(|access| -> Result<(), Error> {
             // TODO: here we suppose zero byte access like one byte access, because
             // backend memory impl can access memory even in case access has size 0.
-            let last_byte = access
-                .offset
-                .checked_add(access.size.saturating_sub(1))
-                .ok_or_else(|| Error::OutOfWasmMemoryAccess)?;
+            let last_byte = if access.size == 0 {
+                access.offset
+            } else {
+                access
+                    .offset
+                    .checked_add(access.size.saturating_sub(1))
+                    .ok_or_else(|| Error::OutOfWasmMemoryAccess)?
+            };
 
             let start = (access.offset / page_size) * page_size;
             let end = (last_byte / page_size) * page_size;
