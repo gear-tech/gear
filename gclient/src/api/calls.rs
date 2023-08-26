@@ -41,7 +41,7 @@ use gsdk::{
                 event::{CodeChangeKind, MessageEntry},
                 ActiveProgram,
             },
-            pallet_balances::{pallet::Call as BalancesCall, AccountData},
+            pallet_balances::{pallet::Call as BalancesCall, types::AccountData},
             pallet_gear::pallet::Call as GearCall,
             pallet_gear_bank::pallet::BankAccount,
             sp_weights::weight_v2::Weight,
@@ -288,8 +288,8 @@ impl GearApi {
                 Ok(AccountData {
                     free: 0u128,
                     reserved: 0,
-                    misc_frozen: 0,
-                    fee_frozen: 0,
+                    frozen: 0,
+                    flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
                 })
             } else {
                 Err(e)
@@ -315,8 +315,8 @@ impl GearApi {
                     Ok(AccountData {
                         free: 0u128,
                         reserved: 0,
-                        misc_frozen: 0,
-                        fee_frozen: 0,
+                        frozen: 0,
+                        flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
                     })
                 } else {
                     Err(e)
@@ -377,19 +377,14 @@ impl GearApi {
 
         // Apply data to the target program
         dest_node_api
-            .set_balance(
+            .force_set_balance(
                 dest_program_id.into_account_id(),
                 src_program_account_data.free,
-                src_program_account_data.reserved,
             )
             .await?;
 
         dest_node_api
-            .set_balance(
-                crate::bank_address(),
-                src_bank_account_data.free,
-                src_bank_account_data.reserved,
-            )
+            .force_set_balance(crate::bank_address(), src_bank_account_data.free)
             .await?;
 
         dest_node_api
@@ -420,9 +415,6 @@ impl GearApi {
             .await?;
 
         for account_with_reserved_funds in accounts_with_reserved_funds {
-            let src_account_data = self
-                .account_data_at(account_with_reserved_funds, src_block_hash)
-                .await?;
             let src_account_bank_data = self
                 .bank_data_at(account_with_reserved_funds, src_block_hash)
                 .await
@@ -441,9 +433,9 @@ impl GearApi {
                     if let Error::GearSDK(GsdkError::StorageNotFound) = e {
                         Ok(AccountData {
                             free: 0u128,
-                            reserved: 0,
-                            misc_frozen: 0,
-                            fee_frozen: 0,
+                                reserved: 0,
+                                frozen: 0,
+                                flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
                         })
                     } else {
                         Err(e)
@@ -461,12 +453,9 @@ impl GearApi {
                 })?;
 
             dest_node_api
-                .set_balance(
+                .force_set_balance(
                     account_with_reserved_funds.into_account_id(),
                     dest_account_data.free,
-                    dest_account_data
-                        .reserved
-                        .saturating_add(src_account_data.reserved),
                 )
                 .await?;
 
@@ -556,21 +545,20 @@ impl GearApi {
             })
             .collect();
 
-        let program_account_data =
-            self.account_data_at(program_id, block_hash)
-                .await
-                .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                        Ok(AccountData {
-                            free: 0u128,
-                            reserved: 0,
-                            misc_frozen: 0,
-                            fee_frozen: 0,
-                        })
-                    } else {
-                        Err(e)
-                    }
-                })?;
+        let program_account_data = self.account_data_at(program_id, block_hash).await.or_else(
+            |e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        frozen: 0,
+                        flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
+                    })
+                } else {
+                    Err(e)
+                }
+            },
+        )?;
 
         ProgramMemoryDump {
             pages: program_pages,
@@ -596,10 +584,9 @@ impl GearApi {
             .map(|(page_number, page_data)| (page_number.raw(), page_data.encode()))
             .collect::<HashMap<_, _>>();
 
-        self.set_balance(
+        self.force_set_balance(
             MultiAddress::Id(program_id.into_account_id()),
             memory_dump.balance,
-            memory_dump.reserved_balance,
         )
         .await?;
 
@@ -1306,23 +1293,21 @@ impl GearApi {
         self.set_code_without_checks(code).await
     }
 
-    /// Set the free and reserved balance of the `to` account to `new_free` and
+    /// Set the free balance of the `to` account to `new_free` and
     /// `new_reserved` respectively.
     ///
     /// Sends the [`pallet_balances::set_balance`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.set_balance) extrinsic.
-    pub async fn set_balance(
+    pub async fn force_set_balance(
         &self,
         to: impl Into<MultiAddress<AccountId32, ()>>,
         new_free: u128,
-        new_reserved: u128,
     ) -> Result<H256> {
         let events = self
             .0
             .sudo_unchecked_weight(
-                RuntimeCall::Balances(BalancesCall::set_balance {
+                RuntimeCall::Balances(BalancesCall::force_set_balance {
                     who: to.into().convert(),
                     new_free,
-                    new_reserved,
                 }),
                 Weight {
                     ref_time: 0,
