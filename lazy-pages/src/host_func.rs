@@ -34,7 +34,7 @@ use std::collections::BTreeSet;
 pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
     pub gas_counter: &'a mut u64,
-    pub gas_charger: GasCharger,
+    pub gas_charger: &'a mut GasCharger,
 }
 
 impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
@@ -128,6 +128,44 @@ fn accesses_pages(
     Ok(())
 }
 
+fn process_reads(
+    ctx: &mut LazyPagesExecutionContext,
+    reads: &[MemoryInterval],
+    gas_counter: &mut u64,
+    gas_charger: &mut GasCharger,
+) -> Result<Status, Error> {
+    let mut read_pages = BTreeSet::new();
+    accesses_pages(ctx, reads, &mut read_pages)?;
+    process::process_lazy_pages(
+        ctx,
+        HostFuncAccessHandler {
+            is_write: false,
+            gas_counter,
+            gas_charger: gas_charger,
+        },
+        read_pages,
+    )
+}
+
+fn process_writes(
+    ctx: &mut LazyPagesExecutionContext,
+    writes: &[MemoryInterval],
+    gas_counter: &mut u64,
+    gas_charger: &mut GasCharger,
+) -> Result<Status, Error> {
+    let mut write_pages = BTreeSet::new();
+    accesses_pages(ctx, writes, &mut write_pages)?;
+    process::process_lazy_pages(
+        ctx,
+        HostFuncAccessHandler {
+            is_write: true,
+            gas_counter,
+            gas_charger: gas_charger,
+        },
+        write_pages,
+    )
+}
+
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
@@ -139,29 +177,16 @@ pub fn pre_process_memory_accesses(
             let mut ctx = ctx.borrow_mut();
             let ctx = ctx.execution_context_mut()?;
 
-            let gas_charger = {
-                GasCharger {
-                    read_cost: ctx.weight(WeightNo::HostFuncRead),
-                    write_cost: ctx.weight(WeightNo::HostFuncWrite),
-                    write_after_read_cost: ctx.weight(WeightNo::HostFuncWriteAfterRead),
-                    load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
-                }
+            let mut gas_charger = GasCharger {
+                read_cost: ctx.weight(WeightNo::HostFuncRead),
+                write_cost: ctx.weight(WeightNo::HostFuncWrite),
+                write_after_read_cost: ctx.weight(WeightNo::HostFuncWriteAfterRead),
+                load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
             };
             let mut status = Status::Normal;
 
             if !reads.is_empty() {
-                let mut read_pages = BTreeSet::new();
-                accesses_pages(ctx, reads, &mut read_pages)?;
-
-                status = process::process_lazy_pages(
-                    ctx,
-                    HostFuncAccessHandler {
-                        is_write: false,
-                        gas_counter,
-                        gas_charger: gas_charger.clone(),
-                    },
-                    read_pages,
-                )?;
+                status = process_reads(ctx, reads, gas_counter, &mut gas_charger)?;
             }
 
             // Does not process write accesses if gas exceeded.
@@ -170,18 +195,7 @@ pub fn pre_process_memory_accesses(
             }
 
             if !writes.is_empty() {
-                let mut write_pages = BTreeSet::new();
-                accesses_pages(ctx, writes, &mut write_pages)?;
-
-                status = process::process_lazy_pages(
-                    ctx,
-                    HostFuncAccessHandler {
-                        is_write: true,
-                        gas_counter,
-                        gas_charger,
-                    },
-                    write_pages,
-                )?;
+                status = process_writes(ctx, writes, gas_counter, &mut gas_charger)?;
             }
 
             Ok(status)
