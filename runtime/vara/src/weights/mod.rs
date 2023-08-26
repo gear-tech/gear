@@ -20,7 +20,7 @@
 
 pub mod frame_system;
 pub mod pallet_airdrop;
-pub mod pallet_balances;
+// pub mod pallet_balances;
 pub mod pallet_gear;
 pub mod pallet_gear_voucher;
 pub mod pallet_timestamp;
