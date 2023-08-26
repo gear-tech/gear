@@ -106,11 +106,12 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
 pub const BANK_ADDRESS: [u8; 32] = *b"gearbankgearbankgearbankgearbank";
 fn pre_fund_bank_account_call() -> RuntimeCall {
     RuntimeCall::Sudo(pallet_sudo::Call::sudo {
-        call: Box::new(RuntimeCall::Balances(pallet_balances::Call::set_balance {
-            who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
-            new_free: 1_000_000_000_000_000,
-            new_reserved: 0,
-        })),
+        call: Box::new(RuntimeCall::Balances(
+            pallet_balances::Call::force_set_balance {
+                who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
+                new_free: 1_000_000_000_000_000,
+            },
+        )),
     })
 }
 
