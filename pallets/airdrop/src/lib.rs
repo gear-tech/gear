@@ -37,7 +37,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub(crate) type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
+pub(crate) type BalanceOf<T> = <<T as pallet_gear_bank::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -109,7 +109,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `TokensDeposited{ dest, amount }`
         #[pallet::call_index(0)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer(1))]
         pub fn transfer(
             origin: OriginFor<T>,
             source: T::AccountId,
@@ -118,7 +118,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
-            <<T as pallet_gear::Config>::Currency as Currency<_>>::transfer(
+            <<T as pallet_gear_bank::Config>::Currency as Currency<_>>::transfer(
                 &source,
                 &dest,
                 amount,
@@ -141,12 +141,12 @@ pub mod pallet {
         /// - `source`: the account with vesting running,
         /// - `dest`: the beneficiary account,
         /// - `schedule_index`: the index of `VestingInfo` for source account.
-        /// - `amount`: the amount to be unlocked and transfered from `VestingInfo`.
+        /// - `amount`: the amount to be unlocked and transferred from `VestingInfo`.
         ///
         /// Emits the following events:
         /// - `VestingScheduleRemoved{ who, schedule_index }`
         #[pallet::call_index(1)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_vested(1))]
         pub fn transfer_vested(
             origin: OriginFor<T>,
             source: T::AccountId,

@@ -20,7 +20,7 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "wasm-wrapper")]
 mod code {
@@ -108,13 +108,13 @@ pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::Kind;
-    use codec::Encode;
     use gstd::{
         errors::{ReplyCode, SignalCode, SimpleExecutionError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId, Vec,
     };
+    use parity_scale_codec::Encode;
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
     static mut SIGNAL_DETAILS: (MessageId, SignalCode, ActorId) = (
@@ -147,7 +147,7 @@ mod wasm {
             Kind::CreateProgram(salt, gas_opt, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
                 let res = match gas_opt {
-                    Some(gas) => prog::create_program_with_gas_delayed(
+                    Some(gas) => prog::create_program_bytes_with_gas_delayed(
                         unsafe { CODE_ID },
                         salt,
                         "payload",
@@ -155,7 +155,13 @@ mod wasm {
                         0,
                         0,
                     ),
-                    None => prog::create_program_delayed(unsafe { CODE_ID }, salt, "payload", 0, 0),
+                    None => prog::create_program_bytes_delayed(
+                        unsafe { CODE_ID },
+                        salt,
+                        "payload",
+                        0,
+                        0,
+                    ),
                 };
                 let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
                 let actual_mid: [u8; 32] = actual_mid.into();

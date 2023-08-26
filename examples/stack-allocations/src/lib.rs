@@ -79,8 +79,7 @@ mod wasm {
                     .expect("Failed to read payload")
             }),
             Some(Action::Load) => {
-                let HandleData { data } =
-                    msg::load_on_stack().expect("Failed to load handle config");
+                let HandleData { data } = msg::load().expect("Failed to load handle config");
                 data.iter().fold(0, |acc, x| acc + *x as u32)
             }
             None => return 0,
@@ -91,13 +90,13 @@ mod wasm {
     #[no_mangle]
     extern "C" fn handle() {
         let check_sum = do_actions(unsafe { STATE.actions.clone() });
-        msg::reply_on_stack(ReplyData { check_sum }, 0).expect("Failed to reply");
+        msg::reply(ReplyData { check_sum }, 0).expect("Failed to reply");
     }
 
     #[no_mangle]
     extern "C" fn init() {
         unsafe {
-            STATE.actions = msg::load_on_stack().expect("Failed to load init config");
+            STATE.actions = msg::load().expect("Failed to load init config");
         }
     }
 }

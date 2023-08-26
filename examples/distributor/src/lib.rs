@@ -20,8 +20,8 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
 use gstd::{prelude::*, ActorId};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -57,7 +57,7 @@ mod wasm {
 
     use alloc::collections::BTreeSet;
     use core::future::Future;
-    use gstd::{debug, lock::Mutex, msg};
+    use gstd::{debug, msg, sync::Mutex};
 
     static mut STATE: Option<ProgramState> = None;
 
@@ -115,11 +115,11 @@ mod wasm {
         }
 
         fn nodes() -> &'static Mutex<BTreeSet<Program>> {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
+            unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").nodes }
         }
 
         fn amount() -> &'static mut u64 {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").amount }
+            unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").amount }
         }
 
         async fn handle_request() {
@@ -191,7 +191,7 @@ mod wasm {
                     }
                     Err(_) => {
                         // skipping erroneous sub-nodes!
-                        debug!("Skipping errorneous node");
+                        debug!("Skipping erroneous node");
                         0
                     }
                 }

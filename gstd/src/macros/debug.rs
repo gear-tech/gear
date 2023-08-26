@@ -49,7 +49,7 @@
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        $crate::ext::debug(&$crate::prelude::format!($($arg)*)).unwrap()
+        $crate::ext::debug(&$crate::format!($($arg)*)).unwrap()
     };
 }
 

@@ -20,7 +20,7 @@ derive_more.workspace = true
 static_assertions.workspace = true
 once_cell.workspace = true
 
-gear-sandbox-host = { workspace = true, features = ["host-sandbox"] }
+gear-sandbox-host.workspace = true
 gear-core.workspace = true
 gear-backend-common.workspace = true
 

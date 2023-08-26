@@ -18,8 +18,8 @@
 
 #![no_std]
 
-use codec::{Decode, Encode};
 use gstd::ActorId;
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {

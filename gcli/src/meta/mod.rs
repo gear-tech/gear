@@ -80,11 +80,8 @@ impl Meta {
         display.field("init", &Io::new(&meta.init, &registry));
         display.field("handle", &Io::new(&meta.handle, &registry));
         display.field("others", &Io::new(&meta.others, &registry));
-        let single_types = [
-            ("reply", meta.reply),
-            ("signal", meta.signal),
-            ("state", meta.state),
-        ];
+        display.field("state", &Io::new(&meta.state, &registry));
+        let single_types = [("reply", meta.reply), ("signal", meta.signal)];
         for (name, ty) in single_types {
             if let Some(id) = ty {
                 display.field(name, &registry.derive_id(id).map_err(|_| fmt::Error)?);
@@ -111,7 +108,7 @@ impl Meta {
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
         core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+            gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
             String,
         >(
             method.into(),

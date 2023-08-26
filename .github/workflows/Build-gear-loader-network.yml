@@ -9,7 +9,7 @@ env:
 
 jobs:
   build-gear-loader:
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    runs-on: [kuberunner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:

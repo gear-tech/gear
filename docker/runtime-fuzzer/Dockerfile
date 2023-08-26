@@ -7,7 +7,7 @@ ENV PATH="/root/.cargo/bin:$PATH"
 WORKDIR /gear
 COPY . /gear
 
-# Install dependecies
+# Install dependencies
 RUN apt update -y && \
     apt install -y clang gcc git gzip wget unzip; \
     # Install Rust and toolchains

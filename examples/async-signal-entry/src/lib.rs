@@ -26,7 +26,7 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug, Encode, Decode)]
 pub enum InitAction {

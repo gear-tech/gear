@@ -21,8 +21,8 @@
 extern crate alloc;
 
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
 use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -120,7 +120,7 @@ fn process(request: Request) -> Reply {
                         return Reply::Success;
                     }
                     TransitionState::Ready => {
-                        // this means we successfully commited and we can
+                        // this means we successfully committed and we can
                         // drop the transition returning success
                         debug!("Returning final commit signal");
 

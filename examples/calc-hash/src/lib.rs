@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use sha2::Digest;
 
 pub type PackageId = [u8; 32];

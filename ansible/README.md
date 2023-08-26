@@ -4,7 +4,7 @@
 
 ### Generate custom chain spec
 
-The compiled runtime code as well as the genesis block configuration (the initial network state) should be placed in a "chain spec" JSON file that would later be supplied as a command line argumnet to the `gear` command:
+The compiled runtime code as well as the genesis block configuration (the initial network state) should be placed in a "chain spec" JSON file that would later be supplied as a command line argument to the `gear` command:
 ```bash
 ./target/release/gear \
   --base-path /tmp/data \
@@ -14,7 +14,7 @@ The compiled runtime code as well as the genesis block configuration (the initia
 
 A custom chain spec can be created in a few simple steps:
 
-1. Build the node as per ususal.
+1. Build the node as per usual.
   ```bash
   cargo build --profile production
   ```

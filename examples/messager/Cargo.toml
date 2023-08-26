@@ -10,7 +10,7 @@ workspace = "../../"
 gstd.workspace = true
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../utils/wasm-builder" }
+gear-wasm-builder.workspace = true
 
 [features]
 std = []
