@@ -1224,53 +1224,33 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "Transfer some liquid free balance to another account."]
                     #[doc = ""]
-                    #[doc = "`transfer` will set the `FreeBalance` of the sender and receiver."]
+                    #[doc = "`transfer_allow_death` will set the `FreeBalance` of the sender and receiver."]
                     #[doc = "If the sender's account is below the existential deposit as a result"]
                     #[doc = "of the transfer, the account will be reaped."]
                     #[doc = ""]
                     #[doc = "The dispatch origin for this call must be `Signed` by the transactor."]
-                    #[doc = ""]
-                    #[doc = "## Complexity"]
-                    #[doc = "- Dependent on arguments but not critical, given proper implementations for input config"]
-                    #[doc = "  types. See related functions below."]
-                    #[doc = "- It contains a limited number of reads and writes internally and no complex"]
-                    #[doc = "  computation."]
-                    #[doc = ""]
-                    #[doc = "Related functions:"]
-                    #[doc = ""]
-                    #[doc = "  - `ensure_can_withdraw` is always called internally but has a bounded complexity."]
-                    #[doc = "  - Transferring balances to accounts that did not exist before will cause"]
-                    #[doc = "    `T::OnNewAccount::on_new_account` to be called."]
-                    #[doc = "  - Removing enough funds from an account will trigger `T::DustRemoval::on_unbalanced`."]
-                    #[doc = "  - `transfer_keep_alive` works the same way as `transfer`, but has an additional check"]
-                    #[doc = "    that the transfer will not kill the origin account."]
-                    transfer {
+                    transfer_allow_death {
                         dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 1)]
-                    #[doc = "Set the balances of a given account."]
-                    #[doc = ""]
-                    #[doc = "This will alter `FreeBalance` and `ReservedBalance` in storage. it will"]
-                    #[doc = "also alter the total issuance of the system (`TotalIssuance`) appropriately."]
-                    #[doc = "If the new free or reserved balance is below the existential deposit,"]
-                    #[doc = "it will reset the account nonce (`frame_system::AccountNonce`)."]
+                    #[doc = "Set the regular balance of a given account; it also takes a reserved balance but this"]
+                    #[doc = "must be the same as the account's current reserved balance."]
                     #[doc = ""]
                     #[doc = "The dispatch origin for this call is `root`."]
-                    set_balance {
+                    #[doc = ""]
+                    #[doc = "WARNING: This call is DEPRECATED! Use `force_set_balance` instead."]
+                    set_balance_deprecated {
                         who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         #[codec(compact)]
                         new_free: ::core::primitive::u128,
                         #[codec(compact)]
-                        new_reserved: ::core::primitive::u128,
+                        old_reserved: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
-                    #[doc = "Exactly as `transfer`, except the origin must be root and the source account may be"]
-                    #[doc = "specified."]
-                    #[doc = "## Complexity"]
-                    #[doc = "- Same as transfer, but additional read and write because the source account is not"]
-                    #[doc = "  assumed to be in the overlay."]
+                    #[doc = "Exactly as `transfer_allow_death`, except the origin must be root and the source account"]
+                    #[doc = "may be specified."]
                     force_transfer {
                         source: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
@@ -1278,12 +1258,12 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    #[doc = "Same as the [`transfer`] call, but with a check that the transfer will not kill the"]
-                    #[doc = "origin account."]
+                    #[doc = "Same as the [`transfer_allow_death`] call, but with a check that the transfer will not"]
+                    #[doc = "kill the origin account."]
                     #[doc = ""]
-                    #[doc = "99% of the time you want [`transfer`] instead."]
+                    #[doc = "99% of the time you want [`transfer_allow_death`] instead."]
                     #[doc = ""]
-                    #[doc = "[`transfer`]: struct.Pallet.html#method.transfer"]
+                    #[doc = "[`transfer_allow_death`]: struct.Pallet.html#method.transfer"]
                     transfer_keep_alive {
                         dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         #[codec(compact)]
@@ -1304,8 +1284,7 @@ pub mod runtime_types {
                     #[doc = "- `keep_alive`: A boolean to determine if the `transfer_all` operation should send all"]
                     #[doc = "  of the funds the account has, causing the sender account to be killed (false), or"]
                     #[doc = "  transfer everything except at least the existential deposit, which will guarantee to"]
-                    #[doc = "  keep the sender account alive (true). ## Complexity"]
-                    #[doc = "- O(1). Just like transfer, but reading the user's transferable balance first."]
+                    #[doc = "  keep the sender account alive (true)."]
                     transfer_all {
                         dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         keep_alive: ::core::primitive::bool,
@@ -1318,34 +1297,70 @@ pub mod runtime_types {
                         who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         amount: ::core::primitive::u128,
                     },
+                    #[codec(index = 6)]
+                    #[doc = "Upgrade a specified account."]
+                    #[doc = ""]
+                    #[doc = "- `origin`: Must be `Signed`."]
+                    #[doc = "- `who`: The account to be upgraded."]
+                    #[doc = ""]
+                    #[doc = "This will waive the transaction fee if at least all but 10% of the accounts needed to"]
+                    #[doc = "be upgraded. (We let some not have to be upgraded just in order to allow for the"]
+                    #[doc = "possibililty of churn)."]
+                    upgrade_accounts {
+                        who: ::std::vec::Vec<::subxt::utils::AccountId32>,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "Alias for `transfer_allow_death`, provided only for name-wise compatibility."]
+                    #[doc = ""]
+                    #[doc = "WARNING: DEPRECATED! Will be released in approximately 3 months."]
+                    transfer {
+                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 8)]
+                    #[doc = "Set the regular balance of a given account."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call is `root`."]
+                    force_set_balance {
+                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        #[codec(compact)]
+                        new_free: ::core::primitive::u128,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
-                    #[doc = "Vesting balance too high to send value"]
+                    #[doc = "Vesting balance too high to send value."]
                     VestingBalance,
                     #[codec(index = 1)]
-                    #[doc = "Account liquidity restrictions prevent withdrawal"]
+                    #[doc = "Account liquidity restrictions prevent withdrawal."]
                     LiquidityRestrictions,
                     #[codec(index = 2)]
                     #[doc = "Balance too low to send value."]
                     InsufficientBalance,
                     #[codec(index = 3)]
-                    #[doc = "Value too low to create account due to existential deposit"]
+                    #[doc = "Value too low to create account due to existential deposit."]
                     ExistentialDeposit,
                     #[codec(index = 4)]
-                    #[doc = "Transfer/payment would kill account"]
-                    KeepAlive,
+                    #[doc = "Transfer/payment would kill account."]
+                    Expendability,
                     #[codec(index = 5)]
-                    #[doc = "A vesting schedule already exists for this account"]
+                    #[doc = "A vesting schedule already exists for this account."]
                     ExistingVestingSchedule,
                     #[codec(index = 6)]
-                    #[doc = "Beneficiary account must pre-exist"]
+                    #[doc = "Beneficiary account must pre-exist."]
                     DeadAccount,
                     #[codec(index = 7)]
-                    #[doc = "Number of named reserves exceed MaxReserves"]
+                    #[doc = "Number of named reserves exceed `MaxReserves`."]
                     TooManyReserves,
+                    #[codec(index = 8)]
+                    #[doc = "Number of holds exceed `MaxHolds`."]
+                    TooManyHolds,
+                    #[codec(index = 9)]
+                    #[doc = "Number of freezes exceed `MaxFreezes`."]
+                    TooManyFreezes,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -1375,7 +1390,6 @@ pub mod runtime_types {
                     BalanceSet {
                         who: ::subxt::utils::AccountId32,
                         free: ::core::primitive::u128,
-                        reserved: ::core::primitive::u128,
                     },
                     #[codec(index = 4)]
                     #[doc = "Some balance was reserved (moved from free to reserved)."]
@@ -1417,34 +1431,107 @@ pub mod runtime_types {
                         who: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
+                    #[codec(index = 10)]
+                    #[doc = "Some amount was minted into an account."]
+                    Minted {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 11)]
+                    #[doc = "Some amount was burned from an account."]
+                    Burned {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 12)]
+                    #[doc = "Some amount was suspended from an account (it can be restored later)."]
+                    Suspended {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 13)]
+                    #[doc = "Some amount was restored into an account."]
+                    Restored {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 14)]
+                    #[doc = "An account was upgraded."]
+                    Upgraded { who: ::subxt::utils::AccountId32 },
+                    #[codec(index = 15)]
+                    #[doc = "Total issuance was increased by `amount`, creating a credit to be balanced."]
+                    Issued { amount: ::core::primitive::u128 },
+                    #[codec(index = 16)]
+                    #[doc = "Total issuance was decreased by `amount`, creating a debt to be balanced."]
+                    Rescinded { amount: ::core::primitive::u128 },
+                    #[codec(index = 17)]
+                    #[doc = "Some balance was locked."]
+                    Locked {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 18)]
+                    #[doc = "Some balance was unlocked."]
+                    Unlocked {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 19)]
+                    #[doc = "Some balance was frozen."]
+                    Frozen {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 20)]
+                    #[doc = "Some balance was thawed."]
+                    Thawed {
+                        who: ::subxt::utils::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct AccountData<_0> {
-                pub free: _0,
-                pub reserved: _0,
-                pub misc_frozen: _0,
-                pub fee_frozen: _0,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct BalanceLock<_0> {
-                pub id: [::core::primitive::u8; 8usize],
-                pub amount: _0,
-                pub reasons: runtime_types::pallet_balances::Reasons,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum Reasons {
-                #[codec(index = 0)]
-                Fee,
-                #[codec(index = 1)]
-                Misc,
-                #[codec(index = 2)]
-                All,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct ReserveData<_0, _1> {
-                pub id: _0,
-                pub amount: _1,
+            pub mod types {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct AccountData<_0> {
+                    pub free: _0,
+                    pub reserved: _0,
+                    pub frozen: _0,
+                    pub flags: runtime_types::pallet_balances::types::ExtraFlags,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BalanceLock<_0> {
+                    pub id: [::core::primitive::u8; 8usize],
+                    pub amount: _0,
+                    pub reasons: runtime_types::pallet_balances::types::Reasons,
+                }
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct ExtraFlags(pub ::core::primitive::u128);
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IdAmount<_0, _1> {
+                    pub id: _0,
+                    pub amount: _1,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum Reasons {
+                    #[codec(index = 0)]
+                    Fee,
+                    #[codec(index = 1)]
+                    Misc,
+                    #[codec(index = 2)]
+                    All,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct ReserveData<_0, _1> {
+                    pub id: _0,
+                    pub amount: _1,
+                }
             }
         }
         pub mod pallet_bounties {
@@ -7926,8 +8013,7 @@ pub mod runtime_types {
                 pub struct PrimaryPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
-                    pub vrf_output: [::core::primitive::u8; 32usize],
-                    pub vrf_proof: [::core::primitive::u8; 64usize],
+                    pub vrf_signature: runtime_types::sp_core::sr25519::vrf::VrfSignature,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SecondaryPlainPreDigest {
@@ -7938,8 +8024,7 @@ pub mod runtime_types {
                 pub struct SecondaryVRFPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
-                    pub vrf_output: [::core::primitive::u8; 32usize],
-                    pub vrf_proof: [::core::primitive::u8; 64usize],
+                    pub vrf_signature: runtime_types::sp_core::sr25519::vrf::VrfSignature,
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -8041,6 +8126,16 @@ pub mod runtime_types {
             }
             pub mod sr25519 {
                 use super::runtime_types;
+                pub mod vrf {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct VrfSignature {
+                        pub output: [::core::primitive::u8; 32usize],
+                        pub proof: [::core::primitive::u8; 64usize],
+                    }
+                }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -8706,9 +8801,9 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum TokenError {
                 #[codec(index = 0)]
-                NoFunds,
+                FundsUnavailable,
                 #[codec(index = 1)]
-                WouldDie,
+                OnlyProvider,
                 #[codec(index = 2)]
                 BelowMinimum,
                 #[codec(index = 3)]
@@ -8719,6 +8814,10 @@ pub mod runtime_types {
                 Frozen,
                 #[codec(index = 6)]
                 Unsupported,
+                #[codec(index = 7)]
+                CannotCreateHold,
+                #[codec(index = 8)]
+                NotExpendable,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum TransactionalError {
@@ -9240,23 +9339,29 @@ pub mod calls {
     }
     #[doc = "Calls of pallet `Balances`."]
     pub enum BalancesCall {
-        Transfer,
-        SetBalance,
+        TransferAllowDeath,
+        SetBalanceDeprecated,
         ForceTransfer,
         TransferKeepAlive,
         TransferAll,
         ForceUnreserve,
+        UpgradeAccounts,
+        Transfer,
+        ForceSetBalance,
     }
     impl CallInfo for BalancesCall {
         const PALLET: &'static str = "Balances";
         fn call_name(&self) -> &'static str {
             match self {
-                Self::Transfer => "transfer",
-                Self::SetBalance => "set_balance",
+                Self::TransferAllowDeath => "transfer_allow_death",
+                Self::SetBalanceDeprecated => "set_balance_deprecated",
                 Self::ForceTransfer => "force_transfer",
                 Self::TransferKeepAlive => "transfer_keep_alive",
                 Self::TransferAll => "transfer_all",
                 Self::ForceUnreserve => "force_unreserve",
+                Self::UpgradeAccounts => "upgrade_accounts",
+                Self::Transfer => "transfer",
+                Self::ForceSetBalance => "force_set_balance",
             }
         }
     }
@@ -10029,6 +10134,8 @@ pub mod storage {
         Account,
         Locks,
         Reserves,
+        Holds,
+        Freezes,
     }
     impl StorageInfo for BalancesStorage {
         const PALLET: &'static str = "Balances";
@@ -10039,6 +10146,8 @@ pub mod storage {
                 Self::Account => "Account",
                 Self::Locks => "Locks",
                 Self::Reserves => "Reserves",
+                Self::Holds => "Holds",
+                Self::Freezes => "Freezes",
             }
         }
     }
@@ -10442,7 +10551,6 @@ pub mod storage {
     pub enum OffencesStorage {
         Reports,
         ConcurrentReportsIndex,
-        ReportsByKindIndex,
     }
     impl StorageInfo for OffencesStorage {
         const PALLET: &'static str = "Offences";
@@ -10450,7 +10558,6 @@ pub mod storage {
             match self {
                 Self::Reports => "Reports",
                 Self::ConcurrentReportsIndex => "ConcurrentReportsIndex",
-                Self::ReportsByKindIndex => "ReportsByKindIndex",
             }
         }
     }

@@ -24,7 +24,7 @@ use crate::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
-            pallet_balances::AccountData,
+            pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{
