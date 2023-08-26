@@ -29,7 +29,7 @@ use gsdk::{
     ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::user,
-        pallet_balances::AccountData, pallet_gear_bank::pallet::BankAccount,
+        pallet_balances::types::AccountData, pallet_gear_bank::pallet::BankAccount,
     },
 };
 
