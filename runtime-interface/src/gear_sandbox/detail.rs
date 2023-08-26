@@ -129,15 +129,11 @@ fn read_memory(
 }
 
 fn trace(func: &str, caller: &Caller<'_, StoreData>) {
-    let data_ptr: *const _ = caller.data();
-    let caller_ptr: *const _ = caller;
-    let thread_id = std::thread::current().id();
-
     log::trace!(
         "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-        data_ptr as usize,
-        caller_ptr as usize,
-        thread_id,
+        (caller.data() as *const _) as usize,
+        (caller as *const _) as usize,
+        std::thread::current().id(),
     );
 }
 
