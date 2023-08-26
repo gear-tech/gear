@@ -3,8 +3,11 @@
  */
 
 const [owner, repo] = ["gear-tech", "gear"];
-const { LABEL, REF, HEAD_SHA } = process.env;
-const linux = LABEL === "A0-pleasereview";
+const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
+const linux =
+  LABEL === "A0-pleasereview" ||
+  LABEL === "A4-insubstantial" ||
+  LABEL === "A2-mergeoncegreen";
 const checks = linux ? ["linux", "win-cross"] : ["x86"];
 const workflow_id = linux
   ? ".github/workflows/build.yml"
@@ -18,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  *  If skipping this action.
  **/
-const skip = async ({ github }) => {
+const skip = async ({ core, github }) => {
   const {
     data: { check_runs },
   } = await github.rest.checks.listForRef({
@@ -27,16 +30,29 @@ const skip = async ({ github }) => {
     ref: REF,
   });
 
-  const runs = linux
-    ? check_runs.filter((run) => run.name === "build" || run.name === "build / linux")
-    : check_runs.filter((run) => run.name === "build / macox-x86");
+  core.info(`check runs: ${check_runs}`);
 
-  if (runs.length === 0) return false;
+  const runs = linux
+    ? check_runs.filter(
+      (run) => run.name === "build" || run.name === "build / linux"
+    )
+    : check_runs.filter((run) => run.name === "build / macos-x86");
+
+  // Skip this action by default.
+  let skipped = false;
   for (run of runs) {
-    if (run.conclusion !== "skipped") return true;
+    // Process this action only if the previous build has been skipped.
+    if (
+      (run.name === "build" && run.conclusion === "skipped")
+    )
+      skipped = true;
+
+    // If there is already a build, skip this action without more conditions.
+    if (run.name === "build / linux" || run.name === "build / macos-x86")
+      return true;
   }
 
-  return false;
+  return !skipped;
 };
 
 /**
@@ -72,8 +88,13 @@ const dispatchWorkflow = async ({ core, github }) => {
     repo,
     workflow_id,
     ref: REF,
+    inputs: {
+      title: TITLE,
+      number: NUMBER,
+    },
   });
 
+  // Wait for the workflow to be dispatched.
   await sleep(10000);
 
   // Get the target workflow run
@@ -86,12 +107,16 @@ const dispatchWorkflow = async ({ core, github }) => {
     head_sha: HEAD_SHA,
   });
 
-  if (workflow_runs.length != 1) {
+  if (workflow_runs.length === 0) {
     core.setFailed(`Incorrect workflow runs`);
     return;
   }
 
-  return workflow_runs[0];
+  let sorted_runs = workflow_runs.sort((a, b) => {
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  return sorted_runs[0];
 };
 
 /// List jobs of workflow run.
@@ -122,14 +147,16 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  if (await skip({ github })) {
+  if (await skip({ core, github })) {
     core.info("Build has already been processed.");
     return;
   }
 
   const run = await dispatchWorkflow({ core, github });
+  core.info(`Dispatched workflow ${run.html_url}`);
   let labelChecks = await createChecks({ core, github });
 
+  // Wait for the jobs to be completed.
   while (true) {
     const jobs = await listJobs({ github, core, run_id: run.id });
     completed = jobs.filter((job) => job.status === "completed").length;
@@ -171,7 +198,7 @@ module.exports = async ({ github, core }) => {
 
     if (completed === checks.length) {
       core.info("All jobs completed.");
-      break;
+      return;
     } else {
       await sleep(10000);
     }
