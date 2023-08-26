@@ -28,13 +28,16 @@ use byteorder::{ByteOrder, LittleEndian};
 use core::{
     fmt,
     fmt::Debug,
-    iter,
+    iter, mem,
     ops::{Deref, DerefMut},
 };
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
 };
+
+/// Represents the size of the `MemoryInterval` struct in bytes.
+pub const MEM_INTERVAL_SIZE: usize = mem::size_of::<MemoryInterval>();
 
 /// Interval in wasm program memory.
 #[derive(Clone, Copy, Encode, Decode)]
@@ -63,7 +66,7 @@ impl MemoryInterval {
     #[inline]
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
         if bytes.len() != 8 {
-            return Err("bytes size != 8");
+            return Err("Invalid byte array size. Expected 8 bytes.");
         }
         let offset = LittleEndian::read_u32(&bytes[0..4]);
         let size = LittleEndian::read_u32(&bytes[4..8]);

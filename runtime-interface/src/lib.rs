@@ -30,13 +30,12 @@ use gear_backend_common::{
 };
 use gear_core::{
     gas::GasLeft,
-    memory::{HostPointer, MemoryInterval},
+    memory::{HostPointer, MemoryInterval, MEM_INTERVAL_SIZE},
 };
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
-use sp_std::mem;
 
 extern crate alloc;
 
@@ -88,8 +87,7 @@ impl PassBy for LazyPagesRuntimeContext {
 }
 
 fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-    let mem_interval_size = mem::size_of::<MemoryInterval>();
-    for chunk in bytes.chunks_exact(mem_interval_size) {
+    for chunk in bytes.chunks_exact(MEM_INTERVAL_SIZE) {
         // can't panic because of chunks_exact
         intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
     }
@@ -140,13 +138,12 @@ pub trait GearRI {
 
     #[version(2)]
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
-        let mem_interval_size = mem::size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
 
-        let mut reads_intervals = Vec::with_capacity(reads_len / mem_interval_size);
+        let mut reads_intervals = Vec::with_capacity(reads_len / MEM_INTERVAL_SIZE);
         deserialize_mem_intervals(reads, &mut reads_intervals);
-        let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
+        let mut writes_intervals = Vec::with_capacity(writes_len / MEM_INTERVAL_SIZE);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
         let mut gas_counter = LittleEndian::read_u64(gas_bytes);
