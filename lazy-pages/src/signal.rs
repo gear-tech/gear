@@ -58,7 +58,7 @@ pub(crate) struct ExceptionInfo {
 /// After processing is done, OS returns execution to the same machine
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
-unsafe fn user_signal_handler_internal(
+fn user_signal_handler_internal(
     ctx: &mut LazyPagesExecutionContext,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
@@ -101,7 +101,7 @@ unsafe fn user_signal_handler_internal(
 
 /// User signal handler. Logic can depends on lazy-pages version.
 /// See also "user_signal_handler_internal".
-pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
+pub(crate) fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
@@ -181,26 +181,23 @@ impl AccessHandler for SignalAccessHandler {
             (self.gas_ctx, ctx.globals_context.as_ref())
         {
             let mut diff = 0;
-            unsafe {
-                globals::apply_for_global(
-                    globals_config,
-                    globals_config.names[GlobalNo::Gas as usize].as_str(),
-                    |current| {
-                        diff = current - gas_counter;
-                        Ok(Some(gas_counter))
-                    },
-                )?
-            };
+
+            globals::apply_for_global(
+                globals_config,
+                globals_config.names[GlobalNo::Gas as usize].as_str(),
+                |current| {
+                    diff = current - gas_counter;
+                    Ok(Some(gas_counter))
+                },
+            )?;
 
             // support old runtimes
             if globals_config.names.len() == 2
                 && globals_config.names[1].as_str() == "gear_allowance"
             {
-                unsafe {
-                    globals::apply_for_global(globals_config, "gear_allowance", |current| {
-                        Ok(Some(current.saturating_sub(diff)))
-                    })?
-                };
+                globals::apply_for_global(globals_config, "gear_allowance", |current| {
+                    Ok(Some(current.saturating_sub(diff)))
+                })?;
             }
         }
         Ok(())
