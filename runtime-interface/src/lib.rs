@@ -86,13 +86,6 @@ impl PassBy for LazyPagesRuntimeContext {
     type PassBy = Codec<LazyPagesRuntimeContext>;
 }
 
-fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
-    for chunk in bytes.chunks_exact(MEM_INTERVAL_SIZE) {
-        // can't panic because of chunks_exact
-        intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
-    }
-}
-
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
 pub enum ProcessAccessErrorVer1 {
@@ -138,13 +131,16 @@ pub trait GearRI {
 
     #[version(2)]
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
-        let reads_len = reads.len();
-        let writes_len = writes.len();
+        const SUCCESS: u8 = 0;
 
-        let mut reads_intervals = Vec::with_capacity(reads_len / MEM_INTERVAL_SIZE);
-        deserialize_mem_intervals(reads, &mut reads_intervals);
-        let mut writes_intervals = Vec::with_capacity(writes_len / MEM_INTERVAL_SIZE);
-        deserialize_mem_intervals(writes, &mut writes_intervals);
+        let reads_intervals: Vec<_> = reads
+            .chunks_exact(MEM_INTERVAL_SIZE)
+            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok())
+            .collect();
+        let writes_intervals: Vec<_> = writes
+            .chunks_exact(MEM_INTERVAL_SIZE)
+            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok())
+            .collect();
 
         let mut gas_counter = LittleEndian::read_u64(gas_bytes);
 
@@ -153,7 +149,7 @@ pub trait GearRI {
             &writes_intervals,
             &mut gas_counter,
         ) {
-            Ok(_) => 0,
+            Ok(_) => SUCCESS,
             Err(err) => err.into(),
         };
 
