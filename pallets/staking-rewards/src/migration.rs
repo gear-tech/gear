@@ -20,6 +20,8 @@ use crate::{pallet, Config, Pallet, Weight};
 use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
 use sp_runtime::Perquintill;
 use sp_std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
 pub struct MigrateToV2<T: Config>(PhantomData<T>);
 
@@ -45,8 +47,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
 
             log::info!("Successfully migrated storage from v1 to v2");
 
-            // 1 write for `TargetInflation`
-            weight += T::DbWeight::get().writes(1)
+            // 1 write for `TargetInflation` + 1 write for `StorageVersion`
+            weight += T::DbWeight::get().writes(2)
         } else {
             log::info!("❌ Migration did not execute. This probably should be removed");
         }
@@ -67,8 +69,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
         use parity_scale_codec::Decode;
 
-        let inflation: Perquintill = Decode::decode(&mut &state[..]).unwrap();
-        assert_eq!(inflation, Perquintill::from_percent(6),);
+        let old_inflation: Perquintill = Decode::decode(&mut &state[..]).unwrap();
+        let new_inflation = pallet::TargetInflation::<T>::get();
+        assert_ne!(old_inflation, new_inflation);
+        assert_eq!(new_inflation, Perquintill::from_percent(6));
         Ok(())
     }
 }
@@ -91,7 +95,10 @@ mod tests {
                 StorageVersion::new(1).put::<Pallet<Test>>();
 
                 let weight = MigrateToV2::<Test>::on_runtime_upgrade();
-                assert_ne!(weight.ref_time(), 0);
+                assert_eq!(
+                    weight,
+                    <Test as frame_system::Config>::DbWeight::get().reads_writes(1, 2)
+                );
 
                 assert_eq!(
                     pallet::TargetInflation::<Test>::get(),
