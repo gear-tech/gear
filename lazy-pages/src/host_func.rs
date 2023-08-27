@@ -96,83 +96,57 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
     }
 }
 
-fn accesses_pages(
+fn process_memory_intervals(
     ctx: &mut LazyPagesExecutionContext,
-    accesses: &[MemoryInterval],
-    pages: &mut BTreeSet<GearPage>,
-) -> Result<(), Error> {
+    intervals: impl Iterator<Item = MemoryInterval>,
+    gas_counter: &mut u64,
+    gas_charger: &mut GasCharger,
+    is_write: bool,
+) -> Result<Status, Error> {
     let page_size = GearPage::size(ctx);
 
-    accesses
-        .iter()
-        .try_for_each(|access| -> Result<(), Error> {
-            // TODO: here we suppose zero byte access like one byte access, because
-            // backend memory impl can access memory even in case access has size 0.
-            let last_byte = if access.size == 0 {
-                access.offset
-            } else {
-                access
-                    .offset
-                    .checked_add(access.size.saturating_sub(1))
-                    .ok_or_else(|| Error::OutOfWasmMemoryAccess)?
-            };
+    let mut pages = BTreeSet::new();
+    let mut last_offset = None;
 
-            let start = (access.offset / page_size) * page_size;
-            let end = (last_byte / page_size) * page_size;
-            let mut offset = start;
-            while offset <= end {
-                pages.insert(GearPage::from_offset(ctx, offset));
-                offset = match offset.checked_add(page_size) {
-                    Some(next_offset) => next_offset,
-                    None => break,
-                }
+    for interval in intervals {
+        if last_offset == Some(interval.offset) {
+            // Skip duplicates
+            continue;
+        }
+        last_offset = Some(interval.offset);
+
+        // Process memory interval
+        let last_byte = interval
+            .offset
+            .saturating_add(interval.size)
+            .saturating_sub(1);
+        let start = (interval.offset / page_size) * page_size;
+        let end = (last_byte / page_size) * page_size;
+
+        let mut offset = start;
+        while offset <= end {
+            pages.insert(GearPage::from_offset(ctx, offset));
+            match offset.checked_add(page_size) {
+                Some(next_offset) => offset = next_offset,
+                None => break,
             }
-            Ok(())
-        })?;
-    Ok(())
-}
+        }
+    }
 
-fn process_reads(
-    ctx: &mut LazyPagesExecutionContext,
-    reads: &[MemoryInterval],
-    gas_counter: &mut u64,
-    gas_charger: &mut GasCharger,
-) -> Result<Status, Error> {
-    let mut read_pages = BTreeSet::new();
-    accesses_pages(ctx, reads, &mut read_pages)?;
     process::process_lazy_pages(
         ctx,
         HostFuncAccessHandler {
-            is_write: false,
+            is_write,
             gas_counter,
-            gas_charger: gas_charger,
+            gas_charger,
         },
-        read_pages,
-    )
-}
-
-fn process_writes(
-    ctx: &mut LazyPagesExecutionContext,
-    writes: &[MemoryInterval],
-    gas_counter: &mut u64,
-    gas_charger: &mut GasCharger,
-) -> Result<Status, Error> {
-    let mut write_pages = BTreeSet::new();
-    accesses_pages(ctx, writes, &mut write_pages)?;
-    process::process_lazy_pages(
-        ctx,
-        HostFuncAccessHandler {
-            is_write: true,
-            gas_counter,
-            gas_charger: gas_charger,
-        },
-        write_pages,
+        pages,
     )
 }
 
 pub fn pre_process_memory_accesses(
-    reads: &[MemoryInterval],
-    writes: &[MemoryInterval],
+    reads: impl Iterator<Item = MemoryInterval> + std::fmt::Debug,
+    writes: impl Iterator<Item = MemoryInterval> + std::fmt::Debug,
     gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
     log::trace!("host func mem accesses: {reads:?} {writes:?}");
@@ -187,20 +161,18 @@ pub fn pre_process_memory_accesses(
                 write_after_read_cost: ctx.weight(WeightNo::HostFuncWriteAfterRead),
                 load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
             };
-            let mut status = Status::Normal;
 
-            if !reads.is_empty() {
-                status = process_reads(ctx, reads, gas_counter, &mut gas_charger)?;
-            }
+            // Process reads
+            let mut status =
+                process_memory_intervals(ctx, reads, gas_counter, &mut gas_charger, false)?;
 
             // Does not process write accesses if gas exceeded.
             if !matches!(status, Status::Normal) {
                 return Ok(status);
             }
 
-            if !writes.is_empty() {
-                status = process_writes(ctx, writes, gas_counter, &mut gas_charger)?;
-            }
+            // Process writes
+            status = process_memory_intervals(ctx, writes, gas_counter, &mut gas_charger, true)?;
 
             Ok(status)
         })

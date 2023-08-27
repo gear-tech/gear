@@ -105,7 +105,11 @@ pub trait GearRI {
     ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
         let mut gas_left = gas_left.0;
         let gas_before = gas_left.gas;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
+        let res = lazy_pages::pre_process_memory_accesses(
+            reads.iter().cloned(),
+            writes.iter().cloned(),
+            &mut gas_left.gas,
+        );
 
         // Support charge for allowance otherwise DB will be corrupted.
         gas_left.allowance = gas_left
@@ -133,20 +137,18 @@ pub trait GearRI {
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
         const SUCCESS: u8 = 0;
 
-        let reads_intervals: Vec<_> = reads
+        let reads_intervals = reads
             .chunks_exact(MEM_INTERVAL_SIZE)
-            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok())
-            .collect();
-        let writes_intervals: Vec<_> = writes
+            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok());
+        let writes_intervals = writes
             .chunks_exact(MEM_INTERVAL_SIZE)
-            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok())
-            .collect();
+            .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok());
 
         let mut gas_counter = LittleEndian::read_u64(gas_bytes);
 
         let res = match lazy_pages::pre_process_memory_accesses(
-            &reads_intervals,
-            &writes_intervals,
+            reads_intervals,
+            writes_intervals,
             &mut gas_counter,
         ) {
             Ok(_) => SUCCESS,
