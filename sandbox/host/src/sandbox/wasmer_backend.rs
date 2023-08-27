@@ -501,7 +501,7 @@ impl MemoryWrapper {
     /// Wasmer doesn't provide comprehensive documentation about the exact behavior of the data
     /// pointer. If a dynamic style heap is used the base pointer of the heap can change. Since
     /// growing, we cannot guarantee the lifetime of the returned slice reference.
-    unsafe fn memory_as_slice(memory: &wasmer::Memory) -> &[u8] {
+    fn memory_as_slice(memory: &wasmer::Memory) -> &[u8] {
         let ptr = memory.data_ptr() as *const _;
 
         let len: usize = memory.data_size().try_into().expect(
@@ -513,7 +513,7 @@ impl MemoryWrapper {
         if len == 0 {
             &[]
         } else {
-            core::slice::from_raw_parts(ptr, len)
+            unsafe { core::slice::from_raw_parts(ptr, len) }
         }
     }
 
@@ -524,19 +524,19 @@ impl MemoryWrapper {
     /// See `[memory_as_slice]`. In addition to those requirements, since a mutable reference is
     /// returned it must be ensured that only one mutable and no shared references to memory
     /// exists at the same time.
-    unsafe fn memory_as_slice_mut(memory: &mut wasmer::Memory) -> &mut [u8] {
+    fn memory_as_slice_mut(memory: &mut wasmer::Memory) -> &mut [u8] {
         let ptr = memory.data_ptr();
 
         let len: usize = memory.data_size().try_into().expect(
             "maximum memory object size never exceeds pointer size on any architecture; \
-			usize by design and definition is enough to store any memory object size \
-			possible on current architecture; thus the conversion can not fail; qed",
+                usize by design and definition is enough to store any memory object size \
+                possible on current architecture; thus the conversion can not fail; qed",
         );
 
         if len == 0 {
             &mut []
         } else {
-            core::slice::from_raw_parts_mut(ptr, len)
+            unsafe { core::slice::from_raw_parts_mut(ptr, len) }
         }
     }
 }
@@ -561,35 +561,31 @@ impl MemoryTransfer for MemoryWrapper {
     }
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> Result<()> {
-        unsafe {
-            let memory = self.buffer.borrow();
+        let memory = self.buffer.borrow();
 
-            // This should be safe since we don't grow up memory while caching this reference
-            // and we give up the reference before returning from this function.
-            let source = Self::memory_as_slice(&memory);
+        // This should be safe since we don't grow up memory while caching this reference
+        // and we give up the reference before returning from this function.
+        let source = Self::memory_as_slice(&memory);
 
-            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
-                .ok_or_else(|| Error::Other("memory read is out of bounds".into()))?;
+        let range = util::checked_range(source_addr.into(), destination.len(), source.len())
+            .ok_or_else(|| Error::Other("memory read is out of bounds".into()))?;
 
-            destination.copy_from_slice(&source[range]);
-            Ok(())
-        }
+        destination.copy_from_slice(&source[range]);
+        Ok(())
     }
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> Result<()> {
-        unsafe {
-            let memory = &mut self.buffer.borrow_mut();
+        let memory = &mut self.buffer.borrow_mut();
 
-            // This should be safe since we don't grow up memory while caching this reference
-            // and we give up the reference before returning from this function.
-            let destination = Self::memory_as_slice_mut(memory);
+        // This should be safe since we don't grow up memory while caching this reference
+        // and we give up the reference before returning from this function.
+        let destination = Self::memory_as_slice_mut(memory);
 
-            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
-                .ok_or_else(|| Error::Other("memory write is out of bounds".into()))?;
+        let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
+            .ok_or_else(|| Error::Other("memory write is out of bounds".into()))?;
 
-            destination[range].copy_from_slice(source);
-            Ok(())
-        }
+        destination[range].copy_from_slice(source);
+        Ok(())
     }
 
     fn memory_grow(&mut self, pages: u32) -> Result<u32> {
