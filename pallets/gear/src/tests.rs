@@ -4336,6 +4336,32 @@ fn distributor_distribute() {
 }
 
 #[test]
+fn lol() {
+    let wasm = std::fs::read("/Users/gsobol/src/gear/code.wasm").unwrap();
+    // let schedule = <Test as Config>::Schedule::get();
+    // let code = Code::try_new(
+    //     wasm,
+    //     schedule.instruction_weights.version,
+    //     |module| schedule.rules(module),
+    //     schedule.limits.stack_height,
+    // )
+    // .unwrap();
+    // std::fs::write("code_instrumented.wasm", code.code()).unwrap();
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            wasm,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        run_to_block(2, None);
+    })
+}
+
+#[test]
 fn test_code_submission_pass() {
     init_logger();
     new_test_ext().execute_with(|| {

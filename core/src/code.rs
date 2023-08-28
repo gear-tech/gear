@@ -333,23 +333,20 @@ impl Code {
         let exports = get_exports(&module, true)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
+            if let Some(limit) = stack_height {
+                module = wasm_instrument::inject_stack_limiter(module, limit)
+                    .map_err(|_| CodeError::StackLimitInjection)?;
+            }
+
             let gas_rules = get_gas_rules(&module);
-            let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+            module = gear_wasm_instrument::inject(module, &gas_rules, "env")
                 .map_err(|_| CodeError::GasInjection)?;
 
-            let instrumented = if let Some(limit) = stack_height {
-                let instrumented_module =
-                    wasm_instrument::inject_stack_limiter(instrumented_module, limit)
-                        .map_err(|_| CodeError::StackLimitInjection)?;
-                parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?
-            } else {
-                parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?
-            };
+            let code = parity_wasm::elements::serialize(module)
+                .map_err(|_| CodeError::Encode)?;
 
             Ok(Self {
-                code: instrumented,
+                code,
                 raw_code,
                 exports,
                 static_pages,
