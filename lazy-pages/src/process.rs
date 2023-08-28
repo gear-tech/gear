@@ -126,64 +126,54 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
         };
 
-        if page_offset < stack_end.offset(ctx) {
-            // Nothing to do, page has r/w accesses and data is in correct state.
-            H::check_stack_memory_access()?;
-        } else if ctx.is_write_accessed(page) {
-            // Nothing to do, page has r/w accesses and data is in correct state.
-            H::check_write_accessed_memory_access()?;
-        } else if ctx.is_accessed(page) {
-            if handler.is_write() {
-                // Charges for page write access
-                let status = handler.charge_for_page_access(page, true)?;
-                if update_status(ctx, status)? {
-                    return Ok(());
-                }
-
-                // Sets read/write protection access for page and add page to write accessed
-                protect_page(true)?;
-                ctx.set_write_accessed(page)?;
-            } else {
-                // Nothing to do, page has read accesses and data is in correct state.
-                H::check_read_from_accessed_memory()?;
-            }
-        } else {
-            // Charge for page access.
-            let status = handler.charge_for_page_access(page, false)?;
-            if update_status(ctx, status)? {
-                return Ok(());
-            }
-
-            let unprotected = if ctx.page_has_data_in_storage(page) {
-                // Charge for page data loading from storage.
-                let status = handler.charge_for_page_data_loading()?;
-                if update_status(ctx, status)? {
-                    return Ok(());
-                }
-
-                // Set read/write access, in order to write page data to program memory.
-                protect_page(true)?;
-
-                // Load and write data to memory.
-                let buffer_as_slice =
-                    unsafe { slice::from_raw_parts_mut(page_buffer_ptr, page_size) };
-                if !ctx.load_page_data_from_storage(page, buffer_as_slice)? {
-                    unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
-                }
-                true
-            } else {
-                false
-            };
-
-            ctx.set_accessed(page);
-            if handler.is_write() {
-                if !unprotected {
+        match (
+            page_offset < stack_end.offset(ctx),
+            ctx.is_write_accessed(page),
+            ctx.is_accessed(page),
+        ) {
+            (true, _, _) => H::check_stack_memory_access()?,
+            (_, true, _) => H::check_write_accessed_memory_access()?,
+            (_, _, true) => {
+                if handler.is_write() {
+                    let status = handler.charge_for_page_access(page, true)?;
+                    if update_status(ctx, status)? {
+                        return Ok(());
+                    }
                     protect_page(true)?;
+                    ctx.set_write_accessed(page)?;
+                } else {
+                    H::check_read_from_accessed_memory()?;
                 }
-                ctx.set_write_accessed(page)?;
-            } else {
-                // Set only read access for page.
-                protect_page(false)?;
+            }
+            _ => {
+                let status = handler.charge_for_page_access(page, false)?;
+                if update_status(ctx, status)? {
+                    return Ok(());
+                }
+                let unprotected = if ctx.page_has_data_in_storage(page) {
+                    let status = handler.charge_for_page_data_loading()?;
+                    if update_status(ctx, status)? {
+                        return Ok(());
+                    }
+                    protect_page(true)?;
+                    let buffer_as_slice =
+                        unsafe { slice::from_raw_parts_mut(page_buffer_ptr, page_size) };
+                    if !ctx.load_page_data_from_storage(page, buffer_as_slice)? {
+                        unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
+                    }
+                    true
+                } else {
+                    false
+                };
+                ctx.set_accessed(page);
+                if handler.is_write() {
+                    if !unprotected {
+                        protect_page(true)?;
+                    }
+                    ctx.set_write_accessed(page)?;
+                } else {
+                    protect_page(false)?;
+                }
             }
         }
 
