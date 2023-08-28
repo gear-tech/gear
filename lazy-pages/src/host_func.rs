@@ -77,10 +77,6 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         Ok(self.gas_charger.charge_for_page_data_load(self.gas_counter))
     }
 
-    fn last_page(pages: &Self::Pages) -> Option<GearPage> {
-        pages.last().copied()
-    }
-
     fn process_pages(
         pages: Self::Pages,
         mut process_one: impl FnMut(GearPage) -> Result<(), Error>,

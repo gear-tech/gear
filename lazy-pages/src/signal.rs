@@ -123,10 +123,6 @@ impl AccessHandler for SignalAccessHandler {
         self.is_write
     }
 
-    fn last_page(page: &Self::Pages) -> Option<GearPage> {
-        Some(*page)
-    }
-
     fn check_status_is_gas_exceeded() -> Result<(), Error> {
         // Because we unprotect all lazy-pages when status is `exceeded`, then
         // we cannot receive signals from wasm memory until the end of execution.

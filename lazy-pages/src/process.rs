@@ -57,9 +57,6 @@ pub(crate) trait AccessHandler {
     /// Charge for one gear page data loading.
     fn charge_for_page_data_loading(&mut self) -> Result<Status, Error>;
 
-    /// Get the biggest page from `pages`.
-    fn last_page(pages: &Self::Pages) -> Option<GearPage>;
-
     /// Apply `f` for all `pages`.
     fn process_pages(
         pages: Self::Pages,
@@ -87,15 +84,6 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
     pages: H::Pages,
 ) -> Result<H::Output, Error> {
     let wasm_mem_size = ctx.wasm_mem_size.offset(ctx);
-    if let Some(last_page) = H::last_page(&pages) {
-        // Check that all pages are inside wasm memory.
-        if last_page.end_offset(ctx) >= wasm_mem_size {
-            return Err(Error::OutOfWasmMemoryAccess);
-        }
-    } else {
-        // Accessed pages are empty - nothing to do.
-        return handler.into_output(ctx);
-    }
 
     if ctx.status != Status::Normal {
         H::check_status_is_gas_exceeded()?;
@@ -128,6 +116,9 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
     let page_size = GearPage::size(ctx) as usize;
 
     let process_one = |page: GearPage| -> Result<(), Error> {
+        if page.end_offset(ctx) >= wasm_mem_size {
+            return Err(Error::OutOfWasmMemoryAccess);
+        }
         let page_offset = page.offset(ctx);
         let page_buffer_ptr = unsafe { (wasm_mem_addr as *mut u8).add(page_offset as usize) };
 
