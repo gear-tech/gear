@@ -106,30 +106,27 @@ pub trait GearRI {
         let mut gas_left = gas_left.0;
         let gas_before = gas_left.gas;
         let res = lazy_pages::pre_process_memory_accesses(
-            reads.iter().cloned(),
-            writes.iter().cloned(),
+            &mut reads.iter().cloned(),
+            &mut writes.iter().cloned(),
             &mut gas_left.gas,
         );
 
-        // Support charge for allowance otherwise DB will be corrupted.
         gas_left.allowance = gas_left
             .allowance
             .saturating_sub(gas_before.saturating_sub(gas_left.gas));
 
-        match res {
-            Ok(_) => {
-                if gas_left.allowance > 0 {
-                    (gas_left, Ok(()))
-                } else {
-                    (gas_left, Err(ProcessAccessErrorVer1::GasAllowanceExceeded))
-                }
-            }
-            Err(ProcessAccessError::OutOfBounds) => {
-                (gas_left, Err(ProcessAccessErrorVer1::OutOfBounds))
-            }
+        let result = match res {
+            Ok(_) => Ok(()),
+            Err(ProcessAccessError::OutOfBounds) => Err(ProcessAccessErrorVer1::OutOfBounds),
             Err(ProcessAccessError::GasLimitExceeded) => {
-                (gas_left, Err(ProcessAccessErrorVer1::GasLimitExceeded))
+                Err(ProcessAccessErrorVer1::GasLimitExceeded)
             }
+        };
+
+        if gas_left.allowance > 0 {
+            (gas_left, result)
+        } else {
+            (gas_left, Err(ProcessAccessErrorVer1::GasAllowanceExceeded))
         }
     }
 
@@ -137,18 +134,18 @@ pub trait GearRI {
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
         const SUCCESS: u8 = 0;
 
-        let reads_intervals = reads
+        let mut reads_intervals = reads
             .chunks_exact(MEM_INTERVAL_SIZE)
             .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok());
-        let writes_intervals = writes
+        let mut writes_intervals = writes
             .chunks_exact(MEM_INTERVAL_SIZE)
             .filter_map(|chunk| MemoryInterval::try_from_bytes(chunk).ok());
 
         let mut gas_counter = LittleEndian::read_u64(gas_bytes);
 
         let res = match lazy_pages::pre_process_memory_accesses(
-            reads_intervals,
-            writes_intervals,
+            &mut reads_intervals,
+            &mut writes_intervals,
             &mut gas_counter,
         ) {
             Ok(_) => SUCCESS,

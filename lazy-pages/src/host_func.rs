@@ -27,9 +27,59 @@ use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
 use gear_core::{
     self,
     memory::MemoryInterval,
-    pages::{GearPage, PageDynSize},
+    pages::{GearPage, PageDynSize, PageNumber},
 };
-use std::collections::BTreeSet;
+use std::ops::RangeInclusive;
+
+pub struct MemoryIntervalPageIterator<'a> {
+    intervals: &'a mut dyn Iterator<Item = MemoryInterval>,
+    page_size: u32,
+    current_pages: Option<RangeInclusive<u32>>,
+}
+
+impl<'a> MemoryIntervalPageIterator<'a> {
+    fn new(intervals: &'a mut impl Iterator<Item = MemoryInterval>, page_size: u32) -> Self {
+        let current_pages = Self::calculate_current_pages(intervals.next(), page_size);
+
+        Self {
+            intervals,
+            page_size,
+            current_pages,
+        }
+    }
+
+    fn calculate_current_pages(
+        interval: Option<MemoryInterval>,
+        page_size: u32,
+    ) -> Option<RangeInclusive<u32>> {
+        interval.map(|interval| {
+            let last_byte = interval
+                .offset
+                .saturating_add(interval.size)
+                .saturating_sub(1);
+            let start_page = interval.offset / page_size;
+            let end_page = last_byte / page_size;
+
+            start_page..=end_page
+        })
+    }
+}
+
+impl<'a> Iterator for MemoryIntervalPageIterator<'a> {
+    type Item = GearPage;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(pages) = self.current_pages.as_mut() {
+            if let Some(page_number) = pages.next() {
+                return Some(unsafe { GearPage::from_raw(page_number) });
+            } else {
+                self.current_pages =
+                    Self::calculate_current_pages(self.intervals.next(), self.page_size);
+            }
+        }
+        None
+    }
+}
 
 pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
@@ -38,7 +88,7 @@ pub(crate) struct HostFuncAccessHandler<'a> {
 }
 
 impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
-    type Pages = BTreeSet<GearPage>;
+    type Pages = MemoryIntervalPageIterator<'a>;
     type Output = Status;
 
     fn is_write(&self) -> bool {
@@ -78,11 +128,12 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
     }
 
     fn process_pages(
-        pages: Self::Pages,
+        mut pages: Self::Pages,
         mut process_one: impl FnMut(GearPage) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        pages.iter().try_for_each(|page| -> Result<(), Error> {
-            process_one(*page)?;
+        pages.try_for_each(|page| -> Result<(), Error> {
+            log::trace!("process_pages: {page:?}");
+            process_one(page)?;
             Ok(())
         })
     }
@@ -94,40 +145,14 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 
 fn process_memory_intervals(
     ctx: &mut LazyPagesExecutionContext,
-    intervals: impl Iterator<Item = MemoryInterval>,
+    intervals: &mut impl Iterator<Item = MemoryInterval>,
     gas_counter: &mut u64,
     gas_charger: &mut GasCharger,
     is_write: bool,
 ) -> Result<Status, Error> {
     let page_size = GearPage::size(ctx);
 
-    let mut pages = BTreeSet::new();
-    let mut last_offset = None;
-
-    for interval in intervals {
-        if last_offset == Some(interval.offset) {
-            // Skip duplicates
-            continue;
-        }
-        last_offset = Some(interval.offset);
-
-        // Process memory interval
-        let last_byte = interval
-            .offset
-            .saturating_add(interval.size)
-            .saturating_sub(1);
-        let start = (interval.offset / page_size) * page_size;
-        let end = (last_byte / page_size) * page_size;
-
-        let mut offset = start;
-        while offset <= end {
-            pages.insert(GearPage::from_offset(ctx, offset));
-            match offset.checked_add(page_size) {
-                Some(next_offset) => offset = next_offset,
-                None => break,
-            }
-        }
-    }
+    let page_iter = MemoryIntervalPageIterator::new(intervals, page_size);
 
     process::process_lazy_pages(
         ctx,
@@ -136,13 +161,14 @@ fn process_memory_intervals(
             gas_counter,
             gas_charger,
         },
-        pages,
+        page_iter,
+        page_size,
     )
 }
 
 pub fn pre_process_memory_accesses(
-    reads: impl Iterator<Item = MemoryInterval> + std::fmt::Debug,
-    writes: impl Iterator<Item = MemoryInterval> + std::fmt::Debug,
+    reads: &mut (impl Iterator<Item = MemoryInterval> + std::fmt::Debug),
+    writes: &mut (impl Iterator<Item = MemoryInterval> + std::fmt::Debug),
     gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
     log::trace!("host func mem accesses: {reads:?} {writes:?}");

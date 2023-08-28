@@ -82,6 +82,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
     ctx: &mut LazyPagesExecutionContext,
     mut handler: H,
     pages: H::Pages,
+    page_size: u32,
 ) -> Result<H::Output, Error> {
     let wasm_mem_size = ctx.wasm_mem_size.offset(ctx);
 
@@ -113,8 +114,6 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
         }
     };
 
-    let page_size = GearPage::size(ctx) as usize;
-
     let process_one = |page: GearPage| -> Result<(), Error> {
         if page.end_offset(ctx) >= wasm_mem_size {
             return Err(Error::OutOfWasmMemoryAccess);
@@ -123,7 +122,12 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
         let page_buffer_ptr = unsafe { (wasm_mem_addr as *mut u8).add(page_offset as usize) };
 
         let protect_page = |prot_write| {
-            mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
+            mprotect::mprotect_interval(
+                page_buffer_ptr as usize,
+                page_size as usize,
+                true,
+                prot_write,
+            )
         };
 
         match (
@@ -157,7 +161,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                     }
                     protect_page(true)?;
                     let buffer_as_slice =
-                        unsafe { slice::from_raw_parts_mut(page_buffer_ptr, page_size) };
+                        unsafe { slice::from_raw_parts_mut(page_buffer_ptr, page_size as usize) };
                     if !ctx.load_page_data_from_storage(page, buffer_as_slice)? {
                         unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
                     }
