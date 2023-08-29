@@ -25,6 +25,52 @@ use super::*;
 
 pub mod syscalls_integrity;
 mod utils;
-
 #[cfg(feature = "lazy-pages")]
 pub mod lazy_pages;
+
+use crate::{
+    benchmarking::{code::body, utils as common_utils, utils::PrepareConfig},
+    HandleKind,
+};
+
+use gear_wasm_instrument::parity_wasm::elements::Instruction;
+
+pub fn check_stack_overflow<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let instrs = vec![
+        Instruction::I64Const(10),
+        Instruction::GetGlobal(0),
+        Instruction::I64Add,
+        Instruction::SetGlobal(0),
+        Instruction::Call(1),
+    ];
+    let module = ModuleDefinition {
+        memory: Some(ImportedMemory::max::<T>()),
+        handle_body: Some(body::from_instructions(instrs)),
+        stack_end: Some(0.into()),
+        num_globals: 1,
+        ..Default::default()
+    };
+    let instance = Program::<T>::new(module.into(), vec![]).unwrap();
+    let source = instance.caller.into_origin();
+    let origin = instance.addr;
+
+    let exec = common_utils::prepare_exec::<T>(
+        source,
+        HandleKind::Handle(ProgramId::from_origin(origin)),
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+
+    let notes = core_processor::process::<ExecutionEnvironment>(
+        &exec.block_config,
+        exec.context,
+        exec.random_data,
+        exec.memory_pages,
+    )
+    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+}

@@ -726,7 +726,7 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            stack_height: Some(1000000),
+            stack_height: Some(100),
             globals: 256,
             locals: 1024,
             parameters: 128,

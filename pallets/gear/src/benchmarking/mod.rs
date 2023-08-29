@@ -363,6 +363,7 @@ benchmarks! {
     #[extra]
     check_all {
         syscalls_integrity::main_test::<T>();
+        tests::check_stack_overflow::<T>();
         #[cfg(feature = "lazy-pages")]
         {
             tests::lazy_pages::lazy_pages_charging::<T>();
@@ -370,6 +371,11 @@ benchmarks! {
             tests::lazy_pages::lazy_pages_gas_exceed::<T>();
         }
     } : {}
+
+    #[extra]
+    check_stack_overflow {
+        tests::check_stack_overflow::<T>();
+    }: {}
 
     #[extra]
     check_lazy_pages_all {

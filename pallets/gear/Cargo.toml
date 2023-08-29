@@ -118,7 +118,7 @@ pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
 [features]
-default = ['std']
+default = ['std', 'runtime-benchmarks']
 std = [
 	"parity-scale-codec/std",
 	"env_logger",
