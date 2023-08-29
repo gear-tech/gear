@@ -31,8 +31,13 @@ use std::{collections::HashMap, ops::RangeInclusive};
 /// the params.
 ///
 /// # Note:
-/// If you set the rule for [`ParamType::Ptr`] then it wouldn't be applied as
-/// we select value for the pointers in accordance with current memory size.
+///
+/// Configs with some [`ParamType`] variants will not be applied, as we select
+/// values for all memory-related operations in accordance to generated WASM
+/// module parameters:
+///  - [`ParamType::Alloc`] and [`ParamType::Ptr`] will always be ignored.
+///  - [`ParamType::Size`] will be ignored when it means length of some in-memory
+/// array.
 #[derive(Debug, Clone)]
 pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
@@ -48,7 +53,6 @@ impl SysCallsParamsConfig {
                 ParamType::Duration,
                 ParamType::Delay,
                 ParamType::Handler,
-                ParamType::Alloc,
                 ParamType::Free,
             ]
             .into_iter()
@@ -83,7 +87,6 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Duration, (1..=8).into()),
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
-                (ParamType::Alloc, (0..=512).into()),
                 (ParamType::Free, (0..=512).into()),
             ]
             .into_iter()

@@ -235,6 +235,7 @@ fn execute_wasm_with_syscall_injected(
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
     use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
@@ -272,12 +273,9 @@ fn execute_wasm_with_syscall_injected(
     let module = generate_gear_program_module(&mut unstructured, gear_config)
         .expect("failed wasm generation");
 
-    let module = gear_wasm_instrument::inject(
-        module,
-        &gear_wasm_instrument::rules::CustomConstantCostRules::new(0, 0, 0),
-        "env",
-    )
-    .expect("WASM module instrumentation failed");
+    let module =
+        gear_wasm_instrument::inject(module, &CustomConstantCostRules::new(0, 0, 0), "env")
+            .expect("WASM module instrumentation failed");
     let code = module
         .into_bytes()
         .expect("Failed to serialize WASM module");

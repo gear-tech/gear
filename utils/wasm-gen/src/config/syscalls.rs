@@ -40,7 +40,7 @@ impl SysCallsConfigBuilder {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
             sending_message_destination: MessageDestination::default(),
-            ignore_fallible_syscall_errors: false,
+            ignore_fallible_syscall_errors: true,
             log_info: None,
         })
     }
