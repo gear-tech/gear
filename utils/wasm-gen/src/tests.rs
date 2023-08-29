@@ -270,15 +270,10 @@ fn execute_wasm_with_syscall_injected(
         },
     );
 
-    let module = generate_gear_program_module(&mut unstructured, gear_config)
-        .expect("failed wasm generation");
-
-    let module =
-        gear_wasm_instrument::inject(module, &CustomConstantCostRules::new(0, 0, 0), "env")
-            .expect("WASM module instrumentation failed");
-    let code = module
-        .into_bytes()
-        .expect("Failed to serialize WASM module");
+    let code =
+        generate_gear_program_code(&mut unstructured, gear_config).expect("failed wasm generation");
+    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
+        .expect("Failed to create Code");
 
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
@@ -298,7 +293,7 @@ fn execute_wasm_with_syscall_injected(
     let ext = gear_core_processor::Ext::new(processor_context);
     let env = SandboxEnvironment::new(
         ext,
-        &code,
+        code.code(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         INITIAL_PAGES.into(),
