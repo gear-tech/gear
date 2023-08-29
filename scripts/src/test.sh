@@ -81,13 +81,13 @@ validators() {
 
 run_fuzzer() {
   ROOT_DIR="$1"
-
+  CORPUS_DIR="$2"
   # Navigate to fuzzer dir
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
   RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+  cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
 }
 
 test_fuzzer_reproduction() {
