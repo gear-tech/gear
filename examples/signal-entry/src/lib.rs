@@ -53,6 +53,7 @@ pub enum HandleAction {
     UnrecoverableExt,
     IncorrectFree,
     WaitWithoutSendingMessage,
+    MemoryAccess,
 }
 
 pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
@@ -250,6 +251,16 @@ mod wasm {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
 
                 exec::wait();
+            }
+            HandleAction::MemoryAccess => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+
+                const ARRAY_SIZE: usize = 1_000_000;
+                let arr = [42u8; ARRAY_SIZE];
+
+                for i in 0..ARRAY_SIZE {
+                    let value = arr[i];
+                }
             }
         }
     }

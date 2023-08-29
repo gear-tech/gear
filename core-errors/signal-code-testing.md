@@ -257,7 +257,123 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
     </details>
 - Gas runs out during plain or lazy pages memory access.
 
-    This case is quite tricky to test, because accurately predicting the amount of gas consumed during program execution and estimating gas usage upon memory access can be difficult. As a result, the test for this case is not provided here.
+    This case can be tested by creating a program, that _only_ accesses memory, calculating gas for this program, and then running it with gass limit that is less than the calculated gas amount by a small margin. This will ensure that the program will run out of gas during memory access.
+   
+    <details>
+    <summary>Program to be uploaded</summary>
+
+    ```rust
+    #![no_std]
+
+    use gstd::{
+        ActorId,
+        errors::{SignalCode, SimpleExecutionError},
+        exec,
+        prelude::*,
+        msg,
+    };
+
+    static mut INITIATOR: ActorId = ActorId::zero();
+
+    #[no_mangle]
+    extern "C" fn init() {
+        unsafe { INITIATOR = msg::source() };
+    }
+
+    #[no_mangle]
+    extern "C" fn handle() {
+        exec::system_reserve_gas(1_000_000_000).unwrap();
+
+        const ARRAY_SIZE: usize = 1_000_000;
+        let arr = [42u8; ARRAY_SIZE];
+
+        for i in 0..ARRAY_SIZE {
+            let value = arr[i];
+        }
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        let signal_received = msg::signal_code()
+            .expect("Incorrect call")
+            .expect("Unsupported code");
+
+        if signal_received == SignalCode::Execution(SimpleExecutionError::RanOutOfGas) {
+            msg::send(unsafe { INITIATOR }, true, 0).unwrap();
+        } else {
+            msg::send(unsafe { INITIATOR }, false, 0).unwrap();
+        }
+    }
+    ```
+
+    </details>
+
+    <details>
+    <summary>Test</summary>
+
+    ```rust
+    const USER_1: AccountId = 1;
+    const DEFAULT_SALT: &[u8; 4] = b"salt";
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    #[test]
+    fn test_signal_run_out_of_gas_memory_access_works() {
+        use demo_signal_run_out_of_gas_memory_access::{WASM_BINARY};
+
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Calculate gas for this action
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            [].into(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Send the message to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            [].into(),
+            min_limit - 1,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let mid = get_last_message_id();
+
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        run_to_next_block(None);
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    }
+    ```
+    </details>
 
 #### Backend error
 <a name="backend-error"></a>
@@ -386,7 +502,7 @@ There are two cases of fails when this signal code is sent:
     This case is sent when:
     - A syscall `debug` gets called with invalid string.
 
-        This test will not work in `release` production mode, because the `gr_debug` syscall will be optimized out. To test this case, one must run the test in `debug` mode.
+        This test will not work in the `release` mode until the `gstd` crate is imported into the contract code using the `debug` feature. Otherwise, the `gr_debug` syscall will be optimized out.
 
         <details>
         <summary>Program to be uploaded</summary>
