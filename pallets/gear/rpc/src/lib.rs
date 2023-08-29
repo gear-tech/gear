@@ -105,6 +105,7 @@ pub trait GearApi<BlockHash, ResponseType> {
     fn read_state_using_wasm(
         &self,
         program_id: H256,
+        payload: Bytes,
         fn_name: Bytes,
         wasm: Bytes,
         argument: Option<Bytes>,
@@ -338,6 +339,7 @@ where
     fn read_state_using_wasm(
         &self,
         program_id: H256,
+        payload: Bytes,
         fn_name: Bytes,
         wasm: Bytes,
         argument: Option<Bytes>,
@@ -349,6 +351,7 @@ where
             api.read_state_using_wasm(
                 at_hash,
                 program_id,
+                payload.to_vec(),
                 fn_name.to_vec(),
                 wasm.to_vec(),
                 argument.map(|v| v.to_vec()),

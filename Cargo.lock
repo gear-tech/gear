@@ -3588,7 +3588,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -3754,20 +3754,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "gear-backend-wasmi"
-version = "0.3.2"
-dependencies = [
- "derive_more",
- "gear-backend-common",
- "gear-core",
- "gear-core-errors",
- "gear-wasm-instrument",
- "log",
- "parity-scale-codec",
- "wasmi 0.14.0",
 ]
 
 [[package]]
@@ -4390,7 +4376,7 @@ version = "0.3.2"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-backend-common",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
@@ -4698,7 +4684,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-backend-common",
- "gear-backend-wasmi",
+ "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -7347,7 +7333,6 @@ dependencies = [
  "frame-system",
  "gear-backend-common",
  "gear-backend-sandbox",
- "gear-backend-wasmi",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -14109,7 +14094,6 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
- "region",
 ]
 
 [[package]]
