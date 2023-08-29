@@ -55,6 +55,7 @@ impl sc_executor::NativeExecutionDispatch for GearExecutorDispatch {
         // Only for runtime-benchmarks host functions.
         gear_ri::gear_debug::HostFunctions,
         frame_benchmarking::benchmarking::HostFunctions,
+
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
     );
