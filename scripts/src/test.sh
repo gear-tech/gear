@@ -108,4 +108,5 @@ doc_test() {
 
 time_consuming_tests() {
   $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
+  $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
 }
