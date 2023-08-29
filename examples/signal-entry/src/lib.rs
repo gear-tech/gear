@@ -258,8 +258,9 @@ mod wasm {
                 const ARRAY_SIZE: usize = 1_000_000;
                 let arr = [42u8; ARRAY_SIZE];
 
+                #[allow(clippy::needless_range_loop)]
                 for i in 0..ARRAY_SIZE {
-                    let value = arr[i];
+                    let _value = arr[i];
                 }
             }
         }
