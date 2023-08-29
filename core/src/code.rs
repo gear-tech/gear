@@ -342,8 +342,7 @@ impl Code {
             module = gear_wasm_instrument::inject(module, &gas_rules, "env")
                 .map_err(|_| CodeError::GasInjection)?;
 
-            let code = parity_wasm::elements::serialize(module)
-                .map_err(|_| CodeError::Encode)?;
+            let code = parity_wasm::elements::serialize(module).map_err(|_| CodeError::Encode)?;
 
             Ok(Self {
                 code,

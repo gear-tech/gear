@@ -23,10 +23,10 @@
 
 use super::*;
 
-pub mod syscalls_integrity;
-mod utils;
 #[cfg(feature = "lazy-pages")]
 pub mod lazy_pages;
+pub mod syscalls_integrity;
+mod utils;
 
 use crate::{
     benchmarking::{code::body, utils as common_utils, utils::PrepareConfig},
