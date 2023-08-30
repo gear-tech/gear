@@ -7,8 +7,12 @@ license = "GPL-3.0"
 workspace = "../../"
 
 [dependencies]
-gstd.workspace = true
+gstd = { workspace = true, features = [
+    "debug",
+] } # debug is used here, because `signal_backend_error_invalid_debug_works` test in `pallet-gear` requires it to be working correctly in release mode
 parity-scale-codec = { workspace = true, features = ["derive"] }
+gear-core.workspace = true
+gsys.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
