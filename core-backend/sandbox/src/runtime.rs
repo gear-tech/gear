@@ -114,7 +114,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerW
             cost,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let write_res = ctx.register_write_as::<R>(res_ptr);
-                
+
                 let res = f(ctx);
                 let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
