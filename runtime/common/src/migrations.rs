@@ -65,7 +65,11 @@ where
 
                 let gas_price = P::gas_price(gas_amount);
                 log::debug!("Gas nodes: {node_id:?} = {gas_amount} ({gas_price:?})");
-                log::debug!("Gas nodes external: {external:?} = {:?}; {:?}", Balances::<T>::free_balance(&external), Balances::<T>::reserved_balance(&external));
+                log::debug!(
+                    "Gas nodes external: {external:?} = {:?}; {:?}",
+                    Balances::<T>::free_balance(&external),
+                    Balances::<T>::reserved_balance(&external)
+                );
                 Balances::<T>::unreserve(&external, gas_price);
                 GearBank::<T>::deposit_gas::<P>(&external, gas_amount)
                     .expect("Failed to deposit gas");
