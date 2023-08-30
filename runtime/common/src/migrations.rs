@@ -53,7 +53,7 @@ where
 
         log::info!("🚚 Running migration to gear-bank with current spec version {version:?}");
 
-        if version <= 330 {
+        if version <= 320 {
             let mut ops = 0u64;
 
             // Depositing gas from gas nodes.
