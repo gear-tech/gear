@@ -287,7 +287,7 @@ fn execute_wasm_with_syscall_injected(
         message_context,
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
-        ..ProcessorContext::default()
+        ..ProcessorContext::new_mock()
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);

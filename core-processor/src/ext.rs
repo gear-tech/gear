@@ -106,8 +106,10 @@ pub struct ProcessorContext {
     pub rent_cost: u128,
 }
 
-impl Default for ProcessorContext {
-    fn default() -> ProcessorContext {
+#[cfg(any(feature = "mock", test))]
+impl ProcessorContext {
+    /// Create new mock [`ProcessorContext`] for usage in tests.
+    pub fn new_mock() -> ProcessorContext {
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
@@ -1171,7 +1173,7 @@ mod tests {
         fn new() -> Self {
             Self(ProcessorContext {
                 page_costs: PageCosts::new_for_tests(),
-                ..ProcessorContext::default()
+                ..ProcessorContext::new_mock()
             })
         }
 

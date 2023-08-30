@@ -25,4 +25,4 @@ proptest.workspace = true
 
 gear-backend-sandbox = { workspace = true, features = ["std"] }
 gear-backend-common = { workspace = true, features = ["mock"] }
-gear-core-processor.workspace = true
+gear-core-processor = { workspace = true, features = ["mock"] }
