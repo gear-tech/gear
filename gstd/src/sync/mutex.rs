@@ -112,10 +112,11 @@ impl<T> Mutex<T> {
         }
     }
 
-    // Returns a mutable reference to the mutex lock owner. The function uses unsafe code because
-    // it is called from the places where there is only non-mutable reference to the mutex exists,
-    // and the latter can't be turned into a mutable one as it will break logic around the `Mutex.lock`
-    // function which must be called on a non-mutable reference to the mutex.
+    // Returns a mutable reference to the mutex lock owner. The function uses unsafe
+    // code because it is called from the places where there is only non-mutable
+    // reference to the mutex exists, and the latter can't be turned into a
+    // mutable one as it will break logic around the `Mutex.lock` function which
+    // must be called on a non-mutable reference to the mutex.
     fn locked_by_mut(&self) -> &mut Option<(MessageId, BlockNumber)> {
         unsafe { &mut *self.locked.get() }
     }
