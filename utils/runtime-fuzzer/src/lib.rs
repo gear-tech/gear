@@ -25,11 +25,27 @@ mod tests;
 
 pub use arbitrary_call::GearCalls;
 
+use arbitrary_call::FuzzerRuntimeData;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
-use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
+use gear_call_gen::{GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
+use gear_runtime::{AccountId, Gear, GearMessenger, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
+
+trait RuntimeDataUpdate {
+    fn apply_runtime_data_update(&self, runtime_data: &mut FuzzerRuntimeData);
+}
+
+impl RuntimeDataUpdate for GearCall {
+    fn apply_runtime_data_update(&self, runtime_data: &mut FuzzerRuntimeData) {
+        match self {
+            GearCall::UploadProgram(..) | GearCall::SendMessage(..) => {
+                // TODO: Fetch messages from mailbox.
+            }
+            _ => {}
+        }
+    }
+}
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(gear_calls: GearCalls) {
@@ -51,21 +67,29 @@ fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
             );
         }
 
+        let mut runtime_data = FuzzerRuntimeData::default();
         for gear_call in gear_calls {
-            let call_res = execute_gear_call(sender.clone(), gear_call);
+            let gear_call = gear_call.preprocess(&runtime_data);
+            let call_res = execute_gear_call(sender.clone(), gear_call.clone(), &mut runtime_data);
             // Newline to easily browse logs.
             println!();
             log::info!("Extrinsic result: {call_res:?}");
 
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
+
+            gear_call.apply_runtime_data_update(&mut runtime_data);
         }
     });
 
     test_ext
 }
 
-fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
+fn execute_gear_call(
+    sender: AccountId,
+    call: GearCall,
+    _: &mut FuzzerRuntimeData,
+) -> DispatchResultWithPostInfo {
     match call {
         GearCall::UploadProgram(args) => {
             let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
@@ -83,6 +107,17 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
+                payload,
+                gas_limit,
+                value,
+                prepaid,
+            )
+        }
+        GearCall::SendReply(args) => {
+            let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
+            Gear::send_reply(
+                RuntimeOrigin::signed(sender),
+                message_id,
                 payload,
                 gas_limit,
                 value,
