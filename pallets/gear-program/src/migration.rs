@@ -72,23 +72,25 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                 |program_id, (program, _bn): (v1::Program, <T as frame_system::Config>::BlockNumber)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-                    let block_number = T::CurrentBlockNumber::get();
-                    let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
-                    let task = ScheduledTask::PauseProgram(program_id);
-                    TaskPoolOf::<T>::add(expiration_block, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
                     Some(match program {
-                        v1::Program::Active(p) => Program::Active(common::ActiveProgram {
-                            allocations: p.allocations,
-                            pages_with_data: p.pages_with_data,
-                            gas_reservation_map: p.gas_reservation_map,
-                            code_hash: p.code_hash,
-                            code_exports: p.code_exports,
-                            static_pages: p.static_pages,
-                            state: p.state,
-                            expiration_block,
-                        }),
+                        v1::Program::Active(p) => {
+                            let block_number = T::CurrentBlockNumber::get();
+                            let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
+                            let task = ScheduledTask::PauseProgram(program_id);
+                            TaskPoolOf::<T>::add(expiration_block, task)
+                                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                            Program::Active(common::ActiveProgram {
+                                allocations: p.allocations,
+                                pages_with_data: p.pages_with_data,
+                                gas_reservation_map: p.gas_reservation_map,
+                                code_hash: p.code_hash,
+                                code_exports: p.code_exports,
+                                static_pages: p.static_pages,
+                                state: p.state,
+                                expiration_block,
+                            })
+                        }
                         v1::Program::Exited(id) => Program::Exited(id),
                         v1::Program::Terminated(id) => Program::Terminated(id),
                     })
