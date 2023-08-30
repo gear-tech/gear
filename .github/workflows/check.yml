@@ -19,7 +19,6 @@ jobs:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
@@ -56,13 +55,18 @@ jobs:
             exit 1
           fi
 
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "Check: Compiling gstd on stable"
+        run: cargo +stable check -p gstd
+
       - run: sccache --show-stats
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: Cancel Previous Runs
@@ -91,5 +95,3 @@ jobs:
 
       - name: "Check fuzzer reproduction"
         run: ./scripts/gear.sh test fuzz-repr
-
-      - run: sccache --show-stats

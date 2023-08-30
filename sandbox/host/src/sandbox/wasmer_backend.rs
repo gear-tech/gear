@@ -23,7 +23,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasmer::{Exportable, RuntimeError};
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
@@ -86,9 +86,6 @@ impl Clone for Env {
         }
     }
 }
-
-// TODO #3057
-pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 
 impl wasmer::WasmerEnv for Env {
     fn init_with_instance(
@@ -331,7 +328,7 @@ fn dispatch_common(
         return Err(RuntimeError::new("Can't write invoke args into memory"));
     }
 
-    // Perform the actuall call
+    // Perform the actual call
     let serialized_result = sandbox_context
         .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
         .map_err(|e| RuntimeError::new(e.to_string()));
@@ -510,7 +507,7 @@ impl MemoryWrapper {
         let len: usize = memory.data_size().try_into().expect(
             "maximum memory object size never exceeds pointer size on any architecture; \
 			usize by design and definition is enough to store any memory object size \
-			possible on current achitecture; thus the conversion can not fail; qed",
+			possible on current architecture; thus the conversion can not fail; qed",
         );
 
         if len == 0 {
@@ -533,7 +530,7 @@ impl MemoryWrapper {
         let len: usize = memory.data_size().try_into().expect(
             "maximum memory object size never exceeds pointer size on any architecture; \
 			usize by design and definition is enough to store any memory object size \
-			possible on current achitecture; thus the conversion can not fail; qed",
+			possible on current architecture; thus the conversion can not fail; qed",
         );
 
         if len == 0 {
@@ -551,7 +548,7 @@ impl MemoryTransfer for MemoryWrapper {
         let data_size: usize = memory.data_size().try_into().expect(
             "maximum memory object size never exceeds pointer size on any architecture; \
 			usize by design and definition is enough to store any memory object size \
-			possible on current achitecture; thus the conversion can not fail; qed",
+			possible on current architecture; thus the conversion can not fail; qed",
         );
 
         let range = util::checked_range(source_addr.into(), size, data_size)
@@ -601,7 +598,7 @@ impl MemoryTransfer for MemoryWrapper {
             .grow(pages)
             .map_err(|e| {
                 Error::Sandbox(format!(
-                    "Connot grow memory in wasmer sandbox executor: {}",
+                    "Cannot grow memory in wasmer sandbox executor: {}",
                     e
                 ))
             })

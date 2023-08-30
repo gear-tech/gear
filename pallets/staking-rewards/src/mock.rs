@@ -612,20 +612,15 @@ pub(crate) fn run_for_n_blocks(n: u64) {
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    System::on_initialize(new_block_number);
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
-    Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
-    Staking::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     Staking::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
-    Balances::on_finalize(current_blk);
-    System::on_finalize(current_blk);
 }
 
 pub fn default_test_ext() -> sp_io::TestExternalities {
@@ -653,7 +648,7 @@ pub(crate) fn nominators_total_balance() -> u128 {
         .fold(0_u128, |acc, x| acc.saturating_add(x))
 }
 
-// Retuns the chain state as a tuple
+// Returns the chain state as a tuple
 // (`total_issuance`, `stakeable_amount`, `treasury_balance`, `staking_rewards_pool_balance`)
 pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
     (

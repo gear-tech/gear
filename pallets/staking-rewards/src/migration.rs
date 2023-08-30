@@ -16,14 +16,94 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, Weight};
+use crate::{pallet, Config, Pallet, Weight};
+use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
+use sp_runtime::Perquintill;
+use sp_std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
-/// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight {
-    use frame_support::traits::GetStorageVersion;
+pub struct MigrateToV2<T: Config>(PhantomData<T>);
 
-    let _onchain = Pallet::<T>::on_chain_storage_version();
-    let weight: Weight = Weight::zero();
+impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
+    fn on_runtime_upgrade() -> Weight {
+        let current = Pallet::<T>::current_storage_version();
+        let onchain = Pallet::<T>::on_chain_storage_version();
 
-    weight
+        log::info!(
+            "🚚 Running migration with current storage version {:?} / onchain {:?}",
+            current,
+            onchain
+        );
+
+        let mut weight = T::DbWeight::get().reads(1); // 1 read for on chain storage version.
+
+        if current == 2 && onchain == 1 {
+            // Adjusted target inflation parameter: 6.00%
+            let adjusted_inflation: Perquintill = Perquintill::from_percent(6);
+            pallet::TargetInflation::<T>::put(adjusted_inflation);
+
+            current.put::<Pallet<T>>();
+
+            log::info!("Successfully migrated storage from v1 to v2");
+
+            // 1 write for `TargetInflation` + 1 write for `StorageVersion`
+            weight += T::DbWeight::get().writes(2)
+        } else {
+            log::info!("❌ Migration did not execute. This probably should be removed");
+        }
+
+        weight
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+        use parity_scale_codec::Encode;
+
+        let inflation = pallet::TargetInflation::<T>::get();
+        assert_eq!(inflation, Perquintill::from_rational(578_u64, 10_000_u64));
+        Ok(inflation.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+        use parity_scale_codec::Decode;
+
+        let old_inflation: Perquintill = Decode::decode(&mut &state[..]).unwrap();
+        let new_inflation = pallet::TargetInflation::<T>::get();
+        assert_ne!(old_inflation, new_inflation);
+        assert_eq!(new_inflation, Perquintill::from_percent(6));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock::*;
+    use frame_support::traits::StorageVersion;
+
+    #[test]
+    fn migrate_to_v2() {
+        ExtBuilder::default()
+            .initial_authorities(vec![(VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID)])
+            .stash(VALIDATOR_STAKE)
+            .endowment(ENDOWMENT)
+            .target_inflation(Perquintill::from_rational(578_u64, 10_000_u64))
+            .build()
+            .execute_with(|| {
+                StorageVersion::new(1).put::<Pallet<Test>>();
+
+                let weight = MigrateToV2::<Test>::on_runtime_upgrade();
+                assert_eq!(
+                    weight,
+                    <Test as frame_system::Config>::DbWeight::get().reads_writes(1, 2)
+                );
+
+                assert_eq!(
+                    pallet::TargetInflation::<Test>::get(),
+                    Perquintill::from_percent(6),
+                );
+            })
+    }
 }

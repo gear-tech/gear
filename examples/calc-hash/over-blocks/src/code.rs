@@ -58,7 +58,7 @@ extern "C" fn handle() {
 
 mod state {
     use super::types::Package;
-    use gstd::BTreeMap;
+    use gstd::collections::BTreeMap;
     use shared::PackageId;
 
     pub static mut THRESHOLD: Option<u64> = None;

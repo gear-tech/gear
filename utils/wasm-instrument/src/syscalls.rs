@@ -344,7 +344,7 @@ impl SysCallName {
 /// Syscall param type.
 ///
 /// `Ptr` is usually used to point to the beginning of the array in memory.
-/// In order to distiguish between pointer to the memory array and pointer
+/// In order to distinguish between pointer to the memory array and pointer
 /// to some value, `Ptr` was defined as a tuple-like struct that owns an
 /// optional index of the memory array size parameter. So if current sys-call
 /// doesn't accept any memory array as an argument, then pointer parameter will
