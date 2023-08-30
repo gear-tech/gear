@@ -113,11 +113,10 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerW
             gas,
             cost,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
+                let write_res = ctx.register_write_as::<R>(res_ptr);
+                
                 let res = f(ctx);
                 let res = ctx.host_state_mut().process_fallible_func_result(res)?;
-
-                // TODO: move above or make normal process memory access.
-                let write_res = ctx.register_write_as::<R>(res_ptr);
 
                 ctx.write_as(write_res, R::from(res)).map_err(Into::into)
             },
