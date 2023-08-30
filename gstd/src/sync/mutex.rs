@@ -117,6 +117,7 @@ impl<T> Mutex<T> {
     // reference to the mutex exists, and the latter can't be turned into a
     // mutable one as it will break logic around the `Mutex.lock` function which
     // must be called on a non-mutable reference to the mutex.
+    #[allow(clippy::mut_from_ref)]
     fn locked_by_mut(&self) -> &mut Option<(MessageId, BlockNumber)> {
         unsafe { &mut *self.locked.get() }
     }
