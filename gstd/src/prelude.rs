@@ -19,25 +19,50 @@
 //! The `gstd` default prelude. Re-imports default `std` modules and traits.
 //! `std` can be safely replaced to `gstd` in the Rust programs.
 
-pub use core::prelude::v1::*;
+// Reexports from Rust's libraries
 
-// Public module re-exports
-pub use alloc::{borrow, boxed, collections, fmt, format, rc, slice, string, vec};
+pub use ::alloc::{
+    alloc, borrow,
+    borrow::ToOwned,
+    boxed,
+    boxed::Box,
+    fmt, format, rc, str, string,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 pub use core::{
-    any, cell, clone, cmp, convert, default, future, hash, hint, iter, marker, mem, ops, pin, ptr,
+    any, array, ascii, assert_eq, assert_ne, cell, char, clone, cmp, convert, debug_assert,
+    debug_assert_eq, debug_assert_ne, default, future, hash, hint, iter, marker, matches, mem, num,
+    ops, option, panic, pin, prelude::rust_2021::*, primitive, ptr, result, slice, task, time,
+    todo, unimplemented, unreachable, write, writeln,
 };
 
-// Re-exported types and traits
-pub use alloc::str::FromStr;
-pub use borrow::ToOwned;
-pub use boxed::Box;
-pub use collections::{BTreeMap, BTreeSet, VecDeque};
-pub use convert::{Into, TryInto};
-pub use hashbrown::HashMap;
-pub use scale_info::{
-    self,
-    scale::{self as codec, Decode, Encode, MaxEncodedLen},
-    TypeInfo,
-};
-pub use string::{String, ToString};
-pub use vec::Vec;
+/// Collection types.
+///
+/// See [`alloc::collections`] & [`hashbrown`].
+///
+/// [`alloc::collections`]: ::alloc::collections
+pub mod collections {
+    pub use ::alloc::collections::*;
+    pub use ::hashbrown::{hash_map, hash_set, HashMap, HashSet};
+
+    /// Reexports from [`hashbrown`].
+    pub mod hashbrown {
+        pub use hashbrown::{Equivalent, TryReserveError};
+    }
+}
+/// Utilities related to FFI bindings.
+///
+/// See [`alloc::ffi`] & [`core::ffi`].
+///
+/// [`alloc::ffi`]: ::alloc::ffi
+pub mod ffi {
+    pub use ::alloc::ffi::*;
+    pub use core::ffi::*;
+}
+
+// Reexports from third-party libraries
+
+pub use parity_scale_codec::{self as codec, Decode, Encode, EncodeLike, MaxEncodedLen};
+pub use scale_info::{self, TypeInfo};

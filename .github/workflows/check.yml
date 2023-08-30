@@ -55,6 +55,12 @@ jobs:
             exit 1
           fi
 
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "Check: Compiling gstd on stable"
+        run: cargo +stable check -p gstd
+
       - run: sccache --show-stats
 
   fuzzer:
@@ -89,5 +95,3 @@ jobs:
 
       - name: "Check fuzzer reproduction"
         run: ./scripts/gear.sh test fuzz-repr
-
-      - run: sccache --show-stats

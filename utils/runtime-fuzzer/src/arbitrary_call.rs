@@ -68,9 +68,6 @@ impl GearCalls {
 
 impl Arbitrary for GearCalls {
     fn arbitrary(u: &mut Unstructured) -> Result<Self> {
-        // Newline to easily browse logs.
-        println!("\n");
-
         log::trace!("New GearCalls generation: random data received {}", u.len());
         let test_input_id = get_sha1_string(u.peek_bytes(u.len()).expect("checked"));
         log::trace!("Generating GearCalls from corpus - {}", test_input_id);

@@ -20,7 +20,7 @@
 
 pub use scale_info::MetaType;
 use scale_info::{
-    scale::{Encode, MaxEncodedLen, Output},
+    scale::{Encode, Output},
     PortableRegistry, Registry,
 };
 
@@ -29,36 +29,8 @@ use crate::prelude::{
     Box, String, Vec,
 };
 
-/// Items implementing [`MaybeMaxEncodedLen`] **might** have a statically known
-/// maximum encoded size.
-pub(crate) trait MaybeMaxEncodedLen: Encode {
-    /// If the data type implements [`MaxEncodedLen`], this method returns
-    /// `Some(<Type as MaxEncodedLen>::max_encoded_len())`.
-    ///
-    /// Otherwise, this method returns [`None`].
-    fn maybe_max_encoded_len() -> Option<usize>;
-}
-
-/// Default implementation for all types that implement [`Encode`], but not
-/// [`MaxEncodedLen`].
-impl<T: Encode> MaybeMaxEncodedLen for T {
-    default fn maybe_max_encoded_len() -> Option<usize> {
-        None
-    }
-}
-
-/// Specialization for types that implement [`MaxEncodedLen`].
-impl<T: MaxEncodedLen> MaybeMaxEncodedLen for T {
-    fn maybe_max_encoded_len() -> Option<usize> {
-        Some(T::max_encoded_len())
-    }
-}
-
 /// An auxiliary function that reduces gas consumption during payload encoding.
-pub(crate) fn with_optimized_encode<T, E: MaybeMaxEncodedLen>(
-    payload: E,
-    f: impl FnOnce(&[u8]) -> T,
-) -> T {
+pub(crate) fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u8]) -> T) -> T {
     struct ExternalBufferOutput<'a> {
         buffer: &'a mut [MaybeUninit<u8>],
         offset: usize,
@@ -78,8 +50,7 @@ pub(crate) fn with_optimized_encode<T, E: MaybeMaxEncodedLen>(
         }
     }
 
-    let size = E::maybe_max_encoded_len().unwrap_or_else(|| payload.encoded_size());
-    gcore::stack_buffer::with_byte_buffer(size, |buffer| {
+    gcore::stack_buffer::with_byte_buffer(payload.encoded_size(), |buffer| {
         let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
         let ExternalBufferOutput { buffer, offset } = output;
