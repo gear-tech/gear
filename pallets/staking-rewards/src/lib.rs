@@ -86,7 +86,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     /// The current storage version.
-    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
@@ -367,19 +367,22 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
     fn on_nonzero_unbalanced(minted: PositiveImbalanceOf<T>) {
         let amount = minted.peek();
 
-        let burned = T::Currency::withdraw(
+        if let Ok(burned) = T::Currency::withdraw(
             &Self::account_id(),
             amount,
             WithdrawReasons::TRANSFER,
             ExistenceRequirement::KeepAlive,
-        )
-        .unwrap_or_else(|_| NegativeImbalanceOf::<T>::zero());
+        ) {
+            // Offsetting rewards against rewards pool until the latter is not depleted.
+            // After that the positive imbalance is dropped adding up to the total supply.
+            let _ = minted.offset(burned);
 
-        // Offsetting rewards against rewards pool until the latter is not depleted.
-        // After that the positive imbalance is dropped adding up to the total supply.
-        let _ = minted.offset(burned);
-
-        Self::deposit_event(Event::Burned { amount });
+            Self::deposit_event(Event::Burned { amount });
+        } else {
+            log::warn!(
+                "Staking rewards pool has insufficient balance to burn minted rewards. The currency total supply may grow."
+            );
+        };
     }
 }
 
