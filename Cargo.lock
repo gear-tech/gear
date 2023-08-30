@@ -2214,8 +2214,10 @@ dependencies = [
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
+ "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gsys",
  "gtest",
  "parity-scale-codec",
 ]
