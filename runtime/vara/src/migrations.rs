@@ -6,4 +6,5 @@ pub type Migrations = (
     pallet_gear_gas::migrations::v2::MigrateToV2<Runtime>,
     pallet_gear_messenger::migrations::MigrateToV2<Runtime>,
     pallet_gear_staking_rewards::migration::MigrateToV2<Runtime>,
+    runtime_common::migrations::MigrateToGearBank<Runtime, GasConverter>,
 );
