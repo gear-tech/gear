@@ -34,7 +34,7 @@ use gear_wasm_instrument::{
     },
     syscalls::SysCallName,
 };
-use gsys::Hash;
+use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
@@ -159,6 +159,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         let sys_calls_proof = self.generate_sys_calls_imports()?;
         self.generate_send_from_reservation();
+        self.generate_reply_from_reservation();
+        self.generate_send_commit();
+        self.generate_send_commit_with_gas();
 
         Ok((self.disable(), sys_calls_proof))
     }
@@ -314,6 +317,16 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             .insert(invocable_sys_call, (1, call_indexes_handle));
     }
 
+    /// Returns the size of the memory in bytes that can be used to build precise sys-call.
+    fn memory_size_in_bytes(&self) -> u32 {
+        let initial_mem_size: WasmPageCount = self
+            .module
+            .initial_mem_size()
+            .expect("generator is instantiated with a mem import generation proof")
+            .into();
+        initial_mem_size.memory_size()
+    }
+
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) {
         let sys_call = SysCallName::ReservationSend;
@@ -323,21 +336,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         );
 
         let Some([reserve_gas_idx, reservation_send_idx]) = self
-            .invocable_sys_calls_indexes([SysCallName::ReserveGas, SysCallName::ReservationSend]) else {
+            .invocable_sys_calls_indexes([SysCallName::ReserveGas, sys_call]) else {
                 return;
             };
 
-        let memory_size_in_bytes = {
-            let initial_mem_size: WasmPageCount = self
-                .module
-                .initial_mem_size()
-                .expect("generator is instantiated with a mem import generation proof")
-                .into();
-            initial_mem_size.memory_size()
-        };
-
         // subtract to be sure we are in memory boundaries.
-        let rid_pid_value_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
+        let rid_pid_value_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
         let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
@@ -410,6 +414,280 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             // Pointer to the result of the reservation send
             Instruction::GetLocal(6),
             Instruction::Call(reservation_send_idx as u32),
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions, None);
+    }
+
+    /// Generates a function which calls "properly" the `gr_reservation_reply`.
+    fn generate_reply_from_reservation(&mut self) {
+        let sys_call = SysCallName::ReservationReply;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let Some([reserve_gas_idx, reservation_reply_idx]) = self
+            .invocable_sys_calls_indexes([SysCallName::ReserveGas, sys_call]) else {
+                return;
+            };
+
+        // subtract to be sure we are in memory boundaries.
+        let rid_value_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let value_ptr = rid_value_ptr + mem::size_of::<Hash>() as i32;
+
+        let func_instructions = Instructions::new(vec![
+            // Amount of gas to reserve
+            Instruction::GetLocal(3),
+            // Duration of the reservation
+            Instruction::GetLocal(4),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(5),
+            Instruction::Call(reserve_gas_idx as u32),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(5),
+            // Load ErrorWithHash.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHash.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHash.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Hash struct (32 bytes) containing the reservation id.
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 4),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
+            // Copy the value (16 bytes).
+            Instruction::I32Const(value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            // Pointer to reservation ID and value
+            Instruction::I32Const(rid_value_ptr),
+            // Pointer to payload
+            Instruction::GetLocal(1),
+            // Size of the payload
+            Instruction::GetLocal(2),
+            // Pointer to the result of the reservation reply
+            Instruction::GetLocal(5),
+            Instruction::Call(reservation_reply_idx as u32),
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions, None);
+    }
+
+    /// Generates a function which calls "properly" the `gr_send_commit`.
+    fn generate_send_commit(&mut self) {
+        let sys_call = SysCallName::SendCommit;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let Some([send_init_idx, send_push_idx, send_commit_idx]) = self
+            .invocable_sys_calls_indexes([SysCallName::SendInit, SysCallName::SendPush, sys_call]) else {
+                return;
+            };
+
+        // subtract to be sure we are in memory boundaries.
+        let handle_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
+
+        let func_instructions = Instructions::new(vec![
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(4),
+            Instruction::Call(send_init_idx as u32),
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(4),
+            // Load ErrorWithHandle.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHandle.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHandle.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Handle
+            Instruction::I32Const(handle_ptr),
+            Instruction::GetLocal(4),
+            Instruction::I32Load(2, 4),
+            Instruction::I32Store(2, 0),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to payload
+            Instruction::GetLocal(1),
+            // Size of the payload
+            Instruction::GetLocal(2),
+            // Pointer to the result of the send push
+            Instruction::GetLocal(4),
+            Instruction::Call(send_push_idx as u32),
+            // Pointer to the ErrorCode
+            Instruction::GetLocal(4),
+            // Load ErrorCode
+            Instruction::I32Load(2, 0),
+            // Check if ErrorCode == 0
+            Instruction::I32Eqz,
+            // If ErrorCode == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the HashWithValue struct (48 bytes) containing the recipient and value
+            // TODO: extract into another method
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to recipient ID and value
+            Instruction::I32Const(pid_value_ptr),
+            // Number of blocks to delay the sending for
+            Instruction::GetLocal(3),
+            // Pointer to the result of the send commit
+            Instruction::GetLocal(4),
+            Instruction::Call(send_commit_idx as u32),
+            Instruction::End,
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions, None);
+    }
+
+    /// Generates a function which calls "properly" the `gr_send_commit_wgas`.
+    fn generate_send_commit_with_gas(&mut self) {
+        let sys_call = SysCallName::SendCommitWGas;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let Some([size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx]) = self
+            .invocable_sys_calls_indexes([SysCallName::Size, SysCallName::SendInit, SysCallName::SendPushInput, sys_call]) else {
+                return;
+            };
+
+        // subtract to be sure we are in memory boundaries.
+        let handle_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
+        let length_ptr = pid_value_ptr + mem::size_of::<Length>() as i32;
+
+        let func_instructions = Instructions::new(vec![
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(3),
+            Instruction::Call(send_init_idx as u32),
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(3),
+            // Load ErrorWithHandle.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHandle.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHandle.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Handle
+            Instruction::I32Const(handle_ptr),
+            Instruction::GetLocal(3),
+            Instruction::I32Load(2, 4),
+            Instruction::I32Store(2, 0),
+            // Pointer to message length
+            Instruction::I32Const(length_ptr),
+            Instruction::Call(size_idx as u32),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Offset of input
+            Instruction::I32Const(0),
+            // Length of input
+            Instruction::I32Const(length_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to the result of the send push input
+            Instruction::GetLocal(3),
+            Instruction::Call(send_push_input_idx as u32),
+            // Pointer to the ErrorCode
+            Instruction::GetLocal(3),
+            // Load ErrorCode
+            Instruction::I32Load(2, 0),
+            // Check if ErrorCode == 0
+            Instruction::I32Eqz,
+            // If ErrorCode == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the HashWithValue struct (48 bytes) containing the recipient and value
+            // TODO: extract into another method
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to recipient ID and value
+            Instruction::I32Const(pid_value_ptr),
+            // Gas limit for message
+            Instruction::GetLocal(2),
+            // Number of blocks to delay the sending for
+            Instruction::GetLocal(1),
+            // Pointer to the result of the send commit
+            Instruction::GetLocal(3),
+            Instruction::Call(send_commit_wgas_idx as u32),
+            Instruction::End,
             Instruction::End,
             Instruction::End,
         ]);
