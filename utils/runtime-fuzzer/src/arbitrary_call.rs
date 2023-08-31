@@ -66,7 +66,7 @@ impl GearCalls {
     pub const MAX_CALLS: usize = 35;
 }
 
-impl Arbitrary for GearCalls {
+impl Arbitrary<'_> for GearCalls {
     fn arbitrary(u: &mut Unstructured) -> Result<Self> {
         log::trace!("New GearCalls generation: random data received {}", u.len());
         let test_input_id = get_sha1_string(u.peek_bytes(u.len()).expect("checked"));
@@ -297,7 +297,7 @@ impl ExtrinsicGenerator for SendReplyGenerator {
         _: &mut IntermediateData,
         unstructured: &mut Unstructured,
     ) -> Result<RawGearCall> {
-        let message_id = arbitary_message_id(unstructured)?;
+        let message_id = arbitrary_message_id(unstructured)?;
 
         let payload = arbitrary_payload(unstructured)?;
         log::trace!(
@@ -325,7 +325,7 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
         _: &mut IntermediateData,
         unstructured: &mut Unstructured,
     ) -> Result<RawGearCall> {
-        let message_id = arbitary_message_id(unstructured)?;
+        let message_id = arbitrary_message_id(unstructured)?;
         Ok(RawGearCall(ClaimValueArgs(message_id).into()))
     }
 
@@ -335,7 +335,7 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
     }
 }
 
-fn arbitary_message_id(u: &mut Unstructured) -> Result<MessageId> {
+fn arbitrary_message_id(u: &mut Unstructured) -> Result<MessageId> {
     let mut data = [0; 32];
     u.fill_buffer(&mut data)?;
     Ok(MessageId::from(&data[..]))

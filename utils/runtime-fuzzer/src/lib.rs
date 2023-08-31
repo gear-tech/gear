@@ -27,20 +27,40 @@ pub use arbitrary_call::GearCalls;
 
 use arbitrary_call::FuzzerRuntimeData;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_runtime::{AccountId, Gear, GearMessenger, Runtime, RuntimeOrigin};
+use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
+use gear_common::storage::{IterableByKeyMap, Messenger};
+use gear_core::message::UserStoredMessage;
+use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
+use itertools::Itertools;
 use pallet_balances::Pallet as BalancesPallet;
+use pallet_gear::Config;
 use runtime::*;
 
 trait RuntimeDataUpdate {
-    fn apply_runtime_data_update(&self, runtime_data: &mut FuzzerRuntimeData);
+    fn apply_runtime_data_update(&self, sender: AccountId, runtime_data: &mut FuzzerRuntimeData);
 }
 
 impl RuntimeDataUpdate for GearCall {
-    fn apply_runtime_data_update(&self, runtime_data: &mut FuzzerRuntimeData) {
+    fn apply_runtime_data_update(&self, sender: AccountId, runtime_data: &mut FuzzerRuntimeData) {
         match self {
             GearCall::UploadProgram(..) | GearCall::SendMessage(..) => {
-                // TODO: Fetch messages from mailbox.
+                let messages: Vec<UserStoredMessage> =
+                    <<Runtime as Config>::Messenger as Messenger>::Mailbox::iter_key(sender)
+                        .map(|(msg, _bn)| msg)
+                        .collect();
+
+                log::trace!(
+                    "Found {} messages in mailbox: {:?}",
+                    messages.len(),
+                    messages.iter().map(|msg| msg.id()).collect::<Vec<_>>()
+                );
+
+                runtime_data.mailbox_messages = runtime_data
+                    .mailbox_messages
+                    .drain(..)
+                    .chain(messages.into_iter().map(|msg| msg.id()))
+                    .unique()
+                    .collect();
             }
             _ => {}
         }
@@ -76,7 +96,7 @@ fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
 
-            gear_call.apply_runtime_data_update(&mut runtime_data);
+            gear_call.apply_runtime_data_update(sender.clone(), &mut runtime_data);
         }
     });
 
@@ -121,6 +141,10 @@ fn execute_gear_call(
                 value,
                 prepaid,
             )
+        }
+        GearCall::ClaimValue(args) => {
+            let ClaimValueArgs(message_id) = args;
+            Gear::claim_value(RuntimeOrigin::signed(sender), message_id)
         }
         _ => unimplemented!("Unsupported currently."),
     }
