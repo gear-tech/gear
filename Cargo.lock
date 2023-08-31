@@ -4405,7 +4405,10 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-backend-common",
+ "gear-backend-sandbox",
  "gear-core",
+ "gear-core-processor",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4413,6 +4416,7 @@ dependencies = [
  "log",
  "proptest",
  "rand 0.8.5",
+ "static_assertions",
  "wasm-smith",
  "wasmparser-nostd 0.100.1",
  "wasmprinter",
