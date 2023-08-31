@@ -50,7 +50,7 @@ pub enum Program {
         /// The path of "*.meta.wasm".
         #[arg(short, long)]
         wasm: Option<Vec<u8>>,
-        /// Method arugments (hex encoding).
+        /// Method arguments (hex encoding).
         #[arg(short, long)]
         args: Option<Vec<u8>>,
         /// The block hash for reading state.
@@ -93,7 +93,7 @@ impl Program {
         at: Option<H256>,
     ) -> Result<()> {
         let state = api
-            .read_state_using_wasm(pid, method, wasm, args, at)
+            .read_state_using_wasm(pid, Default::default(), method, wasm, args, at)
             .await?;
         println!("{}", state);
         Ok(())
@@ -112,11 +112,11 @@ impl Program {
             .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
         let data = fs::read(path)?;
 
-        // parse fom hex if end with `txt`.
+        // parse from hex if end with `txt`.
         let meta = if ext == "txt" {
             Meta::decode_hex(&data)?
         } else if ext == "wasm" {
-            // parse fom wasm if end with `wasm`.
+            // parse from wasm if end with `wasm`.
             Meta::decode_wasm(&data)?
         } else {
             return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());

@@ -145,6 +145,10 @@ case "$COMMAND" in
         header "Checking gear workspace"
         gear_check "$@"; ;;
 
+      runtime-imports)
+        header "Checking runtime imports"
+        runtime_imports "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         check_usage
@@ -295,7 +299,7 @@ case "$COMMAND" in
 
       fuzz)
         header "Running fuzzer for runtime panic checks"
-        run_fuzzer "$ROOT_DIR" ;;
+        run_fuzzer "$ROOT_DIR" "$1"; ;;
 
       fuzz-repr)
         header "Running fuzzer reproduction"

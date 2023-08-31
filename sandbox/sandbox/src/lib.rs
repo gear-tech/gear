@@ -41,15 +41,17 @@
 
 extern crate alloc;
 
+#[cfg(feature = "std")]
 pub mod embedded_executor;
 pub use gear_sandbox_env as env;
 #[cfg(not(feature = "std"))]
 pub mod host_executor;
 
+use alloc::string::String;
 use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
-
 use sp_wasm_interface::HostPointer;
+
 pub use sp_wasm_interface::{IntoValue, ReturnValue, Value};
 
 #[cfg(feature = "std")]
@@ -89,14 +91,27 @@ impl From<Error> for HostError {
 /// supervisor in [`EnvironmentDefinitionBuilder`].
 ///
 /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
-pub type HostFuncType<T> = fn(&mut T, &[Value]) -> Result<env::WasmReturnValue, HostError>;
+pub type HostFuncType<T> =
+    fn(&mut default_executor::Caller<'_, T>, &[Value]) -> Result<env::WasmReturnValue, HostError>;
+
+/// Sandbox store.
+pub trait SandboxStore<T>: AsContextExt<T> {
+    /// Create a new sandbox store.
+    fn new(state: T) -> Self;
+}
+
+/// Sandbox context.
+pub trait AsContextExt<T>: default_executor::AsContext {
+    /// Return mutable reference to state.
+    fn data_mut(&mut self) -> &mut T;
+}
 
 /// Reference to a sandboxed linear memory, that
 /// will be used by the guest module.
 ///
 /// The memory can't be directly accessed by supervisor, but only
-/// through designated functions [`get`](SandboxMemory::get) and [`set`](SandboxMemory::set).
-pub trait SandboxMemory: Sized + Clone {
+/// through designated functions [`get`](SandboxMemory::read) and [`set`](SandboxMemory::write).
+pub trait SandboxMemory<T>: Sized + Clone {
     /// Construct a new linear memory instance.
     ///
     /// The memory allocated with initial number of pages specified by `initial`.
@@ -107,32 +122,46 @@ pub trait SandboxMemory: Sized + Clone {
     /// `maximum`. If not specified, this memory instance would be able to allocate up to 4GiB.
     ///
     /// Allocated memory is always zeroed.
-    fn new(initial: u32, maximum: Option<u32>) -> Result<Self, Error>;
+    fn new(
+        store: &mut default_executor::Store<T>,
+        initial: u32,
+        maximum: Option<u32>,
+    ) -> Result<Self, Error>;
 
     /// Read a memory area at the address `ptr` with the size of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn get(&self, ptr: u32, buf: &mut [u8]) -> Result<(), Error>;
+    fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
+    where
+        Context: AsContextExt<T>;
 
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn set(&self, ptr: u32, value: &[u8]) -> Result<(), Error>;
+    fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
+    where
+        Context: AsContextExt<T>;
 
     /// Grow memory with provided number of pages.
     ///
     /// Returns `Err` if attempted to allocate more memory than permitted by the limit.
-    fn grow(&self, pages: u32) -> Result<u32, Error>;
+    fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
+    where
+        Context: AsContextExt<T>;
 
     /// Returns current memory size.
     ///
     /// Maximum memory size cannot exceed 65536 pages or 4GiB.
-    fn size(&self) -> u32;
+    fn size<Context>(&self, ctx: &Context) -> u32
+    where
+        Context: AsContextExt<T>;
 
     /// Returns pointer to the begin of wasm mem buffer
     /// # Safety
     /// Pointer is intended to use by `mprotect` function.
-    unsafe fn get_buff(&self) -> HostPointer;
+    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> HostPointer
+    where
+        Context: AsContextExt<T>;
 }
 
 /// Struct that can be used for defining an environment for a sandboxed module.
@@ -151,14 +180,14 @@ pub trait SandboxEnvironmentBuilder<State, Memory>: Sized {
     /// the user code to check or constrain the types of signatures.
     fn add_host_func<N1, N2>(&mut self, module: N1, field: N2, f: HostFuncType<State>)
     where
-        N1: Into<Vec<u8>>,
-        N2: Into<Vec<u8>>;
+        N1: Into<String>,
+        N2: Into<String>;
 
     /// Register a memory in this environment definition.
     fn add_memory<N1, N2>(&mut self, module: N1, field: N2, mem: Memory)
     where
-        N1: Into<Vec<u8>>,
-        N2: Into<Vec<u8>>;
+        N1: Into<String>,
+        N2: Into<String>;
 }
 
 /// Error that can occur while using this crate.
@@ -176,7 +205,7 @@ pub enum GlobalsSetError {
 /// This instance can be used for invoking exported functions.
 pub trait SandboxInstance<State>: Sized {
     /// The memory type used for this sandbox.
-    type Memory: SandboxMemory;
+    type Memory: SandboxMemory<State>;
 
     /// The environment builder used to construct this sandbox.
     type EnvironmentBuilder: SandboxEnvironmentBuilder<State, Self::Memory>;
@@ -190,9 +219,9 @@ pub trait SandboxInstance<State>: Sized {
     ///
     /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
     fn new(
+        store: &mut default_executor::Store<State>,
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
-        state: &mut State,
     ) -> Result<Self, Error>;
 
     /// Invoke an exported function with the given name.
@@ -208,18 +237,23 @@ pub trait SandboxInstance<State>: Sized {
     /// - Trap occurred at the execution time.
     fn invoke(
         &mut self,
+        store: &mut default_executor::Store<State>,
         name: &str,
         args: &[Value],
-        state: &mut State,
     ) -> Result<ReturnValue, Error>;
 
     /// Get the value from a global with the given `name`.
     ///
     /// Returns `Some(_)` if the global could be found.
-    fn get_global_val(&self, name: &str) -> Option<Value>;
+    fn get_global_val(&self, store: &default_executor::Store<State>, name: &str) -> Option<Value>;
 
     /// Set the value of a global with the given `name`.
-    fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
+    fn set_global_val(
+        &self,
+        store: &mut default_executor::Store<State>,
+        name: &str,
+        value: Value,
+    ) -> Result<(), GlobalsSetError>;
 
     /// Get raw pointer to the executor host sandbox instance.
     fn get_instance_ptr(&self) -> HostPointer;

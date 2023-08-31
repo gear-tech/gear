@@ -34,7 +34,7 @@ const AT_BLOCK_HASH: &str = "Option<H256>";
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {
-    /// Build storage query at specifed block with and without Option.
+    /// Build storage query at specified block with and without Option.
     fn at(&self) -> ItemFn {
         let mut at = self.0.clone();
 
@@ -155,7 +155,7 @@ impl StorageQueryBuilder {
     /// This function validates the input of the storage query
     /// function, follows the rules below:
     ///
-    /// - the docs must be end with `at specfied block.`
+    /// - the docs must be end with `at specified block.`
     /// - the function name must be end with `_at`.
     /// - the last argument must be `Option<H256>`.
     fn validate(fun: &ItemFn) {

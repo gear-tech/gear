@@ -20,7 +20,7 @@ use crate::{
     async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{Error, Result},
     msg::macros::impl_futures,
-    prelude::{convert::AsRef, Vec},
+    prelude::Vec,
     ActorId, Config, MessageId,
 };
 use core::{

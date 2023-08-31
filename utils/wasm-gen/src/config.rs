@@ -26,7 +26,21 @@
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
 //! fn my_config<'a>(u: &'a mut Unstructured<'a>) -> Result<WasmModuleConfig> {
-//!     let selectable_params = SelectableParams { call_indirect_enabled: false };
+//!     let selectable_params = SelectableParams {
+//!         call_indirect_enabled: false,
+//!         allowed_instructions: vec![
+//!             InstructionKind::Numeric,
+//!             InstructionKind::Reference,
+//!             InstructionKind::Parametric,
+//!             InstructionKind::Variable,
+//!             InstructionKind::Table,
+//!             InstructionKind::Memory,
+//!             InstructionKind::Control,
+//!         ],
+//!         max_instructions: 100_000,
+//!         min_funcs: 15,
+//!         max_funcs: 30
+//!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
 //! }
@@ -70,7 +84,7 @@
 //! }
 //! ```
 //!
-//! These types of configs instatiations are helpful if you want to call generators
+//! These types of configs instantiations are helpful if you want to call generators
 //! manually with some special (maybe not) generators state transition flow. However,
 //! for the simplest usage with crate's main generation functions (like
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
@@ -104,6 +118,13 @@ pub trait ConfigsBundle {
 impl ConfigsBundle for () {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         unimplemented!("Mock")
+    }
+}
+
+/// The fully controllable implementation of ConfigsBundle.
+impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        self
     }
 }
 
@@ -154,6 +175,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let selectable_params = SelectableParams {
             call_indirect_enabled,
+            ..SelectableParams::default()
         };
 
         let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_amounts);

@@ -85,7 +85,7 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
         ChainSelection,
     >;
 
-/// The transaction pool type defintion.
+/// The transaction pool type definition.
 type TransactionPool<RuntimeApi, ExecutorDispatch> =
     sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>;
 
