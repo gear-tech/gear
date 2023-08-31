@@ -49,7 +49,7 @@ impl InitMessage {
     pub fn from_packet(id: MessageId, packet: InitPacket) -> Self {
         Self {
             id,
-            destination: packet.destination(Some(id)),
+            destination: packet.destination(),
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -115,6 +115,8 @@ impl InitMessage {
 /// This structure is preparation for future init message sending. Has no message id.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct InitPacket {
+    /// Program id.
+    program_id: ProgramId,
     /// Code id.
     code_id: CodeId,
     /// Salt.
@@ -129,8 +131,14 @@ pub struct InitPacket {
 
 impl InitPacket {
     /// Create new InitPacket without gas.
-    pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
+    pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value, message_id: Option<MessageId>) -> Self {
+        let program_id = if let Some(id) = message_id {
+            ProgramId::generate_with_id(code_id, salt.inner(), id)
+        } else {
+            ProgramId::generate(code_id, salt.inner())
+        };
         Self {
+            program_id,
             code_id,
             salt,
             payload,
@@ -146,8 +154,15 @@ impl InitPacket {
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
+        message_id: Option<MessageId>
     ) -> Self {
+        let program_id = if let Some(id) = message_id {
+            ProgramId::generate_with_id(code_id, salt.inner(), id)
+        } else {
+            ProgramId::generate(code_id, salt.inner())
+        };
         Self {
+            program_id,
             code_id,
             salt,
             payload,
@@ -156,13 +171,9 @@ impl InitPacket {
         }
     }
 
-    /// Packet destination (newly created program id).
-    pub fn destination(&self, message_id: Option<MessageId>) -> ProgramId {
-        if let Some(id) = message_id {
-            ProgramId::generate_with_id(self.code_id, self.salt.inner(), id)
-        } else {
-            ProgramId::generate(self.code_id, self.salt.inner())
-        }
+    /// Program id.
+    pub fn destination(&self) -> ProgramId {
+        self.program_id
     }
 
     /// Code id.

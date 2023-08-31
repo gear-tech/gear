@@ -732,8 +732,10 @@ where
         let salt = Self::read_message_payload(ctx, read_salt)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 
+        let message_id = ctx.ext_mut().message_id().ok();
+
         ctx.ext_mut()
-            .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
+            .create_program(InitPacket::new(code_id.into(), salt, payload, value, message_id), delay)
             .map_err(Into::into)
     }
 
