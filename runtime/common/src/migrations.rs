@@ -59,8 +59,11 @@ where
             // Depositing gas from gas nodes.
             let gas_nodes_iter = GasNodesOf::<T>::iter();
             for (node_id, gas_node) in gas_nodes_iter {
-                let external = GasHandlerOf::<T>::get_external(node_id)
-                    .expect("Failed to get external id of the node");
+                let Ok(external) = GasHandlerOf::<T>::get_external(node_id) else {
+                    log::error!("Failed to get external id of {node_id:?}");
+                    continue;
+                };
+
                 let gas_amount = gas_node.total_value();
 
                 let gas_price = P::gas_price(gas_amount);
@@ -70,9 +73,15 @@ where
                     Balances::<T>::free_balance(&external),
                     Balances::<T>::reserved_balance(&external)
                 );
-                Balances::<T>::unreserve(&external, gas_price);
-                GearBank::<T>::deposit_gas::<P>(&external, gas_amount)
-                    .expect("Failed to deposit gas");
+                if !Balances::<T>::unreserve(&external, gas_price).is_zero() {
+                    log::error!(
+                        "Failed to unreserve all requested value: {external:?} ({gas_price:?})"
+                    )
+                }
+                if let Err(err) = GearBank::<T>::deposit_gas::<P>(&external, gas_amount) {
+                    log::error!("Failed to deposit gas {err:?}: {external:?} ({gas_amount:?})");
+                    continue;
+                };
 
                 // Just random approximate amount of operations,
                 // that will be meant as write operations.
@@ -86,8 +95,12 @@ where
             let mut deposit = |source: ProgramId, value: u128| {
                 let source = AccountIdOf::<T>::from_origin(source.into_origin());
                 let value = value.unique_saturated_into();
-                Balances::<T>::unreserve(&source, value);
-                GearBank::<T>::deposit_value(&source, value).expect("Failed to deposit value");
+                if !Balances::<T>::unreserve(&source, value).is_zero() {
+                    log::error!("Failed to unreserve all requested value: {source:?} ({value:?})");
+                }
+                if let Err(err) = GearBank::<T>::deposit_value(&source, value) {
+                    log::error!("Failed to deposit value {err:?}: {source:?} ({value:?})");
+                };
 
                 // Just random approximate amount of operations,
                 // that will be meant as write operations.
@@ -125,8 +138,10 @@ where
             let accounts_iter = AccountsOf::<T>::iter();
             for (account_id, AccountInfo { data, .. }) in accounts_iter {
                 let reserve = data.reserved;
-                if !reserve.is_zero() {
-                    Balances::<T>::unreserve(&account_id, reserve);
+                if !reserve.is_zero() && !Balances::<T>::unreserve(&account_id, reserve).is_zero() {
+                    log::error!(
+                        "Failed to unreserve all requested value: {account_id:?} ({reserve:?})"
+                    );
                 }
             }
 
