@@ -131,7 +131,13 @@ pub struct InitPacket {
 
 impl InitPacket {
     /// Create new InitPacket without gas.
-    pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value, message_id: Option<MessageId>) -> Self {
+    pub fn new(
+        code_id: CodeId,
+        salt: Salt,
+        payload: Payload,
+        value: Value,
+        message_id: Option<MessageId>,
+    ) -> Self {
         let program_id = if let Some(id) = message_id {
             ProgramId::generate_with_id(code_id, salt.inner(), id)
         } else {
@@ -154,7 +160,7 @@ impl InitPacket {
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
-        message_id: Option<MessageId>
+        message_id: Option<MessageId>,
     ) -> Self {
         let program_id = if let Some(id) = message_id {
             ProgramId::generate_with_id(code_id, salt.inner(), id)
