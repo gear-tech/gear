@@ -18,4 +18,6 @@ pub type Migrations = (
         NominationPoolsMigrationV4OldPallet,
     >,
     pallet_offences::migration::v1::MigrateToV1<Runtime>,
+    pallet_gear_staking_rewards::migration::MigrateToV2<Runtime>,
+    runtime_common::migrations::MigrateToGearBank<Runtime, GasConverter>,
 );

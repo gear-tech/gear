@@ -2801,6 +2801,9 @@ pub mod runtime_types {
                     #[codec(index = 15)]
                     #[doc = "Gear::run() already included in current block."]
                     GearRunAlreadyInBlock,
+                    #[codec(index = 16)]
+                    #[doc = "The program rent logic is disabled."]
+                    ProgramRentDisabled,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]

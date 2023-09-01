@@ -10420,42 +10420,210 @@ fn signal_async_wait_works() {
 }
 
 #[test]
-fn signal_gas_limit_exceeded_works() {
+fn signal_run_out_of_gas_works() {
+    test_signal_code_works(
+        SimpleExecutionError::RanOutOfGas.into(),
+        demo_signal_entry::HandleAction::OutOfGas,
+    );
+}
+
+#[test]
+fn signal_run_out_of_gas_memory_access_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    const GAS_LIMIT: u64 = 10_000_000_000;
 
     init_logger();
     new_test_ext().execute_with(|| {
+        // Upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            GAS_LIMIT,
             0,
         ));
 
         let pid = get_last_program_id();
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::OutOfGas.encode(),
-            10_000_000_000,
+            HandleAction::SaveSignal(SimpleExecutionError::RanOutOfGas.into()).encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Calculate gas limit for this action
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            min_limit - 1,
             0,
             false,
         ));
 
         let mid = get_last_message_id();
 
-        run_to_block(3, None);
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        run_to_next_block(None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
-        // check signal dispatch executed
+        // Ensure that signal code sent is signal code we saved
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    });
+}
+
+#[test]
+fn signal_userspace_panic_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UserspacePanic.into(),
+        demo_signal_entry::HandleAction::Panic,
+    );
+}
+
+#[test]
+fn signal_backend_error_forbidden_action_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::ForbiddenAction,
+    );
+}
+
+#[test]
+fn signal_backend_error_invalid_debug_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::InvalidDebugCall,
+    );
+}
+
+#[test]
+fn signal_backend_error_unrecoverable_ext_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::UnrecoverableExt,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::UnreachableInstruction,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_incorrect_free_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::IncorrectFree,
+    );
+}
+
+#[test]
+fn signal_memory_overflow_works() {
+    test_signal_code_works(
+        SimpleExecutionError::MemoryOverflow.into(),
+        demo_signal_entry::HandleAction::ExceedMemory,
+    );
+}
+
+#[test]
+fn signal_removed_from_waitlist_works() {
+    const GAS_LIMIT: u64 = 10_000_000_000;
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SaveSignal(SignalCode::RemovedFromWaitlist).encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitWithoutSendingMessage.encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Ensuring that gas is reserved
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        // Getting block number when waitlist expiration should happen
+        let expiration = get_waitlist_expiration(mid);
+
+        // Hack to fast spend blocks till expiration
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number(expiration - 1);
+
+        // Expiring that message
+        run_to_next_block(None);
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
     });
 }
 
@@ -13852,14 +14020,14 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, CurrencyOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
-        SentOf,
+        BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
+        ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
         paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage,
+        Origin, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
@@ -14703,5 +14871,72 @@ mod utils {
         });
 
         assert_eq!(res, assertions);
+    }
+
+    #[track_caller]
+    pub(super) fn test_signal_code_works(
+        signal_code: SignalCode,
+        action: demo_signal_entry::HandleAction,
+    ) {
+        use crate::tests::new_test_ext;
+        use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        init_logger();
+        new_test_ext().execute_with(|| {
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                USER_1.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Save signal code to be compared with
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SaveSignal(signal_code).encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            run_to_next_block(None);
+
+            // Send the action to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+            run_to_next_block(None);
+
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        });
     }
 }
