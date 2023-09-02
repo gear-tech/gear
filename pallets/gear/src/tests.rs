@@ -4336,32 +4336,6 @@ fn distributor_distribute() {
 }
 
 #[test]
-fn lol() {
-    let wasm = std::fs::read("/Users/gsobol/src/gear/code.wasm").unwrap();
-    let schedule = <Test as Config>::Schedule::get();
-    let code = Code::try_new(
-        wasm,
-        schedule.instruction_weights.version,
-        |module| schedule.rules(module),
-        schedule.limits.stack_height,
-    )
-    .unwrap();
-    std::fs::write("code_instrumented.wasm", code.code()).unwrap();
-    // init_logger();
-    // new_test_ext().execute_with(|| {
-    //     assert_ok!(Gear::upload_program(
-    //         RuntimeOrigin::signed(USER_1),
-    //         wasm,
-    //         DEFAULT_SALT.to_vec(),
-    //         EMPTY_PAYLOAD.to_vec(),
-    //         DEFAULT_GAS_LIMIT,
-    //         0
-    //     ));
-    //     run_to_block(2, None);
-    // })
-}
-
-#[test]
 fn test_code_submission_pass() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7915,7 +7889,7 @@ fn gas_spent_precalculated() {
             };
         }
 
-        // `wat_empty_init` has 1 gas_charge calls and
+        // `wat_empty_init` has 1 gas_charge call and
         // `wat_two_gas_charge` has 2 gas_charge calls, so we can calculate
         // gas_charge function call cost as difference between them,
         // taking in account difference in other aspects.
@@ -7927,7 +7901,7 @@ fn gas_spent_precalculated() {
             - (get_gas_charged_for_code(init_two_gas_charge_pid)
                 - get_gas_charged_for_code(empty_init_pid));
 
-        // `wat_empty_init` has 1 stack limit checks and
+        // `wat_empty_init` has 1 stack limit check and
         // `wat_two_stack_limits` has 2 stack limit checks, so we can calculate
         // stack limit check cost as difference between them,
         // taking in account difference in other aspects.
@@ -7950,7 +7924,7 @@ fn gas_spent_precalculated() {
                 + stack_check_limit_cost * 2;
 
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-            u64::from(execution_cost)
+            execution_cost
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code length
