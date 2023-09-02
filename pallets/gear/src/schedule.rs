@@ -726,6 +726,14 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
+            // Constant for `stack_height` is chosen to be small enough to avoid stack overflow in
+            // wasmer and wasmi executors. Currently it's just heuristic value.
+            // Unfortunately it's very hard to calculate this value precisely,
+            // because of difference of how stack height is calculated in injection and
+            // how wasmer and wasmi actually uses stack.
+            // To avoid potential stack overflow problems we have a panic in sandbox in case,
+            // execution is ended with stack overflow error. So, process queue execution will be
+            // stopped and we will be able to investigate the problem and decrease this constant if needed.
             stack_height: Some(20000),
             globals: 256,
             locals: 1024,

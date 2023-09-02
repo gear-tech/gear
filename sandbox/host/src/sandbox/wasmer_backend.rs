@@ -121,7 +121,7 @@ pub fn invoke(
                 if error.clone().to_trap() == Some(TrapCode::StackOverflow) {
                     // Panic stops process queue execution in that case.
                     // This allows to avoid error lead to consensus failures, that must be handled
-                    // in node binaries forever. If this error occur then we must increase stack memory size,
+                    // in node binaries forever. If this panic occur, then we must increase stack memory size,
                     // or tune stack limit injection.
                     // see also https://github.com/wasmerio/wasmer/issues/4181
                     unreachable!("Suppose that this can not happen, because we have a stack limit instrumentation in programs");

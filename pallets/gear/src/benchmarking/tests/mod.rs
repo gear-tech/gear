@@ -92,6 +92,4 @@ where
         _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
     })
     .unwrap();
-
-    // log::debug!("notes: {:?}", notes);
 }
