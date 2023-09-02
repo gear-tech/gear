@@ -5897,7 +5897,7 @@ fn test_create_program_works() {
         )
         .expect("Code failed to load");
 
-        let code_id = CodeId::generate(code.raw_code());
+        let code_id = CodeId::generate(code.original_code());
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
             code_id,
@@ -7825,14 +7825,24 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
-    let wat_no_counter = r#"
+    let wat_empty_init = r#"
     (module
         (import "env" "memory" (memory 1))
         (export "init" (func $init))
         (func $init)
     )"#;
 
-    let wat_init = r#"
+    let wat_two_stack_limits = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $f1)
+        (func $init
+            (call $f1)
+        )
+    )"#;
+
+    let wat_two_gas_charge = r#"
     (module
         (import "env" "memory" (memory 1))
         (export "init" (func $init))
@@ -7845,129 +7855,132 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog = ProgramCodeKind::Custom(wat);
-        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
-
-        let init_gas_id = upload_program_default(USER_3, ProgramCodeKind::Custom(wat_init))
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
             .expect("submit result was asserted");
-        let init_no_counter_id =
-            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_no_counter))
+        let empty_init_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_empty_init))
+                .expect("submit result was asserted");
+        let init_two_gas_charge_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_gas_charge))
+                .expect("submit result was asserted");
+        let init_two_stack_limits_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_stack_limits))
                 .expect("submit result was asserted");
 
         run_to_block(2, None);
 
-        let code_id = CodeId::generate(&prog.to_bytes());
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code = code.code();
+        let get_program_code_len = |pid| {
+            let code_id = CodeId::from_origin(
+                ProgramStorageOf::<Test>::get_program(pid)
+                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                    .expect("program must exist")
+                    .code_hash,
+            );
+            <Test as Config>::CodeStorage::get_code(code_id)
+                .unwrap()
+                .code()
+                .len() as u64
+        };
 
-        let init_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_gas_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
-            .expect("program must exist")
-            .code_hash);
-        let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
+        let get_gas_charged_for_code = |pid| {
+            let schedule = <Test as Config>::Schedule::get();
+            let per_byte_cost = schedule.db_read_per_byte.ref_time();
+            let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
+            let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+            let code_len = get_program_code_len(pid);
+            core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len)
+                + module_instantiation_per_byte * code_len
+        };
 
-        let init_no_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_no_counter_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
-            .expect("program must exist")
-            .code_hash);
-        let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
+        let calc_gas_spent_for_init = |wat| {
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .unwrap()
+            .min_limit
+        };
 
-        // binaries have the same memory amount but different lengths
-        // so take this into account in gas calculations
-        let length_margin = init_code_len - init_no_gas_code_len;
+        let gas_two_gas_charge = calc_gas_spent_for_init(wat_two_gas_charge);
+        let gas_two_stack_limits = calc_gas_spent_for_init(wat_two_stack_limits);
+        let gas_empty_init = calc_gas_spent_for_init(wat_empty_init);
 
-        let GasInfo {
-            min_limit: gas_spent_init,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Init(ProgramCodeKind::Custom(wat_init).to_bytes()),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
+        macro_rules! cost {
+            ($name:ident) => {
+                <Test as Config>::Schedule::get().instruction_weights.$name as u64
+            };
+        }
 
-        let GasInfo {
-            min_limit: gas_spent_no_counter,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Init(ProgramCodeKind::Custom(wat_no_counter).to_bytes()),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
+        // `wat_empty_init` has 1 gas_charge calls and
+        // `wat_two_gas_charge` has 2 gas_charge calls, so we can calculate
+        // gas_charge function call cost as difference between them,
+        // taking in account difference in other aspects.
+        let gas_charge_call_cost = (gas_two_gas_charge - gas_empty_init)
+            // Take in account difference in executed instructions
+            - cost!(i64const)
+            - cost!(local_set)
+            // Take in account difference in gas depended on code len
+            - (get_gas_charged_for_code(init_two_gas_charge_pid)
+                - get_gas_charged_for_code(empty_init_pid));
 
-        let schedule = <Test as Config>::Schedule::get();
-        let per_byte_cost = schedule.db_read_per_byte.ref_time();
-        let const_i64_cost = schedule.instruction_weights.i64const;
-        let set_local_cost = schedule.instruction_weights.local_set;
-        let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
+        // `wat_empty_init` has 1 stack limit checks and
+        // `wat_two_stack_limits` has 2 stack limit checks, so we can calculate
+        // stack limit check cost as difference between them,
+        // taking in account difference in other aspects.
+        let stack_check_limit_cost = (gas_two_stack_limits - gas_empty_init)
+            // Take in account difference in executed instructions
+            - cost!(call)
+            // Take in account additional gas_charge call
+            - gas_charge_call_cost
+            // Take in account difference in gas depended on code len
+            - (get_gas_charged_for_code(init_two_stack_limits_pid)
+                - get_gas_charged_for_code(empty_init_pid));
 
-        // gas_charge call in handle and "add" func
-        let gas_cost = gas_spent_init
-            - gas_spent_no_counter
-            - const_i64_cost as u64
-            - set_local_cost as u64
-            - core_processor::calculate_gas_for_code(0, per_byte_cost, length_margin)
-            - module_instantiation_per_byte * length_margin;
-
-        let GasInfo {
-            min_limit: gas_spent_1,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
-
-        let call_cost = schedule.instruction_weights.call;
-        let get_local_cost = schedule.instruction_weights.local_get;
-        let add_cost = schedule.instruction_weights.i32add;
-        let module_instantiation = module_instantiation_per_byte * code.len() as u64;
-
-        let total_cost = {
-            let cost = call_cost
-                + const_i64_cost * 2
-                + set_local_cost
-                + get_local_cost * 2
-                + add_cost
-                + gas_cost as u32 * 2;
+        let gas_spent_expected = {
+            let execution_cost = cost!(call) * 2
+                + cost!(i64const) * 2
+                + cost!(local_set)
+                + cost!(local_get) * 2
+                + cost!(i32add)
+                + gas_charge_call_cost * 3
+                + stack_check_limit_cost * 2;
 
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-
-            u64::from(cost)
+            u64::from(execution_cost)
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code length
                 + read_cost
-                // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
-                + module_instantiation
+                // cost for code loading and instantiation
+                + get_gas_charged_for_code(pid)
                 // cost for one static page in program
                 + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
-        assert_eq!(gas_spent_1, total_cost);
+        let make_check = |gas_spent_expected| {
+            let GasInfo {
+                min_limit: gas_spent_calculated,
+                ..
+            } = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .unwrap();
 
-        let GasInfo {
-            min_limit: gas_spent_2,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .expect("calculate_gas_info failed");
+            assert_eq!(gas_spent_calculated, gas_spent_expected);
+        };
 
-        assert_eq!(gas_spent_1, gas_spent_2);
+        // Check also, that gas spent is the same if we calculate it twice.
+        make_check(gas_spent_expected);
+        make_check(gas_spent_expected);
     });
 }
 

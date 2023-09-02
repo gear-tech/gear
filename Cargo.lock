@@ -4249,6 +4249,7 @@ dependencies = [
  "thiserror",
  "wasmer",
  "wasmer-cache",
+ "wasmer-types",
  "wasmi 0.13.2",
 ]
 

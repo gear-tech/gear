@@ -31,7 +31,7 @@ use core_processor::{
 };
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -473,8 +473,12 @@ impl ExtManager {
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        let mapping_code =
-            Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
+        let mapping_code = Code::try_new_mock_const_or_no_rules(
+            wasm,
+            true,
+            TryNewCodeConfig::new_no_exports_check(),
+        )
+        .map_err(|_| TestError::Instrumentation)?;
 
         let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
             .into_parts()

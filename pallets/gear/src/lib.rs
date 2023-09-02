@@ -567,7 +567,7 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Submit program for benchmarks which does not check the code.
+        /// +_+_+
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -579,25 +579,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let module =
-                gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                    log::debug!("Module failed to load: {:?}", e);
+            let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {:?}", e);
                     Error::<T>::ProgramConstructionFailed
                 })?;
-
-            let code = Code::new_raw(
-                code,
-                schedule.instruction_weights.version,
-                Some(module),
-                true,
-                true,
-            )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructionFailed
-            })?;
 
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
@@ -674,24 +660,16 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Submit code for benchmarks which does not check nor instrument the code.
+        /// +_+_+
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let code = Code::new_raw(
-                code,
-                schedule.instruction_weights.version,
-                None,
-                false,
-                true,
-            )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructionFailed
-            })?;
+            let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {:?}", e);
+                    Error::<T>::ProgramConstructionFailed
+                })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -1387,6 +1365,7 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::try_new_code(code)?;
+            gear_runtime_interface::gear_debug::file_write("lol.wasm", code_and_id.code().code().to_vec());
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
@@ -1396,6 +1375,7 @@ pub mod pallet {
                 gas_limit,
                 value,
             )?;
+
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -

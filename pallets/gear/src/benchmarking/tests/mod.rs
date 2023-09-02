@@ -29,9 +29,13 @@ pub mod syscalls_integrity;
 mod utils;
 
 use crate::{
-    benchmarking::{code::body, utils as common_utils, utils::PrepareConfig},
+    benchmarking::{
+        code::{body, WasmModule},
+        utils as common_utils,
+    },
     HandleKind,
 };
+use common::benchmarking;
 
 use gear_wasm_instrument::parity_wasm::elements::Instruction;
 
@@ -45,32 +49,49 @@ where
         Instruction::GetGlobal(0),
         Instruction::I64Add,
         Instruction::SetGlobal(0),
-        Instruction::Call(1),
+        Instruction::Call(0),
     ];
-    let module = ModuleDefinition {
+
+    let module: WasmModule<T> = ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        handle_body: Some(body::from_instructions(instrs)),
+        init_body: Some(body::from_instructions(instrs)),
         stack_end: Some(0.into()),
         num_globals: 1,
         ..Default::default()
-    };
-    let instance = Program::<T>::new(module.into(), vec![]).unwrap();
-    let source = instance.caller.into_origin();
-    let origin = instance.addr;
+    }
+    .into();
 
+    let source = benchmarking::account("instantiator", 0, 0);
     let exec = common_utils::prepare_exec::<T>(
         source,
-        HandleKind::Handle(ProgramId::from_origin(origin)),
+        HandleKind::Init(module.code),
         Default::default(),
         Default::default(),
     )
     .unwrap();
 
-    let notes = core_processor::process::<ExecutionEnvironment>(
+    core_processor::process::<ExecutionEnvironment>(
         &exec.block_config,
         exec.context,
         exec.random_data,
         exec.memory_pages,
     )
-    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+    .unwrap()
+    .into_iter()
+    .find_map(|note| match note {
+        JournalNote::MessageDispatched { outcome, .. } => Some(outcome),
+        _ => None,
+    })
+    .map(|outcome| match outcome {
+        DispatchOutcome::InitFailure { reason, .. } => {
+            assert_eq!(
+                reason,
+                "Reason is unknown. Possibly `unreachable` instruction is occurred"
+            );
+        }
+        _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
+    })
+    .unwrap();
+
+    // log::debug!("notes: {:?}", notes);
 }
