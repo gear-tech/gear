@@ -296,7 +296,7 @@ fn check_start_section(module: &Module) -> Result<(), CodeError> {
     }
 }
 
-/// Configuration for [`Code::try_new_mock_`].
+/// Configuration for `Code::try_new_mock_`.
 /// By default all checks enabled.
 pub struct TryNewCodeConfig {
     /// Instrumentation version
