@@ -567,7 +567,8 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Upload program to the chain without gas and stack limit injection.
+        /// Upload program to the chain without stack limit injection and
+        /// does not make some checks for code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -577,13 +578,29 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            use gear_core::code::TryNewCodeConfig;
+
             let who = ensure_signed(origin)?;
 
-            let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::ProgramConstructionFailed
-                })?;
+            gear_runtime_interface::gear_debug::file_write("kek.wasm", code.clone());
+
+            let code = Code::try_new_mock_const_or_no_rules(
+                code,
+                true,
+                TryNewCodeConfig {
+                    // actual version to avoid re-instrumentation
+                    version: T::Schedule::get().instruction_weights.version,
+                    // some benchmarks have data in user stack memory
+                    check_and_canonize_stack_end: false,
+                    // without stack end canonization, program has mutable globals.
+                    check_mut_global_exports: false,
+                    ..Default::default()
+                },
+            )
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::ProgramConstructionFailed
+            })?;
 
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
