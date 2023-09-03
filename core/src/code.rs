@@ -415,6 +415,88 @@ impl Code {
     }
 
     /// Create the code by checking and instrumenting `original_code`.
+    /// Main logic of instrumentation can be represented by this example:
+    /// Let's take a code:
+    /// ```wasm
+    /// (module
+    ///    (import "env" "memory" (memory 1))
+    ///    (export "init" (func $init))
+    ///    (func $f1
+    ///       <-- f1 code -->
+    ///    )
+    ///    (func $f2
+    ///       if (i32.eqz (i32.const 0))
+    ///          <-- some code -->
+    ///       else
+    ///          <-- some code -->
+    ///       end
+    ///    )
+    ///    (func $f3
+    ///       <-- f3 code -->
+    ///    )
+    ///    (func $init
+    ///       call $f1
+    ///       call $f2
+    ///       call $f3
+    ///       <-- some code -->
+    ///    )
+    /// )
+    /// ```
+    ///
+    /// After instrumentation code will be:
+    /// ```wasm
+    /// (module
+    ///   (import "env" "memory" (memory 1))
+    ///   (export "init" (func $init_export))
+    ///   (func $gas_charge
+    ///      <-- gas charge impl --> ;; see utils/wasm-instrument/src/lib.rs
+    ///   )
+    ///   (func $f1
+    ///      i32.const 123
+    ///      call $gas_charge
+    ///      <-- f1 code -->
+    ///   )
+    ///   (func $f2
+    ///      i32.const 123
+    ///      call $gas_charge
+    ///      if (i32.eqz (i32.const 0))
+    ///         i32.const 1
+    ///         call $gas_charge
+    ///         <-- some code -->
+    ///      else
+    ///         i32.const 2
+    ///         call $gas_charge
+    ///         <-- some code -->
+    ///      end
+    ///   )
+    ///   (func $f3
+    ///      i32.const 123
+    ///      call $gas_charge
+    ///      <-- f3 code -->
+    ///   )
+    ///   (func $init
+    ///      i32.const 123
+    ///      call $gas_charge
+    ///      ;; stack limit check impl see in wasm_instrument::inject_stack_limiter
+    ///      <-- stack limit check and increase -->
+    ///      call $f1
+    ///      <-- stack limit decrease -->
+    ///      <-- stack limit check and increase -->
+    ///      call $f2
+    ///      <-- stack limit decrease -->
+    ///      <-- stack limit check and increase -->
+    ///      call $f3
+    ///      <-- stack limit decrease -->
+    ///      <-- some code -->
+    ///   )
+    ///   (func $init_export
+    ///      i32.const 123
+    ///      call $gas_charge
+    ///      <-- stack limit check and increase -->
+    ///      call $init
+    ///      <-- stack limit decrease -->
+    ///   )
+    /// )
     pub fn try_new<R, GetRulesFn>(
         original_code: Vec<u8>,
         version: u32,

@@ -7780,6 +7780,27 @@ fn gas_spent_vs_balance() {
 
 #[test]
 fn gas_spent_precalculated() {
+    // After instrumentation will be:
+    // (export "handle" (func $handle_export))
+    // (func $add
+    //      <-- call gas_charge -->
+    //      local.get $0
+    //      local.get $1
+    //      i32.add
+    //      local.set $2
+    // )
+    // (func $handle
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $add (i32.const 2) (i32.const 2))
+    //      <-- stack limit decrease -->
+    // )
+    // (func $handle_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $handle
+    //      <-- stack limit decrease -->
+    // )
     let wat = r#"
     (module
         (import "env" "memory" (memory 1))
@@ -7799,6 +7820,15 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $init)
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
     let wat_empty_init = r#"
     (module
         (import "env" "memory" (memory 1))
@@ -7806,6 +7836,21 @@ fn gas_spent_precalculated() {
         (func $init)
     )"#;
 
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $f1)
+    // (func $init
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $f1
+    //      <-- stack limit decrease -->
+    // )
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
     let wat_two_stack_limits = r#"
     (module
         (import "env" "memory" (memory 1))
@@ -7816,6 +7861,21 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $init
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      i32.const 1
+    //      local.set $1
+    //      <-- stack limit decrease -->
+    // )
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
     let wat_two_gas_charge = r#"
     (module
         (import "env" "memory" (memory 1))
