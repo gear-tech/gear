@@ -582,8 +582,6 @@ pub mod pallet {
 
             let who = ensure_signed(origin)?;
 
-            gear_runtime_interface::gear_debug::file_write("kek.wasm", code.clone());
-
             let code = Code::try_new_mock_const_or_no_rules(
                 code,
                 true,
