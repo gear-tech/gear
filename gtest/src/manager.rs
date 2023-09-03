@@ -929,7 +929,15 @@ impl JournalHandler for ExtManager {
 
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
-        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+        if !self
+            .gas_limits
+            .get(&dispatch.id())
+            .cloned()
+            .flatten()
+            .is_some()
+        {
+            self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+        }
 
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
@@ -1151,6 +1159,7 @@ impl JournalHandler for ExtManager {
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 
-    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
+    fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        self.gas_limits.insert(future_reply_id, Some(amount));
     }
 }

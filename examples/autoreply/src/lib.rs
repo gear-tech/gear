@@ -35,8 +35,7 @@ mod tests {
     use gtest::{Program, System};
 
     #[test]
-    #[should_panic(expected = "assertion failed: reply_received")]
-    fn autoreply_received() {
+    fn auto_reply_received() {
         let system = System::new();
         system.init_logger();
 
