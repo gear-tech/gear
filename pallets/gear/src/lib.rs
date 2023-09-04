@@ -607,7 +607,7 @@ pub mod pallet {
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 None,
                 gas_limit,
-                value.unique_saturated_into()
+                value.unique_saturated_into(),
             );
 
             let program_id = packet.destination();
