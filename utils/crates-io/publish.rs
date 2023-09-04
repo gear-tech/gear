@@ -14,11 +14,12 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 17] = [
+const PACKAGES: [&str; 19] = [
     // Packages without local dependencies.
     "gear-backend-codegen",
     "gear-common-codegen",
     "gear-core-errors",
+    "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
@@ -29,15 +30,16 @@ const PACKAGES: [&str; 17] = [
     "gear-core",
     "gear-utils",
     "gear-backend-common",
+    "gear-sandbox-host",
+    "gear-sandbox-env",
     "gear-core-processor",
-    "gear-backend-wasmi",
     "gear-common",
     "gsdk",
     "gcli",
     "gclient",
 ];
 
-/// Packages need to be patched in depdenencies.
+/// Packages need to be patched in dependencies.
 const PATCHED_PACKAGES: [&str; 3] = ["core-processor", "sp-arithmetic", "subxt"];
 
 struct CratesIo {
