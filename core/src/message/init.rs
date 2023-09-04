@@ -135,8 +135,8 @@ impl InitPacket {
         code_id: CodeId,
         salt: Salt,
         payload: Payload,
-        value: Value,
         message_id: Option<MessageId>,
+        value: Value,
     ) -> Self {
         let program_id = if let Some(id) = message_id {
             ProgramId::generate_with_id(code_id, salt.inner(), id)
@@ -158,9 +158,9 @@ impl InitPacket {
         code_id: CodeId,
         salt: Salt,
         payload: Payload,
-        value: Value,
-        gas_limit: GasLimit,
         message_id: Option<MessageId>,
+        gas_limit: GasLimit,
+        value: Value,
     ) -> Self {
         let program_id = if let Some(id) = message_id {
             ProgramId::generate_with_id(code_id, salt.inner(), id)

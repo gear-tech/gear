@@ -605,9 +605,9 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 value.unique_saturated_into(),
                 gas_limit,
-                None,
             );
 
             let program_id = packet.destination();
@@ -1197,9 +1197,9 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 value.unique_saturated_into(),
                 gas_limit,
-                None,
             );
 
             // First we reserve enough funds on the account to pay for `gas_limit`

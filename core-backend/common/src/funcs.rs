@@ -736,7 +736,7 @@ where
 
         ctx.ext_mut()
             .create_program(
-                InitPacket::new(code_id.into(), salt, payload, value, Some(message_id)),
+                InitPacket::new(code_id.into(), salt, payload, Some(message_id), value),
                 delay,
             )
             .map_err(Into::into)
