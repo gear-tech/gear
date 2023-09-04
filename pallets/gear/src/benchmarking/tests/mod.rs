@@ -84,10 +84,7 @@ where
     })
     .map(|outcome| match outcome {
         DispatchOutcome::InitFailure { reason, .. } => {
-            assert_eq!(
-                reason,
-                "Reason is unknown. Possibly `unreachable` instruction is occurred"
-            );
+            assert_eq!(reason, TrapExplanation::Unknown.to_string());
         }
         _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
     })

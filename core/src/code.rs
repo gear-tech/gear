@@ -197,26 +197,24 @@ pub enum CodeError {
     /// The provided code contains unnecessary function exports.
     #[display(fmt = "Unnecessary function exports found")]
     NonGearExportFnFound,
+    /// Validation by wasmparser failed.
+    #[display(fmt = "Wasm validation failed")]
+    Validation,
     /// Error occurred during decoding original program code.
-    ///
-    /// The provided code was a malformed Wasm bytecode or contained unsupported features
-    /// (atomics, simd instructions, etc.).
-    #[display(fmt = "The wasm bytecode is malformed or contains unsupported features")]
+    #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
     /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, manual memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: \
-        program contains unsupported instructions (floats, manual memory grow, etc.)")]
+    /// (floats, memory grow, etc.).
+    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
+        program contains unsupported instructions (floats, memory grow, etc.)")]
     GasInjection,
     /// Error occurred during stack height instrumentation.
     #[display(fmt = "Failed to set stack height limits")]
     StackLimitInjection,
     /// Error occurred during encoding instrumented program.
-    ///
-    /// The only possible reason for that might be OOM.
-    #[display(fmt = "Failed to encode instrumented program (probably because OOM)")]
+    #[display(fmt = "Failed to encode instrumented program")]
     Encode,
     /// We restrict start sections in smart contracts.
     #[display(fmt = "Start section is not allowed for smart contracts")]
@@ -351,11 +349,17 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+            wasmparser::validate(&original_code).map_err(|err| {
+                log::trace!("Wasm validation failed: {err}");
+                CodeError::Validation
+            })?;
         }
 
         let mut module: Module =
-            parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?;
+            parity_wasm::deserialize_buffer(&original_code).map_err(|err| {
+                log::trace!("The wasm bytecode is failed to be decoded: {err}");
+                CodeError::Decode
+            })?;
 
         if config.check_and_canonize_stack_end {
             check_and_canonize_gear_stack_end(&mut module)?;
@@ -394,7 +398,10 @@ impl Code {
 
         if let Some(stack_limit) = config.stack_height {
             module = wasm_instrument::inject_stack_limiter(module, stack_limit)
-                .map_err(|_| CodeError::StackLimitInjection)?;
+                .map_err(|err| {
+                    log::trace!("Failed to inject stack height limits: {err}");
+                    CodeError::StackLimitInjection
+                })?;
         }
 
         if let Some(mut get_gas_rules) = get_gas_rules {
@@ -403,7 +410,10 @@ impl Code {
                 .map_err(|_| CodeError::GasInjection)?;
         }
 
-        let code = parity_wasm::elements::serialize(module).map_err(|_| CodeError::Encode)?;
+        let code = parity_wasm::elements::serialize(module).map_err(|err| {
+            log::trace!("Failed to encode instrumented program: {err}");
+            CodeError::Encode
+        })?;
 
         Ok(Self {
             code,

@@ -266,7 +266,7 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        /// Type that allows to check calller's eligibility for using voucher for payment.
+        /// Type that allows to check caller's eligibility for using voucher for payment.
         type Voucher: PaymentVoucher<
             Self::AccountId,
             ProgramId,
@@ -476,7 +476,7 @@ pub mod pallet {
         ResumePeriodLessThanMinimal,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Voucher can't be redemmed
+        /// Voucher can't be redeemed
         FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
