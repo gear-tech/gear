@@ -397,11 +397,10 @@ impl Code {
         }
 
         if let Some(stack_limit) = config.stack_height {
-            module = wasm_instrument::inject_stack_limiter(module, stack_limit)
-                .map_err(|err| {
-                    log::trace!("Failed to inject stack height limits: {err}");
-                    CodeError::StackLimitInjection
-                })?;
+            module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
+                log::trace!("Failed to inject stack height limits: {err}");
+                CodeError::StackLimitInjection
+            })?;
         }
 
         if let Some(mut get_gas_rules) = get_gas_rules {
