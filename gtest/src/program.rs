@@ -564,13 +564,9 @@ impl<'a> Program<'a> {
         wasm: Vec<u8>,
         argument: Option<E>,
     ) -> Result<D> {
-        let res = self.manager.borrow_mut().read_state_bytes_using_wasm(
-            &self.id,
-            fn_name,
-            wasm,
-            argument.map(|arg| arg.encode()),
-        )?;
-        D::decode(&mut &*res).map_err(Into::into)
+        let argument_bytes = argument.map(|arg| arg.encode());
+        let state_bytes = self.read_state_bytes_using_wasm(fn_name, wasm, argument_bytes)?;
+        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
     pub fn mint(&mut self, value: Balance) {

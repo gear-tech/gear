@@ -49,7 +49,7 @@ fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
         .read_state_bytes_using_wasm(
             FUNC_NAME,
             META_WASM_V2.to_vec(),
-            state_args_encoded!(other_person.clone()),
+            state_args_encoded!(&other_person),
         )
         .expect("Unable to read program state");
 
