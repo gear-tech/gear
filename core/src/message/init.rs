@@ -158,8 +158,8 @@ impl InitPacket {
         code_id: CodeId,
         salt: Salt,
         payload: Payload,
-        gas_limit: GasLimit,
         value: Value,
+        gas_limit: GasLimit,
         message_id: Option<MessageId>,
     ) -> Self {
         let program_id = if let Some(id) = message_id {

@@ -605,8 +605,8 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                gas_limit,
                 value.unique_saturated_into(),
+                gas_limit,
                 None,
             );
 
@@ -1197,8 +1197,8 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                gas_limit,
                 value.unique_saturated_into(),
+                gas_limit,
                 None,
             );
 
