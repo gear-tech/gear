@@ -54,8 +54,8 @@ use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
 /// which is pretty hard to predict beforehand with a generator. So this call context
 /// is created from scratch - first `gr_reserve_gas` is called and then it's result
 /// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum InvocableSysCall {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocableSysCall {
     Loose(SysCallName),
     Precise(SysCallName),
 }
@@ -82,9 +82,77 @@ impl InvocableSysCall {
                     ParamType::Delay,        // Number of blocks to delay the sending for
                     ParamType::Gas,          // Amount of gas to reserve
                     ParamType::Duration,     // Duration of the reservation
+                    ParamType::Ptr(None),    // Address of error returned
                 ]),
                 _ => unimplemented!(),
             },
+        }
+    }
+
+    // If syscall changes from fallible into infallible or vice versa in future,
+    // we'll see it by analyzing code coverage stats produced by fuzzer.
+    pub(crate) fn is_fallible(&self) -> bool {
+        let underlying_syscall = match *self {
+            Self::Loose(sc) => sc,
+            Self::Precise(sc) => sc,
+        };
+
+        match underlying_syscall {
+            SysCallName::BlockHeight
+            | SysCallName::BlockTimestamp
+            | SysCallName::Debug
+            | SysCallName::Panic
+            | SysCallName::OomPanic
+            | SysCallName::Exit
+            | SysCallName::GasAvailable
+            | SysCallName::Leave
+            | SysCallName::MessageId
+            | SysCallName::ProgramId
+            | SysCallName::Random
+            | SysCallName::Size
+            | SysCallName::Source
+            | SysCallName::ValueAvailable
+            | SysCallName::Value
+            | SysCallName::WaitFor
+            | SysCallName::WaitUpTo
+            | SysCallName::Wait
+            | SysCallName::Alloc
+            | SysCallName::Free
+            | SysCallName::OutOfGas => false,
+            SysCallName::CreateProgramWGas
+            | SysCallName::CreateProgram
+            | SysCallName::ReplyDeposit
+            | SysCallName::ReplyCode
+            | SysCallName::SignalCode
+            | SysCallName::PayProgramRent
+            | SysCallName::Read
+            | SysCallName::ReplyCommitWGas
+            | SysCallName::ReplyCommit
+            | SysCallName::ReplyPush
+            | SysCallName::ReplyPushInput
+            | SysCallName::ReplyTo
+            | SysCallName::SignalFrom
+            | SysCallName::ReplyInputWGas
+            | SysCallName::ReplyWGas
+            | SysCallName::Reply
+            | SysCallName::ReplyInput
+            | SysCallName::ReservationReplyCommit
+            | SysCallName::ReservationReply
+            | SysCallName::ReservationSendCommit
+            | SysCallName::ReservationSend
+            | SysCallName::ReserveGas
+            | SysCallName::SendCommitWGas
+            | SysCallName::SendCommit
+            | SysCallName::SendInit
+            | SysCallName::SendPush
+            | SysCallName::SendPushInput
+            | SysCallName::SendInputWGas
+            | SysCallName::SendWGas
+            | SysCallName::Send
+            | SysCallName::SendInput
+            | SysCallName::SystemReserveGas
+            | SysCallName::UnreserveGas
+            | SysCallName::Wake => true,
         }
     }
 }

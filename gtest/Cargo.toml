@@ -33,3 +33,4 @@ demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true
+demo-meta-io.workspace = true

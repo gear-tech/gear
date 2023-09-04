@@ -25,6 +25,7 @@ static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
+gear-runtime-interface = { workspace = true }
 gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
@@ -91,7 +92,7 @@ demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -114,7 +115,6 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
 [features]
@@ -153,6 +153,7 @@ std = [
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
+	"gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

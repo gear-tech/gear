@@ -173,6 +173,38 @@ impl From<&str> for ProgramIdWrapper {
     }
 }
 
+#[macro_export]
+macro_rules! state_args {
+    () => {
+        Option::<()>::None
+    };
+    ($single:expr) => {
+        Some($single)
+    };
+    ($($multiple:expr),*) => {
+        Some(($($multiple,)*))
+    };
+}
+
+#[macro_export]
+macro_rules! state_args_encoded {
+    () => {
+        Option::<Vec<u8>>::None
+    };
+    ($single:expr) => {
+        {
+            use $crate::codec::Encode;
+            Some(($single).encode())
+        }
+    };
+    ($($multiple:expr),*) => {
+        {
+            use $crate::codec::Encode;
+            Some((($($multiple,)*)).encode())
+        }
+    };
+}
+
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
     pub(crate) id: ProgramId,
@@ -423,14 +455,57 @@ impl<'a> Program<'a> {
     /// Reads the program’s transformed state as a byte vector. The transformed
     /// state is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by
+    /// using [`state_args_encoded`] macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use gtest::{state_args_encoded, Program, System, WasmProgram, Result};
+    /// # use codec::Encode;
+    /// # fn doctest() -> Result<()> {
+    /// # #[derive(Debug)]
+    /// # struct MockWasm {}
+    /// #
+    /// # impl WasmProgram for MockWasm {
+    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
+    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
+    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
+    /// #  }
+    /// # let system = System::new();
+    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let ARG_1 = 0u8;
+    /// # let ARG_2 = 0u8;
+    /// //Read state bytes with no arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<Vec<u8>>::None)?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!())?;
+    /// // Read state bytes with one argument passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1.encode()))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1))?;
+    /// // Read state bytes with multiple arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2).encode()))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1, ARG_2))?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn read_state_bytes_using_wasm(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         self.manager.borrow_mut().with_externalities(|this| {
-            this.read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)
+            this.read_state_bytes_using_wasm(&self.id, fn_name, wasm, args)
         })
     }
 
@@ -443,6 +518,48 @@ impl<'a> Program<'a> {
     /// Reads and decodes the program’s transformed state. The transformed state
     /// is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by
+    /// using [`state_args`] macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use gtest::{state_args, Program, System, WasmProgram, Result};
+    /// # fn doctest() -> Result<()> {
+    /// # #[derive(Debug)]
+    /// # struct MockWasm {}
+    /// #
+    /// # impl WasmProgram for MockWasm {
+    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
+    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
+    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
+    /// #  }
+    /// # let system = System::new();
+    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let ARG_1 = 0u8;
+    /// # let ARG_2 = 0u8;
+    /// //Read state bytes with no arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!())?;
+    /// // Read state bytes with one argument passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1))?;
+    /// // Read state bytes with multiple arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
         fn_name: &str,

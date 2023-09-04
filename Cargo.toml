@@ -89,15 +89,15 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.70"
+anyhow = "1.0.75"
 arbitrary = "1.3.0"
 async-recursion = "1.0.4"
-async-trait = "0.1.68"
-base64 = "0.21.0"
+async-trait = "0.1.73"
+base64 = "0.21.3"
 byteorder = { version = "1.4.3", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.3.21" }
+clap = { version = "4.4.2" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -128,7 +128,7 @@ primitive-types = { version = "0.12.1", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.1.0"
 quick-xml = "0.28"
-quote = { version = "1.0.26", default-features = false }
+quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
 rayon = "1.7"
 regex = "^1.9"
@@ -160,7 +160,7 @@ syn = "2.0.28"
 thiserror = "1.0.44"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
-wat = "1.0.69"
+wat = "1.0.71"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -425,7 +425,7 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.34", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
-nix = "0.26.2"                                                            # gear-lazy-pages
+nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder

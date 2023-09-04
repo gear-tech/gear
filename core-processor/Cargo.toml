@@ -32,3 +32,4 @@ enum-iterator.workspace = true
 default = ["std"]
 std = ["gear-lazy-pages-common/std"]
 strict = []
+mock = []
