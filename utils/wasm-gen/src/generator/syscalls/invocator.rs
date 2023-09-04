@@ -208,6 +208,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
+        let insert_error_processing = self
+            .config
+            .error_processing_config()
+            .error_should_be_processed(&invocable);
         let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
 
         if self.is_not_send_sys_call(invocable) {
@@ -215,7 +219,12 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 " -- Generating build call for non-send sys-call {}",
                 invocable.to_str()
             );
-            return self.build_call(signature, fallible, call_indexes_handle);
+            return self.build_call(
+                signature,
+                fallible,
+                insert_error_processing,
+                call_indexes_handle,
+            );
         }
 
         log::trace!(
@@ -226,8 +235,12 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         // The value for the first param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
         signature.params.remove(0);
-        let mut call_without_destination_instrs =
-            self.build_call(signature, fallible, call_indexes_handle)?;
+        let mut call_without_destination_instrs = self.build_call(
+            signature,
+            fallible,
+            insert_error_processing,
+            call_indexes_handle,
+        )?;
 
         let res = if self.config.sending_message_destination().is_source() {
             log::trace!(" -- Message destination is result of `gr_source`");
@@ -306,6 +319,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         &mut self,
         signature: SysCallSignature,
         fallible: bool,
+        insert_error_processing: bool,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let param_setters = self.build_param_setters(&signature.params)?;
@@ -317,7 +331,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
-        let mut result_processing = if self.config.ignore_fallible_syscall_errors() {
+        let mut result_processing = if !insert_error_processing {
             Self::build_result_processing_ignored(signature)
         } else if fallible {
             Self::build_result_processing_fallible(signature, &param_setters)

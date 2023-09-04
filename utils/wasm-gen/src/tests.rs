@@ -247,6 +247,12 @@ fn execute_wasm_with_syscall_injected(
     let mut injection_amounts = SysCallsInjectionAmounts::all_never();
     injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
+    let error_processing_config = if ignore_fallible_errors {
+        ErrorProcessingConfig::None
+    } else {
+        ErrorProcessingConfig::All
+    };
+
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
             .with_memory_config(MemoryPagesConfig {
@@ -256,7 +262,7 @@ fn execute_wasm_with_syscall_injected(
             .with_sys_calls_config(
                 SysCallsConfigBuilder::new(injection_amounts)
                     .with_params_config(params_config)
-                    .set_ignore_fallible_syscall_errors(ignore_fallible_errors)
+                    .set_error_processing_config(error_processing_config)
                     .build(),
             )
             .with_entry_points_config(EntryPointsSet::Init)
