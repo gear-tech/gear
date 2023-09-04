@@ -4731,6 +4731,7 @@ dependencies = [
  "colored",
  "demo-custom",
  "demo-futures-unordered",
+ "demo-meta-io",
  "demo-piggy-bank",
  "demo-ping",
  "derive_more",
