@@ -2709,7 +2709,7 @@ pub mod runtime_types {
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
                     #[codec(index = 14)]
-                    #[doc = "Voucher can't be redemmed"]
+                    #[doc = "Voucher can't be redeemed"]
                     FailureRedeemingVoucher,
                     #[codec(index = 15)]
                     #[doc = "Gear::run() already included in current block."]
