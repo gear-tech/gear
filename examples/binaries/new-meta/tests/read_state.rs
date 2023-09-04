@@ -2,7 +2,7 @@ use demo_new_meta::{
     MessageInitIn, Person, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
 };
 use gstd::Encode;
-use gtest::{state_args, Program, System};
+use gtest::{state_args, state_args_encoded, Program, System};
 
 #[test]
 fn read_state_bytes_returns_full_state() {
@@ -26,7 +26,7 @@ fn read_state_bytes_with_wasm_func_returns_transformed_state() {
     assert!(META_EXPORTS_V1.contains(&FUNC_NAME));
 
     let actual_state = program
-        .read_state_bytes_using_wasm(FUNC_NAME, META_WASM_V1.to_vec(), state_args!())
+        .read_state_bytes_using_wasm(FUNC_NAME, META_WASM_V1.to_vec(), state_args_encoded!())
         .expect("Unable to read program state");
 
     let expected_state = Wallet::test_sequence().first().encode();
@@ -49,7 +49,7 @@ fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
         .read_state_bytes_using_wasm(
             FUNC_NAME,
             META_WASM_V2.to_vec(),
-            state_args!(other_person.clone()),
+            state_args_encoded!(other_person.clone()),
         )
         .expect("Unable to read program state");
 
@@ -75,7 +75,7 @@ fn read_state_bytes_with_two_args_wasm_func_returns_transformed_state() {
         .read_state_bytes_using_wasm(
             FUNC_NAME,
             META_WASM_V2.to_vec(),
-            state_args!(name.clone(), surname.clone()),
+            state_args_encoded!(name.clone(), surname.clone()),
         )
         .expect("Unable to read program state");
 

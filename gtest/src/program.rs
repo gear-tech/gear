@@ -33,7 +33,6 @@ use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
-use scale_info::TypeInfo;
 use std::{
     cell::RefCell,
     convert::TryInto,
@@ -182,6 +181,25 @@ macro_rules! state_args {
     };
     ($($multiple:expr),*) => {
         Some(($($multiple,)*))
+    };
+}
+
+#[macro_export]
+macro_rules! state_args_encoded {
+    () => {
+        Option::<Vec<u8>>::None
+    };
+    ($single:expr) => {
+        {
+            use $crate::codec::Encode;
+            Some(($single).encode())
+        }
+    };
+    ($($multiple:expr),*) => {
+        {
+            use $crate::codec::Encode;
+            Some((($($multiple,)*)).encode())
+        }
     };
 }
 
@@ -431,13 +449,14 @@ impl<'a> Program<'a> {
     /// binary with the optional `argument`.
     ///
     /// # Usage
-    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by using
-    /// [`state_args`] macro.
+    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by using
+    /// [`state_args_encoded`] macro.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use gtest::{state_args, Program, System, WasmProgram, Result};
+    /// # use gtest::{state_args_encoded, Program, System, WasmProgram, Result};
+    /// # use codec::Encode;
     /// # fn doctest() -> Result<()> {
     /// # #[derive(Debug)]
     /// # struct MockWasm {}
@@ -455,27 +474,27 @@ impl<'a> Program<'a> {
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<Vec<u8>>::None)?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!())?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!())?;
     /// // Read state bytes with one argument passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1.encode()))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1))?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1))?;
     /// // Read state bytes with multiple arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2).encode()))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1, ARG_2))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_state_bytes_using_wasm<E: Encode + TypeInfo + 'static>(
+    pub fn read_state_bytes_using_wasm(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
-        args: Option<E>,
+        args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
@@ -533,16 +552,18 @@ impl<'a> Program<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_state_using_wasm<E: Encode + TypeInfo + 'static, D: Decode>(
+    pub fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
     ) -> Result<D> {
-        let res = self
-            .manager
-            .borrow_mut()
-            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)?;
+        let res = self.manager.borrow_mut().read_state_bytes_using_wasm(
+            &self.id,
+            fn_name,
+            wasm,
+            argument.map(|arg| arg.encode()),
+        )?;
         D::decode(&mut &*res).map_err(Into::into)
     }
 
