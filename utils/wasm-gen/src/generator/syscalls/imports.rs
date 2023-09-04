@@ -519,7 +519,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let handle_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
         let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
 
-        let func_instructions = Instructions::new(vec![
+        let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
             Instruction::GetLocal(4),
             Instruction::Call(send_init_idx as u32),
@@ -536,24 +536,25 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::GetLocal(4),
             Instruction::I32Load(2, 4),
             Instruction::I32Store(2, 0),
-            // Handle of message
-            Instruction::I32Const(handle_ptr),
-            Instruction::I32Load(2, 0),
-            // Pointer to payload
-            Instruction::GetLocal(1),
-            // Size of the payload
-            Instruction::GetLocal(2),
-            // Pointer to the result of the send push
-            Instruction::GetLocal(4),
-            Instruction::Call(send_push_idx as u32),
-            // Pointer to the ErrorCode
-            Instruction::GetLocal(4),
-            // Load ErrorCode
-            Instruction::I32Load(2, 0),
-            // Check if ErrorCode == 0
-            Instruction::I32Eqz,
-            // If ErrorCode == 0
-            Instruction::If(BlockType::NoResult),
+        ];
+
+        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        for _ in 0..number_of_pushes {
+            elements.extend_from_slice(&[
+                // Handle of message
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(2, 0),
+                // Pointer to payload
+                Instruction::GetLocal(1),
+                // Size of the payload
+                Instruction::GetLocal(2),
+                // Pointer to the result of the send push
+                Instruction::GetLocal(4),
+                Instruction::Call(send_push_idx as u32),
+            ]);
+        }
+
+        elements.extend_from_slice(&[
             // Copy the HashWithValue struct (48 bytes) containing the recipient and value
             // TODO: extract into another method
             Instruction::I32Const(pid_value_ptr),
@@ -592,8 +593,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::Call(send_commit_idx as u32),
             Instruction::End,
             Instruction::End,
-            Instruction::End,
         ]);
+
+        let func_instructions = Instructions::new(elements);
 
         self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
 
@@ -621,7 +623,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
         let length_ptr = pid_value_ptr + mem::size_of::<Length>() as i32;
 
-        let func_instructions = Instructions::new(vec![
+        let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
             Instruction::GetLocal(3),
             Instruction::Call(send_init_idx as u32),
@@ -641,25 +643,26 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             // Pointer to message length
             Instruction::I32Const(length_ptr),
             Instruction::Call(size_idx as u32),
-            // Handle of message
-            Instruction::I32Const(handle_ptr),
-            Instruction::I32Load(2, 0),
-            // Offset of input
-            Instruction::I32Const(0),
-            // Length of input
-            Instruction::I32Const(length_ptr),
-            Instruction::I32Load(2, 0),
-            // Pointer to the result of the send push input
-            Instruction::GetLocal(3),
-            Instruction::Call(send_push_input_idx as u32),
-            // Pointer to the ErrorCode
-            Instruction::GetLocal(3),
-            // Load ErrorCode
-            Instruction::I32Load(2, 0),
-            // Check if ErrorCode == 0
-            Instruction::I32Eqz,
-            // If ErrorCode == 0
-            Instruction::If(BlockType::NoResult),
+        ];
+
+        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        for _ in 0..number_of_pushes {
+            elements.extend_from_slice(&[
+                // Handle of message
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(2, 0),
+                // Offset of input
+                Instruction::I32Const(0),
+                // Length of input
+                Instruction::I32Const(length_ptr),
+                Instruction::I32Load(2, 0),
+                // Pointer to the result of the send push input
+                Instruction::GetLocal(3),
+                Instruction::Call(send_push_input_idx as u32),
+            ]);
+        }
+
+        elements.extend_from_slice(&[
             // Copy the HashWithValue struct (48 bytes) containing the recipient and value
             // TODO: extract into another method
             Instruction::I32Const(pid_value_ptr),
@@ -700,8 +703,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::Call(send_commit_wgas_idx as u32),
             Instruction::End,
             Instruction::End,
-            Instruction::End,
         ]);
+
+        let func_instructions = Instructions::new(elements);
 
         self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
 
