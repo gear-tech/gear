@@ -288,7 +288,7 @@ impl MessageContext {
 
         // Not sure if this is correct, it seems much more likely to generate duplicates
         // if the same program is uploaded twice from the same parent program.
-        let message = InitMessage::from_packet(self.current.id(), packet);
+        let message = InitMessage::from_packet(message_id, packet);
 
         let program_id = message.destination();
 
