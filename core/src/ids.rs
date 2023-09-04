@@ -215,7 +215,7 @@ impl ProgramId {
     pub fn generate_with_id(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
         const SALT: &[u8] = b"program_from_wasm";
 
-        let argument = [message_id.as_ref(), SALT, code_id.as_ref(), salt].concat();
+        let argument = [SALT, message_id.as_ref(), code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
