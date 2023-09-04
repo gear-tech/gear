@@ -455,8 +455,8 @@ impl<'a> Program<'a> {
     /// binary with the optional `argument`.
     ///
     /// # Usage
-    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by using
-    /// [`state_args_encoded`] macro.
+    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by
+    /// using [`state_args_encoded`] macro.
     ///
     /// # Examples
     ///
@@ -518,8 +518,8 @@ impl<'a> Program<'a> {
     /// binary with the optional `argument`.
     ///
     /// # Usage
-    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by using
-    /// [`state_args`] macro.
+    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by
+    /// using [`state_args`] macro.
     ///
     /// # Examples
     ///
