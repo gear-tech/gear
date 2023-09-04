@@ -176,6 +176,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// from which that one was created.
     SpecifiedLocal {
         parent: Id,
+        root: Id,
         value: Balance,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
@@ -189,6 +190,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such nodes don't have children references.
     UnspecifiedLocal {
         parent: Id,
+        root: Id,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
     },
@@ -401,6 +403,24 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
             | Self::SpecifiedLocal { refs, .. }
             | Self::Reserved { refs, .. } => refs.unspec_refs,
             _ => 0,
+        }
+    }
+
+    /// Returns id of the root node.
+    pub fn root_id(&self) -> Option<Id> {
+        match self {
+            Self::SpecifiedLocal { root, .. } | Self::UnspecifiedLocal { root, .. } => Some(*root),
+            Self::External { .. } | Self::Cut { .. } | Self::Reserved { .. } => None,
+        }
+    }
+
+    /// Returns external origin of the node if contains that data inside.
+    pub fn external_origin(&self) -> Option<ExternalId> {
+        match self {
+            Self::External { id, .. } | Self::Cut { id, .. } | Self::Reserved { id, .. } => {
+                Some(id.clone())
+            }
+            Self::SpecifiedLocal { .. } | Self::UnspecifiedLocal { .. } => None,
         }
     }
 

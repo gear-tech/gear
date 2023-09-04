@@ -107,25 +107,6 @@ where
         Ok((ret_node, ret_id))
     }
 
-    /// Returns id and data for root node (as [`GasNode`]) of the value tree,
-    /// which contains the `node`. If some node along the upstream path is
-    /// missing, returns an error (tree is invalidated).
-    ///
-    /// As in [`TreeImpl::node_with_value`], root's id is of `Option` type. It
-    /// is equal to `None` in case `node` is a root node.
-    pub(super) fn root(
-        node: StorageMap::Value,
-    ) -> Result<(StorageMap::Value, Option<NodeId>), Error> {
-        let mut ret_id = None;
-        let mut ret_node = node;
-        while let Some(parent) = ret_node.parent() {
-            ret_id = Some(parent);
-            ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
-        }
-
-        Ok((ret_node, ret_id))
-    }
-
     pub(super) fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
         let id = match node.parent() {
             Some(id) => id,
@@ -490,16 +471,19 @@ where
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        // key known, must return the origin, unless corrupted
-        let (root, maybe_key) = Self::root(node)?;
-
-        if let GasNode::External { id, .. }
-        | GasNode::Cut { id, .. }
-        | GasNode::Reserved { id, .. } = root
-        {
-            Ok((id, maybe_key.unwrap_or(key)))
+        if let Some(external_origin) = node.external_origin() {
+            Ok((external_origin, key))
         } else {
-            unreachable!("Guaranteed by ValueNode::root method")
+            let root_id = node
+                .root_id()
+                .unwrap_or_else(|| unreachable!("Guaranteed by GasNode::root_id() fn"));
+
+            let root_node = Self::get_node(root_id).ok_or_else(InternalError::node_not_found)?;
+
+            let external_origin = root_node
+                .external_origin()
+                .unwrap_or_else(|| unreachable!("Guaranteed by GasNode::root_id() fn"));
+            Ok((external_origin, root_id))
         }
     }
 
@@ -708,6 +692,7 @@ where
                 parent_node.increase_spec_refs();
 
                 Ok(GasNode::SpecifiedLocal {
+                    root: parent_node.root_id().unwrap_or(parent_id),
                     value,
                     lock: Zero::zero(),
                     system_reserve: Zero::zero(),
@@ -743,6 +728,7 @@ where
         node.increase_unspec_refs();
 
         let new_node = GasNode::UnspecifiedLocal {
+            root: node.root_id().unwrap_or(node_id),
             parent: node_id,
             lock: Zero::zero(),
             system_reserve: Zero::zero(),
