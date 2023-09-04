@@ -22,10 +22,12 @@ use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
-    Api, Result,
+    Api, Error, Result,
 };
+use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr};
+use subxt::{config::Header, error::RpcError, Error as SubxtError};
 
 fn dev_node() -> Node {
     // Use release build because of performance reasons.
@@ -83,16 +85,19 @@ async fn test_calculate_create_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
+        .calls
         .upload_code(demo_messager::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messager::WASM_BINARY);
     let gas_info = signer
+        .rpc
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
 
     signer
+        .calls
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -112,6 +117,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
+        .calls
         .upload_program(
             demo_messager::WASM_BINARY.to_vec(),
             salt,
@@ -125,11 +131,13 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
+        .rpc
         .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_message(pid, vec![], gas_info.min_limit, 0)
+        .calls
+        .send_message(pid, vec![], gas_info.min_limit, 0, false)
         .await?;
 
     Ok(())
@@ -150,6 +158,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
+        .calls
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
             salt,
@@ -163,7 +172,8 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 2. send wait message.
     signer
-        .send_message(pid, payload.encode(), 100_000_000_000, 0)
+        .calls
+        .send_message(pid, payload.encode(), 100_000_000_000, 0, false)
         .await?;
 
     let mailbox = signer
@@ -175,11 +185,13 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
+        .rpc
         .calculate_reply_gas(None, message_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_reply(message_id, vec![], gas_info.min_limit, 0)
+        .calls
+        .send_reply(message_id, vec![], gas_info.min_limit, 0, false)
         .await?;
 
     Ok(())
@@ -227,7 +239,12 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let mut finalized_blocks = api.finalized_blocks().await?;
 
     let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
-    assert!(wasm_blob_version_1.ends_with(git_commit_hash.as_ref()));
+    assert!(
+        wasm_blob_version_1.ends_with(git_commit_hash.as_ref()),
+        "The WASM blob version {} does not end with the git commit hash {}",
+        wasm_blob_version_1,
+        git_commit_hash
+    );
 
     let block_hash_1 = finalized_blocks.next_events().await.unwrap()?.block_hash();
     let wasm_blob_version_2 = api.runtime_wasm_blob_version(Some(block_hash_1)).await?;
@@ -243,7 +260,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
-    let api = Api::new(Some("wss://rpc.vara-network.io:443")).await?;
+    let api = Api::new(Some("wss://archive-rpc.vara-network.io:443")).await?;
 
     {
         let no_method_block_hash = sp_core::H256::from_str(
@@ -255,12 +272,55 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
             .runtime_wasm_blob_version(Some(no_method_block_hash))
             .await;
 
-        assert!(wasm_blob_version_result.is_err());
-        let error_msg = wasm_blob_version_result.unwrap_err().to_string();
-        assert!(error_msg.starts_with(
-            "Rpc error: RPC error: RPC call failed: ErrorObject { code: MethodNotFound"
+        let err = CallError::Custom(ErrorObject::owned(
+            9000,
+            "Unable to find WASM blob version in WASM blob",
+            None::<String>,
         ));
+        assert!(
+            matches!(
+                &wasm_blob_version_result,
+                Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
+            ),
+            "Error does not match: {wasm_blob_version_result:?}"
+        );
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_original_code_storage() -> Result<()> {
+    let node = dev_node();
+
+    let salt = vec![];
+    let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
+
+    signer
+        .calls
+        .upload_program(
+            demo_messager::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    let program = signer.api().gprog(pid).await?;
+    let rpc = signer.api().rpc();
+    let last_block = rpc.block(None).await?.unwrap().block.header.number();
+    let block_hash = rpc.block_hash(Some(last_block.into())).await?;
+    let code = signer
+        .api()
+        .original_code_storage_at(program.code_hash.0.into(), block_hash)
+        .await?;
+
+    assert_eq!(code, demo_messager::WASM_BINARY.to_vec());
 
     Ok(())
 }

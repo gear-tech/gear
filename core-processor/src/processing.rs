@@ -29,7 +29,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use gear_backend_common::{
-    BackendExternalities, BackendExternalitiesError, Environment, SystemReservationContext,
+    BackendExternalities, BackendSyscallError, Environment, SystemReservationContext,
 };
 use gear_core::{
     env::Externalities,
@@ -51,7 +51,7 @@ pub fn process<E>(
 where
     E: Environment,
     E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendExternalitiesError,
+    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 

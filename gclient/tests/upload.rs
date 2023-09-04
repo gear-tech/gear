@@ -198,7 +198,7 @@ async fn get_mailbox() -> anyhow::Result<()> {
         .calculate_handle_gas(None, program_id, vec![], 0, true)
         .await?;
 
-    let messages = vec![(program_id, vec![], gas_info.min_limit * 10, 0); 5];
+    let messages = vec![(program_id, vec![], gas_info.min_limit * 10, 0, false); 5];
 
     let (messages, _hash) = api.send_message_bytes_batch(messages).await?;
 

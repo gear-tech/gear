@@ -41,10 +41,10 @@
 //! the program execution and enqueued after the execution successfully ends.
 
 use crate::{
-    errors::{Result, SyscallError},
+    errors::{Error, Result, SyscallError},
     stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
 };
-use gear_core_errors::{ExtError, ReplyCode, SignalCode};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{
     ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, HashWithValue,
     TwoHashesWithValue,
@@ -155,7 +155,7 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     let size = size();
 
     if size > buffer.len() {
-        return Err(ExtError::SyscallUsage);
+        return Err(Error::SyscallUsage);
     }
 
     if size > 0 {
@@ -190,10 +190,22 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
         let mut len = 0u32;
 
         if size > 0 {
-            unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut len as *mut u32) }
+            unsafe {
+                gsys::gr_read(
+                    0,
+                    size as u32,
+                    buffer.as_mut_ptr() as *mut u8,
+                    &mut len as *mut u32,
+                )
+            }
         }
 
-        f(SyscallError(len).into_result().map(|_| buffer))
+        // SAFETY: same as `MaybeUninit::slice_assume_init_mut(&mut buffer[..size])`.
+        // It takes the slice `&mut buffer[..size]` and says that it was
+        // previously initialized with the `gr_read` system call.
+        f(SyscallError(len)
+            .into_result()
+            .map(|_| unsafe { &mut *(&mut buffer[..size] as *mut _ as *mut [u8]) }))
     })
 }
 
@@ -223,7 +235,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
     let size = size();
 
     if size > buffer.len() + offset {
-        return Err(ExtError::SyscallUsage);
+        return Err(Error::SyscallUsage);
     }
 
     unsafe {
@@ -275,10 +287,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
 pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     let value_ptr = value_ptr(&value);
 
@@ -317,10 +326,7 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
 
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_reservation_reply(
@@ -354,10 +360,7 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     let value_ptr = value_ptr(&value);
 
@@ -502,10 +505,7 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 ///
 /// - [`reply_commit`] function finalizes and sends the current reply message.
 pub fn reply_push(payload: &[u8]) -> Result<()> {
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     let mut error_code = 0u32;
     unsafe { gsys::gr_reply_push(payload.as_ptr(), payload_len, &mut error_code) };
@@ -775,10 +775,7 @@ pub fn send_delayed_from_reservation(
 
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_reservation_send(
@@ -944,10 +941,7 @@ pub fn send_delayed(
 
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_send(
@@ -1007,10 +1001,7 @@ pub fn send_with_gas_delayed(
 
     let mut res: ErrorWithHash = Default::default();
 
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     unsafe {
         gsys::gr_send_wgas(
@@ -1207,10 +1198,7 @@ pub fn send_init() -> Result<MessageHandle> {
 /// - [`send_init`], [`send_commit`] functions allows forming a message in parts
 ///   and send it.
 pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
+    let payload_len = payload.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
     let mut error_code = 0u32;
     unsafe { gsys::gr_send_push(handle.0, payload.as_ptr(), payload_len, &mut error_code) };

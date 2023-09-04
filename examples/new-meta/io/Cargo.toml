@@ -1,0 +1,12 @@
+[package]
+name = "demo-meta-io"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../"
+
+[dependencies]
+gmeta = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }

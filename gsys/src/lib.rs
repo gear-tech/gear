@@ -28,6 +28,9 @@ pub type ErrorCode = u32;
 /// Represents block number type.
 pub type BlockNumber = u32;
 
+/// Represents block count type.
+pub type BlockCount = u32;
+
 /// Represents block number type.
 pub type BlockTimestamp = u64;
 
@@ -74,7 +77,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,

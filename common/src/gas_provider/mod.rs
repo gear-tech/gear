@@ -126,11 +126,28 @@ pub trait Tree {
         key: impl Into<Self::NodeId>,
     ) -> Result<(Self::Balance, Self::NodeId), Self::Error>;
 
+    /// Get value associated with given id and the key of an consumed ancestor,
+    /// that keeps this value.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
+    /// node identified by the `key` belongs to a subtree originating at
+    /// such "orphan" node, or in case of inexistent key.
+    fn get_limit_node_consumed(
+        key: impl Into<Self::NodeId>,
+    ) -> Result<(Self::Balance, Self::NodeId), Self::Error>;
+
     /// Get value associated with given id.
     ///
     /// See [`get_limit_node`](Self::get_limit_node) for details.
     fn get_limit(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
         Self::get_limit_node(key).map(|(balance, _key)| balance)
+    }
+
+    /// Get value associated with given id within consumed node.
+    ///
+    /// See [`get_limit_node_consumed`](Self::get_limit_node_consumed) for details.
+    fn get_limit_consumed(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
+        Self::get_limit_node_consumed(key).map(|(balance, _key)| balance)
     }
 
     /// Consume underlying value.

@@ -19,7 +19,7 @@
 /// Extensions for additional features.
 pub mod ext {
     #[cfg(any(feature = "debug", debug_assertions))]
-    use crate::errors::{ExtError, Result};
+    use crate::errors::{Error, Result};
 
     /// Add a `data` string to the debug log.
     ///
@@ -35,7 +35,7 @@ pub mod ext {
     /// ```
     #[cfg(any(feature = "debug", debug_assertions))]
     pub fn debug(data: &str) -> Result<()> {
-        let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+        let data_len = data.len().try_into().map_err(|_| Error::SyscallUsage)?;
 
         unsafe { gsys::gr_debug(data.as_ptr(), data_len) }
 

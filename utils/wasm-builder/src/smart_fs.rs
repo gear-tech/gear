@@ -24,8 +24,6 @@ use anyhow::Result;
 use gmeta::MetadataRepr;
 use std::{fs, io::ErrorKind, path::Path};
 
-const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
-
 pub(crate) fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<bool> {
     let from = from.as_ref();
     let to = to.as_ref();
@@ -59,9 +57,6 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     if metadata.len() != contents.len() as u64 {
         return Ok(true);
     }
-
-    // gear-wasm-builder doesn't write such big files
-    assert!(metadata.len() <= LINEAR_COMPARISON_FILE_SIZE);
 
     let old_contents = fs::read(path)?;
     Ok(old_contents != contents)

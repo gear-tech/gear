@@ -407,6 +407,27 @@ where
 
         Ok(())
     }
+
+    // Get limit node fn that may work with both: consumed and not, depending on `validate` argument.
+    fn get_limit_node_impl(
+        key: impl Into<NodeId>,
+        validate: impl FnOnce(&GasNode<ExternalId, NodeId, Balance>) -> Result<(), Error>,
+    ) -> Result<(Balance, NodeId), Error> {
+        let key = key.into();
+
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        validate(&node)?;
+
+        let (node_with_value, maybe_key) = Self::node_with_value(node)?;
+
+        // The node here is external, specified or reserved hence has the inner value
+        let v = node_with_value
+            .value()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        Ok((v, maybe_key.unwrap_or(key)))
+    }
 }
 
 impl<TotalValue, Balance, InternalError, Error, ExternalId, NodeId, StorageMap> Tree
@@ -487,16 +508,27 @@ where
     ) -> Result<(Self::Balance, Self::NodeId), Self::Error> {
         let key = key.into();
 
-        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+        Self::get_limit_node_impl(key, |node| {
+            if node.is_consumed() {
+                Err(InternalError::node_was_consumed().into())
+            } else {
+                Ok(())
+            }
+        })
+    }
 
-        let (node_with_value, maybe_key) = Self::node_with_value(node)?;
+    fn get_limit_node_consumed(
+        key: impl Into<Self::NodeId>,
+    ) -> Result<(Self::Balance, Self::NodeId), Self::Error> {
+        let key = key.into();
 
-        // The node here is external, specified or reserved hence has the inner value
-        let v = node_with_value
-            .value()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        Ok((v, maybe_key.unwrap_or(key)))
+        Self::get_limit_node_impl(key, |node| {
+            if node.is_consumed() {
+                Ok(())
+            } else {
+                Err(InternalError::forbidden().into())
+            }
+        })
     }
 
     /// Marks a node with `key` as consumed, if possible, and tries to return

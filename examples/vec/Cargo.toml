@@ -1,0 +1,17 @@
+[package]
+name = "demo-vec"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../"
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []

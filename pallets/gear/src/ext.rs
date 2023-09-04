@@ -29,13 +29,13 @@ use gear_backend_common::{
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, MemoryInterval},
+    memory::{GrowHandler, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{GearPage, PageU32Size, WasmPage},
 };
-use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -67,9 +67,9 @@ impl BackendExternalities for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-        gas_left: &mut GasLeft,
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
@@ -151,8 +151,16 @@ impl CountersOwner for LazyPagesExt {
         self.inner.gas_left()
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        self.inner.set_gas_left(gas_left)
+    fn current_counter_type(&self) -> CounterType {
+        self.inner.current_counter_type()
+    }
+
+    fn decrease_current_counter_to(&mut self, amount: u64) {
+        self.inner.decrease_current_counter_to(amount)
+    }
+
+    fn define_current_counter(&mut self) -> u64 {
+        self.inner.define_current_counter()
     }
 }
 

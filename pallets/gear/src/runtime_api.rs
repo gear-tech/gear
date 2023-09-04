@@ -23,6 +23,10 @@ use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
+// Multiplier 6 was experimentally found as median value for performance,
+// security and abilities for calculations on-chain.
+pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
@@ -69,14 +73,16 @@ where
                     })?;
             }
             HandleKind::Handle(destination) => {
-                Self::send_message(who.into(), destination, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_message failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_message(who.into(), destination, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
-                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: send_reply failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
@@ -103,15 +109,8 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        // Gas calculation info should not depend on the current block gas allowance.
-        // We set it to 'block gas limit" * 5 for the calculation purposes with a subsequent restore.
-        // This is done in order to avoid abusing running node. If one wants to check
-        // executions exceeding the set threshold, they can build their own node with that
-        // parameter set to a higher value.
-        let gas_allowance = GasAllowanceOf::<T>::get();
-        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * 5);
-        // Restore gas allowance.
-        let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
+        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT);
+        QueueProcessingOf::<T>::allow();
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -120,8 +119,11 @@ where
                 );
             }
 
-            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
-                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+            let Some(queued_dispatch) =
+                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
+            else {
+                break;
+            };
 
             let actor_id = queued_dispatch.destination();
 
@@ -150,7 +152,25 @@ where
             };
             let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
-            let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
+            let get_main_limit = || {
+                // For case when node is not consumed and has any (even zero) balance
+                // it means that it burned/sent all the funds and we must return it.
+                //
+                // For case when node is consumed and has zero balance it means that
+                // node moved its funds upstream to its ancestor. So this shouldn't
+                // be returned.
+                //
+                // For case when node is consumed and has non zero balance it means
+                // that it has gasless child that will consume gas further. So we
+                // handle this value as well.
+                GasHandlerOf::<T>::get_limit(main_message_id)
+                    .ok()
+                    .or_else(|| {
+                        GasHandlerOf::<T>::get_limit_consumed(main_message_id)
+                            .ok()
+                            .filter(|limit| !limit.is_zero())
+                    })
+            };
 
             let get_origin_msg_of = |msg_id| {
                 GasHandlerOf::<T>::get_origin_key(msg_id)
@@ -252,6 +272,7 @@ where
 
     pub(crate) fn read_state_using_wasm_impl(
         program_id: ProgramId,
+        payload: Vec<u8>,
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
@@ -287,8 +308,9 @@ where
 
         let instrumented_code = code_and_id.into_parts().0;
 
+        let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id)?);
+        payload.append(&mut Self::read_state_impl(program_id, payload_arg)?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),
@@ -302,12 +324,15 @@ where
             None,
             None,
             payload,
-            BlockGasLimitOf::<T>::get() / 4,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
     }
 
-    pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
+    pub(crate) fn read_state_impl(
+        program_id: ProgramId,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
@@ -335,8 +360,8 @@ where
             program_pages,
             Some(allocations),
             Some(program_id),
-            Default::default(),
-            BlockGasLimitOf::<T>::get() / 4,
+            payload,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
     }
@@ -370,7 +395,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            BlockGasLimitOf::<T>::get() / 4,
+            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
         )
         .and_then(|bytes| {

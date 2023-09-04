@@ -17,16 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{scheduler::StorageType, *};
-use enum_iterator::Sequence;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
-#[repr(u8)]
-pub enum LockId {
-    Mailbox,
-    Waitlist,
-    Reservation,
-    DispatchStash,
-}
+pub use gear_core::gas::LockId;
 
 /// An error indicating there is no corresponding enum variant to the one provided
 #[derive(Debug)]

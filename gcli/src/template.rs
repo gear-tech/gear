@@ -27,8 +27,8 @@ use std::{env, process::Command};
 const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
 /// see https://docs.github.com/en/rest/repos/repos
-const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-dapps/repos";
-const GEAR_DAPP_ORG: &str = "https://github.com/gear-dapps/";
+const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-foundation/repos";
+const GEAR_DAPP_ORG: &str = "https://github.com/gear-foundation/";
 
 /// Repo object from github api response.
 #[derive(serde::Deserialize)]
@@ -131,5 +131,9 @@ fn process_manifest(manifest: &mut String) -> Result<()> {
 #[tokio::test]
 async fn list_examples() {
     let ls = list().await.expect("Failed to get examples");
-    assert!(ls.contains(&"app".to_string()), "all templates: {ls:?}");
+    // TODO: #2914
+    assert!(
+        ls.contains(&"dapps-app".to_string()),
+        "all templates: {ls:?}"
+    );
 }

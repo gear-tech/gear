@@ -30,7 +30,11 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-backend-common.workspace = true
 gear-core-processor.workspace = true
+gear-core.workspace = true
 pallet-gear.workspace = true
+pallet-gear-gas.workspace = true
+pallet-gear-bank.workspace = true
+pallet-gear-messenger.workspace = true
 
 # Utils
 log.workspace = true
@@ -44,6 +48,10 @@ std = [
 	"pallet-authorship/std",
 	"pallet-balances/std",
 	"pallet-session/std",
+	"pallet-gear/std",
+	"pallet-gear-gas/std",
+	"pallet-gear-bank/std",
+	"pallet-gear-messenger/std",
 	"runtime-primitives/std",
 	"sp-runtime/std",
 	"sp-std/std",
@@ -55,11 +63,19 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-system-benchmarking/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-gear/runtime-benchmarks",
+	"pallet-gear-gas/runtime-benchmarks",
+	"pallet-gear-bank/runtime-benchmarks",
+	"pallet-gear-messenger/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-system/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-gear/try-runtime",
+	"pallet-gear-gas/try-runtime",
+	"pallet-gear-bank/try-runtime",
+	"pallet-gear-messenger/try-runtime",
 	"pallet-session/try-runtime",
 	"validator-set/try-runtime",
 ]

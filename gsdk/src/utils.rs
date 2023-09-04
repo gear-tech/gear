@@ -18,15 +18,19 @@
 
 //! gear api utils
 use crate::{
-    config::GearConfig, ext::sp_core::hashing, metadata::runtime_types::sp_runtime::DispatchError,
-    result::Result, Api,
+    config::GearConfig,
+    ext::sp_core::hashing,
+    metadata::{DispatchError, StorageInfo},
+    result::Result,
+    Api,
 };
 use parity_scale_codec::Encode;
 use sp_core::H256;
 use subxt::{
+    dynamic::Value,
     error::{DispatchError as SubxtDispatchError, Error},
-    metadata::Metadata,
-    storage::{Storage, StorageAddress},
+    metadata::{EncodeWithMetadata, Metadata},
+    storage::{DynamicAddress, Storage, StorageAddress},
     OnlineClient,
 };
 
@@ -66,6 +70,19 @@ impl Api {
         };
 
         Ok(storage)
+    }
+
+    /// Get the storage address from storage info.
+    pub fn storage<Encodable: EncodeWithMetadata, T: StorageInfo>(
+        storage: T,
+        encodable: Vec<Encodable>,
+    ) -> DynamicAddress<Encodable> {
+        subxt::dynamic::storage(T::PALLET, storage.storage_name(), encodable)
+    }
+
+    /// Get the storage root address from storage info.
+    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Value> {
+        subxt::dynamic::storage_root(T::PALLET, storage.storage_name())
     }
 }
 

@@ -1,6 +1,11 @@
 [package]
 name = "gsys"
+description = "System calls of Gear program"
+keywords = ["gear", "wasm"]
+categories = ["wasm", "api-bindings"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true

@@ -25,14 +25,12 @@ use gear_backend_common::{
     LimitedStr,
 };
 use gear_core::memory::HostPointer;
-use sc_executor_common::sandbox::SandboxInstance;
+use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
-    GasLimit = 0,
-    AllowanceLimit = 1,
-    Amount = 2,
+    Gas = 0,
 }
 
 #[derive(Debug)]
@@ -50,7 +48,7 @@ struct GlobalsAccessWasmRuntime<'a> {
 }
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
-    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name.as_str())
             .and_then(|value| match value {
@@ -60,7 +58,7 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.instance
             .set_global_val(name.as_str(), Value::I64(value))
             .ok()
@@ -79,11 +77,11 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
 }
 
 impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
-    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }
 
-    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.inner_access_provider.set_i64(name, value)
     }
 
@@ -97,11 +95,11 @@ fn apply_for_global_internal(
     name: &str,
     mut f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = LimitedStr::new(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
+    let name = LimitedStr::try_from(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
 
-    let current_value = globals_access_provider.get_i64(name)? as u64;
+    let current_value = globals_access_provider.get_i64(&name)? as u64;
     if let Some(new_value) = f(current_value)? {
-        globals_access_provider.set_i64(name, new_value as i64)?;
+        globals_access_provider.set_i64(&name, new_value as i64)?;
         Ok(new_value)
     } else {
         Ok(current_value)
@@ -110,16 +108,15 @@ fn apply_for_global_internal(
 
 pub(crate) unsafe fn apply_for_global(
     globals_ctx: &GlobalsContext,
-    global_no: GlobalNo,
+    global_name: &str,
     f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = globals_ctx.names[global_no as usize].as_str();
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_ctx.access_ptr as *mut SandboxInstance)
                 .as_mut()
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
-            apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, name, f)
+            apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, global_name, f)
         }
         GlobalsAccessMod::NativeRuntime => {
             let inner_access_provider = (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor)
@@ -129,7 +126,7 @@ pub(crate) unsafe fn apply_for_global(
                 GlobalsAccessNativeRuntime {
                     inner_access_provider,
                 },
-                name,
+                global_name,
                 f,
             )
         }

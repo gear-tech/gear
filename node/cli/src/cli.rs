@@ -29,6 +29,10 @@ pub struct RunCmd {
     /// Force using Vara native runtime.
     #[arg(long = "force-vara")]
     pub force_vara: bool,
+
+    /// The upper limit for the amount of gas a validator can burn in one block.
+    #[arg(long)]
+    pub max_gas: Option<u64>,
 }
 
 #[derive(Debug, Parser)]
@@ -92,13 +96,6 @@ pub enum Subcommand {
 
     /// Db meta columns information.
     ChainInfo(sc_cli::ChainInfoCmd),
-
-    #[cfg(feature = "runtime-test")]
-    #[command(
-        name = "runtime-spec-tests",
-        about = "Run gear runtime tests with yaml."
-    )]
-    GearRuntimeTest(gear_runtime_test_cli::RuntimeTestCmd),
 
     /// Program CLI
     ///

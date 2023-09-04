@@ -214,11 +214,6 @@ pub enum ProgramRentError {
 )]
 #[non_exhaustive]
 pub enum ExtError {
-    // TODO: remove
-    /// Syscall usage error.
-    #[display(fmt = "Syscall usage error")]
-    SyscallUsage,
-
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
     Execution(ExecutionError),
@@ -247,7 +242,6 @@ impl ExtError {
     /// Convert error into code.
     pub fn to_u32(self) -> u32 {
         match self {
-            ExtError::SyscallUsage => 0xffff,
             ExtError::Execution(err) => err as u32,
             ExtError::Memory(err) => err as u32,
             ExtError::Message(err) => err as u32,
@@ -293,7 +287,7 @@ impl ExtError {
             //
             600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
-            0xffff => Some(ExtError::SyscallUsage),
+            0xffff /* SyscallUsage */ |
             u32::MAX => Some(ExtError::Unsupported),
             _ => None,
         }
@@ -350,6 +344,32 @@ mod tests {
         for err in enum_iterator::all::<ExtError>() {
             let code = err.to_u32();
             assert_ne!(code, 0); // success code
+        }
+    }
+
+    /// check forbidden error codes
+    ///
+    /// forbidden codes either:
+    /// 1. never actually used
+    /// 2. deprecated
+    ///
+    /// codes are forbidden to avoid collision in
+    /// old smart-contracts that built their logic on these error codes
+    /// if we accidentally re-use such codes
+    #[test]
+    fn error_codes_forbidden() {
+        let codes = [0xffff /* SyscallUsage */];
+
+        // check forbidden code is `Unsupported` variant now
+        for code in codes {
+            let err = ExtError::from_u32(code);
+            assert_eq!(err, Some(ExtError::Unsupported));
+        }
+
+        // check forbidden code is never produced
+        for err in enum_iterator::all::<ExtError>() {
+            let code = err.to_u32();
+            assert!(!codes.contains(&code));
         }
     }
 }

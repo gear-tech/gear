@@ -22,22 +22,22 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
+use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
+    LimitedStr,
 };
 use gear_common::Origin;
 use gear_core::{
-    gas::GasLeft,
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use sp_std::{vec, vec::Vec};
+use gear_wasm_instrument::GLOBAL_NAME_GAS;
+use sp_std::{mem, vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
     if mem.get_buffer_host_addr().is_none() {
@@ -52,10 +52,7 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
     let ctx = LazyPagesRuntimeContext {
         page_sizes: vec![WasmPage::size(), GearPage::size()],
-        global_names: vec![
-            GLOBAL_NAME_GAS.to_string(),
-            GLOBAL_NAME_ALLOWANCE.to_string(),
-        ],
+        global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
         pages_storage_prefix: prefix.to_vec(),
     };
 
@@ -158,13 +155,34 @@ pub fn get_status() -> Status {
     gear_ri::lazy_pages_status().0
 }
 
+fn serialize_mem_intervals(intervals: &[MemoryInterval]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(mem::size_of_val(intervals));
+    for interval in intervals {
+        bytes.extend_from_slice(&interval.to_bytes());
+    }
+    bytes
+}
+
 /// Pre-process memory access in syscalls in lazy-pages.
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-    gas_left: &mut GasLeft,
+    gas_counter: &mut u64,
 ) -> Result<(), ProcessAccessError> {
-    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(reads, writes, (*gas_left,));
-    *gas_left = gas_left_new;
-    res
+    let serialized_reads = serialize_mem_intervals(reads);
+    let serialized_writes = serialize_mem_intervals(writes);
+
+    let mut gas_bytes = [0u8; 8];
+    LittleEndian::write_u64(&mut gas_bytes, *gas_counter);
+
+    let res =
+        gear_ri::pre_process_memory_accesses(&serialized_reads, &serialized_writes, &mut gas_bytes);
+
+    *gas_counter = LittleEndian::read_u64(&gas_bytes);
+
+    // if result can be converted to `ProcessAccessError` then it's an error
+    if let Ok(err) = ProcessAccessError::try_from(res) {
+        return Err(err);
+    }
+    Ok(())
 }

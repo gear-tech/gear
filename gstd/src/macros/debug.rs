@@ -49,12 +49,11 @@
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        $crate::ext::debug(&$crate::prelude::format!($($arg)*)).unwrap()
+        $crate::ext::debug(&$crate::format!($($arg)*)).unwrap()
     };
 }
 
-#[cfg(not(feature = "debug"))]
-#[cfg(not(debug_assertions))]
+#[cfg(not(any(feature = "debug", debug_assertions)))]
 #[allow(missing_docs)]
 #[macro_export]
 macro_rules! debug {

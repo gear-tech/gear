@@ -1,0 +1,14 @@
+[package]
+name = "demo-calc-hash"
+version = "0.1.0"
+authors.workspace = true
+edition = "2021"
+license = "GPL-3.0"
+workspace = "../../"
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"]}
+sha2 = { version = "0.10.6", default-features = false }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true

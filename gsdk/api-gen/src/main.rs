@@ -19,15 +19,16 @@ use color_eyre::eyre::Result;
 use frame_metadata::RuntimeMetadataPrefixed;
 use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use std::{
+    collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
 use subxt_metadata::Metadata;
-use syn::parse_quote;
+use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
 const USAGE: &str = r#"
@@ -72,17 +73,20 @@ fn main() -> Result<()> {
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
         .expect("decode metadata failed");
 
-    let output = {
-        let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
+    let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
+    let calls = generate_calls(&metadata);
+    let storage = generate_storage(&metadata);
+    let impls = generate_impls(&metadata);
+    let types = generate_runtime_types(metadata);
 
-        let impls = generate_impls(&metadata);
-        let runtime_types = generate_runtime_types(metadata);
+    let output = quote! {
+        #types
 
-        quote! {
-            #runtime_types
+        #calls
 
-            #impls
-        }
+        #storage
+
+        #impls
     }
     .to_token_stream();
 
@@ -126,6 +130,7 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
     );
 
     let crate_path = Default::default();
+
     let mut derives = DerivesRegistry::new();
     derives.extend_for_all(
         [
@@ -155,6 +160,171 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
             true,
         )
         .expect("Failed to generate runtime types")
+}
+
+/// Generate a table for the calls.
+fn generate_calls(metadata: &Metadata) -> ItemMod {
+    let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for pallet in metadata.pallets() {
+        let pallet_name = pallet.name();
+        let calls = pallet.call_variants().map(|calls| {
+            calls
+                .iter()
+                .map(|call| call.name.clone())
+                .collect::<Vec<_>>()
+        });
+
+        if let Some(calls) = calls {
+            table.insert(pallet_name.into(), calls);
+        }
+    }
+
+    let (mut ie, mut ii): (Vec<ItemEnum>, Vec<ItemImpl>) = (vec![], vec![]);
+    for (pallet, calls) in table {
+        let pallet_ident = Ident::new(&(pallet.clone() + "Call"), Span::call_site());
+        let call_var = calls
+            .iter()
+            .map(|call| {
+                // Convert snake case call name to camel case
+                let var = call
+                    .split('_')
+                    .map(|w| {
+                        let mut c = w.chars();
+                        c.next()
+                            .expect("Invalid string in call name")
+                            .to_uppercase()
+                            .chain(c)
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .concat();
+
+                let ident = Ident::new(&var, Span::call_site());
+                Variant {
+                    attrs: vec![],
+                    ident,
+                    fields: Fields::Unit,
+                    discriminant: None,
+                }
+            })
+            .collect::<Vec<Variant>>();
+
+        let doc = format!("Calls of pallet `{}`.", pallet);
+        ie.push(parse_quote! {
+            #[doc = #doc]
+            pub enum #pallet_ident {
+                #(#call_var,)*
+            }
+        });
+
+        ii.push(parse_quote! {
+            impl CallInfo for #pallet_ident {
+                const PALLET: &'static str = #pallet;
+
+                fn call_name(&self) -> &'static str {
+                    match self {
+                        #(
+                            Self::#call_var => #calls,
+                        )*
+                    }
+                }
+            }
+        });
+    }
+
+    parse_quote! {
+        pub mod calls {
+            /// Show the call info.
+            pub trait CallInfo {
+                const PALLET: &'static str;
+
+                /// returns call name.
+                fn call_name(&self) -> &'static str;
+            }
+
+            #(
+                #ie
+
+                #ii
+            )*
+        }
+    }
+}
+
+/// Generate a table for the calls.
+fn generate_storage(metadata: &Metadata) -> ItemMod {
+    let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for pallet in metadata.pallets() {
+        let pallet_name = pallet.name();
+
+        let storage = pallet.storage().map(|storage| {
+            storage
+                .entries()
+                .map(|entry| entry.name().into())
+                .collect::<Vec<_>>()
+        });
+
+        if let Some(storage) = storage {
+            table.insert(pallet_name.into(), storage);
+        }
+    }
+
+    let (mut ie, mut ii): (Vec<ItemEnum>, Vec<ItemImpl>) = (vec![], vec![]);
+    for (pallet, storage) in table {
+        let pallet_ident = Ident::new(&(pallet.clone() + "Storage"), Span::call_site());
+        let storage_var = storage
+            .iter()
+            .map(|storage| {
+                let ident = Ident::new(storage, Span::call_site());
+                Variant {
+                    attrs: vec![],
+                    ident,
+                    fields: Fields::Unit,
+                    discriminant: None,
+                }
+            })
+            .collect::<Vec<Variant>>();
+
+        let doc = format!("Storage of pallet `{}`.", pallet);
+        ie.push(parse_quote! {
+            #[doc = #doc]
+            pub enum #pallet_ident {
+                #(#storage_var,)*
+            }
+        });
+
+        ii.push(parse_quote! {
+            impl StorageInfo for #pallet_ident {
+                const PALLET: &'static str = #pallet;
+
+                fn storage_name(&self) -> &'static str {
+                    match self {
+                        #(
+                            Self::#storage_var => #storage,
+                        )*
+                    }
+                }
+            }
+        });
+    }
+
+    parse_quote! {
+        pub mod storage {
+             /// Show the call info.
+             pub trait StorageInfo {
+                 const PALLET: &'static str;
+
+                 /// returns call name.
+                 fn storage_name(&self) -> &'static str;
+             }
+
+             #(
+                 #ie
+
+                 #ii
+             )*
+        }
+    }
 }
 
 fn generate_impls(metadata: &Metadata) -> TokenStream {

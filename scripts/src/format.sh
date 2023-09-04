@@ -14,7 +14,6 @@ format_usage() {
     help           show help message and exit
 
     gear           format gear workspace or check via --check
-    examples       format gear program examples or check via --check
     doc            format gear doc or check via --check
 
 EOF
@@ -29,6 +28,6 @@ format() {
 }
 
 doc_format() {
-  cargo fmt -p gstd -p gcore -p gclient -p gtest -- "$@" \
-    --config wrap_comments=true,format_code_in_doc_comments=true
+  cargo fmt -p gstd -p gcore -p gclient -p gmeta -p gtest \
+    -- "$@" --config wrap_comments=true,format_code_in_doc_comments=true
 }

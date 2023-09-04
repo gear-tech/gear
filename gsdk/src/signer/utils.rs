@@ -18,19 +18,84 @@
 
 //! Utils
 
-use crate::{result::Result, signer::Signer};
+use std::sync::Arc;
 
-impl Signer {
-    /// Get self balance
-    pub async fn balance(&self) -> Result<u128> {
-        self.api().get_balance(&self.address()).await
-    }
+use super::SignerInner;
+use crate::{
+    config::GearConfig, metadata::CallInfo, result::Result, signer::SignerRpc, Error, TxInBlock,
+};
+use scale_value::Composite;
+use subxt::blocks::ExtrinsicEvents;
 
+type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
+
+impl SignerInner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let after = before.saturating_sub(self.balance().await?);
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let after = before.saturating_sub(signer_rpc.get_balance().await?);
         log::info!("	Balance spent: {after}");
 
         Ok(())
+    }
+
+    /// Run transaction.
+    ///
+    /// This function allows us to execute any transactions in gear.
+    ///
+    /// # You may not need this.
+    ///
+    /// Read the docs of [`Signer`](`super::Signer`) to checkout the wrappred transactions,
+    /// we need this function only when we want to execute a transaction
+    /// which has not been wrapped in `gsdk`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use gsdk::{
+    ///   Api,
+    ///   Signer,
+    ///   metadata::calls::BalancesCall,
+    ///   Value,
+    /// };
+    ///
+    /// let api = Api::new(None).await?;
+    /// let signer = Signer::new(api, "//Alice", None).await?;
+    ///
+    /// {
+    ///     let args = vec![
+    ///         Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+    ///         Value::u128(value),
+    ///     ];
+    ///     let in_block = signer.run_tx(BalancesCall::Transfer, args).await?;
+    /// }
+    ///
+    /// // The code above euqals to:
+    ///
+    /// {
+    ///    let in_block = signer.calls.transfer(dest, value).await?;
+    /// }
+    ///
+    /// // ...
+    /// ```
+    pub async fn run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> Result<TxInBlock> {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process(tx).await
+    }
+
+    /// Run transaction with sudo.
+    pub async fn sudo_run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> EventsResult {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process_sudo(tx).await
     }
 }

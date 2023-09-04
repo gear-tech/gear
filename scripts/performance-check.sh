@@ -53,23 +53,9 @@ collect_data() {
         mv "$ROOT_DIR/target/nextest/ci/junit.xml" "$ROOT_DIR/target/tests/$i"
     done
 
-    rm -rf "$ROOT_DIR/target/runtime-tests/"
-    mkdir -p "$ROOT_DIR/target/runtime-tests/"
-    mkdir -p "$ROOT_DIR/target/runtime-tests-output/"
-    for i in `seq 1 $WARMUP_COUNT`; do
-        "$ROOT_DIR/scripts/gear.sh" test rtest > "$ROOT_DIR/target/runtime-tests-output/$i" 2>&1
-    done
-
-    for i in `seq 1 $COUNT`; do
-        echo $i
-        "$ROOT_DIR/scripts/gear.sh" test rtest > "$ROOT_DIR/target/runtime-tests-output/$i" 2>&1
-        mv "$ROOT_DIR/target/runtime-test-junit.xml" "$ROOT_DIR/target/runtime-tests/$i"
-    done
-
     rm -rf "$2"
     mkdir -p "$2"
     cargo run --package regression-analysis --release -- collect-data --data-folder-path "$ROOT_DIR/target/tests/" --output-path "$2/pallet-tests.json"
-    cargo run --package regression-analysis --release -- collect-data --disable-filter --data-folder-path "$ROOT_DIR/target/runtime-tests/" --output-path "$2/runtime-tests.json"
 }
 
 
@@ -81,8 +67,4 @@ if [ "$BOXPLOT" != "0" ]; then
     python3 "$ROOT_DIR/scripts/performance-boxplot.py" "$ROOT_DIR/target/main_branch/pallet-tests.json" "$ROOT_DIR/target/current_branch/pallet-tests.json"
     rm -rf "$ROOT_DIR/target/performance-pallet-tests"
     mv ./results "$ROOT_DIR/target/performance-pallet-tests"
-
-    python3 "$ROOT_DIR/scripts/performance-boxplot.py" "$ROOT_DIR/target/main_branch/runtime-tests.json" "$ROOT_DIR/target/current_branch/runtime-tests.json"
-    rm -rf "$ROOT_DIR/target/performance-runtime-tests"
-    mv ./results "$ROOT_DIR/target/performance-runtime-tests"
 fi

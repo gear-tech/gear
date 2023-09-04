@@ -24,13 +24,13 @@ use crate::{
     pages::{PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use alloc::{collections::BTreeSet, format};
+use byteorder::{ByteOrder, LittleEndian};
 use core::{
     fmt,
     fmt::Debug,
     iter,
     ops::{Deref, DerefMut},
 };
-use gear_core_errors::MemoryError;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -43,6 +43,32 @@ pub struct MemoryInterval {
     pub offset: u32,
     /// Interval size in bytes.
     pub size: u32,
+}
+
+impl MemoryInterval {
+    /// Convert `MemoryInterval` to `[u8; 8]` bytes.
+    /// `0..4` - `offset`
+    /// `4..8` - `size`
+    #[inline]
+    pub fn to_bytes(&self) -> [u8; 8] {
+        let mut bytes = [0u8; 8];
+        LittleEndian::write_u32(&mut bytes[0..4], self.offset);
+        LittleEndian::write_u32(&mut bytes[4..8], self.size);
+        bytes
+    }
+
+    /// Convert `[u8; 8]` bytes to `MemoryInterval`.
+    /// `0..4` - `offset`
+    /// `4..8` - `size`
+    #[inline]
+    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
+        if bytes.len() != 8 {
+            return Err("bytes size != 8");
+        }
+        let offset = LittleEndian::read_u32(&bytes[0..4]);
+        let size = LittleEndian::read_u32(&bytes[4..8]);
+        Ok(MemoryInterval { offset, size })
+    }
 }
 
 impl From<(u32, u32)> for MemoryInterval {
@@ -152,6 +178,14 @@ pub type HostPointer = u64;
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
 );
+
+/// Core memory error.
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum MemoryError {
+    /// The error occurs in attempt to access memory outside wasm program memory.
+    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    AccessOutOfBounds,
+}
 
 /// Backend wasm memory interface.
 pub trait Memory {

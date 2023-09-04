@@ -34,6 +34,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
+    pages::WasmPage,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -94,6 +95,7 @@ pub struct PrepareConfig {
     pub value: u128,
     pub gas_allowance: u64,
     pub gas_limit: u64,
+    pub max_pages_override: Option<WasmPage>,
 }
 
 impl Default for PrepareConfig {
@@ -102,6 +104,7 @@ impl Default for PrepareConfig {
             value: 0,
             gas_allowance: u64::MAX,
             gas_limit: u64::MAX / 2,
+            max_pages_override: None,
         }
     }
 }
@@ -257,7 +260,8 @@ where
         .get_actor(actor_id)
         .ok_or("Program not found in the storage")?;
 
-    let block_config = prepare_block_config::<T>();
+    let mut block_config = prepare_block_config::<T>();
+    block_config.max_pages = config.max_pages_override.unwrap_or(block_config.max_pages);
 
     let precharged_dispatch = core_processor::precharge_for_program(
         &block_config,

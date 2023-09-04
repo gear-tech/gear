@@ -53,7 +53,7 @@ pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-const MAX_BLOCK: u64 = 100_000_000_000;
+const MAX_BLOCK: u64 = 250_000_000_000;
 
 macro_rules! dry_run {
     (
@@ -81,6 +81,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
         GearVoucher: pallet_gear_voucher,
@@ -205,12 +206,20 @@ impl Drop for DynamicScheduleReset {
     }
 }
 
+parameter_types! {
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
+}
+
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
-    type WeightInfo = ();
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
@@ -228,6 +237,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<true>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -300,6 +311,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
@@ -369,7 +381,7 @@ pub fn run_to_block_maybe_with_queue(
                 QueueProcessingOf::<Test>::deny();
             }
 
-            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+            Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }
 
         Gear::on_finalize(System::block_number());
@@ -378,7 +390,7 @@ pub fn run_to_block_maybe_with_queue(
             assert!(!System::events().iter().any(|e| {
                 matches!(
                     e.event,
-                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
                 )
             }))
         }

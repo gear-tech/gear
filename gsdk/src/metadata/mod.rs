@@ -26,11 +26,13 @@ mod impls;
 pub use self::{
     errors::ModuleError,
     generated::{
+        calls::{self, CallInfo},
         exports::*,
         runtime_types::runtime_types::{
             self, sp_runtime::DispatchError, vara_runtime as gear_runtime,
             vara_runtime::RuntimeEvent as Event,
         },
+        storage::{self, StorageInfo},
     },
     impls::Convert,
 };

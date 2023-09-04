@@ -29,7 +29,10 @@
 #![allow(clippy::items_after_test_module)]
 
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_backend_common::lazy_pages::{GlobalsAccessConfig, Status};
+use gear_backend_common::{
+    lazy_pages::{GlobalsAccessConfig, Status},
+    LimitedStr,
+};
 use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
@@ -45,9 +48,7 @@ mod sys;
 mod utils;
 
 use crate::{
-    common::{
-        ContextError, GlobalNames, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights,
-    },
+    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
@@ -304,8 +305,8 @@ pub fn status() -> Result<Status, Error> {
 pub enum InitError {
     #[display(fmt = "Wrong page sizes amount: get {_0}, must be {_1}")]
     WrongSizesAmount(usize, usize),
-    #[display(fmt = "Wrong global names amount: get {_0}, must be {_1}")]
-    WrongGlobalNamesAmount(usize, usize),
+    #[display(fmt = "Wrong global names: expected {_0}, found {_1}")]
+    WrongGlobalNames(String, String),
     #[display(fmt = "Not suitable page sizes")]
     NotSuitablePageSizes,
     #[display(fmt = "Can not set signal handler: {_0}")]
@@ -385,7 +386,7 @@ pub(crate) fn reset_init_flag() {
 fn init_with_handler<H: UserSignalHandler>(
     _version: LazyPagesVersion,
     page_sizes: Vec<u32>,
-    global_names: Vec<String>,
+    global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
 ) -> Result<(), InitError> {
     use InitError::*;
@@ -415,15 +416,14 @@ fn init_with_handler<H: UserSignalHandler>(
         return Err(NotSuitablePageSizes);
     }
 
-    let global_names: GlobalNames = match global_names.try_into() {
-        Ok(names) => names,
-        Err(names) => {
-            return Err(WrongGlobalNamesAmount(
-                names.len(),
-                GlobalNo::Amount as usize,
-            ))
-        }
-    };
+    // TODO: check globals from context issue #3057
+    // we only need to check the globals that are used to keep the state consistent in older runtimes.
+    if global_names[GlobalNo::Gas as usize].as_str() != "gear_gas" {
+        return Err(WrongGlobalNames(
+            "gear_gas".to_string(),
+            global_names[GlobalNo::Gas as usize].to_string(),
+        ));
+    }
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_CONTEXT.with(|ctx| {
@@ -445,7 +445,7 @@ fn init_with_handler<H: UserSignalHandler>(
 pub fn init(
     version: LazyPagesVersion,
     page_sizes: Vec<u32>,
-    global_names: Vec<String>,
+    global_names: Vec<LimitedStr<'static>>,
     pages_storage_prefix: Vec<u8>,
 ) -> Result<(), InitError> {
     init_with_handler::<DefaultUserSignalHandler>(

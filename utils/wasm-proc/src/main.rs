@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 62] = [
+const RT_ALLOWED_IMPORTS: [&str; 67] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -37,9 +37,11 @@ const RT_ALLOWED_IMPORTS: [&str; 62] = [
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
+    "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",
     "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
+    "ext_gear_ri_init_lazy_pages_version_2",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
     "ext_gear_ri_mprotect_lazy_pages_version_1",
@@ -66,12 +68,15 @@ const RT_ALLOWED_IMPORTS: [&str; 62] = [
     "ext_offchain_network_state_version_1",
     "ext_offchain_random_seed_version_1",
     "ext_offchain_submit_transaction_version_1",
+    "ext_offchain_local_storage_clear_version_1",
+    "ext_offchain_timestamp_version_1",
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
     "ext_sandbox_set_global_val_version_1",
     "ext_sandbox_instance_teardown_version_1",
     "ext_sandbox_instantiate_version_1",
+    "ext_sandbox_instantiate_version_2",
     "ext_sandbox_invoke_version_1",
     "ext_sandbox_memory_get_version_1",
     "ext_sandbox_memory_grow_version_1",
@@ -121,10 +126,6 @@ struct Args {
     /// Path to WASMs, accepts multiple files
     #[arg(value_parser)]
     path: Vec<String>,
-
-    /// Create legacy meta file until `gear-test` has been removed
-    #[arg(long)]
-    legacy_meta: bool,
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -135,12 +136,22 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
         .ok_or("Import section not found")?
         .entries();
 
+    let mut unexpected_imports = vec![];
+
     for import in imports {
         if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
         {
-            return Err(format!("Unexpected import `{}`", import.field()));
+            unexpected_imports.push(import.field().to_string());
         }
     }
+
+    if !unexpected_imports.is_empty() {
+        return Err(format!(
+            "Unexpected imports found: {}",
+            unexpected_imports.join(", "),
+        ));
+    }
+
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
 }
@@ -153,7 +164,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         strip_custom_sections,
         check_runtime_imports,
         verbose,
-        legacy_meta,
     } = Args::parse();
 
     if assembly_script && insert_stack_end {
@@ -181,10 +191,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let original_wasm_path = PathBuf::from(file);
-        let meta_wasm_path = original_wasm_path.clone().with_extension("meta.wasm");
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make pre-handle if input wasm has been builded from as-script
+        // Make pre-handle if input wasm has been built from as-script
         let wasm_path = if assembly_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer
@@ -215,16 +224,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if strip_custom_sections {
             optimizer.strip_custom_sections();
-        }
-
-        if legacy_meta {
-            log::debug!(
-                "*** Processing metadata optimization: {}",
-                meta_wasm_path.display()
-            );
-            let code = optimizer.optimize(OptType::Meta)?;
-            log::info!("Metadata wasm: {}", meta_wasm_path.to_string_lossy());
-            fs::write(meta_wasm_path, code)?;
         }
 
         log::debug!(

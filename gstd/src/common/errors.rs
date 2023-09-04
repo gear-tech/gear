@@ -23,6 +23,7 @@
 //! errors.
 
 use core::fmt;
+use gcore::errors::Error as CoreError;
 
 pub use gcore::errors::*;
 
@@ -32,6 +33,8 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// [`gcore::errors::Error`] type.
+    Core(CoreError),
     /// Timeout reached while expecting for reply.
     Timeout(u32, u32),
     /// Conversion error.
@@ -40,8 +43,6 @@ pub enum Error {
     Decode(scale_info::scale::Error),
     /// Reply code returned by another program.
     ReplyCode(ReplyCode),
-    /// API error (see [`ExtError`] for details).
-    Ext(ExtError),
     /// This error occurs when providing zero duration to waiting functions
     /// (e.g. see `exactly` and `up_to` functions in
     /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
@@ -50,6 +51,8 @@ pub enum Error {
     /// function (see
     /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
     ZeroSystemReservationAmount,
+    /// This error occurs when providing zero duration to mutex lock function
+    ZeroMxLockDuration,
 }
 
 impl Error {
@@ -62,24 +65,25 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::Core(e) => fmt::Display::fmt(e, f),
             Error::Timeout(expected, now) => {
                 write!(f, "Wait lock timeout at {expected}, now is {now}")
             }
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
             Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
             Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
-            Error::Ext(e) => write!(f, "API error: {e}"),
             Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             Error::ZeroSystemReservationAmount => {
                 write!(f, "System reservation amount can not be zero in config.")
             }
+            Error::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero."),
         }
     }
 }
 
-impl From<ExtError> for Error {
-    fn from(err: ExtError) -> Self {
-        Self::Ext(err)
+impl From<CoreError> for Error {
+    fn from(err: CoreError) -> Self {
+        Self::Core(err)
     }
 }
 

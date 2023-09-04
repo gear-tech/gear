@@ -43,19 +43,18 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
-    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf,
-    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
-    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
+    pallet,
+    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event, GasAllowanceOf,
+    GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf, ProgramStorageOf, QueueOf,
+    RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule,
+    TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
     LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
-use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
-use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
-use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -75,13 +74,169 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
-use test_syscalls::WASM_BINARY as TEST_SYSCALLS_BINARY;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn value_counter_set_correctly_for_interruptions() {
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    // Equivalent of:
+    //
+    // use gstd::{msg, exec};
+    //
+    // #[no_mangle]
+    // extern "C" fn handle() {
+    //     msg::send(msg::source(), exec::value_available(), 0).unwrap();
+    //     msg::send_bytes(Default::default(), [], msg::value()).unwrap();
+    //     exec::wait_for(1);
+    // }
+    //
+    // Message auto wakes on the next block after execution and
+    // does everything again from the beginning.
+    //
+    // So for the first run we expect source to receive
+    // `value_available` == `init_value` + msg value.
+    // For second run we expect just `init_value`.
+    let handle = Calls::builder()
+        .source("source_store")
+        .value("value_store")
+        .value_available_as_vec("value_available_store")
+        .send_wgas("source_store", "value_available_store", 0)
+        .send_value(Arg::new([0u8; 32]), Arg::new(vec![]), "value_store")
+        .wait_for(1);
+
+    let scheme = Scheme::predefined(Calls::builder().noop(), handle, Calls::builder().noop());
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const INIT_VALUE: u128 = 123_123_123;
+        const VALUE: u128 = 10_000;
+
+        let (_mid, pid) = init_constructor_with_value(scheme, INIT_VALUE);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            VALUE,
+            false
+        ));
+
+        run_to_next_block(None);
+        let msg = maybe_last_message(USER_1).expect("Message should be");
+        let value_available =
+            u128::decode(&mut msg.payload_bytes()).expect("Failed to decode value available");
+        assert_eq!(value_available, INIT_VALUE + VALUE);
+
+        run_to_next_block(None);
+        let msg = maybe_last_message(USER_1).expect("Message should be");
+        let value_available =
+            u128::decode(&mut msg.payload_bytes()).expect("Failed to decode value available");
+        assert_eq!(value_available, INIT_VALUE);
+    });
+}
+
+#[test]
+fn calculate_gas_returns_not_block_limit() {
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(CHILD_WAT).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let generator_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(generator_id));
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(generator_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ne!(min_limit, BlockGasLimitOf::<Test>::get());
+    });
+}
+
+#[test]
+fn read_big_state() {
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(pid));
+
+        let string = String::from("hi").repeat(4095);
+        let string_size = 8 * 1024;
+        assert_eq!(string.encoded_size(), string_size);
+
+        let strings = Strings::new(string);
+        let strings_size = (string_size * Strings::LEN) + 1;
+        assert_eq!(strings.encoded_size(), strings_size);
+
+        let approx_size =
+            |size: usize, iteration: usize| -> usize { size - 17 - 144 * (iteration + 1) };
+
+        // with initial data step is ~2 MiB
+        let expected_size = |iteration: usize| -> usize {
+            Strings::LEN * State::LEN * string_size * (iteration + 1)
+        };
+
+        // go to 6 MiB due to approximate calculations and 8MiB reply restrictions
+        for i in 0..3 {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                strings.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+            let mid = get_last_message_id();
+
+            run_to_next_block(None);
+
+            assert_succeed(mid);
+            let state =
+                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
+            assert_eq!(approx_size(state.len(), i), expected_size(i));
+        }
+    });
+}
 
 #[test]
 fn auto_reply_sent() {
@@ -108,6 +263,7 @@ fn auto_reply_sent() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             10_000,
+            false,
         ));
 
         run_to_next_block(None);
@@ -137,6 +293,7 @@ fn auto_reply_sent() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         System::reset_events();
@@ -160,11 +317,12 @@ fn auto_reply_from_user_no_mailbox() {
 
         let calls = Calls::builder().send_wgas(<[u8; 32]>::from(USER_1.into_origin()), [], 0);
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             constructor_id,
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -184,11 +342,12 @@ fn auto_reply_from_user_no_mailbox() {
             1u32.into(),
         ));
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             constructor_id,
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -214,7 +373,7 @@ fn auto_reply_out_of_rent_waitlist() {
             WAITER_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
+            BlockGasLimitOf::<Test>::get(),
             0,
         ));
         let waiter_id = get_last_program_id();
@@ -262,8 +421,9 @@ fn auto_reply_out_of_rent_waitlist() {
             RuntimeOrigin::signed(USER_1),
             proxy_id,
             Command::Wait(WaitSubcommand::Wait).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -291,7 +451,7 @@ fn auto_reply_out_of_rent_mailbox() {
         let value = 1_000;
 
         assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -307,11 +467,12 @@ fn auto_reply_out_of_rent_mailbox() {
         let user1_balance = Balances::free_balance(USER_1);
         assert_balance(program_id, value, 0u128);
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let message_id = utils::get_last_message_id();
@@ -375,6 +536,7 @@ fn reply_deposit_to_program() {
             10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -406,6 +568,7 @@ fn reply_deposit_to_user_auto_reply() {
             10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -437,6 +600,7 @@ fn reply_deposit_panic_in_handle_reply() {
             1u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -470,6 +634,7 @@ fn reply_deposit_to_user_reply() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -501,6 +666,7 @@ fn reply_deposit_to_user_reply() {
             vec![],
             BlockGasLimitOf::<Test>::get(),
             value,
+            false,
         ));
 
         assert_eq!(get_last_message_id(), reply_id);
@@ -545,6 +711,7 @@ fn reply_deposit_to_user_claim() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -611,6 +778,7 @@ fn reply_deposit_to_user_out_of_rent() {
             reply_deposit.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -670,8 +838,8 @@ fn reply_deposit_gstd_async() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            (USER_2.into_origin().as_fixed_bytes(), 1_000_000_000u64).encode(),
-            10_000_000_000,
+            (USER_2.into_origin().as_fixed_bytes(), 10_000_000_000u64).encode(),
+            30_000_000_000,
             0,
         ));
 
@@ -682,8 +850,9 @@ fn reply_deposit_gstd_async() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             hello.to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         let handle_id = get_last_message_id();
@@ -701,6 +870,7 @@ fn reply_deposit_gstd_async() {
             hello_reply.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -732,6 +902,7 @@ fn pseudo_duplicate_wake() {
                 calls.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
             let msg_id = get_last_message_id();
             run_to_next_block(None);
@@ -806,7 +977,7 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use demo_backend_error::WASM_BINARY;
+    use demo_custom::{InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -814,7 +985,7 @@ fn backend_errors_handled_in_program() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BackendError.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));
@@ -947,6 +1118,7 @@ fn waited_with_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -993,6 +1165,7 @@ fn terminated_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1038,6 +1211,7 @@ fn exited_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1067,6 +1241,7 @@ fn delayed_user_replacement() {
             gas_limit_to_forward.encode(), // to be forwarded as gas limit
             gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
             100_000_000, // before fix to be forwarded as value
+            false,
         ));
 
         let message_id = utils::get_last_message_id();
@@ -1157,6 +1332,7 @@ fn delayed_send_user_message_payment() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy_msg_id = get_last_message_id();
@@ -1178,8 +1354,9 @@ fn delayed_send_user_message_payment() {
         );
 
         // Gas should be reserved while message is being held in storage.
-        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), delay_holding_fee);
+        let total_balance =
+            Balances::free_balance(USER_1) + GearBank::<Test>::account_total(&USER_1);
 
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
@@ -1208,7 +1385,7 @@ fn delayed_send_user_message_payment() {
         assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
         // Check balances match and gas charging is correct.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
@@ -1256,6 +1433,7 @@ fn delayed_send_user_message_with_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy_msg_id = get_last_message_id();
@@ -1282,7 +1460,7 @@ fn delayed_send_user_message_with_reservation() {
         // `delay` + 1 locked for using dispatch stash storage.
         // Other gas nodes have been consumed with all gas released to the user.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             mailbox_gas_threshold + delay_holding_fee
         );
 
@@ -1323,7 +1501,7 @@ fn delayed_send_user_message_with_reservation() {
         // for the `delay` number of blocks spent in the dispatch stash so that the "+ 1" security
         // margin remained unused and was simply added back to the `Cut` node value.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             mailbox_gas_threshold + reserve_for_fee
         );
     }
@@ -1364,6 +1542,7 @@ fn delayed_send_program_message_payment() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1384,8 +1563,9 @@ fn delayed_send_program_message_payment() {
         );
 
         // Gas should be reserved while message is being held in storage.
-        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), delay_holding_fee);
+        let total_balance =
+            Balances::free_balance(USER_1) + GearBank::<Test>::account_total(&USER_1);
 
         // Run blocks to release message.
         run_to_block(delay + 2, None);
@@ -1405,7 +1585,7 @@ fn delayed_send_program_message_payment() {
         assert_last_dequeued(2);
 
         // Check that gas was charged correctly.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
@@ -1465,6 +1645,7 @@ fn delayed_send_program_message_with_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1500,7 +1681,7 @@ fn delayed_send_program_message_with_reservation() {
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -1519,7 +1700,7 @@ fn delayed_send_program_message_with_reservation() {
         // Check that last event is MessagesDispatched.
         assert_last_dequeued(2);
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
     }
 
     init_logger();
@@ -1575,6 +1756,7 @@ fn delayed_send_program_message_with_low_reservation() {
             0u64.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
         let proxy_msg_id = utils::get_last_message_id();
 
@@ -1610,7 +1792,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -1629,7 +1811,7 @@ fn delayed_send_program_message_with_low_reservation() {
         // Check that last event is MessagesDispatched.
         assert_last_dequeued(2);
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
     }
 
     init_logger();
@@ -1695,7 +1877,7 @@ fn delayed_program_creation_no_code() {
         ));
 
         let free_balance = Balances::free_balance(USER_1);
-        let reserved_balance = Balances::reserved_balance(USER_1);
+        let reserved_balance = GearBank::<Test>::account_total(&USER_1);
 
         run_to_next_block(None);
         // Delayed message sent.
@@ -1723,7 +1905,7 @@ fn delayed_program_creation_no_code() {
                 - delay_holding_fee
                 - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
-        assert!(Balances::reserved_balance(USER_1).is_zero());
+        assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
 }
 
@@ -1775,6 +1957,7 @@ fn unstoppable_block_execution_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 gas_for_each_execution,
                 0,
+                false,
             ));
         }
 
@@ -1819,7 +2002,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res = Gear::read_state_impl(program_id).expect("Failed to read state");
+        let res =
+            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
@@ -1854,8 +2038,14 @@ fn read_state_using_wasm_works() {
         let func1 = "last_wallet";
         assert!(META_EXPORTS_V1.contains(&func1));
 
-        let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
-            .expect("Failed to read state");
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            func1,
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         assert_eq!(res, expected);
 
@@ -1875,6 +2065,7 @@ fn read_state_using_wasm_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
@@ -1894,6 +2085,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_number",
             META_WASM_V3.to_vec(),
             None,
@@ -1907,6 +2099,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
             None,
@@ -1965,9 +2158,14 @@ fn wasm_metadata_generation_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let m1 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V1.to_vec(), None)
-                .expect("Failed to read state");
+        let m1 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata1 =
             gmeta::MetawasmData::decode(&mut m1.as_ref()).expect("Failed to decode metadata");
@@ -1978,9 +2176,14 @@ fn wasm_metadata_generation_works() {
         expected_exports_1.sort();
         assert_eq!(exports1, expected_exports_1);
 
-        let m2 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V2.to_vec(), None)
-                .expect("Failed to read state");
+        let m2 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V2.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata2 =
             gmeta::MetawasmData::decode(&mut m2.as_ref()).expect("Failed to decode metadata");
@@ -2028,17 +2231,30 @@ fn read_state_using_wasm_errors() {
         // Inexistent function
         assert!(Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "inexistent",
             meta_wasm.clone(),
             None
         )
         .is_err());
         // Empty function
-        assert!(
-            Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "empty",
+            meta_wasm.clone(),
+            None
+        )
+        .is_err());
         // Greed function
-        assert!(Gear::read_state_using_wasm_impl(program_id, "loop", meta_wasm, None).is_err());
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "loop",
+            meta_wasm,
+            None
+        )
+        .is_err());
     });
 }
 
@@ -2065,14 +2281,14 @@ fn mailbox_rent_out_of_rent() {
 
         for data in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2160,14 +2376,14 @@ fn mailbox_rent_claimed() {
 
         for (data, duration) in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2249,14 +2465,14 @@ fn mailbox_sending_instant_transfer() {
 
         for (gas_limit, value) in cases {
             let user_1_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             let user_2_balance = Balances::free_balance(USER_2);
-            assert_eq!(Balances::reserved_balance(USER_2), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
             let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
             assert_eq!(
-                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
                 0
             );
 
@@ -2283,7 +2499,8 @@ fn mailbox_sending_instant_transfer() {
                 sender,
                 payload.request(USER_2.into_origin()).encode(),
                 gas_info.burned + gas_limit.unwrap_or_default(),
-                0
+                0,
+                false,
             ));
 
             utils::assert_balance(
@@ -2324,12 +2541,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         // Gas limit is too high
@@ -2408,6 +2625,7 @@ fn send_message_works() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             mail_value,
+            false,
         ));
         let message_id = get_last_message_id();
 
@@ -2485,8 +2703,9 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         check_result(false);
 
@@ -2495,8 +2714,9 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             proxy,
             (rent).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let message_id = check_result(true);
 
@@ -2505,8 +2725,9 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             rent.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let message_id = check_result(true);
 
@@ -2515,8 +2736,9 @@ fn mailbox_threshold_works() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             (rent - 1).encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         check_result(false);
     });
@@ -2584,7 +2806,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::InsufficientBalance
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -2598,7 +2820,8 @@ fn send_message_expected_failure() {
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
             10,
-            value
+            value,
+            false,
         ));
 
         // And no message will be in mailbox
@@ -2619,7 +2842,8 @@ fn send_message_expected_failure() {
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
-                0
+                0,
+                false,
             ),
             Error::<Test>::GasLimitTooHigh
         );
@@ -2705,7 +2929,8 @@ fn unused_gas_released_back_works() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             huge_send_message_gas_limit,
-            0
+            0,
+            false,
         ));
 
         // Spends for submit program with default gas limit and sending default message with a huge gas limit
@@ -2717,7 +2942,7 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             user1_potential_msgs_spends
         );
 
@@ -2990,6 +3215,7 @@ fn memory_access_cases() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         );
         assert_ok!(res);
 
@@ -3004,6 +3230,7 @@ fn memory_access_cases() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         );
         assert_ok!(res);
 
@@ -3090,6 +3317,7 @@ fn lazy_pages() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             1000,
+            false,
         );
         assert_ok!(res);
 
@@ -3345,7 +3573,8 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             gas1.min_limit - 1,
-            1000
+            1000,
+            false,
         ));
         let failed1 = get_last_message_id();
 
@@ -3354,7 +3583,8 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             gas1.min_limit,
-            1000
+            1000,
+            false,
         ));
         let succeed1 = get_last_message_id();
 
@@ -3363,7 +3593,8 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             gas2.min_limit - 1,
-            1000
+            1000,
+            false,
         ));
         let failed2 = get_last_message_id();
 
@@ -3372,7 +3603,8 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             gas2.min_limit,
-            1000
+            1000,
+            false,
         ));
         let succeed2 = get_last_message_id();
 
@@ -3402,7 +3634,8 @@ fn block_gas_limit_works() {
                 pid,
                 EMPTY_PAYLOAD.to_vec(),
                 gas.min_limit,
-                1000
+                1000,
+                false,
             ));
         };
 
@@ -3472,7 +3705,7 @@ fn mailbox_works() {
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
         assert_eq!(
-            Balances::reserved_balance(USER_1),
+            GearBank::<Test>::account_total(&USER_1),
             GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
         );
 
@@ -3741,6 +3974,7 @@ fn send_reply_works() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
+            false,
         ));
         let expected_reply_message_id = get_last_message_id();
 
@@ -3775,7 +4009,8 @@ fn send_reply_failure_to_claim_from_mailbox() {
                 MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
-                0
+                0,
+                false,
             ),
             Error::<Test>::MessageNotFound
         );
@@ -3844,18 +4079,18 @@ fn send_reply_value_claiming_works() {
             next_block += 1;
 
             let user_balance = Balances::free_balance(USER_1);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             assert!(MailboxOf::<Test>::contains(&USER_1, &reply_to_id));
 
             assert_eq!(
-                Balances::reserved_balance(USER_2),
+                GearBank::<Test>::account_total(&USER_2),
                 GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
             );
 
             // nothing changed
             assert_eq!(Balances::free_balance(USER_1), user_balance);
-            assert_eq!(Balances::reserved_balance(USER_1), 0);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
             // auto-claim of "locked_value" + send is here
             assert_ok!(Gear::send_reply(
@@ -3864,6 +4099,7 @@ fn send_reply_value_claiming_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 gas_limit_to_reply,
                 value_to_reply,
+                false,
             ));
 
             let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
@@ -3872,8 +4108,8 @@ fn send_reply_value_claiming_works() {
                 Balances::free_balance(USER_1),
                 user_balance + locked_value - currently_sent
             );
-            assert_eq!(Balances::reserved_balance(USER_1), currently_sent);
-            assert_eq!(Balances::reserved_balance(USER_2), 0,);
+            assert_eq!(GearBank::<Test>::account_total(&USER_1), currently_sent);
+            assert_eq!(GearBank::<Test>::account_total(&USER_2), 0,);
         }
     })
 }
@@ -3886,9 +4122,9 @@ fn claim_value_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let sender_balance = Balances::free_balance(USER_2);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
         let claimer_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
         let gas_sent = 10_000_000_000;
         let value_sent = 1000;
@@ -3932,8 +4168,8 @@ fn claim_value_works() {
             reply_to_id,
         ));
 
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
         let expected_claimer_balance = claimer_balance + value_sent;
         assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
@@ -4015,6 +4251,7 @@ fn uninitialized_program_zero_gas() {
             vec![],
             0, // that triggers unreachable code atm
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4067,7 +4304,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            3_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -4077,8 +4314,9 @@ fn distributor_distribute() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4276,7 +4514,8 @@ fn messages_to_uninitialized_program_wait() {
             program_id,
             vec![],
             10_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4325,6 +4564,7 @@ fn uninitialized_program_should_accept_replies() {
             b"PONG".to_vec(),
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4365,6 +4605,7 @@ fn defer_program_initialization() {
             b"PONG".to_vec(),
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -4374,7 +4615,8 @@ fn defer_program_initialization() {
             program_id,
             vec![],
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(4, None);
@@ -4419,7 +4661,8 @@ fn wake_messages_after_program_inited() {
                 program_id,
                 vec![],
                 5_000_000_000u64,
-                0u128
+                0u128,
+                false,
             ));
         }
 
@@ -4436,6 +4679,7 @@ fn wake_messages_after_program_inited() {
             b"PONG".to_vec(),
             20_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_block(20, None);
@@ -4517,7 +4761,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_success = get_last_message_id();
@@ -4549,7 +4794,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_success = get_last_message_id();
@@ -4584,7 +4830,8 @@ fn test_different_waits_success() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_success = get_last_message_id();
@@ -4643,7 +4890,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_gas = get_last_message_id();
@@ -4679,7 +4927,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_gas = get_last_message_id();
@@ -4715,7 +4964,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_gas = get_last_message_id();
@@ -4752,7 +5002,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_for_arg = get_last_message_id();
@@ -4789,7 +5040,8 @@ fn test_different_waits_fail() {
             program_id,
             payload,
             gas_info.burned + wl_gas + system_reservation,
-            value
+            value,
+            false,
         ));
 
         let wait_up_to_arg = get_last_message_id();
@@ -4832,7 +5084,8 @@ fn wait_after_reply() {
                 program_id,
                 Command::ReplyAndWait(subcommand).encode(),
                 BlockGasLimitOf::<Test>::get(),
-                0
+                0,
+                false,
             ));
 
             let message_id = utils::get_last_message_id();
@@ -4881,8 +5134,9 @@ fn test_requeue_after_wait_for_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         // Fast forward blocks.
@@ -4954,6 +5208,7 @@ fn test_sending_waits() {
             payload,
             25_000_000_000,
             0,
+            false,
         ));
 
         let wait_for = get_last_message_id();
@@ -4972,6 +5227,7 @@ fn test_sending_waits() {
             payload,
             25_000_000_000,
             0,
+            false,
         ));
 
         let wait_no_more = get_last_message_id();
@@ -4990,6 +5246,7 @@ fn test_sending_waits() {
             payload,
             30_000_000_000,
             0,
+            false,
         ));
 
         let wait_wait = get_last_message_id();
@@ -5008,6 +5265,7 @@ fn test_sending_waits() {
             vec![],
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5047,8 +5305,9 @@ fn test_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5062,6 +5321,7 @@ fn test_wait_timeout() {
             Command::Wake.encode(),
             10_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5103,8 +5363,9 @@ fn test_join_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5161,8 +5422,9 @@ fn test_select_wait_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5206,8 +5468,9 @@ fn test_wait_lost() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5219,7 +5482,8 @@ fn test_wait_lost() {
                     msg.id(),
                     b"ping".to_vec(),
                     100_000_000,
-                    0
+                    0,
+                    false,
                 ));
 
                 true
@@ -5275,7 +5539,8 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            1_000
+            1_000,
+            false,
         ));
 
         let skipped_message_id = get_last_message_id();
@@ -5314,8 +5579,9 @@ fn exit_locking_funds() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             calls.encode(),
-            1_000_000_000,
-            value
+            10_000_000_000,
+            value,
+            false,
         ));
         let message_1 = utils::get_last_message_id();
 
@@ -5324,8 +5590,9 @@ fn exit_locking_funds() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             calls.encode(),
-            1_000_000_000,
-            0
+            10_000_000_000,
+            0,
+            false,
         ));
         let message_2 = utils::get_last_message_id();
 
@@ -5469,7 +5736,8 @@ fn terminated_locking_funds() {
             message_to_reply,
             EMPTY_PAYLOAD.to_vec(),
             gas_spent_reply,
-            0
+            0,
+            false,
         ));
 
         let reply_id = get_last_message_id();
@@ -5518,16 +5786,11 @@ fn terminated_locking_funds() {
 }
 
 #[test]
-fn exit_init() {
-    use demo_constructor::{demo_exit_init, WASM_BINARY};
+fn pause_terminated_exited_program() {
+    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY};
 
-    init_logger();
-    new_test_ext().execute_with(|| {
+    let test = |program_id| {
         let code_id = CodeId::generate(WASM_BINARY);
-
-        let (_init_mid, program_id) =
-            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
-
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
@@ -5559,7 +5822,28 @@ fn exit_init() {
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
-    })
+    };
+
+    new_test_ext().execute_with(|| {
+        // exit init
+        let (_, exited_pid) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
+
+        test(exited_pid);
+    });
+
+    new_test_ext().execute_with(|| {
+        // failed in init
+        let init = Calls::builder().panic("panicked in init");
+        let (_, terminated_pid) = submit_constructor_with_args(
+            USER_1,
+            DEFAULT_SALT,
+            Scheme::predefined(init, Default::default(), Default::default()),
+            0,
+        );
+
+        test(terminated_pid);
+    });
 }
 
 #[test]
@@ -5623,6 +5907,7 @@ fn test_create_program_works() {
             // Calculate the gas spent after #1242.
             10_000_000_000u64,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -5633,6 +5918,8 @@ fn test_create_program_works() {
 
 #[test]
 fn test_create_program_no_code_hash() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     let non_constructable_wat = r#"
     (module)
     "#;
@@ -5664,6 +5951,7 @@ fn test_create_program_no_code_hash() {
             CreateProgram::Default.encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(2, None);
 
@@ -5688,6 +5976,7 @@ fn test_create_program_no_code_hash() {
             .encode(),
             100_000_000_000,
             0,
+            false,
         ));
         run_to_block(3, None);
 
@@ -5718,6 +6007,7 @@ fn test_create_program_no_code_hash() {
             .encode(),
             100_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -5730,6 +6020,8 @@ fn test_create_program_no_code_hash() {
 
 #[test]
 fn test_create_program_simple() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -5758,6 +6050,7 @@ fn test_create_program_simple() {
             CreateProgram::Default.encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(3, None);
 
@@ -5771,6 +6064,7 @@ fn test_create_program_simple() {
             .encode(),
             10_000_000_000,
             0,
+            false,
         ));
         run_to_block(4, None);
 
@@ -5792,6 +6086,7 @@ fn test_create_program_simple() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(5, None);
 
@@ -5806,6 +6101,7 @@ fn test_create_program_simple() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(6, None);
 
@@ -5816,6 +6112,7 @@ fn test_create_program_simple() {
 
 #[test]
 fn test_pausing_programs_works() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -5849,6 +6146,7 @@ fn test_pausing_programs_works() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_next_block(None);
 
@@ -6001,19 +6299,70 @@ fn resume_session_init_works() {
 }
 
 #[test]
-fn resume_session_push_works() {
+fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::Request;
+        use demo_custom::{
+            btree::{Request, StateRequest},
+            InitMessage, WASM_BINARY,
+        };
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_2),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        let data = [(0u32, 1u32), (2, 4), (7, 8)];
+        for (key, value) in data {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Request::Insert(key, value).encode(),
+                1_000_000_000,
+                0,
+                false,
+            ));
+        }
+
+        run_to_next_block(None);
+
+        for (key, value) in data {
+            let ret =
+                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            assert_eq!(
+                Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
+                value
+            );
+        }
+
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
+        let expected: BTreeMap<u32, u32> = data.into_iter().collect();
+        assert_eq!(ret, expected);
+    })
+}
+
+#[test]
+fn resume_session_push_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
+
+        let code = WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -6024,7 +6373,8 @@ fn resume_session_push_works() {
             program_id,
             request,
             1_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6114,16 +6464,20 @@ fn resume_session_push_works() {
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_btree::{Reply, Request};
+        use demo_custom::{
+            btree::{Reply, Request},
+            InitMessage, WASM_BINARY,
+        };
+        use frame_support::traits::ReservableCurrency;
 
-        let code = demo_btree::WASM_BINARY;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -6133,8 +6487,9 @@ fn resume_program_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             request,
-            1_000_000_000,
-            0
+            10_000_000_000,
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6295,8 +6650,9 @@ fn resume_program_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             request,
-            1_000_000_000,
-            0
+            10_000_000_000,
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6330,6 +6686,7 @@ fn test_no_messages_to_paused_program() {
             demo_wait_wake::Request::EchoWait(10).encode(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_next_block(None);
 
@@ -6430,6 +6787,7 @@ fn uninitialized_program_terminates_on_pause() {
             b"0123456789".to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6485,7 +6843,7 @@ fn uninitialized_program_terminates_on_pause() {
 
 #[test]
 fn pay_program_rent_syscall_works() {
-    use test_syscalls::{Kind, PAY_PROGRAM_RENT_EXPECT};
+    use test_syscalls::{Kind, PAY_PROGRAM_RENT_EXPECT, WASM_BINARY as TEST_SYSCALLS_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6521,6 +6879,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6544,6 +6903,7 @@ fn pay_program_rent_syscall_works() {
             vec![Kind::PayProgramRent([0u8; 32], rent, None)].encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -6562,6 +6922,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6570,8 +6931,8 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
@@ -6607,6 +6968,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             Gear::rent_fee_for(u32::MAX),
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6615,8 +6977,10 @@ fn pay_program_rent_syscall_works() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: Ext({:?})",
-                ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid)
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                GstdError::Core(
+                    ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid).into()
+                )
             )
         } else {
             String::from("no info")
@@ -6641,6 +7005,7 @@ fn pay_program_rent_syscall_works() {
             .encode(),
             20_000_000_000,
             required_value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -6751,6 +7116,7 @@ fn pay_program_rent_extrinsic_works() {
 
 #[test]
 fn test_create_program_duplicate() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6791,6 +7157,7 @@ fn test_create_program_duplicate() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(4, None);
 
@@ -6811,6 +7178,7 @@ fn test_create_program_duplicate() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(5, None);
 
@@ -6822,6 +7190,7 @@ fn test_create_program_duplicate() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(6, None);
 
@@ -6848,6 +7217,8 @@ fn test_create_program_duplicate() {
 
 #[test]
 fn test_create_program_duplicate_in_one_execution() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6880,6 +7251,7 @@ fn test_create_program_duplicate_in_one_execution() {
             .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -6899,6 +7271,7 @@ fn test_create_program_duplicate_in_one_execution() {
                 .encode(),
             20_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -6910,6 +7283,8 @@ fn test_create_program_duplicate_in_one_execution() {
 
 #[test]
 fn test_create_program_miscellaneous() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+
     // Same as ProgramCodeKind::Default, but has a different hash (init and handle method are swapped)
     // So code hash is different
     let child2_wat = r#"
@@ -6966,6 +7341,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -6983,6 +7359,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -6999,6 +7376,7 @@ fn test_create_program_miscellaneous() {
             .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(5, None);
@@ -7024,7 +7402,8 @@ fn exit_handle() {
             program_id,
             vec![],
             50_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7077,6 +7456,7 @@ fn no_redundant_gas_value_after_exiting() {
             EMPTY_PAYLOAD.to_vec(),
             gas_spent,
             0,
+            false,
         ));
 
         let msg_id = get_last_message_id();
@@ -7084,7 +7464,7 @@ fn no_redundant_gas_value_after_exiting() {
 
         // before execution
         let free_after_send = Balances::free_balance(USER_1);
-        let reserved_after_send = Balances::reserved_balance(USER_1);
+        let reserved_after_send = GearBank::<Test>::account_total(&USER_1);
         assert_eq!(reserved_after_send, GasPrice::gas_price(gas_spent));
 
         run_to_block(3, None);
@@ -7103,7 +7483,7 @@ fn no_redundant_gas_value_after_exiting() {
         );
 
         // reserved balance after execution is zero
-        let reserved_after_execution = Balances::reserved_balance(USER_1);
+        let reserved_after_execution = GearBank::<Test>::account_total(&USER_1);
         assert!(reserved_after_execution.is_zero());
     })
 }
@@ -7137,7 +7517,8 @@ fn init_wait_reply_exit_cleaned_storage() {
                 pid,
                 vec![],
                 10_000u64,
-                0u128
+                0u128,
+                false,
             ));
         }
 
@@ -7161,6 +7542,7 @@ fn init_wait_reply_exit_cleaned_storage() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000_000u64,
             0,
+            false,
         ));
 
         assert!(!Gear::is_initialized(pid));
@@ -7316,7 +7698,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_btree::{Request, WASM_BINARY};
+    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7326,7 +7708,7 @@ fn gas_spent_vs_balance() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             50_000_000_000,
             0,
         ));
@@ -7342,8 +7724,9 @@ fn gas_spent_vs_balance() {
             RuntimeOrigin::signed(USER_1),
             prog_id,
             request.clone(),
-            1_000_000_000,
-            0
+            10_000_000_000,
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -7357,7 +7740,7 @@ fn gas_spent_vs_balance() {
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
-            EMPTY_PAYLOAD.to_vec(),
+            InitMessage::BTree.encode(),
             0,
             true,
             true,
@@ -7564,6 +7947,9 @@ fn gas_spent_precalculated() {
 
 #[test]
 fn test_two_contracts_composition_works() {
+    use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
@@ -7611,8 +7997,9 @@ fn test_two_contracts_composition_works() {
             RuntimeOrigin::signed(USER_1),
             compose_id,
             100_u64.to_le_bytes().to_vec(),
-            30_000_000_000,
+            60_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -7723,8 +8110,8 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Message(MessageError::InsufficientValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
             )
         } else {
             String::from("no info")
@@ -7776,8 +8163,8 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
-                "Failed to create program: Ext({:?})",
-                ExtError::Execution(ExecutionError::NotEnoughValue)
+                "Failed to create program: {:?}",
+                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
             )
         } else {
             String::from("no info")
@@ -7830,6 +8217,7 @@ fn demo_constructor_works() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -7858,6 +8246,7 @@ fn demo_constructor_works() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -7909,6 +8298,7 @@ fn demo_constructor_value_eq() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             100_000,
+            false,
         ));
 
         run_to_next_block(None);
@@ -7922,6 +8312,7 @@ fn demo_constructor_value_eq() {
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -7971,6 +8362,7 @@ fn demo_constructor_is_demo_ping() {
                 b"PING".to_vec(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -7988,6 +8380,7 @@ fn demo_constructor_is_demo_ping() {
             vec![],
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let reply_id = get_last_message_id();
@@ -8023,6 +8416,7 @@ fn test_reply_to_terminated_program() {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
             value: 0,
+            prepaid: false,
         });
         assert_noop!(
             reply_call.dispatch(RuntimeOrigin::signed(USER_1)),
@@ -8139,7 +8533,8 @@ fn delayed_wake() {
             prog,
             vec![],
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -8158,7 +8553,8 @@ fn delayed_wake() {
             prog,
             delay.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8174,6 +8570,7 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
     use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 
     init_logger();
@@ -8186,7 +8583,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             50_u64.encode(),
-            5_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -8195,7 +8592,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             (<[u8; 32]>::from(contract_id), 0u64).encode(),
-            5_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -8241,7 +8638,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(user_balance_before_calculating, user_initial_balance);
         // Zero because no message added into mailbox.
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         assert_ok!(Gear::send_message(
@@ -8250,6 +8647,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             payload,
             gas_reserved,
             value,
+            false,
         ));
 
         let gas_to_spend = GasPrice::gas_price(gas_to_spend);
@@ -8282,14 +8680,14 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         let reserve_for = CostsPerBlockOf::<Test>::reserve_for();
 
         let user_1_balance = Balances::free_balance(USER_1);
-        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
         let user_2_balance = Balances::free_balance(USER_2);
-        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
         let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
         assert_eq!(
-            Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+            GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
             0
         );
 
@@ -8435,6 +8833,7 @@ fn execution_over_blocks() {
             Package::new(128, src).encode(),
             block_gas_limit,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8447,6 +8846,7 @@ fn execution_over_blocks() {
             Package::new(17_384, src).encode(),
             block_gas_limit,
             0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -8478,7 +8878,7 @@ fn execution_over_blocks() {
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 8_192);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 16_384);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
@@ -8487,6 +8887,7 @@ fn execution_over_blocks() {
             Method::Start { src, id, expected }.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -8505,6 +8906,7 @@ fn execution_over_blocks() {
                 Method::Refuel(id).encode(),
                 block_gas_limit,
                 0,
+                false,
             ));
 
             count += 1;
@@ -8556,6 +8958,463 @@ fn call_forbidden_function() {
 }
 
 #[test]
+fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
+    };
+
+    fn execution() {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(
+                u32::MAX,
+                MxLockContinuation::General(LockContinuation::SleepFor(4)),
+            ));
+
+        let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
+            MxLockContinuation::General(LockContinuation::Nothing),
+        ));
+
+        send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+        let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
+            MxLockContinuation::General(LockContinuation::Nothing),
+        ));
+
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_owner_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_1_msg_id
+        ));
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &lock_rival_2_msg_id
+        ));
+
+        // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+        // releases the mutex so the lock rival 1 can acquire and release it for
+        // the lock rival 2 to acquire it.
+        run_for_blocks(1, None);
+
+        assert_succeed(lock_owner_msg_id);
+        assert_succeed(lock_rival_1_msg_id);
+        assert_succeed(lock_rival_2_msg_id);
+    }
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, RwLockContinuation, RwLockType,
+        WASM_BINARY as WAITER_WASM,
+    };
+
+    fn execution() {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let send_command_to_waiter = |command: WaiterCommand| {
+            MailboxOf::<Test>::clear();
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                waiter_prog_id,
+                command.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            )
+            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            let msg_id = get_last_message_id();
+            let msg_block_number = System::block_number() + 1;
+            run_to_next_block(None);
+            (msg_id, msg_block_number)
+        };
+
+        // For write lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+                send_command_to_waiter(WaiterCommand::RwLock(
+                    RwLockType::Read,
+                    RwLockContinuation::General(LockContinuation::SleepFor(4)),
+                ));
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::General(LockContinuation::Nothing),
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::General(LockContinuation::Nothing),
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+
+        // For read lock
+        {
+            let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+                send_command_to_waiter(WaiterCommand::RwLock(
+                    RwLockType::Write,
+                    RwLockContinuation::General(LockContinuation::SleepFor(4)),
+                ));
+
+            let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Read,
+                RwLockContinuation::General(LockContinuation::Nothing),
+            ));
+
+            send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
+
+            let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::RwLock(
+                RwLockType::Write,
+                RwLockContinuation::General(LockContinuation::Nothing),
+            ));
+
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_owner_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_1_msg_id
+            ));
+            assert!(WaitlistOf::<Test>::contains(
+                &waiter_prog_id,
+                &lock_rival_2_msg_id
+            ));
+
+            // Run for 1 block, so the lock owner wakes up after sleeping for 4 blocks,
+            // releases the mutex so the lock rival 1 can acquire and release it for
+            // the lock rival 2 to acquire it.
+            run_for_blocks(1, None);
+
+            assert_succeed(lock_owner_msg_id);
+            assert_succeed(lock_rival_1_msg_id);
+            assert_succeed(lock_rival_2_msg_id);
+        }
+    }
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn mx_lock_ownership_exceedance() {
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
+    };
+
+    const LOCK_HOLD_DURATION: u32 = 3;
+
+    fn execution() {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (run_test_case, get_lock_ownership_exceeded_trap) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                    false,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let run_test_case =
+                move |command: WaiterCommand,
+                      run_for_blocks_before_lock_assert: u32,
+                      assert_command_result: &dyn Fn(MessageId),
+                      assert_lock_result: &dyn Fn(MessageId, MessageId)| {
+                    let (command_msg_id, _) = send_command_to_waiter(command);
+
+                    // Subtract 1 because sending command to waiter below adds 1 block
+                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
+
+                    assert_command_result(command_msg_id);
+
+                    let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+                        1,
+                        MxLockContinuation::General(LockContinuation::Nothing),
+                    ));
+
+                    assert_lock_result(command_msg_id, lock_msg_id);
+                };
+
+            let get_lock_ownership_exceeded_trap = |command_msg_id| {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    format!(
+                        "Message 0x{} has exceeded lock ownership time",
+                        hex::encode(command_msg_id)
+                    )
+                    .into(),
+                ))
+            };
+
+            (run_test_case, get_lock_ownership_exceeded_trap)
+        };
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+    }
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
 fn async_sleep_for() {
     use demo_waiter::{
         Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
@@ -8592,6 +9451,7 @@ fn async_sleep_for() {
                     command.encode(),
                     BlockGasLimitOf::<Test>::get(),
                     0,
+                    false,
                 )
                 .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
                 let msg_id = get_last_message_id();
@@ -8850,8 +9710,9 @@ fn test_async_messages() {
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 kind.encode(),
-                10_000_000_000u64,
+                30_000_000_000u64,
                 0,
+                false,
             ));
 
             // check the message sent from the program
@@ -8867,6 +9728,7 @@ fn test_async_messages() {
                 EMPTY_PAYLOAD.to_vec(),
                 10_000_000_000u64,
                 0,
+                false,
             ));
 
             // check the reply from the program
@@ -8912,9 +9774,10 @@ fn program_generator_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             generator_id,
-            vec![],
+            EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -9055,6 +9918,7 @@ fn missing_functions_are_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9081,6 +9945,7 @@ fn missing_functions_are_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
             reply_value,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9145,6 +10010,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         assert_ok!(Gear::send_message(
@@ -9153,6 +10019,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -9225,7 +10092,8 @@ fn test_reinstrumentation_works() {
             pid,
             vec![],
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -9239,7 +10107,8 @@ fn test_reinstrumentation_works() {
             pid,
             vec![],
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -9334,6 +10203,7 @@ fn send_from_reservation() {
                 HandleAction::SendToUser.encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(3, None);
@@ -9358,6 +10228,7 @@ fn send_from_reservation() {
                 .encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9382,6 +10253,7 @@ fn send_from_reservation() {
                 HandleAction::SendToUserDelayed.encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(5, None);
@@ -9410,6 +10282,7 @@ fn send_from_reservation() {
                 .encode(),
                 10_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9465,8 +10338,9 @@ fn reply_from_reservation() {
                 RuntimeOrigin::signed(USER_1),
                 pid,
                 HandleAction::ReplyToUser.encode(),
-                10_000_000_000,
+                30_000_000_000,
                 1_000,
+                false,
             ));
 
             run_to_block(3, None);
@@ -9489,8 +10363,9 @@ fn reply_from_reservation() {
                     user: USER_1.into_origin().into()
                 }
                 .encode(),
-                10_000_000_000,
+                30_000_000_000,
                 1_000,
+                false,
             ));
 
             let mid = get_last_message_id();
@@ -9536,6 +10411,7 @@ fn signal_recursion_not_occurs() {
             HandleAction::PanicInSignal.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9605,6 +10481,7 @@ fn signal_during_precharge() {
             HandleAction::WaitWithReserveAmountAndPanic(1).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9620,7 +10497,8 @@ fn signal_during_precharge() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -9674,6 +10552,7 @@ fn signal_during_prepare() {
             HandleAction::WaitWithReserveAmountAndPanic(program_gas).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9689,7 +10568,8 @@ fn signal_during_prepare() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -9752,6 +10632,7 @@ fn signal_async_wait_works() {
             EMPTY_PAYLOAD.to_vec(),
             gas_spent,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9787,41 +10668,210 @@ fn signal_async_wait_works() {
 }
 
 #[test]
-fn signal_gas_limit_exceeded_works() {
+fn signal_run_out_of_gas_works() {
+    test_signal_code_works(
+        SimpleExecutionError::RanOutOfGas.into(),
+        demo_signal_entry::HandleAction::OutOfGas,
+    );
+}
+
+#[test]
+fn signal_run_out_of_gas_memory_access_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    const GAS_LIMIT: u64 = 10_000_000_000;
 
     init_logger();
     new_test_ext().execute_with(|| {
+        // Upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            GAS_LIMIT,
             0,
         ));
 
         let pid = get_last_program_id();
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::OutOfGas.encode(),
-            10_000_000_000,
+            HandleAction::SaveSignal(SimpleExecutionError::RanOutOfGas.into()).encode(),
+            GAS_LIMIT,
             0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Calculate gas limit for this action
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            min_limit - 1,
+            0,
+            false,
         ));
 
         let mid = get_last_message_id();
 
-        run_to_block(3, None);
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        run_to_next_block(None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
-        // check signal dispatch executed
+        // Ensure that signal code sent is signal code we saved
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    });
+}
+
+#[test]
+fn signal_userspace_panic_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UserspacePanic.into(),
+        demo_signal_entry::HandleAction::Panic,
+    );
+}
+
+#[test]
+fn signal_backend_error_forbidden_action_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::ForbiddenAction,
+    );
+}
+
+#[test]
+fn signal_backend_error_invalid_debug_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::InvalidDebugCall,
+    );
+}
+
+#[test]
+fn signal_backend_error_unrecoverable_ext_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::UnrecoverableExt,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::UnreachableInstruction,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_incorrect_free_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::IncorrectFree,
+    );
+}
+
+#[test]
+fn signal_memory_overflow_works() {
+    test_signal_code_works(
+        SimpleExecutionError::MemoryOverflow.into(),
+        demo_signal_entry::HandleAction::ExceedMemory,
+    );
+}
+
+#[test]
+fn signal_removed_from_waitlist_works() {
+    const GAS_LIMIT: u64 = 10_000_000_000;
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SaveSignal(SignalCode::RemovedFromWaitlist).encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitWithoutSendingMessage.encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Ensuring that gas is reserved
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        // Getting block number when waitlist expiration should happen
+        let expiration = get_waitlist_expiration(mid);
+
+        // Hack to fast spend blocks till expiration
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number(expiration - 1);
+
+        // Expiring that message
+        run_to_next_block(None);
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
     });
 }
 
@@ -9862,6 +10912,7 @@ fn system_reservation_unreserve_works() {
             HandleAction::Simple.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9901,8 +10952,9 @@ fn few_system_reservations_across_waits_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::AcrossWaits.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9919,8 +10971,9 @@ fn few_system_reservations_across_waits_works() {
                 RuntimeOrigin::signed(USER_1),
                 reply_to_id,
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000_000,
-                0
+                30_000_000_000,
+                0,
+                false,
             ));
 
             run_to_next_block(None);
@@ -9953,6 +11006,7 @@ fn system_reservation_panic_works() {
             HandleAction::Panic.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -9992,6 +11046,7 @@ fn system_reservation_exit_works() {
             HandleAction::Exit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10033,6 +11088,7 @@ fn system_reservation_wait_and_panic_works() {
             HandleAction::WaitAndPanic.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10048,7 +11104,8 @@ fn system_reservation_wait_and_panic_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10082,6 +11139,7 @@ fn system_reservation_wait_works() {
             HandleAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10141,6 +11199,7 @@ fn system_reservation_wait_and_exit_works() {
             HandleAction::WaitAndExit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10156,7 +11215,8 @@ fn system_reservation_wait_and_exit_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10171,7 +11231,7 @@ fn system_reservation_wait_and_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_reserve_with_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
+    use demo_signal_entry::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10192,8 +11252,9 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::WaitAndReserveWithPanic.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10202,7 +11263,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
 
         assert_eq!(
             GasHandlerOf::<Test>::get_system_reserve(mid),
-            Ok(2_000_000_000)
+            Ok(WAIT_AND_RESERVE_WITH_PANIC_GAS)
         );
 
         let reply_to_id = get_last_mail(USER_1).id();
@@ -10211,7 +11272,8 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10249,6 +11311,7 @@ fn system_reservation_accumulate_works() {
             HandleAction::Accumulate.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10286,6 +11349,7 @@ fn system_reservation_zero_amount_panics() {
             HandleAction::ZeroReserve.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10345,7 +11409,8 @@ fn gas_reservation_works() {
             pid,
             HandleAction::Unreserve.encode(),
             spent_gas,
-            0
+            0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10386,7 +11451,8 @@ fn gas_reservation_works() {
             pid,
             HandleAction::Exit.encode(),
             50_000_000_000,
-            0
+            0,
+            false,
         ));
 
         run_to_block(2 + 4, None);
@@ -10433,8 +11499,9 @@ fn gas_reservations_cleaned_in_terminated_program() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Panic.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10482,8 +11549,9 @@ fn gas_reservation_wait_wake_exit() {
             RuntimeOrigin::signed(USER_1),
             message_id,
             ReplyAction::Exit.encode(),
-            DEFAULT_GAS_LIMIT * 10,
+            BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10572,7 +11640,8 @@ fn gas_reservations_existing_reserve_unreserve() {
             pid,
             HandleAction::SendFromReservationAndUnreserve.encode(),
             10_000_000_000,
-            0
+            0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10596,7 +11665,7 @@ fn custom_async_entrypoint_works() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -10608,8 +11677,9 @@ fn custom_async_entrypoint_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(3, None);
@@ -10621,8 +11691,9 @@ fn custom_async_entrypoint_works() {
             RuntimeOrigin::signed(USER_1),
             msg.id(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            0
+            30_000_000_000,
+            0,
+            false,
         ));
 
         run_to_block(4, None);
@@ -10660,6 +11731,7 @@ fn dispatch_kind_forbidden_function() {
             HandleAction::ForbiddenCallInSignal(USER_1.into_origin().into()).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10739,6 +11811,7 @@ fn system_reservation_gas_allowance_rollbacks() {
             HandleAction::Simple.encode(),
             min_limit,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -10774,6 +11847,7 @@ fn system_reservation_wait_and_exit_across_executions() {
             HandleAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid_wait = get_last_message_id();
@@ -10788,6 +11862,7 @@ fn system_reservation_wait_and_exit_across_executions() {
             HandleAction::Exit.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid_exit = get_last_message_id();
@@ -10856,6 +11931,7 @@ fn signal_on_uninitialized_program() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let reply_mid = get_last_message_id();
@@ -10886,7 +11962,8 @@ fn missing_block_tasks_handled() {
             pid,
             vec![],
             100_000_000,
-            1000
+            1000,
+            false,
         ));
 
         run_to_block(N - 1, None);
@@ -10960,6 +12037,7 @@ fn async_does_not_duplicate_sync() {
             b"async".to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -11456,7 +12534,7 @@ fn async_init() {
 
     let upload = || {
         assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
+            RuntimeOrigin::signed(USER_3),
             PING_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Default::default(),
@@ -11493,6 +12571,1695 @@ fn async_init() {
     });
 }
 
+#[test]
+fn check_gear_stack_end_fail() {
+    // This test checks, that in case user makes WASM file with incorrect
+    // gear stack end export, then execution will end with an error.
+    let wat_template = |addr| {
+        format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 4))
+                (export "init" (func $init))
+                (func $init)
+                (global (;0;) (mut i32) (i32.const {addr}))
+                (export "{STACK_END_EXPORT_NAME}" (global 0))
+            )"#,
+        )
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Check error when stack end bigger then static mem size
+        let wat = wat_template(0x50000);
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReplyReason::PrepareMemory(
+                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
+                    WasmPage::new(5).unwrap(),
+                    WasmPage::new(4).unwrap(),
+                ),
+            ),
+        );
+
+        // Check error when stack end is not aligned
+        let wat = wat_template(0x10001);
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReplyReason::PrepareMemory(
+                ActorPrepareMemoryError::StackIsNotAligned(65537),
+            ),
+        );
+
+        // Check OK if stack end is suitable
+        let wat = wat_template(0x10000);
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_succeed(message_id);
+    });
+}
+
+/// Test that error is generated in case `gr_read` requests out of bounds data from message.
+#[test]
+fn check_gr_read_error_works() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_read" (func $gr_read (param i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (call $gr_read (i32.const 0) (i32.const 10) (i32.const 0) (i32.const 111))
+
+                i32.const 111
+                i32.load
+                (if ;; validating that error len is not zero
+                    (then)
+                    (else
+                        unreachable
+                    )
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_succeed(message_id);
+    });
+}
+
+/// Check that too large message, which is constructed by `gr_reply_push`,
+/// leads to program execution error.
+#[test]
+fn check_reply_push_payload_exceed() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0x101))
+            (import "env" "gr_reply_push" (func $gr (param i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                ;; first reply push must be ok
+                (block
+                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
+
+                    (i32.load (i32.const 0x1000001))
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+                ;; second must lead to overflow
+                (block
+                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
+
+                    (i32.load (i32.const 0x1000001))
+                    i32.eqz
+                    br_if 1
+                    unreachable
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+        );
+    });
+}
+
+/// Check that random works and it's changing on next epoch.
+#[test]
+fn check_random_works() {
+    use blake2_rfc::blake2b::blake2b;
+    let wat = r#"
+        (module
+            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_random" (func $gr_random (param i32 i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (func $handle
+                (i32.store (i32.const 111) (i32.const 1))
+
+                (call $gr_random (i32.const 0) (i32.const 64))
+
+                (call $send (i32.const 111) (i32.const 68) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
+
+                (i32.load (i32.const 333))
+                i32.eqz
+                br_if 0
+                unreachable
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let sender = utils::get_last_program_id();
+
+        let mut random_data = Vec::new();
+
+        (1..10).for_each(|_| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                sender,
+                EMPTY_PAYLOAD.to_vec(),
+                50_000_000_000,
+                0,
+                false,
+            ));
+
+            let output: ([u8; 32], BlockNumber) =
+                <Test as Config>::Randomness::random(get_last_message_id().as_ref());
+
+            random_data.push([[0; 32], output.0].concat());
+            run_to_block(System::block_number() + 1, None);
+        });
+
+        assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
+
+        let mut sorted_mailbox: Vec<(UserStoredMessage, Interval<BlockNumber>)> =
+            MailboxOf::<Test>::iter_key(USER_1).collect();
+        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
+
+        sorted_mailbox
+            .iter()
+            .zip(random_data.iter())
+            .for_each(|((msg, _bn), random_data)| {
+                assert_eq!(
+                    blake2b(32, &[], random_data).as_bytes(),
+                    msg.payload_bytes()
+                );
+            });
+
+        // // assert_last_dequeued(1);
+        // println!("{:?}", res);
+        // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
+    });
+}
+
+#[test]
+fn reply_with_small_non_zero_gas() {
+    use demo_proxy_relay::{RelayCall, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let gas_limit = 1;
+        assert!(gas_limit < <Test as Config>::MailboxThreshold::get());
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            RelayCall::RereplyWithGas(gas_limit).encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+
+        let payload = b"it works";
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            payload.to_vec(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+            false,
+        ));
+
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        assert_succeed(message_id);
+        assert_eq!(
+            maybe_last_message(USER_1)
+                .expect("Should be")
+                .payload_bytes(),
+            payload
+        );
+    });
+}
+
+#[test]
+fn replies_denied_in_handle_reply() {
+    use demo_proxy::{InputArgs, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: USER_1.into_origin().into()
+            }
+            .encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            vec![],
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+        assert_succeed(message_id);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            get_last_mail(USER_1).id(),
+            vec![],
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let reply_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // we don't assert fail reason since no error reply sent on reply,
+        // but message id has stamp in MessagesDispatched event.
+        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
+        assert_eq!(status, DispatchStatus::Failed);
+    });
+}
+
+#[test]
+fn relay_messages() {
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
+
+    struct Expected {
+        user: AccountId,
+        payload: Vec<u8>,
+    }
+
+    let source = USER_1;
+
+    init_logger();
+    let test = |relay_call: RelayCall, payload: &[u8], expected: Vec<Expected>| {
+        let execute = || {
+            System::reset_events();
+
+            let label = format!("{relay_call:?}");
+            assert!(
+                Gear::upload_program(
+                    RuntimeOrigin::signed(source),
+                    WASM_BINARY.to_vec(),
+                    vec![],
+                    relay_call.encode(),
+                    50_000_000_000u64,
+                    0u128
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            let proxy = utils::get_last_program_id();
+
+            run_to_next_block(None);
+
+            assert!(Gear::is_active(proxy), "{}", label);
+
+            assert!(
+                Gear::send_message(
+                    RuntimeOrigin::signed(source),
+                    proxy,
+                    payload.to_vec(),
+                    DEFAULT_GAS_LIMIT * 10,
+                    0,
+                    false,
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            // To clear auto reply on init message.
+            System::reset_events();
+
+            run_to_next_block(None);
+
+            let received = System::events().into_iter().fold(0, |r, e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
+                    let Expected { user, payload } = &expected[r];
+
+                    if message.destination().into_origin() == user.into_origin() {
+                        assert_eq!(message.payload_bytes(), payload, "{label}");
+                        r + 1
+                    } else {
+                        r
+                    }
+                }
+                _ => r,
+            });
+
+            assert_eq!(received, expected.len(), "{label}");
+        };
+
+        new_test_ext().execute_with(execute);
+    };
+
+    let payload = b"Hi, USER_2! Ping USER_3.";
+
+    let pairs = vec![
+        (
+            RelayCall::ResendPush(vec![
+                // "Hi, USER_2!"
+                ResendPushData {
+                    destination: USER_2.into(),
+                    start: None,
+                    end: Some((10, true)),
+                },
+            ]),
+            Expected {
+                user: USER_2,
+                payload: payload[..11].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // the same but end index specified in another way
+                ResendPushData {
+                    destination: USER_2.into(),
+                    start: None,
+                    end: Some((11, false)),
+                },
+            ]),
+            Expected {
+                user: USER_2,
+                payload: payload[..11].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // "Ping USER_3."
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(12),
+                    end: None,
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: payload[12..].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // invalid range
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(2),
+                    end: Some((0, true)),
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: vec![],
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // invalid range
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(payload.len() as u32),
+                    end: Some((0, false)),
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: vec![],
+            },
+        ),
+    ];
+
+    for (call, expectation) in pairs {
+        test(call, payload, vec![expectation]);
+    }
+
+    test(
+        RelayCall::Resend(USER_3.into()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+}
+
+#[test]
+fn module_instantiation_error() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+        (data (;0;) (i32.const -15186172) "\b9w\92")
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+        let mid = get_last_message_id();
+
+        assert_ok!(res);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(prog_id));
+        let err = get_last_event_error(mid);
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+    });
+}
+
+#[test]
+#[ignore = "issue #3100"]
+fn wrong_entry_type() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init (param i32))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        let err = get_last_event_error(mid);
+        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+    });
+}
+
+#[test]
+fn oom_handler_works() {
+    use demo_out_of_memory::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+        );
+    });
+}
+
+#[test]
+#[ignore = "TODO: return this test if it's possible after #2226, or remove it."]
+fn alloc_charge_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "alloc" (func $alloc (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; we are trying to allocate so many pages with such small gas limit
+        ;; that we will get `GasLimitExceeded` error
+        i32.const 0xff
+        call $alloc
+        drop
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
+    });
+}
+
+#[test]
+fn free_usage_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "free" (func $free (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; free impossible and non-existing page
+        i32.const 0xffffffff
+        call $free
+        ;; free must return 1 so we will get `unreachable` instruction
+        i32.const 0
+        i32.eq
+        br_if 0
+        unreachable
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+        );
+    });
+}
+
+#[test]
+fn reject_incorrect_stack_pointer() {
+    let wat = format!(
+        r#"
+(module
+    (import "env" "memory" (memory 1))
+    (func $init)
+    (global (;0;) i32 (i32.const 65536))
+    (export "init" (func $init))
+    (export "{STACK_END_EXPORT_NAME}" (global 0))
+    (data $.rodata (i32.const 60000) "GEAR")
+)
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::CustomInvalid(&wat).to_bytes()
+            ),
+            Error::<Test>::ProgramConstructionFailed
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat)),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
+#[test]
+fn calculate_gas_fails_when_calculation_limit_exceeded() {
+    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Init::Normal(vec![]).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        // Make reservations exceeding calculation gas limit of RUNTIME_API_BLOCK_LIMITS_COUNT (6) blocks.
+        for _ in 0..=RUNTIME_API_BLOCK_LIMITS_COUNT {
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                // 96% of block gas limit
+                Command::AddReservationToList(BlockGasLimitOf::<Test>::get() / 100 * 96, 10)
+                    .encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            )
+            .expect("Making reservation failed");
+        }
+
+        run_to_next_block(None);
+
+        let gas_info_result = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            true,
+        );
+
+        assert!(gas_info_result.is_err());
+        assert_eq!(
+            gas_info_result.unwrap_err(),
+            "Calculation gas limit exceeded. Consider using custom built node."
+        );
+    });
+}
+
+#[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+
+            run_to_next_block(None);
+
+            assert_responses_to_user(USER_1, expected);
+        }
+
+        // Try unreserve 100 gas when there's no reservations.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::ReplyCode(ReplyCode::error(
+                SimpleExecutionError::UserspacePanic,
+            ))],
+        );
+        // Reserve 10_000 gas.
+        scenario(
+            pid,
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            },
+            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
+        );
+        // Try to unreserve 50_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::ReplyCode(ReplyCode::error(
+                SimpleExecutionError::UserspacePanic,
+            ))],
+        );
+        // Try to unreserve 8_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![
+                // auto reply
+                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
+                // message with empty payload. not reply!
+                Assertion::Payload(vec![]),
+            ],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::ReplyCode(ReplyCode::error(
+                SimpleExecutionError::UserspacePanic,
+            ))],
+        );
+    });
+}
+
+#[test]
+fn check_mutable_global_exports_restriction() {
+    init_logger();
+
+    let wat_correct = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )"#
+    );
+
+    let wat_incorrect = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "global" (global 0))
+        )"#;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(upload_program_default(
+            USER_1,
+            ProgramCodeKind::CustomInvalid(&wat_correct)
+        ));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
+#[test]
+fn send_gasless_message_works() {
+    init_logger();
+
+    let minimal_weight = mock::get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let user1_initial_balance = Balances::free_balance(USER_1);
+        let user2_initial_balance = Balances::free_balance(USER_2);
+
+        // No gas has been created initially
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
+
+        let program_id = {
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        // Test 1: USER_2 sends a gasless message to the program (intending to use a voucher).
+        // Expect failure because USER_2 has no voucher.
+        assert_noop!(
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_2),
+                program_id,
+                EMPTY_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0,
+                true,
+            ),
+            Error::<Test>::FailureRedeemingVoucher
+        );
+
+        // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(USER_1),
+            USER_2,
+            program_id,
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
+        ));
+
+        // Balances check
+        // USER_1 can spend up to 2 default messages worth of gas (submit program and issue voucher)
+        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_initial_balance - user1_potential_msgs_spends
+        );
+
+        // Clear messages from the queue to refund unused gas
+        run_to_block(2, None);
+
+        // Balance check
+        // Voucher has been issued, but not used yet, so funds should be still in the respective account
+        let voucher_id = GearVoucher::voucher_account_id(&USER_2, &program_id);
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
+        );
+
+        // Test 2: USER_2 sends a gasless message to the program (intending to use a voucher).
+        // Now that voucher is issued, the message should be sent successfully.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            1_000_000_u128,
+            true,
+        ));
+
+        // Balances check
+        // USER_2 as a voucher holder can send one message completely free of charge
+        // The value in message, however, is still offset against the USER_2's own balance
+        let user2_potential_msgs_spends = 1_000_000_u128;
+        assert_eq!(
+            Balances::free_balance(USER_2),
+            user2_initial_balance - user2_potential_msgs_spends
+        );
+        // Instead, the gas has been paid from the voucher
+        assert_eq!(Balances::free_balance(voucher_id), 0_u128);
+
+        // Run the queue processing to figure out the actual gas burned
+        let remaining_weight = 300_000_000;
+        run_to_block(3, Some(remaining_weight));
+
+        let actual_gas_burned =
+            remaining_weight - minimal_weight.ref_time() - GasAllowanceOf::<Test>::get();
+        assert_ne!(actual_gas_burned, 0);
+
+        // Check that the gas leftover has been returned to the voucher
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT) - GasPrice::gas_price(actual_gas_burned)
+        );
+
+        // USER_2 total balance has been reduced by the value in the message
+        assert_eq!(
+            Balances::total_balance(&USER_2),
+            user2_initial_balance - user2_potential_msgs_spends
+        );
+
+        // No gas has got stuck in the system
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
+    });
+}
+
+#[test]
+fn send_gasless_reply_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // USER_2 uploads a program and sends message to it which leads to
+        // USER_1 having a message in his mailbox.
+        // caution: runs to block 2
+        let reply_to_id = setup_mailbox_test_state(USER_2);
+
+        let prog_id = generate_program_id(
+            &ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
+            DEFAULT_SALT.as_ref(),
+        );
+
+        // Top up program's account balance with some funds
+        CurrencyOf::<Test>::resolve_creating(
+            &AccountId::from_origin(prog_id.into_origin()),
+            CurrencyOf::<Test>::issue(2_000_u128),
+        );
+
+        // USER_2 issues a voucher for USER_1 enough to send a reply
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(USER_2),
+            USER_1,
+            prog_id,
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
+        ));
+        let voucher_id = GearVoucher::voucher_account_id(&USER_1, &prog_id);
+
+        run_to_block(3, None);
+
+        // Balance check
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
+        );
+
+        // USER_1 sends a gasless reply using a voucher
+        let gas_limit = 10_000_000_u64;
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            reply_to_id,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_limit,
+            1000, // `prog_id` sent message with value of 1000 (see program code)
+            true,
+        ));
+        let expected_reply_message_id = get_last_message_id();
+
+        // global nonce is 2 before sending reply message
+        // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
+        let event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let actual_reply_message_id = match event {
+            Event::MessageQueued {
+                id,
+                entry: MessageEntry::Reply(_reply_to_id),
+                ..
+            } => id,
+            _ => unreachable!("expect Event::DispatchMessageEnqueued"),
+        };
+
+        assert_eq!(expected_reply_message_id, actual_reply_message_id);
+
+        // Balances check before processing queue
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
+        );
+
+        run_to_block(4, None);
+        // Ensure that some gas leftover has been returned to the voucher account
+        assert!(
+            Balances::free_balance(voucher_id)
+                > GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
+        );
+    })
+}
+
+/// Tests whether calling `gr_read` 2 times returns same result.
+/// Test purpose is to check, that payload is given back to the
+/// message.
+#[test]
+fn double_read_works() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let noop_branch = Calls::builder().noop();
+        let panic_branch = Calls::builder().panic("Read payloads aren't equal");
+        let handle = Calls::builder()
+            .load("read1")
+            .load("read2")
+            .bytes_eq("is_eq", "read1", "read2")
+            .if_else("is_eq", noop_branch, panic_branch);
+        let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
+
+        let (_, pid) = utils::init_constructor(predefined_scheme);
+
+        // Resetting events to check the result of the last message.
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            b"PAYLOAD".to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_responses_to_user(
+            USER_1,
+            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
+        );
+    });
+}
+
+/// Tests gas allowance exceed handling.
+/// More precisely, it checks one property:
+/// no context data is stored within previously
+/// executed message when gas allowance exceed
+/// happened.
+#[test]
+fn test_gas_allowance_exceed_no_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::{Counted, Queue, Toggler};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let wat = r#"
+            (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (call $reply (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+                (loop (br 0))
+            )
+        )"#;
+
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("failed uploading program");
+        run_to_next_block(None);
+
+        assert_ok!(send_default_message(USER_1, pid));
+        let mid = get_last_message_id();
+        // Setting to 100 million the gas allowance ends faster than gas limit
+        run_to_next_block(Some(100_000_000));
+
+        // Execution is denied after reque
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no execution context is saved after gas allowance exceeded error
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), mid);
+        assert!(msg.context().is_none());
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        // There should be now enough gas allowance, so the message is executed
+        // and execution ends with `GasLimitExceeded`.
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
+        );
+        assert_last_dequeued(1);
+    })
+}
+
+/// Does pretty same test as `test_gas_allowance_exceed_no_context`,
+/// but this time executed message will have non zero context.
+#[test]
+fn test_gas_allowance_exceed_with_context() {
+    use crate::QueueProcessingOf;
+    use common::storage::*;
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    init_logger();
+
+    let process_task_weight = mock::get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let call_wait_key = "call_wait";
+
+        // Initialize a program and set `call_wait' value to `true`.
+        let init = Calls::builder().source("user1").bool(call_wait_key, true);
+        let (_, pid) = utils::init_constructor(Scheme::direct(init));
+
+        let execute = |calls: Calls, allowance: Option<u64>| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(allowance);
+
+            msg_id
+        };
+
+        // If `call_wait` is true, we execute a `wait`. Otherwise, we `reply` and `send`.
+        // It's intended that the message will be executed several times.
+        // That's to perform checks of the msg execution context when message
+        // is in queue after wake (so it has some context), and after gas allowance exceeded
+        // error (so the context remains unchanged).
+        let wait_branch = Calls::builder().wait();
+        let skip_wait_branch = Calls::builder().noop();
+        let handle1 = Calls::builder()
+            .if_else(
+                Arg::Get(call_wait_key.to_string()),
+                wait_branch,
+                skip_wait_branch,
+            )
+            .reply(b"random_message".to_vec())
+            .send("user1", b"another_random_message".to_vec());
+        let handle1_mid = execute(handle1.clone(), None);
+
+        // Check it waits.
+        assert!(WaitlistOf::<Test>::contains(&pid, &handle1_mid));
+        assert_eq!(WaitlistOf::<Test>::len(&pid), 1);
+
+        // Taking the context for the check later.
+        let handle1_ctx = WaitlistOf::<Test>::iter_key(pid)
+            .next()
+            .and_then(|(m, _)| m.context().clone());
+        assert!(handle1_ctx.is_some());
+
+        // This will set `call_wait` to false, wake the message with `handle1_mid` id.
+        // We set the weight to such a value, so only message with `handle2`
+        // payload is executed, That will allow us to reproduce the case in
+        // `test_gas_allowance_exceed_no_context` test, but with message having
+        // context already set.
+        let handle2 = Calls::builder()
+            .bool(call_wait_key, false)
+            .wake(<[u8; 32]>::from(handle1_mid));
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle2.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+        // We add `process_task_weight` as block running requires not only executing message, but
+        // some other read/writes. By adding such small value we guarantee that
+        // message with `handle2` payload is executed, but message with `handle1_mid`
+        // id will not reach the executor.
+        execute(
+            handle2,
+            Some(gas_info.min_limit + process_task_weight.ref_time()),
+        );
+
+        assert_last_dequeued(1);
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Now we calculate a required for the execution of the `handle1_mid` message.
+        // The queue processing is denied from the previous execution, now allowing it,
+        // to calculate gas properly.
+        QueueProcessingOf::<Test>::allow();
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            handle1.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+
+        // Trigger gas allowance exceeded error while executing only `handle1_mid`.
+        // With such gas allowance we are sure, that `reply` call from `handle1` calls set
+        // is called successfully executed, but there's not enough allowance to end the
+        // execution of the message.
+        run_to_next_block(Some(gas_info.min_limit - 100_000));
+
+        // Execution is denied after reque.
+        assert!(QueueProcessingOf::<Test>::denied());
+
+        // Low level check, that no information on reply sent is saved in the execution
+        // context after gas allowance exceeded error.
+        assert_eq!(QueueOf::<Test>::len(), 1);
+        let msg = QueueOf::<Test>::dequeue()
+            .ok()
+            .flatten()
+            .expect("must be message after requeue");
+        assert_eq!(msg.id(), handle1_mid);
+        assert_eq!(msg.context(), &handle1_ctx);
+        QueueOf::<Test>::requeue(msg).expect("requeue failed");
+
+        run_to_next_block(None);
+        assert_succeed(handle1_mid);
+    })
+}
+
+/// Test that if a message is addressed to a terminated program (sent from program),
+/// then no panic occurs and the message is not executed.
+#[test]
+fn test_send_to_terminated_from_program() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let user_1_bytes = ProgramId::from_origin(USER_1.into_origin()).into_bytes();
+
+        // Dies in init
+        let init = Calls::builder().panic("Die in init");
+        // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
+        let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
+        let (_, pid_terminated) = utils::submit_constructor_with_args(
+            // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
+            USER_2,
+            b"salt1",
+            Scheme::predefined(init, handle, Calls::default()),
+            0,
+        );
+
+        // Check `pid_terminated` exists as an active program.
+        assert!(Gear::is_active(pid_terminated));
+
+        // Sends in handle message to the dead program
+        let handle = Calls::builder().send(pid_terminated.into_bytes(), []);
+        // Sends to USER_1 the error reply from the dead program
+        let handle_reply = Calls::builder()
+            .reply_code("err_reply")
+            .send(user_1_bytes, "err_reply");
+        let (_, proxy_pid) = utils::submit_constructor_with_args(
+            // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
+            USER_2,
+            b"salt2",
+            Scheme::predefined(Calls::default(), handle, handle_reply),
+            0,
+        );
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid_terminated));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy_pid,
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // No panic occurred.
+        // Need to check, that user has message in the mailbox with error reply (`InactiveProgram`).
+        // Also check that user hasn't received anything from the dead program.
+        let mut mails_from_proxy_iter = MailboxOf::<Test>::iter_key(USER_1)
+            .filter_map(|(msg, _)| (msg.source() == proxy_pid).then_some(msg));
+        let mail_from_proxy = mails_from_proxy_iter
+            .next()
+            .expect("internal error: no message from proxy");
+        assert_eq!(
+            mail_from_proxy.payload_bytes().to_vec(),
+            ReplyCode::Error(ErrorReplyReason::InactiveProgram).encode()
+        );
+        assert_eq!(mails_from_proxy_iter.next(), None);
+
+        let mails_from_terminated_count = MailboxOf::<Test>::iter_key(USER_1)
+            .filter(|(msg, _)| msg.source() == pid_terminated)
+            .count();
+        assert_eq!(mails_from_terminated_count, 0);
+    })
+}
+
+#[test]
+fn pause_waited_uninited_program() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+
+    // closure to get corresponding block numbers
+    let get_remove_block = |current_gas: u64| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            current_gas.to_le_bytes().to_vec(),
+            Vec::new(),
+            current_gas,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let (_, remove_from_waitlist_block) = get_last_message_waited();
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+
+        (remove_from_waitlist_block, program.expiration_block)
+    };
+
+    // determine such gas value that init message will be removed
+    // from the waitlist before an execution of the PauseProgram task
+    let gas = new_test_ext().execute_with(|| {
+        let GasInfo {
+            waited: init_waited,
+            burned,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            vec![],
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(init_waited);
+
+        let mut current_gas = 2 * burned;
+
+        let (mut remove_from_waitlist_block, mut expiration_block) = get_remove_block(current_gas);
+
+        while remove_from_waitlist_block >= expiration_block {
+            current_gas = (current_gas + burned) / 2;
+
+            (remove_from_waitlist_block, expiration_block) = get_remove_block(current_gas);
+        }
+
+        current_gas
+    });
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            gas,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let (_, remove_from_waitlist_block) = get_last_message_waited();
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expiration_block = program.expiration_block;
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        System::set_block_number(remove_from_waitlist_block - 1);
+        Gear::set_block_number(remove_from_waitlist_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(program_id));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        System::set_block_number(expiration_block - 1);
+        Gear::set_block_number(expiration_block - 1);
+
+        run_to_next_block(None);
+    })
+}
+
+#[test]
+fn remove_from_waitlist_after_exit_reply() {
+    use demo_constructor::demo_wait_init_exit_reply;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let (init_mid, program_id) = init_constructor(demo_wait_init_exit_reply::scheme());
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(Gear::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(USER_1).unwrap();
+        let (waited_mid, remove_from_waitlist_block) = get_last_message_waited();
+        assert_eq!(init_mid, waited_mid);
+
+        assert_ok!(Gear::pay_program_rent(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            remove_from_waitlist_block + 1
+        ));
+
+        run_to_next_block(None);
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &remove_from_waitlist_block,
+            &ScheduledTask::RemoveFromWaitlist(program_id, init_mid)
+        ));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            reply.id(),
+            vec![],
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_exited(program_id));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &remove_from_waitlist_block,
+            &ScheduledTask::RemoveFromWaitlist(program_id, init_mid)
+        ));
+
+        System::set_block_number(remove_from_waitlist_block - 1);
+        Gear::set_block_number(remove_from_waitlist_block - 1);
+
+        run_to_next_block(None);
+    })
+}
+
+// currently `parity_wasm` doesn't support WASM reference types
+#[test]
+fn wasm_ref_types_doesnt_work() {
+    const WAT: &str = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (elem declare func $init)
+        (func $init
+            ref.func $init
+            call $test
+        )
+        (func $test (param funcref))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _pid = upload_program_default(USER_1, ProgramCodeKind::Custom(WAT)).unwrap_err();
+    });
+}
+
+/// Test that the `Gear::run()` extrinsic can only run once per block,
+/// even if somehow included in a block multiple times.
+#[test]
+fn gear_run_only_runs_once_per_block() {
+    use frame_support::{
+        dispatch::RawOrigin,
+        traits::{OnFinalize, OnInitialize},
+    };
+
+    fn init_block(bn: u32) {
+        System::set_block_number(bn);
+        GasAllowanceOf::<Test>::put(1_000_000_000);
+        Gear::on_initialize(bn);
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        init_block(2);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+        // Second run in a block is not allowed
+        assert_noop!(
+            Gear::run(RawOrigin::None.into(), None,),
+            Error::<Test>::GearRunAlreadyInBlock
+        );
+        Gear::on_finalize(2);
+
+        // Everything goes back to normal in the next block
+        init_block(3);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+    })
+}
+
+/// Test that the Gear internal block numbering is consistent.
+#[test]
+fn gear_block_number_math_adds_up() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(100, None);
+        assert_eq!(Gear::block_number(), 100);
+
+        run_to_block_maybe_with_queue(120, None, None);
+        assert_eq!(System::block_number(), 120);
+        assert_eq!(Gear::block_number(), 100);
+
+        System::reset_events();
+        run_to_block(150, None);
+        assert_eq!(System::block_number(), 150);
+        assert_eq!(Gear::block_number(), 130);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -11501,13 +14268,14 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
+        ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
         paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage,
+        Origin, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
@@ -11607,7 +14375,10 @@ mod utils {
     ) {
         let account_id = AccountId::from_origin(origin.into_origin());
         assert_eq!(Balances::free_balance(account_id), free.into());
-        assert_eq!(Balances::reserved_balance(account_id), reserved.into());
+        assert_eq!(
+            GearBank::<Test>::account_total(&account_id),
+            reserved.into()
+        );
     }
 
     #[track_caller]
@@ -11635,7 +14406,8 @@ mod utils {
             destination,
             payload,
             limit,
-            value
+            value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -11644,7 +14416,7 @@ mod utils {
     }
 
     pub(super) fn get_ed() -> u128 {
-        <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
+        CurrencyOf::<Test>::minimum_balance().unique_saturated_into()
     }
 
     #[track_caller]
@@ -11731,6 +14503,7 @@ mod utils {
             Vec::new(),
             gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             value,
+            false,
         ));
 
         let message_id = get_last_message_id();
@@ -11828,6 +14601,7 @@ mod utils {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
+            false,
         )
     }
 
@@ -11837,6 +14611,7 @@ mod utils {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,
             value: 0,
+            prepaid: false,
         })
     }
 
@@ -12307,6 +15082,7 @@ mod utils {
                     payload,
                     BlockGasLimitOf::<Test>::get(),
                     0,
+                    false,
                 ));
 
                 get_last_message_id()
@@ -12344,1178 +15120,71 @@ mod utils {
 
         assert_eq!(res, assertions);
     }
-}
 
-#[test]
-fn check_gear_stack_end_fail() {
-    // This test checks, that in case user makes WASM file with incorrect
-    // gear stack end export, then execution will end with an error.
-    let wat_template = |addr| {
-        format!(
-            r#"
-            (module
-                (import "env" "memory" (memory 4))
-                (export "init" (func $init))
-                (func $init)
-                (global (;0;) (mut i32) (i32.const {addr}))
-                (export "{STACK_END_EXPORT_NAME}" (global 0))
-            )"#,
-        )
-    };
+    #[track_caller]
+    pub(super) fn test_signal_code_works(
+        signal_code: SignalCode,
+        action: demo_signal_entry::HandleAction,
+    ) {
+        use crate::tests::new_test_ext;
+        use demo_signal_entry::{HandleAction, WASM_BINARY};
 
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check error when stack end bigger then static mem size
-        let wat = wat_template(0x50000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
+        const GAS_LIMIT: u64 = 10_000_000_000;
 
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                    WasmPage::new(5).unwrap(),
-                    WasmPage::new(4).unwrap(),
-                ),
-            ),
-        );
-
-        // Check error when stack end is not aligned
-        let wat = wat_template(0x10001);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackIsNotAligned(65537),
-            ),
-        );
-
-        // Check OK if stack end is suitable
-        let wat = wat_template(0x10000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_succeed(message_id);
-    });
-}
-
-/// Test that error is generated in case `gr_read` requests out of bounds data from message.
-#[test]
-fn check_gr_read_error_works() {
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "gr_read" (func $gr_read (param i32 i32 i32 i32)))
-            (export "init" (func $init))
-            (func $init
-                (call $gr_read (i32.const 0) (i32.const 10) (i32.const 0) (i32.const 111))
-
-                i32.const 111
-                i32.load
-                (if ;; validating that error len is not zero
-                    (then)
-                    (else
-                        unreachable
-                    )
-                )
-            )
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_block(2, None);
-        assert_succeed(message_id);
-    });
-}
-
-/// Check that too large message, which is constructed by `gr_reply_push`,
-/// leads to program execution error.
-#[test]
-fn check_reply_push_payload_exceed() {
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 0x101))
-            (import "env" "gr_reply_push" (func $gr (param i32 i32 i32)))
-            (export "init" (func $init))
-            (func $init
-                ;; first reply push must be ok
-                (block
-                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
-
-                    (i32.load (i32.const 0x1000001))
-                    i32.eqz
-                    br_if 0
-                    unreachable
-                )
-                ;; second must lead to overflow
-                (block
-                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
-
-                    (i32.load (i32.const 0x1000001))
-                    i32.eqz
-                    br_if 1
-                    unreachable
-                )
-            )
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_block(2, None);
-        assert_last_dequeued(1);
-
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
-        );
-    });
-}
-
-/// Check that random works and it's changing on next epoch.
-#[test]
-fn check_random_works() {
-    use blake2_rfc::blake2b::blake2b;
-    let wat = r#"
-        (module
-            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
-            (import "env" "gr_source" (func $gr_source (param i32)))
-            (import "env" "gr_random" (func $gr_random (param i32 i32)))
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (func $handle
-                (i32.store (i32.const 111) (i32.const 1))
-
-                (call $gr_random (i32.const 0) (i32.const 64))
-
-                (call $send (i32.const 111) (i32.const 68) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
-
-                (i32.load (i32.const 333))
-                i32.eqz
-                br_if 0
-                unreachable
-            )
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let sender = utils::get_last_program_id();
-
-        let mut random_data = Vec::new();
-
-        (1..10).for_each(|_| {
-            assert_ok!(Gear::send_message(
+        init_logger();
+        new_test_ext().execute_with(|| {
+            // Upload program
+            assert_ok!(Gear::upload_program(
                 RuntimeOrigin::signed(USER_1),
-                sender,
-                EMPTY_PAYLOAD.to_vec(),
-                50_000_000_000,
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                USER_1.encode(),
+                GAS_LIMIT,
                 0,
             ));
 
-            let output: ([u8; 32], BlockNumber) =
-                <Test as Config>::Randomness::random(get_last_message_id().as_ref());
+            let pid = get_last_program_id();
 
-            random_data.push([[0; 32], output.0].concat());
-            run_to_block(System::block_number() + 1, None);
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Save signal code to be compared with
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SaveSignal(signal_code).encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            run_to_next_block(None);
+
+            // Send the action to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+            run_to_next_block(None);
+
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
         });
-
-        assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
-
-        let mut sorted_mailbox: Vec<(UserStoredMessage, Interval<BlockNumber>)> =
-            MailboxOf::<Test>::iter_key(USER_1).collect();
-        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
-
-        sorted_mailbox
-            .iter()
-            .zip(random_data.iter())
-            .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], random_data).as_bytes(),
-                    msg.payload_bytes()
-                );
-            });
-
-        // // assert_last_dequeued(1);
-        // println!("{:?}", res);
-        // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
-    });
-}
-
-#[test]
-fn reply_with_small_non_zero_gas() {
-    use demo_proxy_relay::{RelayCall, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let gas_limit = 1;
-        assert!(gas_limit < <Test as Config>::MailboxThreshold::get());
-
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            RelayCall::RereplyWithGas(gas_limit).encode(),
-            50_000_000_000,
-            0u128
-        ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(proxy));
-
-        let payload = b"it works";
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            proxy,
-            payload.to_vec(),
-            DEFAULT_GAS_LIMIT * 10,
-            0,
-        ));
-
-        let message_id = utils::get_last_message_id();
-
-        run_to_next_block(None);
-        assert_succeed(message_id);
-        assert_eq!(
-            maybe_last_message(USER_1)
-                .expect("Should be")
-                .payload_bytes(),
-            payload
-        );
-    });
-}
-
-#[test]
-fn replies_denied_in_handle_reply() {
-    use demo_proxy::{InputArgs, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: USER_1.into_origin().into()
-            }
-            .encode(),
-            50_000_000_000,
-            0u128
-        ));
-
-        let proxy = utils::get_last_program_id();
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            proxy,
-            vec![],
-            50_000_000_000,
-            0
-        ));
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(proxy));
-        assert_succeed(message_id);
-
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_1),
-            get_last_mail(USER_1).id(),
-            vec![],
-            50_000_000_000,
-            0,
-        ));
-
-        let reply_id = get_last_message_id();
-
-        run_to_next_block(None);
-
-        // we don't assert fail reason since no error reply sent on reply,
-        // but message id has stamp in MessagesDispatched event.
-        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
-        assert_eq!(status, DispatchStatus::Failed);
-    });
-}
-
-#[test]
-fn relay_messages() {
-    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
-
-    struct Expected {
-        user: AccountId,
-        payload: Vec<u8>,
     }
-
-    let source = USER_1;
-
-    init_logger();
-    let test = |relay_call: RelayCall, payload: &[u8], expected: Vec<Expected>| {
-        let execute = || {
-            System::reset_events();
-
-            let label = format!("{relay_call:?}");
-            assert!(
-                Gear::upload_program(
-                    RuntimeOrigin::signed(source),
-                    WASM_BINARY.to_vec(),
-                    vec![],
-                    relay_call.encode(),
-                    50_000_000_000u64,
-                    0u128
-                )
-                .is_ok(),
-                "{}",
-                label
-            );
-
-            let proxy = utils::get_last_program_id();
-
-            run_to_next_block(None);
-
-            assert!(Gear::is_active(proxy), "{}", label);
-
-            assert!(
-                Gear::send_message(
-                    RuntimeOrigin::signed(source),
-                    proxy,
-                    payload.to_vec(),
-                    DEFAULT_GAS_LIMIT * 10,
-                    0,
-                )
-                .is_ok(),
-                "{}",
-                label
-            );
-
-            // To clear auto reply on init message.
-            System::reset_events();
-
-            run_to_next_block(None);
-
-            let received = System::events().into_iter().fold(0, |r, e| match e.event {
-                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
-                    let Expected { user, payload } = &expected[r];
-
-                    if message.destination().into_origin() == user.into_origin() {
-                        assert_eq!(message.payload_bytes(), payload, "{label}");
-                        r + 1
-                    } else {
-                        r
-                    }
-                }
-                _ => r,
-            });
-
-            assert_eq!(received, expected.len(), "{label}");
-        };
-
-        new_test_ext().execute_with(execute);
-    };
-
-    let payload = b"Hi, USER_2! Ping USER_3.";
-
-    let pairs = vec![
-        (
-            RelayCall::ResendPush(vec![
-                // "Hi, USER_2!"
-                ResendPushData {
-                    destination: USER_2.into(),
-                    start: None,
-                    end: Some((10, true)),
-                },
-            ]),
-            Expected {
-                user: USER_2,
-                payload: payload[..11].to_vec(),
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // the same but end index specified in another way
-                ResendPushData {
-                    destination: USER_2.into(),
-                    start: None,
-                    end: Some((11, false)),
-                },
-            ]),
-            Expected {
-                user: USER_2,
-                payload: payload[..11].to_vec(),
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // "Ping USER_3."
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(12),
-                    end: None,
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: payload[12..].to_vec(),
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // invalid range
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(2),
-                    end: Some((0, true)),
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: vec![],
-            },
-        ),
-        (
-            RelayCall::ResendPush(vec![
-                // invalid range
-                ResendPushData {
-                    destination: USER_3.into(),
-                    start: Some(payload.len() as u32),
-                    end: Some((0, false)),
-                },
-            ]),
-            Expected {
-                user: USER_3,
-                payload: vec![],
-            },
-        ),
-    ];
-
-    for (call, expectation) in pairs {
-        test(call, payload, vec![expectation]);
-    }
-
-    test(
-        RelayCall::Resend(USER_3.into()),
-        payload,
-        vec![Expected {
-            user: USER_3,
-            payload: payload.to_vec(),
-        }],
-    );
-    test(
-        RelayCall::ResendWithGas(USER_3.into(), 50_000),
-        payload,
-        vec![Expected {
-            user: USER_3,
-            payload: payload.to_vec(),
-        }],
-    );
-
-    test(
-        RelayCall::Rereply,
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
-    test(
-        RelayCall::RereplyPush,
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
-    test(
-        RelayCall::RereplyWithGas(60_000),
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
-}
-
-#[test]
-fn module_instantiation_error() {
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-        (data (;0;) (i32.const -15186172) "\b9w\92")
-    )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-        let res = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .map(|_| prog_id);
-        let mid = get_last_message_id();
-
-        assert_ok!(res);
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(prog_id));
-        let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
-        );
-    });
-}
-
-#[test]
-fn wrong_entry_type() {
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init (param i32))
-    )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
-        );
-    });
-}
-
-#[test]
-fn oom_handler_works() {
-    use demo_out_of_memory::WASM_BINARY;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            100_000_000_000_u64,
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
-        );
-    });
-}
-
-#[test]
-#[ignore = "TODO: return this test if it's possible after #2226, or remove it."]
-fn alloc_charge_error() {
-    const WAT: &str = r#"
-(module
-    (import "env" "memory" (memory 1))
-    (import "env" "alloc" (func $alloc (param i32) (result i32)))
-    (export "init" (func $init))
-    (func $init
-        ;; we are trying to allocate so many pages with such small gas limit
-        ;; that we will get `GasLimitExceeded` error
-        i32.const 0xff
-        call $alloc
-        drop
-    )
-)
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(WAT).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            500_000_000_u64,
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
-        );
-    });
-}
-
-#[test]
-fn free_usage_error() {
-    const WAT: &str = r#"
-(module
-    (import "env" "memory" (memory 1))
-    (import "env" "free" (func $free (param i32) (result i32)))
-    (export "init" (func $init))
-    (func $init
-        ;; free impossible and non-existing page
-        i32.const 0xffffffff
-        call $free
-        ;; free must return 1 so we will get `unreachable` instruction
-        i32.const 0
-        i32.eq
-        br_if 0
-        unreachable
-    )
-)
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(WAT).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            500_000_000_u64,
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
-        );
-    });
-}
-
-#[test]
-fn reject_incorrect_stack_pointer() {
-    let wat = format!(
-        r#"
-(module
-    (import "env" "memory" (memory 1))
-    (func $init)
-    (global (;0;) i32 (i32.const 65536))
-    (export "init" (func $init))
-    (export "{STACK_END_EXPORT_NAME}" (global 0))
-    (data $.rodata (i32.const 60000) "GEAR")
-)
-    "#
-    );
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_noop!(
-            Gear::upload_code(
-                RuntimeOrigin::signed(USER_1),
-                ProgramCodeKind::CustomInvalid(&wat).to_bytes()
-            ),
-            Error::<Test>::ProgramConstructionFailed
-        );
-
-        assert_noop!(
-            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat)),
-            Error::<Test>::ProgramConstructionFailed
-        );
-    });
-}
-
-#[test]
-fn calculate_gas_fails_when_calculation_limit_exceeded() {
-    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Init::Normal(vec![]).encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .expect("Program uploading failed");
-
-        run_to_next_block(None);
-
-        // Make reservations exceeding calculation gas limit of 5 blocks.
-        for _i in 0..6 {
-            Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                // 96% of block gas limit
-                Command::AddReservationToList(BlockGasLimitOf::<Test>::get() / 100 * 96, 10)
-                    .encode(),
-                BlockGasLimitOf::<Test>::get(),
-                0,
-            )
-            .expect("Making reservation failed");
-        }
-
-        run_to_next_block(None);
-
-        let gas_info_result = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            Command::ConsumeReservationsFromList.encode(),
-            0,
-            true,
-            true,
-        );
-
-        assert!(gas_info_result.is_err());
-        assert_eq!(
-            gas_info_result.unwrap_err(),
-            "Calculation gas limit exceeded. Consider using custom built node."
-        );
-    });
-}
-
-#[test]
-fn reservation_manager() {
-    use demo_reservation_manager::{Action, WASM_BINARY};
-    use utils::Assertion;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            vec![],
-            BlockGasLimitOf::<Test>::get(),
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .expect("Program uploading failed");
-
-        run_to_next_block(None);
-
-        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
-            System::reset_events();
-
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                payload.encode(),
-                BlockGasLimitOf::<Test>::get(),
-                0,
-            ));
-
-            run_to_next_block(None);
-
-            assert_responses_to_user(USER_1, expected);
-        }
-
-        // Try unreserve 100 gas when there's no reservations.
-        scenario(
-            pid,
-            Action::SendMessageFromReservation { gas_amount: 100 },
-            vec![Assertion::ReplyCode(ReplyCode::error(
-                SimpleExecutionError::UserspacePanic,
-            ))],
-        );
-        // Reserve 10_000 gas.
-        scenario(
-            pid,
-            Action::Reserve {
-                amount: 10_000,
-                duration: 100,
-            },
-            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
-        );
-        // Try to unreserve 50_000 gas.
-        scenario(
-            pid,
-            Action::SendMessageFromReservation { gas_amount: 50_000 },
-            vec![Assertion::ReplyCode(ReplyCode::error(
-                SimpleExecutionError::UserspacePanic,
-            ))],
-        );
-        // Try to unreserve 8_000 gas.
-        scenario(
-            pid,
-            Action::SendMessageFromReservation { gas_amount: 8_000 },
-            vec![
-                // auto reply
-                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
-                // message with empty payload. not reply!
-                Assertion::Payload(vec![]),
-            ],
-        );
-        // Try to unreserve 8_000 gas again.
-        scenario(
-            pid,
-            Action::SendMessageFromReservation { gas_amount: 8_000 },
-            vec![Assertion::ReplyCode(ReplyCode::error(
-                SimpleExecutionError::UserspacePanic,
-            ))],
-        );
-    });
-}
-
-#[test]
-fn check_mutable_global_exports_restriction() {
-    init_logger();
-
-    let wat_correct = format!(
-        r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (func $init)
-            (global (;0;) (mut i32) (i32.const 65536))
-            (export "init" (func $init))
-            (export "{STACK_END_EXPORT_NAME}" (global 0))
-        )"#
-    );
-
-    let wat_incorrect = r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (func $init)
-            (global (;0;) (mut i32) (i32.const 65536))
-            (export "init" (func $init))
-            (export "global" (global 0))
-        )"#;
-
-    new_test_ext().execute_with(|| {
-        assert_ok!(upload_program_default(
-            USER_1,
-            ProgramCodeKind::CustomInvalid(&wat_correct)
-        ));
-        assert_noop!(
-            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
-            Error::<Test>::ProgramConstructionFailed
-        );
-    });
-}
-
-#[test]
-fn send_message_with_voucher_works() {
-    init_logger();
-
-    let minimal_weight = mock::get_min_weight();
-
-    new_test_ext().execute_with(|| {
-        let user1_initial_balance = Balances::free_balance(USER_1);
-        let user2_initial_balance = Balances::free_balance(USER_2);
-
-        // No gas has been created initially
-        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
-
-        let program_id = {
-            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
-        };
-
-        // Test 1: USER_2 sends a message to the program with a voucher
-        // Expect failure because USER_2 has no voucher
-        assert_noop!(
-            Gear::send_message_with_voucher(
-                RuntimeOrigin::signed(USER_2),
-                program_id,
-                EMPTY_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                0,
-            ),
-            Error::<Test>::FailureRedeemingVoucher
-        );
-
-        // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
-        assert_ok!(GearVoucher::issue(
-            RuntimeOrigin::signed(USER_1),
-            USER_2,
-            program_id,
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
-        ));
-
-        // Balances check
-        // USER_1 can spend up to 2 default messages worth of gas (submit program and issue voucher)
-        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
-        );
-
-        // Clear messages from the queue to refund unused gas
-        run_to_block(2, None);
-
-        // Balance check
-        // Voucher has been issued, but not used yet, so funds should be still in the respective account
-        let voucher_id = GearVoucher::voucher_account_id(&USER_2, &program_id);
-        assert_eq!(
-            Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
-        );
-
-        // Test 2: USER_2 sends a message to the program with a voucher
-        // Now that voucher is issued, the message should be sent successfully
-        assert_ok!(Gear::send_message_with_voucher(
-            RuntimeOrigin::signed(USER_2),
-            program_id,
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            1_000_000_u128,
-        ));
-
-        // Balances check
-        // USER_2 as a voucher holder can send one message completely free of charge
-        // The value in message, however, is still offset against the USER_2's own balance
-        let user2_potential_msgs_spends = 1_000_000_u128;
-        assert_eq!(
-            Balances::free_balance(USER_2),
-            user2_initial_balance - user2_potential_msgs_spends
-        );
-        // Instead, the gas has been paid from the voucher
-        assert_eq!(Balances::free_balance(voucher_id), 0_u128);
-
-        // Run the queue processing to figure out the actual gas burned
-        let remaining_weight = 300_000_000;
-        run_to_block(3, Some(remaining_weight));
-
-        let actual_gas_burned =
-            remaining_weight - minimal_weight.ref_time() - GasAllowanceOf::<Test>::get();
-        assert_ne!(actual_gas_burned, 0);
-
-        // Check that the gas leftover has been returned to the voucher
-        assert_eq!(
-            Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT) - GasPrice::gas_price(actual_gas_burned)
-        );
-
-        // USER_2 total balance has been reduced by the value in the message
-        assert_eq!(
-            Balances::total_balance(&USER_2),
-            user2_initial_balance - user2_potential_msgs_spends
-        );
-
-        // No gas has got stuck in the system
-        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
-    });
-}
-
-#[test]
-fn send_reply_with_voucher_works() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // USER_2 uploads a program and sends message to it which leads to
-        // USER_1 having a message in his mailbox.
-        // caution: runs to block 2
-        let reply_to_id = setup_mailbox_test_state(USER_2);
-
-        let prog_id = generate_program_id(
-            &ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
-            DEFAULT_SALT.as_ref(),
-        );
-
-        // Top up program's account balance with some funds
-        CurrencyOf::<Test>::resolve_creating(
-            &AccountId::from_origin(prog_id.into_origin()),
-            CurrencyOf::<Test>::issue(2_000_u128),
-        );
-
-        // USER_2 issues a voucher for USER_1 enough to send a reply
-        assert_ok!(GearVoucher::issue(
-            RuntimeOrigin::signed(USER_2),
-            USER_1,
-            prog_id,
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
-        ));
-        let voucher_id = GearVoucher::voucher_account_id(&USER_1, &prog_id);
-
-        run_to_block(3, None);
-
-        // Balance check
-        assert_eq!(
-            Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
-        );
-
-        // USER_1 sends a reply using the voucher
-        let gas_limit = 10_000_000_u64;
-        assert_ok!(Gear::send_reply_with_voucher(
-            RuntimeOrigin::signed(USER_1),
-            reply_to_id,
-            EMPTY_PAYLOAD.to_vec(),
-            gas_limit,
-            1000, // `prog_id` sent message with value of 1000 (see program code)
-        ));
-        let expected_reply_message_id = get_last_message_id();
-
-        // global nonce is 2 before sending reply message
-        // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let actual_reply_message_id = match event {
-            Event::MessageQueued {
-                id,
-                entry: MessageEntry::Reply(_reply_to_id),
-                ..
-            } => id,
-            _ => unreachable!("expect Event::DispatchMessageEnqueued"),
-        };
-
-        assert_eq!(expected_reply_message_id, actual_reply_message_id);
-
-        // Balances check before processing queue
-        assert_eq!(
-            Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
-        );
-
-        run_to_block(4, None);
-        // Ensure that some gas leftover has been returned to the voucher account
-        assert!(
-            Balances::free_balance(voucher_id)
-                > GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
-        );
-    })
-}
-
-/// Tests whether calling `gr_read` 2 times returns same result.
-/// Test purpose is to check, that payload is given back to the
-/// message.
-#[test]
-fn double_read_works() {
-    use demo_constructor::{Calls, Scheme};
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let noop_branch = Calls::builder().noop();
-        let panic_branch = Calls::builder().panic("Read payloads aren't equal");
-        let handle = Calls::builder()
-            .load("read1")
-            .load("read2")
-            .bytes_eq("is_eq", "read1", "read2")
-            .if_else("is_eq", noop_branch, panic_branch);
-        let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
-
-        let (_, constructor_id) = utils::init_constructor(predefined_scheme);
-
-        // Resetting events to check the result of the last message.
-        System::reset_events();
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            constructor_id,
-            b"PAYLOAD".to_vec(),
-            BlockGasLimitOf::<Test>::get(),
-            100_000,
-        ));
-
-        run_to_next_block(None);
-
-        assert_responses_to_user(
-            USER_1,
-            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
-        );
-    });
 }

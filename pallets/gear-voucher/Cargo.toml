@@ -49,6 +49,7 @@ std = [
 	"scale-info/std",
 	"sp-std/std",
 	"sp-runtime/std",
+	"sp-io/std",
 	"pallet-balances/std",
 	"primitive-types/std",
 ]

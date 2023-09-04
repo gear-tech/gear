@@ -16,10 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::string::String;
-use core::ops::Deref;
+use alloc::{borrow::Cow, string::String};
 use scale_info::{
-    scale::{self, Decode, Encode},
+    scale::{Decode, Encode},
     TypeInfo,
 };
 
@@ -47,34 +46,6 @@ macro_rules! assert_err {
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
 
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
-#[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
-)]
-#[codec(crate = scale)]
-pub struct TrimmedString(String);
-
-impl TrimmedString {
-    pub(crate) fn new(mut string: String) -> Self {
-        smart_truncate(&mut string, TRIMMED_MAX_LEN);
-        Self(string)
-    }
-}
-
-impl<T: Into<String>> From<T> for TrimmedString {
-    fn from(other: T) -> Self {
-        Self::new(other.into())
-    }
-}
-
-impl Deref for TrimmedString {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 fn smart_truncate(s: &mut String, max_bytes: usize) {
     let mut last_byte = max_bytes;
 
@@ -87,25 +58,58 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
-#[derive(Debug, Copy, Clone, derive_more::Display)]
-pub struct LimitedStr<'a>(&'a str);
+/// Wrapped string to fit `core_backend::TRIMMED_MAX_LEN` amount of bytes.
+///
+/// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
+/// created from a `&str`.
+///
+/// Plain `str` is not used because it can't be properly encoded/decoded via scale codec.
+#[derive(
+    TypeInfo, Encode, Decode, Debug, Clone, derive_more::Display, PartialEq, Eq, PartialOrd, Ord,
+)]
+pub struct LimitedStr<'a>(Cow<'a, str>);
+
 impl<'a> LimitedStr<'a> {
-    const INIT_ERROR_MSG: &'static str = concat!(
+    const INIT_ERROR_MSG: &str = concat!(
         "String must be less than ",
         stringify!(TRIMMED_MAX_LEN),
         " bytes."
     );
 
-    pub fn new(s: &'a str) -> Result<Self, &'static str> {
+    #[track_caller]
+    pub const fn from_small_str(s: &'a str) -> Self {
         if s.len() > TRIMMED_MAX_LEN {
-            return Err(Self::INIT_ERROR_MSG);
+            panic!("{}", Self::INIT_ERROR_MSG)
         }
 
-        Ok(Self(s))
+        Self(Cow::Borrowed(s))
     }
 
-    pub fn as_str(&self) -> &'a str {
-        self.0
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "String must be less than {} bytes.", TRIMMED_MAX_LEN)]
+pub struct LimitedStrTryFromError;
+
+impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
+    type Error = LimitedStrTryFromError;
+
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        if s.len() > TRIMMED_MAX_LEN {
+            return Err(LimitedStrTryFromError);
+        }
+
+        Ok(Self(Cow::from(s)))
+    }
+}
+
+impl<'a> From<String> for LimitedStr<'a> {
+    fn from(mut s: String) -> Self {
+        smart_truncate(&mut s, TRIMMED_MAX_LEN);
+        Self(Cow::from(s))
     }
 }
 

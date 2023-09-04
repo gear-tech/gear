@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2022-2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use std::{borrow::Borrow, fmt::Display, iter};
@@ -55,6 +73,7 @@ fn validate_if_has_no_attributes(
 /// Generates metawasm functions.
 ///
 /// An example of the expected structure:
+///
 /// ```
 /// use gstd::prelude::*;
 ///
@@ -101,7 +120,7 @@ fn validate_if_has_no_attributes(
 /// `State` identifier. The type for which `State` will be an alias **must**
 /// implement [`Decode`] trait.
 ///
-/// Usually the state type should be imported from the implemented associative
+/// Usually the state type should be imported from the implemented associated
 /// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
 /// from the contract's `io` crate.
 ///
@@ -139,7 +158,7 @@ fn validate_if_has_no_attributes(
 ///
 /// **Important note**: although metafunctions can take more than 1 additional
 /// arguments, on the metaWASM binary level, they must be passed as one. So if
-/// the amount of additinal arguments is 0 or 1, nothing needs to be changed,
+/// the amount of additional arguments is 0 or 1, nothing needs to be changed,
 /// but if more - they all must be placed inside a tuple in the same order as in
 /// their function's signature.
 ///
@@ -172,7 +191,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
     let Some((_, items)) = module.content else {
         return error(
             module_span,
-            "`#[metawasm]` doesn't work with modules without a body"
+            "`#[metawasm]` doesn't work with modules without a body",
         );
     };
 
@@ -233,7 +252,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
         let Item::Fn(function) = potential_function else {
             return error(
                 potential_function,
-                "rest of items in a module with `#[metawasm]` must be functions"
+                "rest of items in a module with `#[metawasm]` must be functions",
             );
         };
 
@@ -407,7 +426,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
 
                 #[no_mangle]
                 extern "C" fn metadata() {
-                    let mut funcs = ::gstd::BTreeMap::new();
+                    let mut funcs = ::gstd::collections::BTreeMap::new();
                     let mut registry = ::gmeta::Registry::new();
 
                     #(#type_registrations)*

@@ -17,15 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    async_runtime::signals,
     errors::{Error, IntoResult, Result},
-    msg::{utils, CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
+    msg::utils,
+    prelude::{ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Output};
+use scale_info::scale::Output;
 
 /// Message handle.
 ///
@@ -353,7 +352,7 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// }
 /// ```
 pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
-    gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Ext)))
+    gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Core)))
 }
 
 /// Send a new message as a reply to the message that is currently being

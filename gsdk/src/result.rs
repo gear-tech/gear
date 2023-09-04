@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! GSdk Results
-use crate::types::TxStatus;
+use crate::TxStatus;
 use sp_core::H256;
 
 /// Transaction Errors
