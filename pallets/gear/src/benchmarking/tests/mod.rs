@@ -29,6 +29,7 @@ pub mod syscalls_integrity;
 mod utils;
 
 use crate::{
+    alloc::string::ToString,
     benchmarking::{
         code::{body, WasmModule},
         utils as common_utils,
