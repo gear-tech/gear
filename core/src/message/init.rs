@@ -115,7 +115,7 @@ impl InitMessage {
 /// This structure is preparation for future init message sending. Has no message id.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct InitPacket {
-    /// Program id.
+    /// Newly created program id.
     program_id: ProgramId,
     /// Code id.
     code_id: CodeId,

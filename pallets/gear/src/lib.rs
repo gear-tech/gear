@@ -610,7 +610,7 @@ pub mod pallet {
                 None,
             );
 
-            //let reserve_fee = T::GasPrice::gas_price(gas_limit);
+            let program_id = packet.destination();
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
@@ -633,8 +633,6 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
-
-            let program_id = packet.destination(None);
 
             if Self::program_exists(program_id) {
                 unreachable!("Program id uniqueness rule violated: generated existing program id");
@@ -1204,8 +1202,6 @@ pub mod pallet {
                 None,
             );
 
-            //let reserve_fee = T::GasPrice::gas_price(gas_limit);
-
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
@@ -1225,7 +1221,11 @@ pub mod pallet {
             let block_number = Self::block_number();
             let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
-            let program_id = packet.destination(None);
+            let program_id = packet.destination();
+
+            if Self::program_exists(program_id) {
+                unreachable!("Program id uniqueness rule violated: generated existing program id");
+            }
 
             ExtManager::<T>::default().set_program(
                 program_id,
@@ -1233,10 +1233,6 @@ pub mod pallet {
                 message_id,
                 expiration_block,
             );
-
-            if Self::program_exists(program_id) {
-                unreachable!("Program id uniqueness rule violated: generated existing program id");
-            }
 
             let program_event = Event::ProgramChanged {
                 id: program_id,
