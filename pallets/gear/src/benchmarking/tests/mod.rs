@@ -36,6 +36,7 @@ use crate::{
     HandleKind,
 };
 use common::benchmarking;
+use gear_backend_common::TrapExplanation;
 
 use gear_wasm_instrument::parity_wasm::elements::Instruction;
 

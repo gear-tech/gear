@@ -118,12 +118,12 @@ impl Optimizer {
 
         // Post-checking the program code for possible errors
         // `pallet-gear` crate performs the same check at the node level when the user tries to upload program code
-        let raw_code = code.clone();
+        let original_code = code.clone();
         match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
             OptType::Meta => Code::try_new_mock_const_or_no_rules(
-                raw_code,
+                original_code,
                 false,
                 TryNewCodeConfig::new_no_exports_check(),
             )
@@ -131,11 +131,14 @@ impl Optimizer {
             .map_err(BuilderError::CodeCheckFailed)?,
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => {
-                Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None)
-                    .map(|_| ())
-                    .map_err(BuilderError::CodeCheckFailed)?
-            }
+            OptType::Opt => Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None,
+            )
+            .map(|_| ())
+            .map_err(BuilderError::CodeCheckFailed)?,
         }
 
         Ok(code)

@@ -240,7 +240,7 @@ pub enum CodeError {
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
     /// Code instrumented with the latest schedule.
     code: Vec<u8>,
@@ -248,8 +248,9 @@ pub struct Code {
     original_code: Vec<u8>,
     /// Exports of the wasm module.
     exports: BTreeSet<DispatchKind>,
+    /// Static pages count from memory import.
     static_pages: WasmPage,
-    #[codec(compact)]
+    /// Instruction weights version.
     instruction_weights_version: u32,
 }
 
@@ -726,10 +727,10 @@ mod tests {
         )
         "#;
 
-        let raw_code = wat2wasm(WAT);
+        let original_code = wat2wasm(WAT);
 
         assert_eq!(
-            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
             Err(CodeError::NonGearExportFnFound)
         );
     }
@@ -744,10 +745,10 @@ mod tests {
         )
         "#;
 
-        let raw_code = wat2wasm(WAT);
+        let original_code = wat2wasm(WAT);
 
         assert_eq!(
-            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
             Err(CodeError::RequiredExportFnNotFound)
         );
     }
@@ -762,10 +763,10 @@ mod tests {
         )
         "#;
 
-        let raw_code = wat2wasm(WAT);
+        let original_code = wat2wasm(WAT);
 
         let _ = Code::try_new(
-            raw_code,
+            original_code,
             1,
             |_| ConstantCostRules::default(),
             Some(16 * 1024),

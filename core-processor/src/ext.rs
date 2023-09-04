@@ -43,8 +43,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, ContextSettings, GasLimit, HandlePacket, IncomingDispatch, InitPacket,
-        MessageContext, Packet, ReplyPacket,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
@@ -110,6 +110,8 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{ContextSettings, IncomingDispatch};
+
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),

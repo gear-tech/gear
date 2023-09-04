@@ -263,7 +263,7 @@ impl ExtManager {
         init_message_id: Option<MessageId>,
     ) -> Option<(TestActor, Balance)> {
         if let Program::Genuine { program, .. } = &program {
-            self.store_new_code(program.raw_code());
+            self.store_new_code(program.code_bytes());
         }
         self.actors
             .insert(program_id, (TestActor::new(init_message_id, program), 0))
