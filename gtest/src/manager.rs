@@ -24,7 +24,6 @@ use crate::{
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
-use core::panic;
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},

@@ -80,16 +80,6 @@ pub enum TestError {
     Instrumentation,
 
     /// Reading of program state failed.
-    #[from(ignore)]
     #[display(fmt = "Reading of program state failed: `{_0}`")]
     ReadStateError(String),
-
-    /// Reading of program metadata failed.
-    #[from(ignore)]
-    #[display(fmt = "Reading of program metadata failed: `{_0}`")]
-    ReadMetadataError(String),
-
-    /// Wrong arguments are passed.
-    #[display(fmt = "Wrong arguments are passed")]
-    WrongArguments,
 }
