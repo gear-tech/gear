@@ -37,6 +37,8 @@ use sp_core::{Bytes, H256};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
+const MAX_BATCH_SIZE: usize = 256;
+
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
@@ -358,6 +360,15 @@ where
         batch_id_payload: Vec<(H256, Bytes)>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
+        if batch_id_payload.len() > MAX_BATCH_SIZE {
+            return Err(CallError::Custom(ErrorObject::owned(
+                8000,
+                "Runtime error",
+                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+            ))
+            .into());
+        }
+
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         batch_id_payload
@@ -401,6 +412,15 @@ where
         argument: Option<Bytes>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
+        if batch_id_payload.len() > MAX_BATCH_SIZE {
+            return Err(CallError::Custom(ErrorObject::owned(
+                8000,
+                "Runtime error",
+                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+            ))
+            .into());
+        }
+
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         batch_id_payload
