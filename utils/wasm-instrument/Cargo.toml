@@ -17,13 +17,12 @@ enum-iterator.workspace = true
 [dev-dependencies]
 wasmparser.workspace = true
 wat.workspace = true
-gear-backend-sandbox.workspace = true
+gear-backend-sandbox = { workspace = true, features = [ "std" ] }
 gear-backend-common = { workspace = true, features = ["mock"] }
 gear-core.workspace = true
 
 [features]
 default = ["std"]
 std = [
-    "gear-backend-sandbox/std",
     "gwasm-instrument/std",
 ]
