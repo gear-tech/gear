@@ -25,10 +25,12 @@ mod param;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::{Hash, HashWithValue};
-use std::ops::RangeInclusive;
+use std::{collections::HashSet, ops::RangeInclusive};
 
 pub use amount::*;
 pub use param::*;
+
+use crate::InvocableSysCall;
 
 /// Builder for [`SysCallsConfig`].
 pub struct SysCallsConfigBuilder(SysCallsConfig);
@@ -40,7 +42,7 @@ impl SysCallsConfigBuilder {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
             sending_message_destination: MessageDestination::default(),
-            ignore_fallible_syscall_errors: true,
+            error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
         })
     }
@@ -84,9 +86,9 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Enable/disable processing of errors returned from fallible syscalls.
-    pub fn set_ignore_fallible_syscall_errors(mut self, ignore: bool) -> Self {
-        self.0.ignore_fallible_syscall_errors = ignore;
+    /// Setup fallible syscalls error processing options.
+    pub fn set_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
+        self.0.error_processing_config = config;
 
         self
     }
@@ -107,13 +109,37 @@ impl SysCallsConfigBuilder {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum ErrorProcessingConfig {
+    /// Process errors on all the fallible syscalls.
+    All,
+    /// Process only errors on provided syscalls.
+    Whitelist(HashSet<InvocableSysCall>),
+    /// Process errors on all the syscalls excluding provided.
+    Blacklist(HashSet<InvocableSysCall>),
+    /// Don't process syscall errors at all.
+    #[default]
+    None,
+}
+
+impl ErrorProcessingConfig {
+    pub fn error_should_be_processed(&self, syscall: &InvocableSysCall) -> bool {
+        match self {
+            Self::All => true,
+            Self::Whitelist(wl) => wl.contains(syscall),
+            Self::Blacklist(bl) => !bl.contains(syscall),
+            Self::None => false,
+        }
+    }
+}
+
 /// United config for all entities in sys-calls generator module.
 #[derive(Debug, Clone, Default)]
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
     sending_message_destination: MessageDestination,
-    ignore_fallible_syscall_errors: bool,
+    error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
 }
 
@@ -142,9 +168,9 @@ impl SysCallsConfig {
         &self.params_config
     }
 
-    /// Should we ignore error processing of fallible syscalls?
-    pub fn ignore_fallible_syscall_errors(&self) -> bool {
-        self.ignore_fallible_syscall_errors
+    /// Error processing config for fallible syscalls.
+    pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
+        &self.error_processing_config
     }
 }
 

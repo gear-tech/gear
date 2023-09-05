@@ -30,6 +30,8 @@ use gear_backend_common::{
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
+#[cfg(any(feature = "mock", test))]
+use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -43,8 +45,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, ContextSettings, GasLimit, HandlePacket, IncomingDispatch, InitPacket,
-        MessageContext, Packet, ReplyPacket,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,

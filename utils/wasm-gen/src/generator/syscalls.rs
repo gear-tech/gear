@@ -54,8 +54,8 @@ use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
 /// which is pretty hard to predict beforehand with a generator. So this call context
 /// is created from scratch - first `gr_reserve_gas` is called and then it's result
 /// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum InvocableSysCall {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocableSysCall {
     Loose(SysCallName),
     Precise(SysCallName),
 }

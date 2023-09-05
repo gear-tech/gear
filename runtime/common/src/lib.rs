@@ -20,7 +20,6 @@
 
 mod apis;
 pub mod constants;
-pub mod migrations;
 pub mod weights;
 
 use frame_support::{

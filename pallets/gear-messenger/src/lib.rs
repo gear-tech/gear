@@ -134,9 +134,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// Database migration module.
-pub mod migrations;
-
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;

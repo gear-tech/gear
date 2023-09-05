@@ -55,7 +55,10 @@ fn init_fixture(system: &System) -> (Program<'_>, MessageId) {
     program.send_bytes(USER_ID, []);
     let lock_result = program.send(
         USER_ID,
-        Command::MxLock(MxLockContinuation::General(LockContinuation::MoveToStatic)),
+        Command::MxLock(
+            u32::MAX,
+            MxLockContinuation::General(LockContinuation::MoveToStatic),
+        ),
     );
     (program, lock_result.sent_message_id())
 }

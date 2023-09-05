@@ -471,7 +471,7 @@ impl ExtManager {
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         let mapping_code =
             Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
@@ -480,8 +480,7 @@ impl ExtManager {
             .into_parts()
             .0;
 
-        // The `metawasm` macro knows how to decode this as a tuple
-        let mut mapping_code_payload = argument.unwrap_or_default();
+        let mut mapping_code_payload = args.unwrap_or_default();
         mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
 
         core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
