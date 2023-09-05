@@ -4411,6 +4411,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
