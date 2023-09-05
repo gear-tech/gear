@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 19] = [
+const PACKAGES: [&str; 20] = [
     // Packages without local dependencies.
     "actor-system-error",
     "gear-backend-codegen",
