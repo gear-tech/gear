@@ -312,9 +312,6 @@ where
 
     // With lazy-pages we update some page data in storage,
     // when it has been write accessed, so no need to compare old and new page data.
-    info.pages_data
-        .keys()
-        .for_each(|page| log::trace!("{:?} has been write accessed, update it in storage", page));
     let page_update = info.pages_data;
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
