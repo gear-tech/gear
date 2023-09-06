@@ -1852,6 +1852,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-autoreply"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
