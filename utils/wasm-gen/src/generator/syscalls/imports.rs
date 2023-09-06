@@ -57,6 +57,20 @@ pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
     ),
 );
 
+/// The set of sys-calls that need to be imported to create precise sys-call.
+#[derive(thiserror::Error, Debug)]
+#[error("The following sys-calls must be imported: {0:?}")]
+pub struct RequiredSysCalls(&'static [SysCallName]);
+
+/// An error that occurs when generating precise sys-call.
+#[derive(thiserror::Error, Debug)]
+pub enum PreciseSysCallError {
+    #[error("{0}")]
+    RequiredImports(#[from] RequiredSysCalls),
+    #[error("{0}")]
+    Arbitrary(#[from] ArbitraryError),
+}
+
 impl<'a, 'b>
     From<(
         GearWasmGenerator<'a, 'b>,
@@ -720,20 +734,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         Ok(())
     }
-}
-
-/// The set of sys-calls that need to be imported to create precise sys-call.
-#[derive(thiserror::Error, Debug)]
-#[error("The following sys-calls must be imported: {0:?}")]
-pub struct RequiredSysCalls(&'static [SysCallName]);
-
-/// An error that occurs when generating precise sys-call.
-#[derive(thiserror::Error, Debug)]
-pub enum PreciseSysCallError {
-    #[error("{0}")]
-    RequiredImports(#[from] RequiredSysCalls),
-    #[error("{0}")]
-    Arbitrary(#[from] ArbitraryError),
 }
 
 /// Proof that there was an instance of sys-calls imports generator and `SysCallsImportsGenerator::generate_sys_calls_imports` was called.
