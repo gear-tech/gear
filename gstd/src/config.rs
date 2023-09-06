@@ -20,7 +20,10 @@
 //! Gear libs are `#![no_std]`, which makes them lightweight.
 
 //! This module is for configuring `gstd` inside gear programs.
-use crate::errors::{Error, Result};
+use crate::{
+    errors::{Error, Result},
+    BlockCount,
+};
 
 /// Wait types.
 #[derive(Clone, Copy, Default)]
@@ -39,12 +42,17 @@ pub struct Config {
     /// count.
     ///
     /// Initial value: **100 blocks**
-    pub wait_up_to: u32,
+    pub wait_up_to: BlockCount,
 
     /// Default wait duration for `wait_for` messages expressed in block count.
     ///
     /// Initial value: **100 blocks**
-    pub wait_for: u32,
+    pub wait_for: BlockCount,
+
+    /// Default amount of blocks a mutex lock can be owned for by a message.
+    ///
+    /// Initial value: **100 blocks**
+    pub mx_lock_duration: BlockCount,
 
     /// Default gas amount reserved for system purposes.
     ///
@@ -59,6 +67,7 @@ impl Config {
         Self {
             wait_up_to: 100,
             wait_for: 100,
+            mx_lock_duration: 100,
             system_reserve: 1_000_000_000,
             wait_type: WaitType::WaitUpTo,
         }
@@ -69,13 +78,18 @@ impl Config {
     }
 
     /// Get the `wait_for` duration (in blocks).
-    pub fn wait_for() -> u32 {
+    pub fn wait_for() -> BlockCount {
         unsafe { CONFIG.wait_for }
     }
 
     /// Get the `wait_up_to` duration (in blocks).
-    pub fn wait_up_to() -> u32 {
+    pub fn wait_up_to() -> BlockCount {
         unsafe { CONFIG.wait_up_to }
+    }
+
+    /// Get the `mx_lock_duration` duration (in blocks).
+    pub fn mx_lock_duration() -> BlockCount {
+        unsafe { CONFIG.mx_lock_duration }
     }
 
     /// Get the `system_reserve` gas amount.
@@ -84,7 +98,7 @@ impl Config {
     }
 
     /// Set `wait_for` duration (in blocks).
-    pub fn set_wait_for(duration: u32) -> Result<()> {
+    pub fn set_wait_for(duration: BlockCount) -> Result<()> {
         if duration == 0 {
             return Err(Error::EmptyWaitDuration);
         }
@@ -97,7 +111,7 @@ impl Config {
     ///
     /// Calling this function forces all async functions that wait for some
     /// condition to wait exactly for `duration` blocks.
-    pub fn set_default_wait_for(duration: u32) -> Result<()> {
+    pub fn set_default_wait_for(duration: BlockCount) -> Result<()> {
         Self::set_wait_for(duration)?;
         unsafe { CONFIG.wait_type = WaitType::WaitFor };
 
@@ -105,7 +119,7 @@ impl Config {
     }
 
     /// Set the `wait_up_to` duration (in blocks).
-    pub fn set_wait_up_to(duration: u32) -> Result<()> {
+    pub fn set_wait_up_to(duration: BlockCount) -> Result<()> {
         if duration == 0 {
             return Err(Error::EmptyWaitDuration);
         }
@@ -118,10 +132,20 @@ impl Config {
     ///
     /// Calling this function forces all async functions that wait for some
     /// condition to wait not more than `duration` blocks.
-    pub fn set_default_wait_up_to(duration: u32) -> Result<()> {
+    pub fn set_default_wait_up_to(duration: BlockCount) -> Result<()> {
         Self::set_wait_up_to(duration)?;
         unsafe { CONFIG.wait_type = WaitType::WaitUpTo };
 
+        Ok(())
+    }
+
+    /// Set `mx_lock_duration_max` duration (in blocks).
+    pub fn set_mx_lock_duration(duration: BlockCount) -> Result<()> {
+        if duration == 0 {
+            return Err(Error::ZeroMxLockDuration);
+        }
+
+        unsafe { CONFIG.mx_lock_duration = duration };
         Ok(())
     }
 

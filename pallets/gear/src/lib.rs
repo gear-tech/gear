@@ -33,7 +33,6 @@ mod runtime_api;
 mod schedule;
 
 pub mod manager;
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -109,7 +108,7 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
+pub type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 pub(crate) type FirstIncompleteTasksBlockOf<T> =
     <<T as Config>::Scheduler as Scheduler>::FirstIncompleteTasksBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
@@ -289,6 +288,15 @@ pub mod pallet {
         /// The amount of blocks for processing resume session.
         #[pallet::constant]
         type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
+
+        /// The flag determines if program rent mechanism enabled.
+        #[pallet::constant]
+        type ProgramRentEnabled: Get<bool>;
+
+        /// The constant defines value that is added if the program
+        /// rent is disabled.
+        #[pallet::constant]
+        type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -406,7 +414,7 @@ pub mod pallet {
         },
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
-        QueueProcessingReverted,
+        QueueNotProcessed,
 
         /// Program resume session has been started.
         ProgramResumeSessionStarted {
@@ -469,6 +477,10 @@ pub mod pallet {
         ProgramNotFound,
         /// Voucher can't be redemmed
         FailureRedeemingVoucher,
+        /// Gear::run() already included in current block.
+        GearRunAlreadyInBlock,
+        /// The program rent logic is disabled.
+        ProgramRentDisabled,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -497,13 +509,13 @@ pub mod pallet {
         }
     }
 
-    /// The Gear block number before processing messages.
+    /// A guard to prohibit all but the first execution of `pallet_gear::run()` call in a block.
     ///
-    /// A helper variable that mirrors the `BlockNumber` at the beginning of a block.
-    /// Allows to gauge the actual `BlockNumber` progress.
+    /// Set to `Some(())` if the extrinsic is executed for the first time in a block.
+    /// All subsequent attempts would fail with `Error::<T>::GearRunAlreadyInBlock` error.
+    /// Set back to `None` in the `on_finalize()` hook at the end of the block.
     #[pallet::storage]
-    #[pallet::getter(fn last_gear_block_number)]
-    pub(crate) type LastGearBlockNumber<T: Config> = StorageValue<_, T::BlockNumber>;
+    pub(crate) type GearRunInBlock<T> = StorageValue<_, ()>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -521,29 +533,20 @@ pub mod pallet {
             // Incrementing Gear block number
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
-            // Align the last gear block number before inherent execution with current value
-            <LastGearBlockNumber<T>>::put(Self::block_number());
-
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
-            // The `LastGearBlockNumber` is killed at the end of a block therefore its value
-            // will only exist in overlay and never be committed to storage.
-            // The respective write weight can be omitted and not accounted for.
             T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            // Check if the queue has been processed, that is gear block number bumped again.
-            // If not (while the queue processing enabled), fire an event.
-            if let Some(last_gear_block_number) = <LastGearBlockNumber<T>>::take() {
-                if Self::execute_inherent() && Self::block_number() <= last_gear_block_number {
-                    Self::deposit_event(Event::QueueProcessingReverted);
-                }
+            // Check if the queue has been processed.
+            // If not (while the queue processing enabled), fire an event and revert
+            // the Gear internal block number increment made in `on_initialize()`.
+            if GearRunInBlock::<T>::take().is_none() && Self::execute_inherent() {
+                Self::deposit_event(Event::QueueNotProcessed);
+                BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
             }
-
-            // Undoing Gear block number increment that was done upfront in `on_initialize`
-            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
 
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
         }
@@ -705,6 +708,7 @@ pub mod pallet {
 
         pub fn read_state_using_wasm(
             program_id: H256,
+            payload: Vec<u8>,
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
@@ -714,7 +718,7 @@ pub mod pallet {
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
                 .map_err(String::into_bytes)
         }
 
@@ -1754,6 +1758,15 @@ pub mod pallet {
                 Error::<T>::MessageQueueProcessingDisabled
             );
 
+            ensure!(
+                !GearRunInBlock::<T>::exists(),
+                Error::<T>::GearRunAlreadyInBlock
+            );
+            // The below doesn't create an extra db write, because the value will be "taken"
+            // (set to `None`) at the end of the block, therefore, will only exist in the
+            // overlay and never be committed to storage.
+            GearRunInBlock::<T>::set(Some(()));
+
             let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
             let remaining_weight = max_weight.saturating_sub(weight_used.total());
@@ -1779,12 +1792,6 @@ pub mod pallet {
                 actual_weight,
                 Self::block_number(),
             );
-
-            // Incrementing Gear block number one more time to indicate that the queue processing
-            // has been successfully completed in the current block.
-            // Caveat: this increment must be done strictly after all extrinsics in the block have
-            // been handled to ensure correct block number math.
-            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
             Ok(PostDispatchInfo {
                 actual_weight: Some(
@@ -1819,6 +1826,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled,
+            );
+
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
@@ -1847,6 +1859,11 @@ pub mod pallet {
             code_hash: CodeId,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
 
             let session_end_block =
                 Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
@@ -1888,6 +1905,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
+
             ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
 
             Ok(().into())
@@ -1908,6 +1930,11 @@ pub mod pallet {
             block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
 
             ensure!(
                 block_count >= ResumeMinimalPeriodOf::<T>::get(),

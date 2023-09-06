@@ -2711,6 +2711,12 @@ pub mod runtime_types {
                     #[codec(index = 14)]
                     #[doc = "Voucher can't be redemmed"]
                     FailureRedeemingVoucher,
+                    #[codec(index = 15)]
+                    #[doc = "Gear::run() already included in current block."]
+                    GearRunAlreadyInBlock,
+                    #[codec(index = 16)]
+                    #[doc = "The program rent logic is disabled."]
+                    ProgramRentDisabled,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -2796,7 +2802,7 @@ pub mod runtime_types {
                     },
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
-                    QueueProcessingReverted,
+                    QueueNotProcessed,
                     #[codec(index = 9)]
                     #[doc = "Program resume session has been started."]
                     ProgramResumeSessionStarted {
@@ -10167,7 +10173,7 @@ pub mod storage {
     pub enum GearStorage {
         ExecuteInherent,
         BlockNumber,
-        LastGearBlockNumber,
+        GearRunInBlock,
     }
     impl StorageInfo for GearStorage {
         const PALLET: &'static str = "Gear";
@@ -10175,7 +10181,7 @@ pub mod storage {
             match self {
                 Self::ExecuteInherent => "ExecuteInherent",
                 Self::BlockNumber => "BlockNumber",
-                Self::LastGearBlockNumber => "LastGearBlockNumber",
+                Self::GearRunInBlock => "GearRunInBlock",
             }
         }
     }

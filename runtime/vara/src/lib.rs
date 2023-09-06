@@ -66,7 +66,10 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
-    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
+    constants::{
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
     AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
     VALUE_PER_GAS,
@@ -74,7 +77,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
@@ -143,7 +146,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 320,
+    spec_version: 330,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -164,9 +167,11 @@ const_assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
 
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
-/// It's 2/3 sec for vara runtime with 2 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight =
-    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 2 / 3, u64::MAX);
+/// It's 3/3 sec for vara runtime with 3 second block duration.
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+    WEIGHT_REF_TIME_PER_MILLIS * MILLISECS_PER_BLOCK / 3,
+    u64::MAX,
+);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -341,7 +346,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u128 = 10;
+    pub const QueueLengthStep: u128 = 1000;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
@@ -972,10 +977,18 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
+
+    #[cfg(feature = "runtime-benchmarks")]
+    type ProgramRentEnabled = ConstBool<true>;
+
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type ProgramRentEnabled = ConstBool<false>;
+
+    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
 #[cfg(feature = "debug-mode")]

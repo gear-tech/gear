@@ -30,11 +30,11 @@ use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
-        elements::{BlockType, Instruction, Instructions},
+        elements::{BlockType, Instruction, Instructions, Local},
     },
     syscalls::SysCallName,
 };
-use gsys::{ErrorWithHash, HashWithValue, Length};
+use gsys::Hash;
 use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
@@ -242,35 +242,90 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 }
 
 impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
-    /// Generates a function which calls "properly" the `gr_reservation_send`.
-    fn generate_send_from_reservation(&mut self) {
-        let (reserve_gas_idx, reservation_send_idx) = {
-            let maybe_reserve_gas = self
-                .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReserveGas))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
-            let maybe_reservation_send = self
-                .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReservationSend))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
+    /// Returns the indexes of invocable sys-calls.
+    fn invocable_sys_calls_indexes<const N: usize>(
+        &self,
+        sys_calls: [SysCallName; N],
+    ) -> Option<[usize; N]> {
+        let mut indexes = [0; N];
+        let iter = sys_calls.iter().map(|&sys_call| {
+            self.sys_calls_imports
+                .get(&InvocableSysCall::Loose(sys_call))
+                .map(|&(_, call_indexes_handle)| call_indexes_handle)
+        });
 
-            match maybe_reserve_gas.zip(maybe_reservation_send) {
-                Some(indexes) => indexes,
+        for (index, maybe_index) in indexes.iter_mut().zip(iter) {
+            match maybe_index {
+                Some(idx) => *index = idx,
                 None => {
-                    log::trace!("Wasm hasn't got either gr_reserve_gas, or gr_reservation_send, or both of them");
-                    return;
+                    log::trace!(
+                        "The following sys-calls must be imported: {missing_sys_calls:?}",
+                        missing_sys_calls = sys_calls.map(|sys_call| sys_call.to_str()),
+                    );
+                    return None;
                 }
             }
-        };
+        }
 
-        let invocable_sys_call = InvocableSysCall::Precise(SysCallName::ReservationSend);
-        let send_from_reservation_signature = invocable_sys_call.into_signature();
+        Some(indexes)
+    }
 
-        let send_from_reservation_func_ty = send_from_reservation_signature.func_type();
+    /// Generates a function which calls "properly" the given sys-call.
+    fn generate_proper_sys_call_invocation(
+        &mut self,
+        sys_call: SysCallName,
+        func_instructions: Instructions,
+        func_locals: Option<Vec<Local>>,
+    ) {
+        let invocable_sys_call = InvocableSysCall::Precise(sys_call);
+        let signature = invocable_sys_call.into_signature();
+
+        let func_ty = signature.func_type();
         let func_signature = builder::signature()
-            .with_params(send_from_reservation_func_ty.params().iter().copied())
-            .with_results(send_from_reservation_func_ty.results().iter().copied())
+            .with_params(func_ty.params().iter().copied())
+            .with_results(func_ty.results().iter().copied())
             .build_sig();
+
+        let func_idx = self.module.with(|module| {
+            let mut module_builder = builder::from_module(module);
+            let idx = module_builder.push_function(
+                builder::function()
+                    .with_signature(func_signature)
+                    .body()
+                    .with_instructions(func_instructions)
+                    .with_locals(func_locals.unwrap_or_default())
+                    .build()
+                    .build(),
+            );
+
+            (module_builder.build(), idx)
+        });
+
+        log::trace!(
+            "Built proper call to {precise_sys_call_name}",
+            precise_sys_call_name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let call_indexes_handle = self.call_indexes.len();
+        self.call_indexes.add_func(func_idx.signature as usize);
+
+        // TODO: make separate config for precise sys-calls (#3122)
+        self.sys_calls_imports
+            .insert(invocable_sys_call, (1, call_indexes_handle));
+    }
+
+    /// Generates a function which calls "properly" the `gr_reservation_send`.
+    fn generate_send_from_reservation(&mut self) {
+        let sys_call = SysCallName::ReservationSend;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let Some([reserve_gas_idx, reservation_send_idx]) = self
+            .invocable_sys_calls_indexes([SysCallName::ReserveGas, SysCallName::ReservationSend]) else {
+                return;
+            };
 
         let memory_size_in_bytes = {
             let initial_mem_size: WasmPageCount = self
@@ -280,28 +335,44 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 .into();
             initial_mem_size.memory_size()
         };
+
         // subtract to be sure we are in memory boundaries.
-        let reserve_gas_result_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
-        let rid_pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<Length>() as i32;
-        let pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<ErrorWithHash>() as i32;
-        let reservation_send_result_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
+        let rid_pid_value_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
+        let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Amount of gas to reserve
             Instruction::GetLocal(4),
             // Duration of the reservation
             Instruction::GetLocal(5),
-            // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(6),
             Instruction::Call(reserve_gas_idx as u32),
-            // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
-            // Load LengthWithHash.length
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(6),
+            // Load ErrorWithHash.error
             Instruction::I32Load(2, 0),
-            // Check if LengthWithHash.length == 0
+            // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
-            // If LengthWithHash.length == 0
+            // If ErrorWithHash.error == 0
             Instruction::If(BlockType::NoResult),
+            // Copy the Hash struct (32 bytes) containing the reservation id.
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 4),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
             // Copy the HashWithValue struct (48 bytes) containing
             // the recipient and value after the obtained reservation ID
             Instruction::I32Const(pid_value_ptr),
@@ -337,34 +408,13 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             // Number of blocks to delay the sending for
             Instruction::GetLocal(3),
             // Pointer to the result of the reservation send
-            Instruction::I32Const(reservation_send_result_ptr),
+            Instruction::GetLocal(6),
             Instruction::Call(reservation_send_idx as u32),
             Instruction::End,
             Instruction::End,
         ]);
 
-        let send_from_reservation_func_idx = self.module.with(|module| {
-            let mut module_builder = builder::from_module(module);
-            let idx = module_builder.push_function(
-                builder::function()
-                    .with_signature(func_signature)
-                    .body()
-                    .with_instructions(func_instructions)
-                    .build()
-                    .build(),
-            );
-
-            (module_builder.build(), idx)
-        });
-
-        log::trace!("Built proper reservation send call");
-
-        let call_indexes_handle = self.call_indexes.len();
-        self.call_indexes
-            .add_func(send_from_reservation_func_idx.signature as usize);
-
-        self.sys_calls_imports
-            .insert(invocable_sys_call, (1, call_indexes_handle));
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions, None);
     }
 }
 

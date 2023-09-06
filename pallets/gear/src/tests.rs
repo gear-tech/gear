@@ -2038,8 +2038,14 @@ fn read_state_using_wasm_works() {
         let func1 = "last_wallet";
         assert!(META_EXPORTS_V1.contains(&func1));
 
-        let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
-            .expect("Failed to read state");
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            func1,
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         assert_eq!(res, expected);
 
@@ -2059,6 +2065,7 @@ fn read_state_using_wasm_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
@@ -2078,6 +2085,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_number",
             META_WASM_V3.to_vec(),
             None,
@@ -2091,6 +2099,7 @@ fn read_state_bn_and_timestamp_works() {
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
             None,
@@ -2149,9 +2158,14 @@ fn wasm_metadata_generation_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let m1 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V1.to_vec(), None)
-                .expect("Failed to read state");
+        let m1 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V1.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata1 =
             gmeta::MetawasmData::decode(&mut m1.as_ref()).expect("Failed to decode metadata");
@@ -2162,9 +2176,14 @@ fn wasm_metadata_generation_works() {
         expected_exports_1.sort();
         assert_eq!(exports1, expected_exports_1);
 
-        let m2 =
-            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V2.to_vec(), None)
-                .expect("Failed to read state");
+        let m2 = Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "metadata",
+            META_WASM_V2.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
         let metadata2 =
             gmeta::MetawasmData::decode(&mut m2.as_ref()).expect("Failed to decode metadata");
@@ -2212,17 +2231,30 @@ fn read_state_using_wasm_errors() {
         // Inexistent function
         assert!(Gear::read_state_using_wasm_impl(
             program_id,
+            Default::default(),
             "inexistent",
             meta_wasm.clone(),
             None
         )
         .is_err());
         // Empty function
-        assert!(
-            Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "empty",
+            meta_wasm.clone(),
+            None
+        )
+        .is_err());
         // Greed function
-        assert!(Gear::read_state_using_wasm_impl(program_id, "loop", meta_wasm, None).is_err());
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "loop",
+            meta_wasm,
+            None
+        )
+        .is_err());
     });
 }
 
@@ -8832,7 +8864,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
         Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -8864,17 +8896,21 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
             (msg_id, msg_block_number)
         };
 
-        let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
-            WaiterCommand::MxLock(MxLockContinuation::General(LockContinuation::SleepFor(4))),
-        );
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(
+                u32::MAX,
+                MxLockContinuation::General(LockContinuation::SleepFor(4)),
+            ));
 
         let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
         let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
@@ -8899,7 +8935,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
         assert_succeed(lock_owner_msg_id);
         assert_succeed(lock_rival_1_msg_id);
         assert_succeed(lock_rival_2_msg_id);
-    };
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -8912,7 +8948,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
         WASM_BINARY as WAITER_WASM,
     };
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -9029,7 +9065,251 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
             assert_succeed(lock_rival_1_msg_id);
             assert_succeed(lock_rival_2_msg_id);
         }
+    }
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn mx_lock_ownership_exceedance() {
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
+
+    const LOCK_HOLD_DURATION: u32 = 3;
+
+    fn execution() {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (run_test_case, get_lock_ownership_exceeded_trap) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                    false,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let run_test_case =
+                move |command: WaiterCommand,
+                      run_for_blocks_before_lock_assert: u32,
+                      assert_command_result: &dyn Fn(MessageId),
+                      assert_lock_result: &dyn Fn(MessageId, MessageId)| {
+                    let (command_msg_id, _) = send_command_to_waiter(command);
+
+                    // Subtract 1 because sending command to waiter below adds 1 block
+                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
+
+                    assert_command_result(command_msg_id);
+
+                    let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+                        1,
+                        MxLockContinuation::General(LockContinuation::Nothing),
+                    ));
+
+                    assert_lock_result(command_msg_id, lock_msg_id);
+                };
+
+            let get_lock_ownership_exceeded_trap = |command_msg_id| {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    format!(
+                        "Message 0x{} has exceeded lock ownership time",
+                        hex::encode(command_msg_id)
+                    )
+                    .into(),
+                ))
+            };
+
+            (run_test_case, get_lock_ownership_exceeded_trap)
+        };
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -10289,42 +10569,210 @@ fn signal_async_wait_works() {
 }
 
 #[test]
-fn signal_gas_limit_exceeded_works() {
+fn signal_run_out_of_gas_works() {
+    test_signal_code_works(
+        SimpleExecutionError::RanOutOfGas.into(),
+        demo_signal_entry::HandleAction::OutOfGas,
+    );
+}
+
+#[test]
+fn signal_run_out_of_gas_memory_access_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    const GAS_LIMIT: u64 = 10_000_000_000;
 
     init_logger();
     new_test_ext().execute_with(|| {
+        // Upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
-            10_000_000_000,
+            GAS_LIMIT,
             0,
         ));
 
         let pid = get_last_program_id();
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::OutOfGas.encode(),
-            10_000_000_000,
+            HandleAction::SaveSignal(SimpleExecutionError::RanOutOfGas.into()).encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Calculate gas limit for this action
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            min_limit - 1,
             0,
             false,
         ));
 
         let mid = get_last_message_id();
 
-        run_to_block(3, None);
+        // Assert that system reserve gas node is removed
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        run_to_next_block(None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
-        // check signal dispatch executed
+        // Ensure that signal code sent is signal code we saved
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
+    });
+}
+
+#[test]
+fn signal_userspace_panic_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UserspacePanic.into(),
+        demo_signal_entry::HandleAction::Panic,
+    );
+}
+
+#[test]
+fn signal_backend_error_forbidden_action_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::ForbiddenAction,
+    );
+}
+
+#[test]
+fn signal_backend_error_invalid_debug_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::InvalidDebugCall,
+    );
+}
+
+#[test]
+fn signal_backend_error_unrecoverable_ext_works() {
+    test_signal_code_works(
+        SimpleExecutionError::BackendError.into(),
+        demo_signal_entry::HandleAction::UnrecoverableExt,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::UnreachableInstruction,
+    );
+}
+
+#[test]
+fn signal_unreachable_instruction_incorrect_free_works() {
+    test_signal_code_works(
+        SimpleExecutionError::UnreachableInstruction.into(),
+        demo_signal_entry::HandleAction::IncorrectFree,
+    );
+}
+
+#[test]
+fn signal_memory_overflow_works() {
+    test_signal_code_works(
+        SimpleExecutionError::MemoryOverflow.into(),
+        demo_signal_entry::HandleAction::ExceedMemory,
+    );
+}
+
+#[test]
+fn signal_removed_from_waitlist_works() {
+    const GAS_LIMIT: u64 = 10_000_000_000;
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            GAS_LIMIT,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Ensure that program is uploaded and initialized correctly
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        // Save signal code to be compared with
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SaveSignal(SignalCode::RemovedFromWaitlist).encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // Send the action to trigger signal sending
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitWithoutSendingMessage.encode(),
+            GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Ensuring that gas is reserved
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        // Getting block number when waitlist expiration should happen
+        let expiration = get_waitlist_expiration(mid);
+
+        // Hack to fast spend blocks till expiration
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number(expiration - 1);
+
+        // Expiring that message
+        run_to_next_block(None);
+
+        // Ensure that signal code sent is signal code we saved
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload_bytes(), true.encode());
     });
 }
 
@@ -13662,6 +14110,57 @@ fn wasm_ref_types_doesnt_work() {
     });
 }
 
+/// Test that the `Gear::run()` extrinsic can only run once per block,
+/// even if somehow included in a block multiple times.
+#[test]
+fn gear_run_only_runs_once_per_block() {
+    use frame_support::{
+        dispatch::RawOrigin,
+        traits::{OnFinalize, OnInitialize},
+    };
+
+    fn init_block(bn: u32) {
+        System::set_block_number(bn);
+        GasAllowanceOf::<Test>::put(1_000_000_000);
+        Gear::on_initialize(bn);
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        init_block(2);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+        // Second run in a block is not allowed
+        assert_noop!(
+            Gear::run(RawOrigin::None.into(), None,),
+            Error::<Test>::GearRunAlreadyInBlock
+        );
+        Gear::on_finalize(2);
+
+        // Everything goes back to normal in the next block
+        init_block(3);
+        assert_ok!(Gear::run(RawOrigin::None.into(), None,));
+    })
+}
+
+/// Test that the Gear internal block numbering is consistent.
+#[test]
+fn gear_block_number_math_adds_up() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(100, None);
+        assert_eq!(Gear::block_number(), 100);
+
+        run_to_block_maybe_with_queue(120, None, None);
+        assert_eq!(System::block_number(), 120);
+        assert_eq!(Gear::block_number(), 100);
+
+        System::reset_events();
+        run_to_block(150, None);
+        assert_eq!(System::block_number(), 150);
+        assert_eq!(Gear::block_number(), 130);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -13670,14 +14169,14 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, CurrencyOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
-        SentOf,
+        BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
+        ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
         paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage,
+        Origin, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
@@ -14521,5 +15020,72 @@ mod utils {
         });
 
         assert_eq!(res, assertions);
+    }
+
+    #[track_caller]
+    pub(super) fn test_signal_code_works(
+        signal_code: SignalCode,
+        action: demo_signal_entry::HandleAction,
+    ) {
+        use crate::tests::new_test_ext;
+        use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+        const GAS_LIMIT: u64 = 10_000_000_000;
+
+        init_logger();
+        new_test_ext().execute_with(|| {
+            // Upload program
+            assert_ok!(Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                USER_1.encode(),
+                GAS_LIMIT,
+                0,
+            ));
+
+            let pid = get_last_program_id();
+
+            run_to_next_block(None);
+
+            // Ensure that program is uploaded and initialized correctly
+            assert!(Gear::is_active(pid));
+            assert!(Gear::is_initialized(pid));
+
+            // Save signal code to be compared with
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SaveSignal(signal_code).encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            run_to_next_block(None);
+
+            // Send the action to trigger signal sending
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                GAS_LIMIT,
+                0,
+                false,
+            ));
+
+            let mid = get_last_message_id();
+
+            // Assert that system reserve gas node is removed
+            assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+            run_to_next_block(None);
+
+            assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+            // Ensure that signal code sent is signal code we saved
+            let mail_msg = get_last_mail(USER_1);
+            assert_eq!(mail_msg.payload_bytes(), true.encode());
+        });
     }
 }

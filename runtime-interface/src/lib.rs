@@ -231,3 +231,38 @@ pub trait GearRI {
 
     // Bellow goes deprecated runtime interface functions.
 }
+
+/// For debug using in benchmarks testing.
+/// In wasm runtime is impossible to interact with OS functionality,
+/// this interface allows to do it partially.
+#[runtime_interface]
+pub trait GearDebug {
+    fn println(msg: &[u8]) {
+        println!("{}", sp_std::str::from_utf8(msg).unwrap());
+    }
+
+    fn file_write(path: &str, data: Vec<u8>) {
+        use std::{fs::File, io::Write};
+
+        let mut file = File::create(path).unwrap();
+        file.write_all(&data).unwrap();
+    }
+
+    fn file_read(path: &str) -> Vec<u8> {
+        use std::{fs::File, io::Read};
+
+        let mut file = File::open(path).unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        data
+    }
+
+    fn time_in_nanos() -> u128 {
+        use std::time::SystemTime;
+
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    }
+}

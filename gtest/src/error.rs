@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Error as CodecError;
-use gear_backend_wasmi::wasmi;
 use gear_core::{ids::ProgramId, pages::WasmPage};
 use gear_core_errors::ExtError;
 
@@ -71,10 +70,6 @@ pub enum TestError {
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
     #[display(fmt = "{_0}")]
     MemoryError(gear_core_errors::MemoryError),
-
-    /// Wrapper for `wasmi` error (used [`anyhow::Error`] for that).
-    #[display(fmt = "{_0}")]
-    WasmiError(wasmi::Error),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
     #[display(fmt = "{_0}")]
