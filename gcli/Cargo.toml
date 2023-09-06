@@ -40,8 +40,8 @@ clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
-core-processor.workspace = true
-gear-backend-sandbox = { workspace = true, features = [ "std" ] }
+# core-processor.workspace = true
+# gear-backend-sandbox = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
 

@@ -3706,10 +3706,8 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
  "gmeta",
  "gsdk",
  "hex",
@@ -4301,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "0.1.0"
+version = "0.3.1-alpha.0"
 dependencies = [
  "environmental",
  "gear-sandbox-env",
