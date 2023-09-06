@@ -26,7 +26,21 @@
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
 //! fn my_config<'a>(u: &'a mut Unstructured<'a>) -> Result<WasmModuleConfig> {
-//!     let selectable_params = SelectableParams { call_indirect_enabled: false };
+//!     let selectable_params = SelectableParams {
+//!         call_indirect_enabled: false,
+//!         allowed_instructions: vec![
+//!             InstructionKind::Numeric,
+//!             InstructionKind::Reference,
+//!             InstructionKind::Parametric,
+//!             InstructionKind::Variable,
+//!             InstructionKind::Table,
+//!             InstructionKind::Memory,
+//!             InstructionKind::Control,
+//!         ],
+//!         max_instructions: 100_000,
+//!         min_funcs: 15,
+//!         max_funcs: 30
+//!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
 //! }
@@ -107,6 +121,13 @@ impl ConfigsBundle for () {
     }
 }
 
+/// The fully controllable implementation of ConfigsBundle.
+impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        self
+    }
+}
+
 /// Standard set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
@@ -154,6 +175,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let selectable_params = SelectableParams {
             call_indirect_enabled,
+            ..SelectableParams::default()
         };
 
         let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_amounts);

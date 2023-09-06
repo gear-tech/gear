@@ -56,7 +56,10 @@ use pallet_grandpa::{
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
-    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
+    constants::{
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
     AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
     VALUE_PER_GAS,
@@ -64,7 +67,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -122,7 +125,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 320,
+    spec_version: 330,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -275,7 +278,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u128 = 10;
+    pub const QueueLengthStep: u128 = 1000;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
@@ -478,10 +481,18 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
+
+    #[cfg(feature = "runtime-benchmarks")]
+    type ProgramRentEnabled = ConstBool<true>;
+
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type ProgramRentEnabled = ConstBool<false>;
+
+    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
 #[cfg(feature = "debug-mode")]
