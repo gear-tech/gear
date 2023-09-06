@@ -6148,7 +6148,11 @@ fn test_pausing_programs_works() {
             false,
         ));
 
-        let child_program_id = ProgramId::generate_with_id(child_code_hash.into(), DEFAULT_SALT, get_last_message_id());
+        let child_program_id = ProgramId::generate_with_id(
+            child_code_hash.into(),
+            DEFAULT_SALT,
+            get_last_message_id(),
+        );
 
         run_to_next_block(None);
 
