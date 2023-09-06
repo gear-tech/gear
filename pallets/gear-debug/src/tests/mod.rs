@@ -202,19 +202,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
@@ -280,19 +280,19 @@ fn debug_mode_works() {
                 ],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
@@ -309,19 +309,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
