@@ -19,6 +19,7 @@
 //! Gear api with signer
 
 use crate::{
+    backtrace::Backtrace,
     config::GearConfig,
     result::{Error, Result},
     Api,
@@ -61,9 +62,15 @@ pub struct SignerInner {
     /// Current signer.
     signer: PairSigner<GearConfig, Pair>,
     nonce: Option<u32>,
+    backtrace: Backtrace,
 }
 
 impl Signer {
+    /// Get backtrace of the signer.
+    pub fn backtrace(&self) -> Backtrace {
+        self.calls.0.backtrace.clone()
+    }
+
     /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         let signer = SignerInner {
@@ -72,6 +79,7 @@ impl Signer {
                 Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
             ),
             nonce: None,
+            backtrace: Default::default(),
         };
 
         Ok(Self::from_inner(signer))
@@ -89,7 +97,10 @@ impl Signer {
     }
 
     #[deny(unused_variables)]
-    fn replace_inner(&mut self, inner: SignerInner) {
+    fn replace_inner(&mut self, mut inner: SignerInner) {
+        let backtrace = self.backtrace();
+        inner.backtrace = backtrace;
+
         let Signer {
             signer,
             storage,
@@ -148,6 +159,7 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
             api,
             signer,
             nonce: None,
+            backtrace: Backtrace::default(),
         };
 
         Self::from_inner(signer)

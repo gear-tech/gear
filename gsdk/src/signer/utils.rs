@@ -22,16 +22,20 @@ use std::sync::Arc;
 
 use super::SignerInner;
 use crate::{
+    //  backtrace::BacktraceStatus,
     config::GearConfig,
     metadata::{
         calls::SudoCall, gear_runtime::RuntimeCall, sudo::Event as SudoEvent, CallInfo, Event,
     },
     result::Result,
     signer::SignerRpc,
-    Error, TxInBlock, TxStatus,
+    Error,
+    TxInBlock,
+    TxStatus,
 };
 use anyhow::anyhow;
 use scale_value::Composite;
+// use sp_core::H256;
 use subxt::{
     blocks::ExtrinsicEvents,
     dynamic::Value,
@@ -88,11 +92,31 @@ impl SignerInner {
 
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
+        // let mut queue: Vec<BacktraceStatus> = Default::default();
+        // let mut hash: Option<H256> = None;
+
         while let Some(status) = process.next_item().await {
             let status = status?;
             Self::log_status(&status);
+
+            // if let Some(h) = &hash {
+            //     self.backtrace.append(*h, BacktraceStatus);
+            // } else {
+            //     queue.push((&status).into());
+            // }
+
             match status {
-                Future | Ready | Broadcast(_) | InBlock(_) | Retracted(_) => (),
+                Future | Ready | Broadcast(_) | Retracted(_) => (),
+                InBlock(_b) => {
+                    // hash = Some(b.extrinsic_hash());
+                    // self.backtrace.append(
+                    //     b.extrinsic_hash(),
+                    //     BacktraceStatus::InBlock {
+                    //         block_hash: b.block_hash(),
+                    //         extrinsic_hash: b.extrinsic_hash(),
+                    //     },
+                    // );
+                }
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",

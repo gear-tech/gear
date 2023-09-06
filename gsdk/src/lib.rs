@@ -43,7 +43,7 @@ use subxt::{
 };
 
 mod api;
-mod backtrace;
+pub mod backtrace;
 mod client;
 pub mod config;
 mod constants;

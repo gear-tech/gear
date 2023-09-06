@@ -49,25 +49,23 @@ pub enum BacktraceStatus {
     Invalid,
 }
 
-impl From<TxStatus> for BacktraceStatus {
-    fn from(status: TxStatus) -> BacktraceStatus {
+impl<'s> From<&'s TxStatus> for BacktraceStatus {
+    fn from(status: &'s TxStatus) -> BacktraceStatus {
         match status {
             TxStatus::Future => BacktraceStatus::Future,
             TxStatus::Ready => BacktraceStatus::Ready,
-            TxStatus::Broadcast(v) => BacktraceStatus::Broadcast(v),
+            TxStatus::Broadcast(v) => BacktraceStatus::Broadcast(v.clone()),
             TxStatus::InBlock(b) => BacktraceStatus::InBlock {
                 block_hash: b.block_hash(),
                 extrinsic_hash: b.extrinsic_hash(),
             },
-            TxStatus::Retracted(block_hash) => BacktraceStatus::Retracted { block_hash },
-            TxStatus::FinalityTimeout(block_hash) => {
-                BacktraceStatus::FinalityTimeout { block_hash }
-            }
+            TxStatus::Retracted(h) => BacktraceStatus::Retracted { block_hash: *h },
+            TxStatus::FinalityTimeout(h) => BacktraceStatus::FinalityTimeout { block_hash: *h },
             TxStatus::Finalized(b) => BacktraceStatus::Finalized {
                 block_hash: b.block_hash(),
                 extrinsic_hash: b.extrinsic_hash(),
             },
-            TxStatus::Usurped(extrinsic_hash) => BacktraceStatus::Usurped { extrinsic_hash },
+            TxStatus::Usurped(h) => BacktraceStatus::Usurped { extrinsic_hash: *h },
             TxStatus::Dropped => BacktraceStatus::Dropped,
             TxStatus::Invalid => BacktraceStatus::Invalid,
         }
@@ -75,7 +73,25 @@ impl From<TxStatus> for BacktraceStatus {
 }
 
 /// Backtrace support for transactions
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Backtrace {
     inner: IndexMap<H256, BTreeMap<SystemTime, BacktraceStatus>>,
+}
+
+impl Backtrace {
+    /// Append status to transaction
+    pub fn append(&mut self, tx: H256, status: impl Into<BacktraceStatus>) {
+        if let Some(map) = self.inner.get_mut(&tx) {
+            map.insert(SystemTime::now(), status.into());
+        } else {
+            let mut map: BTreeMap<SystemTime, BacktraceStatus> = Default::default();
+            map.insert(SystemTime::now(), status.into());
+            self.inner.insert(tx, map);
+        };
+    }
+
+    /// Get backtrace of transaction
+    pub fn get(&self, tx: H256) -> Option<&BTreeMap<SystemTime, BacktraceStatus>> {
+        self.inner.get(&tx)
+    }
 }
