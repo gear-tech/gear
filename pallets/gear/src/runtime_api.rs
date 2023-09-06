@@ -23,10 +23,6 @@ use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
-// Multiplier 6 was experimentally found as median value for performance,
-// security and abilities for calculations on-chain.
-pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
-
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
@@ -37,6 +33,11 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
+    fn update_gas_allowance(gas_allowance: u64) {
+        GasAllowanceOf::<T>::put(gas_allowance);
+        QueueProcessingOf::<T>::allow();
+    }
+
     pub(crate) fn calculate_gas_info_impl(
         source: H256,
         kind: HandleKind,
@@ -45,7 +46,10 @@ where
         value: u128,
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
+        gas_allowance: Option<u64>,
     ) -> Result<GasInfo, Vec<u8>> {
+        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
+
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
@@ -109,8 +113,7 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT);
-        QueueProcessingOf::<T>::allow();
+        Self::update_gas_allowance(gas_allowance);
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -276,6 +279,7 @@ where
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
+        gas_allowance: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
@@ -284,6 +288,8 @@ where
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }
+
+        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
 
         let schedule = T::Schedule::get();
 
@@ -310,12 +316,18 @@ where
 
         let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id, payload_arg)?);
+        payload.append(&mut Self::read_state_impl(
+            program_id,
+            payload_arg,
+            Some(gas_allowance),
+        )?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
+
+        Self::update_gas_allowance(gas_allowance);
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
@@ -324,7 +336,7 @@ where
             None,
             None,
             payload,
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
     }
@@ -332,6 +344,7 @@ where
     pub(crate) fn read_state_impl(
         program_id: ProgramId,
         payload: Vec<u8>,
+        gas_allowance: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
@@ -343,6 +356,8 @@ where
 
         log::debug!("Reading state of {program_id:?}");
 
+        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
+
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
@@ -354,6 +369,8 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
+        Self::update_gas_allowance(gas_allowance);
+
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
@@ -361,12 +378,15 @@ where
             Some(allocations),
             Some(program_id),
             payload,
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
     }
 
-    pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
+    pub(crate) fn read_metahash_impl(
+        program_id: ProgramId,
+        gas_allowance: Option<u64>,
+    ) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
         {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
@@ -377,6 +397,8 @@ where
 
         log::debug!("Reading metahash of {program_id:?}");
 
+        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
+
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
@@ -388,6 +410,8 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
+        Self::update_gas_allowance(gas_allowance);
+
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
@@ -395,7 +419,7 @@ where
             Some(allocations),
             Some(program_id),
             Default::default(),
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
         .and_then(|bytes| {

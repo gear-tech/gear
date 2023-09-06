@@ -31,12 +31,13 @@ use jsonrpsee::{
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
-use sp_api::{ApiError, ApiRef, ProvideRuntimeApi};
+use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
+const GAS_ALLOWANCE: u64 = 600_000_000;
 const MAX_BATCH_SIZE: usize = 256;
 
 /// Converts a runtime trap into a [`CallError`].
@@ -190,6 +191,10 @@ impl From<Error> for i64 {
     }
 }
 
+fn map_err(error: impl ToString, desc: &'static str) -> CallError {
+    CallError::Custom(ErrorObject::owned(8000, desc, Some(error.to_string())))
+}
+
 #[async_trait]
 impl<C, Block> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>> for Gear<C, Block>
 where
@@ -208,28 +213,70 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                )
+            })
+        } else {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                    Some(GAS_ALLOWANCE),
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                    Some(GAS_ALLOWANCE),
+                )
+            })
+        }
     }
 
     fn get_init_upload_gas_spent(
@@ -243,28 +290,70 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Init(code.to_vec()),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Init(code.to_vec()),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Init(code.to_vec()),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Init(code.to_vec()),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                )
+            })
+        } else {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Init(code.to_vec()),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                    Some(GAS_ALLOWANCE),
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Init(code.to_vec()),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                    Some(GAS_ALLOWANCE),
+                )
+            })
+        }
     }
 
     fn get_handle_gas_spent(
@@ -278,28 +367,70 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Handle(ProgramId::from_origin(dest)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Handle(ProgramId::from_origin(dest)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Handle(ProgramId::from_origin(dest)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Handle(ProgramId::from_origin(dest)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                )
+            })
+        } else {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Handle(ProgramId::from_origin(dest)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                    Some(GAS_ALLOWANCE),
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Handle(ProgramId::from_origin(dest)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                    Some(GAS_ALLOWANCE),
+                )
+            })
+        }
     }
 
     fn get_reply_gas_spent(
@@ -313,34 +444,82 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Reply(
-                    MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReplyReason::Manual),
-                ),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Reply(
-                    MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReplyReason::Manual),
-                ),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Reply(
+                        MessageId::from_origin(message_id),
+                        ReplyCode::Success(SuccessReplyReason::Manual),
+                    ),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    HandleKind::Reply(
+                        MessageId::from_origin(message_id),
+                        ReplyCode::Success(SuccessReplyReason::Manual),
+                    ),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                )
+            })
+        } else {
+            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Reply(
+                        MessageId::from_origin(message_id),
+                        ReplyCode::Success(SuccessReplyReason::Manual),
+                    ),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    None,
+                    Some(GAS_ALLOWANCE),
+                )
+            })?;
+            self.run_with_api_copy(|api| {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    HandleKind::Reply(
+                        MessageId::from_origin(message_id),
+                        ReplyCode::Success(SuccessReplyReason::Manual),
+                    ),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    Some(min_limit),
+                    Some(GAS_ALLOWANCE),
+                )
+            })
+        }
     }
 
     fn read_state(
@@ -351,8 +530,31 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.to_vec()))
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.read_state_before_version_2(at_hash, program_id, payload.to_vec())
+            })
             .map(Bytes)
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_state(at_hash, program_id, payload.to_vec(), Some(GAS_ALLOWANCE))
+            })
+            .map(Bytes)
+        }
     }
 
     fn read_state_batch(
@@ -371,13 +573,41 @@ where
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        batch_id_payload
-            .into_iter()
-            .map(|(program_id, payload)| {
-                self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.0))
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        #[allow(deprecated)]
+                        api.read_state_before_version_2(at_hash, program_id, payload.0)
+                    })
                     .map(Bytes)
-            })
-            .collect()
+                })
+                .collect()
+        } else {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        api.read_state(at_hash, program_id, payload.0, Some(GAS_ALLOWANCE))
+                    })
+                    .map(Bytes)
+                })
+                .collect()
+        }
     }
 
     fn read_state_using_wasm(
@@ -391,17 +621,46 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| {
-            api.read_state_using_wasm(
-                at_hash,
-                program_id,
-                payload.to_vec(),
-                fn_name.to_vec(),
-                wasm.to_vec(),
-                argument.map(|v| v.to_vec()),
-            )
-            .map(|r| r.map(Bytes))
-        })
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.read_state_using_wasm_before_version_2(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    fn_name.to_vec(),
+                    wasm.to_vec(),
+                    argument.map(|v| v.to_vec()),
+                )
+                .map(|r| r.map(Bytes))
+            })
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_state_using_wasm(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    fn_name.to_vec(),
+                    wasm.to_vec(),
+                    argument.map(|v| v.to_vec()),
+                    Some(GAS_ALLOWANCE),
+                )
+                .map(|r| r.map(Bytes))
+            })
+        }
     }
 
     fn read_state_using_wasm_batch(
@@ -423,22 +682,56 @@ where
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        batch_id_payload
-            .into_iter()
-            .map(|(program_id, payload)| {
-                self.run_with_api_copy(|api| {
-                    api.read_state_using_wasm(
-                        at_hash,
-                        program_id,
-                        payload.to_vec(),
-                        fn_name.clone().to_vec(),
-                        wasm.clone().to_vec(),
-                        argument.clone().map(|v| v.to_vec()),
-                    )
-                    .map(|r| r.map(Bytes))
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        #[allow(deprecated)]
+                        api.read_state_using_wasm_before_version_2(
+                            at_hash,
+                            program_id,
+                            payload.to_vec(),
+                            fn_name.clone().to_vec(),
+                            wasm.clone().to_vec(),
+                            argument.clone().map(|v| v.to_vec()),
+                        )
+                        .map(|r| r.map(Bytes))
+                    })
                 })
-            })
-            .collect()
+                .collect()
+        } else {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        api.read_state_using_wasm(
+                            at_hash,
+                            program_id,
+                            payload.to_vec(),
+                            fn_name.clone().to_vec(),
+                            wasm.clone().to_vec(),
+                            argument.clone().map(|v| v.to_vec()),
+                            Some(GAS_ALLOWANCE),
+                        )
+                        .map(|r| r.map(Bytes))
+                    })
+                })
+                .collect()
+        }
     }
 
     fn read_metahash(
@@ -448,6 +741,26 @@ where
     ) -> RpcResult<H256> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_metahash(at_hash, program_id))
+        let api_version = self
+            .client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })?;
+
+        if api_version < 2 {
+            #[allow(deprecated)]
+            self.run_with_api_copy(|api| api.read_metahash_before_version_2(at_hash, program_id))
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_metahash(at_hash, program_id, Some(GAS_ALLOWANCE))
+            })
+        }
     }
 }
