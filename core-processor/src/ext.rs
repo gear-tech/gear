@@ -43,8 +43,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, ContextSettings, GasLimit, HandlePacket, IncomingDispatch, InitPacket,
-        MessageContext, Packet, ReplyPacket,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
