@@ -10,6 +10,15 @@ on:
         type: boolean
         default: false
   workflow_dispatch:
+    inputs:
+      title:
+        type: string
+        description: "Pull request title that triggers this workflow."
+      number:
+        type: string
+        description: "Pull request number that triggers this workflow"
+
+run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
 env:
   CARGO_INCREMENTAL: 0

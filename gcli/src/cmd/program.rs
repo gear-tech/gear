@@ -93,7 +93,7 @@ impl Program {
         at: Option<H256>,
     ) -> Result<()> {
         let state = api
-            .read_state_using_wasm(pid, method, wasm, args, at)
+            .read_state_using_wasm(pid, Default::default(), method, wasm, args, at)
             .await?;
         println!("{}", state);
         Ok(())

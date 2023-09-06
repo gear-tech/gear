@@ -52,6 +52,8 @@ impl sc_executor::NativeExecutionDispatch for GearExecutorDispatch {
     /// Only enable the benchmarking host functions when we actually want to benchmark.
     #[cfg(feature = "runtime-benchmarks")]
     type ExtendHostFunctions = (
+        // Only for runtime-benchmarks host functions.
+        gear_ri::gear_debug::HostFunctions,
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,

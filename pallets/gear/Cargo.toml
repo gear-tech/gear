@@ -25,13 +25,13 @@ static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
+gear-runtime-interface = { workspace = true }
 gear-lazy-pages-common = { workspace = true, optional = true }
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
-gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
@@ -93,7 +93,7 @@ demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -116,7 +116,6 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
 [features]
@@ -133,7 +132,6 @@ std = [
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
 	"gear-backend-sandbox/std",
-	"gear-backend-wasmi/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -156,6 +154,7 @@ std = [
 	"test-syscalls?/std",
 	"demo-read-big-state?/std",
 	"demo-proxy?/std",
+	"gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

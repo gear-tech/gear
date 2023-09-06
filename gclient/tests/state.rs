@@ -67,6 +67,7 @@ async fn get_state() -> anyhow::Result<()> {
     let wallet: Option<Wallet> = api
         .read_state_using_wasm(
             program_id,
+            Default::default(),
             "first_wallet",
             demo_new_meta::META_WASM_V1.to_vec(),
             <Option<()>>::None,

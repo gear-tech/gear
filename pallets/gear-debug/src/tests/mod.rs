@@ -18,8 +18,13 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, event::MessageEntry, CodeStorage, Origin as _};
-use frame_support::assert_ok;
+use common::{
+    self,
+    event::MessageEntry,
+    scheduler::{ScheduledTask, TaskPool},
+    ActiveProgram, CodeStorage, Origin as _, PausedProgramStorage, ProgramStorage,
+};
+use frame_support::{assert_err, assert_ok};
 #[cfg(feature = "lazy-pages")]
 use gear_core::pages::GearPage;
 use gear_core::{
@@ -29,32 +34,17 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
+use pallet_gear::{
+    DebugInfo, Event, Pallet as PalletGear, ProgramStorageOf, RentCostPerBlockOf, TaskPoolOf,
+};
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use sp_core::{Get, H256};
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
+mod utils;
+use utils::*;
+
 const DEFAULT_SALT: &[u8] = b"salt";
-
-pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
-}
-
-fn parse_wat(source: &str) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(true)
-        .convert(source)
-        .expect("failed to parse module")
-        .as_ref()
-        .to_vec()
-}
-
-fn h256_code_hash(code: &[u8]) -> H256 {
-    CodeId::generate(code).into_origin()
-}
 
 #[test]
 fn vec() {
@@ -153,8 +143,8 @@ fn debug_mode_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code_1 = parse_wat(wat_1);
-        let code_2 = parse_wat(wat_2);
+        let code_1 = utils::parse_wat(wat_1);
+        let code_2 = utils::parse_wat(wat_2);
 
         let program_id_1 = ProgramId::generate(CodeId::generate(&code_1), DEFAULT_SALT);
         let program_id_2 = ProgramId::generate(CodeId::generate(&code_2), DEFAULT_SALT);
@@ -186,7 +176,7 @@ fn debug_mode_works() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: Default::default(),
-                        code_hash: h256_code_hash(&code_1),
+                        code_hash: utils::h256_code_hash(&code_1),
                     }),
                 }],
             })
@@ -216,7 +206,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                     crate::ProgramDetails {
@@ -224,7 +214,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -294,7 +284,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                     crate::ProgramDetails {
@@ -302,7 +292,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -323,7 +313,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                     crate::ProgramDetails {
@@ -331,7 +321,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2),
                         }),
                     },
                 ],
@@ -883,7 +873,7 @@ fn check_gear_stack_end() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = parse_wat(wat.as_str());
+        let code = utils::parse_wat(wat.as_str());
         let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
@@ -927,11 +917,120 @@ fn check_gear_stack_end() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 4.into(),
                         persistent_pages,
-                        code_hash: h256_code_hash(&code),
+                        code_hash: utils::h256_code_hash(&code),
                     }),
                 }],
             })
             .into(),
         );
+    })
+}
+
+#[test]
+fn disabled_program_rent() {
+    use test_syscalls::{Kind, WASM_BINARY as TEST_SYSCALLS_BINARY};
+
+    assert!(!<<Test as pallet_gear::Config>::ProgramRentEnabled as Get<bool>>::get());
+    assert!(<Test as pallet_gear::Config>::ProgramRentDisabledDelta::get() > 0);
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let salt = b"salt".to_vec();
+        let pay_rent_id = ProgramId::generate(CodeId::generate(TEST_SYSCALLS_BINARY), &salt);
+
+        let program_value = 10_000_000;
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            TEST_SYSCALLS_BINARY.to_vec(),
+            salt,
+            pay_rent_id.into_bytes().to_vec(),
+            20_000_000_000,
+            program_value,
+        ));
+
+        run_to_next_block(None);
+
+        let old_block = utils::get_active_program(pay_rent_id).expiration_block;
+
+        let block_count = 2_000u32;
+        let rent = RentCostPerBlockOf::<Test>::get() * u128::from(block_count);
+        let pay_rent_account_id = AccountId::from_origin(pay_rent_id.into_origin());
+        let balance_before = Balances::free_balance(pay_rent_account_id);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            pay_rent_id,
+            vec![Kind::PayProgramRent(
+                pay_rent_id.into_origin().into(),
+                rent,
+                None
+            )]
+            .encode(),
+            20_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(utils::maybe_last_message(1).unwrap().payload_bytes(), b"ok");
+
+        // check that syscall does nothing
+        assert_eq!(
+            old_block,
+            utils::get_active_program(pay_rent_id).expiration_block
+        );
+        assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
+
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &pay_rent_id
+        ));
+
+        // extrinsic should fail
+        let block_count = 10_000;
+        assert_err!(
+            Gear::pay_program_rent(RuntimeOrigin::signed(2), pay_rent_id, block_count),
+            pallet_gear::Error::<Test>::ProgramRentDisabled
+        );
+
+        // resume extrinsic should also fail
+        assert_err!(
+            Gear::resume_session_init(
+                RuntimeOrigin::signed(2),
+                pay_rent_id,
+                Default::default(),
+                Default::default(),
+            ),
+            pallet_gear::Error::<Test>::ProgramRentDisabled
+        );
+        assert_err!(
+            Gear::resume_session_push(RuntimeOrigin::signed(2), 5, Default::default(),),
+            pallet_gear::Error::<Test>::ProgramRentDisabled
+        );
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(2), 5, Default::default(),),
+            pallet_gear::Error::<Test>::ProgramRentDisabled
+        );
+
+        let expected_block = utils::get_active_program(pay_rent_id).expiration_block;
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block as u32 - 1);
+
+        run_to_next_block(None);
+
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &pay_rent_id
+        ));
+
+        let program = utils::get_active_program(pay_rent_id);
+
+        assert_eq!(
+            expected_block + <Test as pallet_gear::Config>::ProgramRentDisabledDelta::get(),
+            program.expiration_block
+        );
+        assert!(TaskPoolOf::<Test>::contains(
+            &program.expiration_block,
+            &ScheduledTask::PauseProgram(pay_rent_id)
+        ));
     })
 }

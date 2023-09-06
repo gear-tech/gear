@@ -33,7 +33,6 @@ mod runtime_api;
 mod schedule;
 
 pub mod manager;
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -109,7 +108,7 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
+pub type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 pub(crate) type FirstIncompleteTasksBlockOf<T> =
     <<T as Config>::Scheduler as Scheduler>::FirstIncompleteTasksBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
@@ -289,6 +288,15 @@ pub mod pallet {
         /// The amount of blocks for processing resume session.
         #[pallet::constant]
         type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
+
+        /// The flag determines if program rent mechanism enabled.
+        #[pallet::constant]
+        type ProgramRentEnabled: Get<bool>;
+
+        /// The constant defines value that is added if the program
+        /// rent is disabled.
+        #[pallet::constant]
+        type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -471,6 +479,8 @@ pub mod pallet {
         FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
+        /// The program rent logic is disabled.
+        ProgramRentDisabled,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -697,6 +707,7 @@ pub mod pallet {
 
         pub fn read_state_using_wasm(
             program_id: H256,
+            payload: Vec<u8>,
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
@@ -706,7 +717,7 @@ pub mod pallet {
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
                 .map_err(String::into_bytes)
         }
 
@@ -1814,6 +1825,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled,
+            );
+
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
@@ -1842,6 +1858,11 @@ pub mod pallet {
             code_hash: CodeId,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
 
             let session_end_block =
                 Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
@@ -1883,6 +1904,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
+
             ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
 
             Ok(().into())
@@ -1903,6 +1929,11 @@ pub mod pallet {
             block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
 
             ensure!(
                 block_count >= ResumeMinimalPeriodOf::<T>::get(),

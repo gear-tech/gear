@@ -49,7 +49,6 @@
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
