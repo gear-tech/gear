@@ -97,7 +97,7 @@ impl Default for MemoryPagesConfig {
         Self {
             initial_size: Self::MAX_VALUE / 2 + 5,
             upper_limit: None,
-            stack_end_page: Some(Self::MAX_VALUE / 2),
+            stack_end_page: None,
         }
     }
 }
