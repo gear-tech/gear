@@ -261,6 +261,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 }
 
 impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
+    /// The amount of memory used to create a precise sys-call.
+    const PRECISE_SYS_CALL_MEMORY_SIZE: u32 = 100;
+
     /// Returns the indexes of invocable sys-calls.
     fn invocable_sys_calls_indexes<const N: usize>(
         &self,
@@ -331,6 +334,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         initial_mem_size.memory_size()
     }
 
+    /// Reserves enough memory build precise sys-call.
+    fn reserve_memory(&self) -> i32 {
+        self.memory_size_in_bytes()
+            .saturating_sub(Self::PRECISE_SYS_CALL_MEMORY_SIZE) as i32
+    }
+
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(&mut self) -> Result<(), PreciseSysCallError> {
         const SYS_CALL: SysCallName = SysCallName::ReservationSend;
@@ -343,7 +352,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
 
         // subtract to be sure we are in memory boundaries.
-        let rid_pid_value_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let rid_pid_value_ptr = self.reserve_memory();
         let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
@@ -437,7 +446,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
 
         // subtract to be sure we are in memory boundaries.
-        let rid_value_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let rid_value_ptr = self.reserve_memory();
         let value_ptr = rid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
@@ -516,7 +525,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             ])?;
 
         // subtract to be sure we are in memory boundaries.
-        let handle_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let handle_ptr = self.reserve_memory();
         let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
 
         let mut elements = vec![
@@ -619,7 +628,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             ])?;
 
         // subtract to be sure we are in memory boundaries.
-        let handle_ptr = self.memory_size_in_bytes().saturating_sub(100) as i32;
+        let handle_ptr = self.reserve_memory();
         let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
         let length_ptr = pid_value_ptr + mem::size_of::<Length>() as i32;
 
