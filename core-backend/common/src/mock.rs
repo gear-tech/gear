@@ -119,7 +119,7 @@ impl Externalities for MockExt {
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn cost_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
+    fn performance_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)
     }
     fn send_init(&mut self) -> Result<u32, Self::UnrecoverableError> {

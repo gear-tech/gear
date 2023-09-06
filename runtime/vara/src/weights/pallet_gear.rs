@@ -594,7 +594,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(76_484_364, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_cost_multiplier(r: u32, ) -> Weight {
+    fn gr_performance_multiplier(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`

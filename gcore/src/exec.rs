@@ -80,27 +80,27 @@ pub fn block_timestamp() -> u64 {
     timestamp
 }
 
-/// Get current cost multiplier.
+/// Get current performance multiplier.
 ///
-/// The cost multiplier is a value that is used to calculate the cost of
+/// The performance multiplier is a value that is used to calculate the cost of
 /// BLA-BLA-BLA.
 ///
 /// # Examples
 ///
-/// Describe some of the use cases for the cost multiplier.
+/// Describe some of the use cases for the performance multiplier.
 ///
 /// ```
 /// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let cost_multiplier = exec::cost_multiplier();
+///     let performance_multiplier = exec::performance_multiplier();
 /// }
 /// ```
-pub fn cost_multiplier() -> u32 {
-    let mut cost_multiplier = 0u32;
-    unsafe { gsys::gr_cost_multiplier(&mut cost_multiplier as *mut u32) };
-    cost_multiplier
+pub fn performance_multiplier() -> u32 {
+    let mut performance_multiplier = 0u32;
+    unsafe { gsys::gr_performance_multiplier(&mut performance_multiplier as *mut u32) };
+    performance_multiplier
 }
 
 /// Provide gas deposit from current message to handle reply message on given

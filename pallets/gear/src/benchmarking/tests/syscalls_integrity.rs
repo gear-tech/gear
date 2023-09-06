@@ -78,7 +78,7 @@ where
             SysCallName::Value => check_gr_value::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
-            SysCallName::CostMultiplier => check_gr_cost_multiplier::<T>(),
+            SysCallName::PerformanceMultiplier => check_gr_performance_multiplier::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
@@ -784,15 +784,15 @@ where
     })
 }
 
-fn check_gr_cost_multiplier<T>()
+fn check_gr_performance_multiplier<T>()
 where
     T: Config,
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let cm = T::CostMultiplier::get();
+        let cm = T::PerformanceMultiplier::get();
 
-        let mp = vec![Kind::CostMultiplier(cm)].encode().into();
+        let mp = vec![Kind::PerformanceMultiplier(cm)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

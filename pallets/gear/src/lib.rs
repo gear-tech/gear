@@ -203,9 +203,9 @@ pub mod pallet {
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
-        /// Cost multiplier.
+        /// Performance multiplier.
         #[pallet::constant]
-        type CostMultiplier: Get<u32>;
+        type PerformanceMultiplier: Get<u32>;
 
         type DebugInfo: DebugInfo;
 
@@ -1058,7 +1058,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                cost_multiplier: T::CostMultiplier::get(),
+                performance_multiplier: T::PerformanceMultiplier::get(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,

@@ -183,7 +183,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        cost_multiplier: Default::default(),
+        performance_multiplier: Default::default(),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
@@ -961,10 +961,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_cost_multiplier {
+    gr_performance_multiplier {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::CostMultiplier, r)?;
+        let exec = Benches::<T>::getter(SysCallName::PerformanceMultiplier, r)?;
     }: {
         res.replace(run_process(exec));
     }

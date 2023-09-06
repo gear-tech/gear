@@ -101,8 +101,8 @@ pub enum Kind {
     SystemReserveGas(u64),
     // Param(deposit amount)
     ReplyDeposit(u64),
-    // Param(cost multiplier)
-    CostMultiplier(u32),
+    // Param(performance multiplier)
+    PerformanceMultiplier(u32),
 }
 
 pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
@@ -376,11 +376,11 @@ mod wasm {
                     "Kind::BlockTimestamp:: block timestamp test failed"
                 );
             }
-            Kind::CostMultiplier(expected_multiplier) => {
-                let actual_multiplier = exec::cost_multiplier();
+            Kind::PerformanceMultiplier(expected_multiplier) => {
+                let actual_multiplier = exec::performance_multiplier();
                 assert_eq!(
                     expected_multiplier, actual_multiplier,
-                    "Kind::CostMultiplier:: cost multiplier test failed"
+                    "Kind::PerformanceMultiplier:: performance multiplier test failed"
                 );
             }
             Kind::Reserve(expected_id) => {

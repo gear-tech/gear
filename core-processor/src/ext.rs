@@ -75,8 +75,8 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
-    /// Cost multiplier.
-    pub cost_multiplier: u32,
+    /// Performance multiplier.
+    pub performance_multiplier: u32,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -135,7 +135,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
-            cost_multiplier: Default::default(),
+            performance_multiplier: Default::default(),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
@@ -612,8 +612,8 @@ impl Externalities for Ext {
         Ok(self.context.block_info.timestamp)
     }
 
-    fn cost_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
-        Ok(self.context.cost_multiplier)
+    fn performance_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
+        Ok(self.context.performance_multiplier)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::FallibleError> {

@@ -189,8 +189,8 @@ impl Externalities for LazyPagesExt {
         self.inner.block_timestamp()
     }
 
-    fn cost_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
-        self.inner.cost_multiplier()
+    fn performance_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
+        self.inner.performance_multiplier()
     }
 
     fn send_init(&mut self) -> Result<u32, Self::FallibleError> {

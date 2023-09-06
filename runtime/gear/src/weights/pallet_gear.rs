@@ -70,7 +70,7 @@ pub trait WeightInfo {
     fn gr_read_per_kb(n: u32, ) -> Weight;
     fn gr_block_height(r: u32, ) -> Weight;
     fn gr_block_timestamp(r: u32, ) -> Weight;
-    fn gr_cost_multiplier(r: u32, ) -> Weight;
+    fn gr_performance_multiplier(r: u32, ) -> Weight;
     fn gr_random(n: u32, ) -> Weight;
     fn gr_reply_deposit(r: u32, ) -> Weight;
     fn gr_send(r: u32, ) -> Weight;
@@ -595,7 +595,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(82_471_591, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_cost_multiplier(r: u32, ) -> Weight {
+    fn gr_performance_multiplier(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2450,7 +2450,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(82_471_591, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_cost_multiplier(r: u32, ) -> Weight {
+    fn gr_performance_multiplier(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
