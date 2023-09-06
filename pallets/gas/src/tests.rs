@@ -34,17 +34,19 @@ fn random_node_id() -> MessageId {
     MessageId::from_origin(H256::random())
 }
 
+const MULTIPLIER: Balance = 123;
+
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
         let new_root = random_node_id();
 
-        let pos = Gas::create(ALICE, new_root, 1000).unwrap();
+        let pos = Gas::create(ALICE, MULTIPLIER, new_root, 1000).unwrap();
 
         assert_eq!(pos.peek(), 1000);
         assert_eq!(Gas::total_supply(), 1000);
 
-        let (_neg, owner) = Gas::consume(new_root).unwrap().unwrap();
+        let (_neg, _, owner) = Gas::consume(new_root).unwrap().unwrap();
 
         assert_eq!(owner, ALICE);
         assert!(Gas::total_supply().is_zero());
@@ -60,7 +62,7 @@ fn test_consume_procedure_with_subnodes() {
         let node_3 = random_node_id();
         let node_4 = random_node_id();
 
-        let pos_imb = Gas::create(ALICE, root, 300).unwrap();
+        let pos_imb = Gas::create(ALICE, MULTIPLIER, root, 300).unwrap();
         assert_eq!(Gas::total_supply(), 300);
         assert_eq!(pos_imb.peek(), 300);
         // Chain of nodes, that form more likely a path rather then a tree
@@ -141,7 +143,7 @@ fn can_cut_nodes() {
             (1000, 500, 300, 200, 100);
 
         // create nodes
-        Gas::create(ALICE, root, total_supply).unwrap();
+        Gas::create(ALICE, MULTIPLIER, root, total_supply).unwrap();
         assert_ok!(Gas::cut(root, cut_a, cut_a_value));
         assert_ok!(Gas::split_with_value(root, specified, specified_value));
         assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
@@ -174,7 +176,7 @@ fn value_tree_with_all_kinds_of_nodes() {
         );
 
         // create nodes
-        Gas::create(ALICE, root, total_supply).unwrap();
+        Gas::create(ALICE, MULTIPLIER, root, total_supply).unwrap();
         assert_ok!(Gas::cut(root, cut, cut_value));
         assert_ok!(Gas::split_with_value(root, specified, specified_value));
         assert_ok!(Gas::split(root, unspecified));
@@ -189,11 +191,11 @@ fn value_tree_with_all_kinds_of_nodes() {
 
         assert_ok!(
             Gas::consume(root),
-            Some((NegativeImbalance::new(specified_value), ALICE))
+            Some((NegativeImbalance::new(specified_value), MULTIPLIER, ALICE))
         );
         assert_ok!(
             Gas::consume(cut),
-            Some((NegativeImbalance::new(cut_value), ALICE))
+            Some((NegativeImbalance::new(cut_value), MULTIPLIER, ALICE))
         );
 
         assert!(Gas::total_supply().is_zero());
@@ -223,7 +225,7 @@ fn splits_fail() {
         let node_3 = random_node_id();
 
         // Prepare the initial configuration
-        Gas::create(origin, root, 1000).unwrap();
+        Gas::create(origin, MULTIPLIER, root, 1000).unwrap();
         assert_ok!(Gas::split_with_value(root, node_1, 800));
         assert_ok!(Gas::split_with_value(node_1, node_2, 500));
         assert_ok!(Gas::split(node_1, node_3));
@@ -253,7 +255,7 @@ fn value_tree_known_errors() {
         let cut = random_node_id();
         let cut_1 = random_node_id();
 
-        let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
+        let pos_imb = Gas::create(origin, MULTIPLIER, new_root, 1000).unwrap();
         assert_eq!(Gas::total_supply(), 1000);
         assert_eq!(pos_imb.peek(), 1000);
 
@@ -262,7 +264,7 @@ fn value_tree_known_errors() {
 
         // Attempt to re-create an existing node
         assert_noop!(
-            Gas::create(origin, new_root, 1000),
+            Gas::create(origin, MULTIPLIER, new_root, 1000),
             Error::<Test>::NodeAlreadyExists
         );
 
@@ -317,7 +319,7 @@ fn sub_nodes_tree_with_spends() {
         let split_1 = random_node_id();
         let split_2 = random_node_id();
 
-        Gas::create(origin, new_root, 1000).unwrap();
+        Gas::create(origin, MULTIPLIER, new_root, 1000).unwrap();
 
         assert_ok!(Gas::split_with_value(new_root, split_1, 500));
         assert_ok!(Gas::split_with_value(new_root, split_2, 500));
@@ -337,7 +339,7 @@ fn all_keys_are_cleared() {
         let origin = ALICE;
         let sub_keys = (0..5).map(|_| random_node_id()).collect::<Vec<_>>();
 
-        Gas::create(origin, root, 2000).unwrap();
+        Gas::create(origin, MULTIPLIER, root, 2000).unwrap();
         for key in sub_keys.iter() {
             Gas::split_with_value(root, *key, 100).unwrap();
         }
@@ -366,7 +368,7 @@ fn split_with_no_value() {
         let split_2 = random_node_id();
         let split_1_2 = random_node_id();
 
-        Gas::create(origin, new_root, 1000).unwrap();
+        Gas::create(origin, MULTIPLIER, new_root, 1000).unwrap();
 
         assert_ok!(Gas::split(new_root, split_1));
         assert_ok!(Gas::split(new_root, split_2));
@@ -401,7 +403,7 @@ fn long_chain() {
         let m4 = random_node_id();
         let origin = ALICE;
 
-        Gas::create(origin, root, 2000).unwrap();
+        Gas::create(origin, MULTIPLIER, root, 2000).unwrap();
 
         assert_ok!(Gas::split_with_value(root, m1, 1500));
         assert_ok!(Gas::split_with_value(m1, m2, 1000));
@@ -434,7 +436,7 @@ fn long_chain() {
         // Has a patron parent m3
         assert_ok!(Gas::consume(m4), None);
 
-        let (neg_imb, payee) = Gas::consume(m3).unwrap().unwrap();
+        let (neg_imb, _, payee) = Gas::consume(m3).unwrap().unwrap();
 
         // 2000 initial, 5*50 spent
         assert_eq!(
@@ -457,7 +459,7 @@ fn limit_vs_origin() {
         let split_1_2 = random_node_id();
         let split_1_1_1 = random_node_id();
 
-        Gas::create(origin, root_node, 1100).unwrap();
+        Gas::create(origin, MULTIPLIER, root_node, 1100).unwrap();
 
         assert_ok!(Gas::cut(root_node, cut, 300));
         assert_ok!(Gas::split(root_node, split_1));
@@ -535,7 +537,7 @@ fn subtree_gas_limit_remains_intact() {
         let node_5 = random_node_id();
 
         // Prepare the initial configuration
-        Gas::create(origin, root, 1000).unwrap();
+        Gas::create(origin, MULTIPLIER, root, 1000).unwrap();
         assert_ok!(Gas::split_with_value(root, node_1, 800));
         assert_ok!(Gas::split_with_value(node_1, node_2, 500));
         assert_ok!(Gas::split(node_1, node_3));
@@ -589,10 +591,10 @@ fn gas_free_after_consumed() {
         let origin = BOB;
         let root_msg_id = random_node_id();
 
-        Gas::create(origin, root_msg_id, 1000).unwrap();
+        Gas::create(origin, MULTIPLIER, root_msg_id, 1000).unwrap();
         assert_ok!(Gas::spend(root_msg_id, 300));
 
-        let (v, _) = Gas::consume(root_msg_id).unwrap().unwrap();
+        let (v, ..) = Gas::consume(root_msg_id).unwrap().unwrap();
         assert_eq!(v.peek(), 700);
         assert_noop!(
             Gas::get_limit_node(root_msg_id),
@@ -610,7 +612,7 @@ fn catch_value_all_blocked() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        Gas::create(ALICE, root, 10000).unwrap();
+        Gas::create(ALICE, MULTIPLIER, root, 10000).unwrap();
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split(root, random_node_id()));
         assert_ok!(Gas::split(root, random_node_id()));
@@ -646,7 +648,7 @@ fn catch_value_all_catch() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        Gas::create(ALICE, root, 10000).unwrap();
+        Gas::create(ALICE, MULTIPLIER, root, 10000).unwrap();
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split_with_value(root, spec_1, 100));
         assert_ok!(Gas::split_with_value(root, spec_2, 100));
@@ -671,7 +673,7 @@ fn lock_works() {
         let reserved = random_node_id();
 
         // Creating external and locking some value.
-        Gas::create(ALICE, external, 10_000).unwrap();
+        Gas::create(ALICE, MULTIPLIER, external, 10_000).unwrap();
         assert_eq!(Gas::total_supply(), 10_000);
 
         // Lock value for book a slot in waitlist

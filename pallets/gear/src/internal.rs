@@ -247,7 +247,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
-        if let Some((imbalance, external)) = outcome {
+        if let Some((imbalance, _multiplier, external)) = outcome {
             // Peeking numeric value from negative imbalance.
             let gas_left = imbalance.peek();
 
@@ -1044,8 +1044,11 @@ where
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
+        use common::GasPrice as _;
+
+        let multiplier = T::GasPrice::gas_price(1).unique_saturated_into();
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
-            GasHandlerOf::<T>::create(origin, key, amount)
+            GasHandlerOf::<T>::create(origin, multiplier, key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }

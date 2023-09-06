@@ -69,7 +69,7 @@ use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
+    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
 };
 use core_processor::{
@@ -453,7 +453,7 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        GasHandlerOf::<T>::create(program_id.clone(), T::GasPrice::gas_price(1).unique_saturated_into(), original_message_id, gas_limit).expect("Failed to create gas handler");
         GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
@@ -698,7 +698,7 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        GasHandlerOf::<T>::create(program_id.clone(), T::GasPrice::gas_price(1).unique_saturated_into(), original_message_id, gas_limit).expect("Failed to create gas handler");
         GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(

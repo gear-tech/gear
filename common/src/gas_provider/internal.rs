@@ -36,12 +36,12 @@ impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
     fn into_consume_output<ExternalId>(
         self,
         origin: ExternalId,
-    ) -> Option<(NegativeImbalance<Balance>, ExternalId)>
-    where
-        ExternalId: Clone,
-    {
+        multiplier: Balance,
+    ) -> Option<(NegativeImbalance<Balance>, Balance, ExternalId)> {
         match self {
-            CatchValueOutput::Caught(value) => Some((NegativeImbalance::new(value), origin)),
+            CatchValueOutput::Caught(value) => {
+                Some((NegativeImbalance::new(value), multiplier, origin))
+            }
             _ => None,
         }
     }
@@ -277,7 +277,7 @@ where
 
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         let mut consume_output = None;
-        let external = Self::get_external(key)?;
+        let (external, multiplier, _) = Self::get_origin_node(key)?;
 
         // Descendant's `catch_value` output is used for the sake of optimization.
         // We could easily run `catch_value` in the below `while` loop each time
@@ -304,8 +304,8 @@ where
                 return Err(InternalError::value_is_blocked().into());
             }
 
-            consume_output =
-                consume_output.or_else(|| catch_output.into_consume_output(external.clone()));
+            consume_output = consume_output
+                .or_else(|| catch_output.into_consume_output(external.clone(), multiplier));
 
             if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
@@ -438,6 +438,7 @@ where
 
     fn create(
         origin: Self::ExternalOrigin,
+        multiplier: Self::Balance,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error> {
@@ -447,7 +448,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = GasNode::new(origin, amount, false);
+        let node = GasNode::new(origin, multiplier, amount, false);
 
         // Save value node to storage
         StorageMap::insert(key, node);
@@ -467,12 +468,12 @@ where
 
     fn get_origin_node(
         key: impl Into<Self::NodeId>,
-    ) -> Result<(Self::ExternalOrigin, NodeId), Self::Error> {
+    ) -> Result<OriginNodeDataOf<Self>, Self::Error> {
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        if let Some(external_origin) = node.external_origin() {
-            Ok((external_origin, key))
+        if let Some((external_origin, multiplier)) = node.external_data() {
+            Ok((external_origin, multiplier, key))
         } else {
             let root_id = node
                 .root_id()
@@ -480,10 +481,10 @@ where
 
             let root_node = Self::get_node(root_id).ok_or_else(InternalError::node_not_found)?;
 
-            let external_origin = root_node
-                .external_origin()
+            let (external_origin, multiplier) = root_node
+                .external_data()
                 .unwrap_or_else(|| unreachable!("Guaranteed by GasNode::root_id() fn"));
-            Ok((external_origin, root_id))
+            Ok((external_origin, multiplier, root_id))
         }
     }
 
@@ -577,7 +578,7 @@ where
 
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
-        let external = Self::get_external(key)?;
+        let (external, multiplier, _) = Self::get_origin_node(key)?;
 
         let res = if node.refs() == 0 {
             Self::decrease_parents_ref(&node)?;
@@ -588,7 +589,7 @@ where
                     if !catch_output.is_caught() {
                         return Err(InternalError::value_is_not_caught().into());
                     }
-                    catch_output.into_consume_output(external)
+                    catch_output.into_consume_output(external, multiplier)
                 }
                 GasNode::UnspecifiedLocal { parent, .. } => {
                     if !catch_output.is_blocked() {
@@ -600,12 +601,14 @@ where
                     if catch_output.is_blocked() {
                         return Err(InternalError::value_is_blocked().into());
                     }
-                    let consume_output = catch_output.into_consume_output(external);
+                    let consume_output = catch_output.into_consume_output(external, multiplier);
                     let consume_ancestors_output =
                         Self::try_remove_consumed_ancestors(parent, catch_output)?;
                     match (&consume_output, consume_ancestors_output) {
                         // value can't be caught in both procedures
-                        (Some(_), Some((neg_imb, _))) if neg_imb.peek().is_zero() => consume_output,
+                        (Some(_), Some((neg_imb, ..))) if neg_imb.peek().is_zero() => {
+                            consume_output
+                        }
                         (None, None) => consume_output,
                         _ => return Err(InternalError::unexpected_consume_output().into()),
                     }
@@ -617,11 +620,11 @@ where
             }
 
             StorageMap::insert(key, node);
-            catch_output.into_consume_output(external)
+            catch_output.into_consume_output(external, multiplier)
         };
 
         // Update Total in storage
-        if let Some((negative_imbalance, _)) = res.as_ref() {
+        if let Some((negative_imbalance, ..)) = res.as_ref() {
             TotalValue::mutate(|total| {
                 negative_imbalance.apply_to(total).map_err(|_| {
                     *total = None;
@@ -752,9 +755,10 @@ where
             new_key,
             amount,
             |key, value, _parent_node, _parent_id| {
-                let id = Self::get_external(key)?;
+                let (id, multiplier, _) = Self::get_origin_node(key)?;
                 Ok(GasNode::Cut {
                     id,
+                    multiplier,
                     value,
                     lock: Zero::zero(),
                 })
@@ -772,8 +776,8 @@ where
             new_key,
             amount,
             |key, value, _parent_node, _parent_id| {
-                let id = Self::get_external(key)?;
-                Ok(GasNode::new(id, value, true))
+                let (id, multiplier, _) = Self::get_origin_node(key)?;
+                Ok(GasNode::new(id, multiplier, value, true))
             },
         )
     }
@@ -952,9 +956,10 @@ where
             new_key,
             amount,
             |key, value, _parent_node, _parent_id| {
-                let id = Self::get_external(key)?;
+                let (id, multiplier, _) = Self::get_origin_node(key)?;
                 Ok(GasNode::Reserved {
                     id,
+                    multiplier,
                     value,
                     lock: Zero::zero(),
                     refs: Default::default(),

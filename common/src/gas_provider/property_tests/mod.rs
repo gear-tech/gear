@@ -429,7 +429,7 @@ proptest! {
         let lock_ids = all::<LockId>().collect::<Vec<_>>();
 
         // Only root has a max balance
-        Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
+        Gas::create(external, 123, root_node, max_balance).expect("Failed to create gas tree");
         assert_eq!(Gas::total_supply(), max_balance);
 
         // Nodes on which `consume` was called
