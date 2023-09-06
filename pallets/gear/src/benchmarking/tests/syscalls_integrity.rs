@@ -96,6 +96,7 @@ where
             strings.encode(),
             BlockGasLimitOf::<T>::get(),
             Zero::zero(),
+            false,
         )
         .expect("Failed to send read_big_state append command");
 
