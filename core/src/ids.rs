@@ -242,31 +242,31 @@ fn formatting_test() {
     // `Debug`/`Display`.
     assert_eq!(
         format!("{id:?}"),
-        "0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1"
+        "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
     );
     // `Debug`/`Display` with precision 0.
     assert_eq!(format!("{id:.0?}"), "0x..");
     // `Debug`/`Display` with precision 1.
-    assert_eq!(format!("{id:.1?}"), "0x2d..b1");
+    assert_eq!(format!("{id:.1?}"), "0x6a..3e");
     // `Debug`/`Display` with precision 2.
-    assert_eq!(format!("{id:.2?}"), "0x2ddf..1bb1");
+    assert_eq!(format!("{id:.2?}"), "0x6a51..ed3e");
     // `Debug`/`Display` with precision 4.
-    assert_eq!(format!("{id:.4?}"), "0x2ddf37a5..34f31bb1");
+    assert_eq!(format!("{id:.4?}"), "0x6a519a19..f765ed3e");
     // `Debug`/`Display` with precision 15.
     assert_eq!(
         format!("{id:.15?}"),
-        "0x2ddf37a5450ec75f6caa30c5db22a3..43f69e3dda1e173839df9634f31bb1"
+        "0x6a519a19ffdfd8f45c310b44aecf15..0c713bf841a8cb695b0ea5f765ed3e"
     );
     // `Debug`/`Display` with precision 30 (the same for any case >= 16).
     assert_eq!(
         format!("{id:.30?}"),
-        "0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1"
+        "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
     );
     // Alternate formatter.
     assert_eq!(
         format!("{id:#}"),
-        "ProgramId(0x2ddf37a5450ec75f6caa30c5db22a34db843f69e3dda1e173839df9634f31bb1)"
+        "ProgramId(0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e)"
     );
     // Alternate formatter with precision 2.
-    assert_eq!(format!("{id:#.2}"), "ProgramId(0x2ddf..1bb1)");
+    assert_eq!(format!("{id:#.2}"), "ProgramId(0x6a51..ed3e)");
 }
