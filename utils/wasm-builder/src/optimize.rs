@@ -2,24 +2,32 @@ use crate::{builder_error::BuilderError, stack_end};
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_core::code::Code;
+use gear_core::{code::Code, message::DispatchKind};
 use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
+    parity_wasm::elements::{
+        External, FuncBody, ImportCountType, Instruction, Instructions, Internal, Module, Section,
+        Serialize,
+    },
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
 use std::{
+    collections::HashSet,
     ffi::OsStr,
     fs::{self, metadata},
     path::PathBuf,
 };
+use tempfile::NamedTempFile;
 
 #[cfg(feature = "wasm-opt")]
 use wasm_opt::{OptimizationOptions, Pass};
 
 pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
+
+const FUNC_EXPORTS_WITHOUT_SIGNALS: [&str; 5] =
+    ["handle", "handle_reply", "init", "state", "metahash"];
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
@@ -116,27 +124,149 @@ impl Optimizer {
         let mut code = vec![];
         module.serialize(&mut code)?;
 
+        self.validate(code.clone(), ty)?;
+
+        Ok(code)
+    }
+
+    fn validate(&self, code: Vec<u8>, ty: OptType) -> Result<()> {
         // Post-checking the program code for possible errors
         // `pallet-gear` crate performs the same check at the node level when the user tries to upload program code
-        let raw_code = code.clone();
+        let original_code = code.clone();
         match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
-            OptType::Meta => {
-                Code::new_raw_with_rules(raw_code, 1, false, |_| CustomConstantCostRules::default())
-                    .map(|_| ())
-                    .map_err(BuilderError::CodeCheckFailed)?
-            }
+            OptType::Meta => Code::new_raw_with_rules(original_code, 1, false, |_| {
+                CustomConstantCostRules::default()
+            })
+            .map(|_| ())
+            .map_err(BuilderError::CodeCheckFailed)?,
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
             OptType::Opt => {
-                Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None)
-                    .map(|_| ())
-                    .map_err(BuilderError::CodeCheckFailed)?
+                // check the requirements that are imposed by `pallet_gear`
+                Code::try_new(
+                    original_code,
+                    1,
+                    |_| CustomConstantCostRules::default(),
+                    None,
+                )
+                .map(|_| ())
+                .map_err(BuilderError::CodeCheckFailed)?;
+                // also check signal handler
+                self.validate_signal_handler(code)?;
             }
         }
 
-        Ok(code)
+        Ok(())
+    }
+
+    fn validate_signal_handler(&self, code: Vec<u8>) -> Result<()> {
+        // Post-checking the program code for forbidden functions in `handle_signal`
+        let mut module: Module = parity_wasm::deserialize_buffer(&code)?;
+
+        let has_signal_handler = module
+            .export_section()
+            .map(|section| {
+                section.entries().iter().any(|entry| {
+                    matches!(entry.internal(), Internal::Function(_))
+                        && entry.field() == "handle_signal"
+                })
+            })
+            .unwrap_or(false);
+
+        if has_signal_handler {
+            let function_indexes_set = module
+                .export_section()
+                .map(|section| {
+                    section
+                        .entries()
+                        .iter()
+                        .filter_map(|entry| match entry.internal() {
+                            Internal::Function(index)
+                                if FUNC_EXPORTS_WITHOUT_SIGNALS.contains(&entry.field()) =>
+                            {
+                                Some(*index as usize)
+                            }
+                            _ => None,
+                        })
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+
+            let import_count = module.import_count(ImportCountType::Function);
+            let function_bodies = module
+                .code_section_mut()
+                .map(|section| {
+                    section
+                        .bodies_mut()
+                        .iter_mut()
+                        .enumerate()
+                        .filter_map(|(i, function_body)| {
+                            function_indexes_set
+                                .contains(&(i + import_count))
+                                .then_some(function_body)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            let nop_function = FuncBody::new(
+                vec![],
+                Instructions::new(vec![Instruction::Nop, Instruction::End]),
+            );
+
+            let is_replaced = function_bodies
+                .iter()
+                .all(|function_body| nop_function.eq(function_body));
+
+            if !is_replaced {
+                for function_body in function_bodies {
+                    *function_body = nop_function.clone();
+                }
+
+                let mut code = vec![];
+                module.serialize(&mut code)?;
+
+                let path1 = NamedTempFile::new()?.into_temp_path();
+                let path2 = NamedTempFile::new()?.into_temp_path();
+
+                fs::write(&path1, &code)?;
+                optimize_wasm(path1.to_path_buf(), path2.to_path_buf(), "4", true)?;
+
+                let optimizer = Optimizer::new(path2.to_path_buf())?;
+                let code = optimizer.optimize(OptType::Opt)?;
+                let module: Module = parity_wasm::deserialize_buffer(&code)?;
+
+                let function_imports = module
+                    .import_section()
+                    .map(|section| {
+                        section
+                            .entries()
+                            .iter()
+                            .filter_map(|entry| match entry.external() {
+                                External::Function(_) => Some(entry.field()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+
+                let forbidden_functions_set = DispatchKind::Signal
+                    .forbidden_funcs()
+                    .into_iter()
+                    .map(|func| func.to_str())
+                    .collect::<HashSet<_>>();
+
+                for function_import in function_imports {
+                    if forbidden_functions_set.contains(&function_import) {
+                        return Err(anyhow::anyhow!("forbidden function `{function_import}` has been detected in the signal handler"));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -227,6 +357,7 @@ pub fn do_optimization(
         .arg(dest_optimized)
         .arg("-mvp")
         .arg("--enable-sign-ext")
+        .arg("--enable-mutable-globals")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -281,6 +412,7 @@ pub fn do_optimization(
     }
     .mvp_features_only()
     .enable_feature(wasm_opt::Feature::SignExt)
+    .enable_feature(wasm_opt::Feature::MutableGlobals)
     .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)

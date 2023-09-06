@@ -4400,6 +4400,7 @@ dependencies = [
  "pathdiff",
  "pwasm-utils",
  "regex",
+ "tempfile",
  "thiserror",
  "toml 0.7.6",
  "wabt",

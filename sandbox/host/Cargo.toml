@@ -24,7 +24,7 @@ sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
 wasmer-cache = { version = "2.2.1", optional = true }
 once_cell = "1.17.1"
-tempfile = "3.5.0"
+tempfile.workspace = true
 
 [features]
 default = ["wasmer-cache"]

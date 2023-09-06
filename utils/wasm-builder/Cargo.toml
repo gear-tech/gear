@@ -14,6 +14,7 @@ cargo_metadata.workspace = true
 chrono = "0.4"
 once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
+tempfile.workspace = true
 toml.workspace = true
 thiserror.workspace = true
 log.workspace = true
