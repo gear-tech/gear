@@ -37,6 +37,8 @@ use sp_core::{Bytes, H256};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
+const MAX_BATCH_SIZE: usize = 256;
+
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
@@ -101,15 +103,33 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<Bytes>;
 
+    #[method(name = "gear_readStateBatch")]
+    fn read_state_batch(
+        &self,
+        batch_id_payload: Vec<(H256, Bytes)>,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Vec<Bytes>>;
+
     #[method(name = "gear_readStateUsingWasm")]
     fn read_state_using_wasm(
         &self,
         program_id: H256,
+        payload: Bytes,
         fn_name: Bytes,
         wasm: Bytes,
         argument: Option<Bytes>,
         at: Option<BlockHash>,
     ) -> RpcResult<Bytes>;
+
+    #[method(name = "gear_readStateUsingWasmBatch")]
+    fn read_state_using_wasm_batch(
+        &self,
+        batch_id_payload: Vec<(H256, Bytes)>,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Vec<Bytes>>;
 
     #[method(name = "gear_readMetahash")]
     fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
@@ -335,9 +355,35 @@ where
             .map(Bytes)
     }
 
+    fn read_state_batch(
+        &self,
+        batch_id_payload: Vec<(H256, Bytes)>,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Vec<Bytes>> {
+        if batch_id_payload.len() > MAX_BATCH_SIZE {
+            return Err(CallError::Custom(ErrorObject::owned(
+                8000,
+                "Runtime error",
+                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+            ))
+            .into());
+        }
+
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        batch_id_payload
+            .into_iter()
+            .map(|(program_id, payload)| {
+                self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.0))
+                    .map(Bytes)
+            })
+            .collect()
+    }
+
     fn read_state_using_wasm(
         &self,
         program_id: H256,
+        payload: Bytes,
         fn_name: Bytes,
         wasm: Bytes,
         argument: Option<Bytes>,
@@ -349,12 +395,50 @@ where
             api.read_state_using_wasm(
                 at_hash,
                 program_id,
+                payload.to_vec(),
                 fn_name.to_vec(),
                 wasm.to_vec(),
                 argument.map(|v| v.to_vec()),
             )
             .map(|r| r.map(Bytes))
         })
+    }
+
+    fn read_state_using_wasm_batch(
+        &self,
+        batch_id_payload: Vec<(H256, Bytes)>,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Vec<Bytes>> {
+        if batch_id_payload.len() > MAX_BATCH_SIZE {
+            return Err(CallError::Custom(ErrorObject::owned(
+                8000,
+                "Runtime error",
+                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+            ))
+            .into());
+        }
+
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        batch_id_payload
+            .into_iter()
+            .map(|(program_id, payload)| {
+                self.run_with_api_copy(|api| {
+                    api.read_state_using_wasm(
+                        at_hash,
+                        program_id,
+                        payload.to_vec(),
+                        fn_name.clone().to_vec(),
+                        wasm.clone().to_vec(),
+                        argument.clone().map(|v| v.to_vec()),
+                    )
+                    .map(|r| r.map(Bytes))
+                })
+            })
+            .collect()
     }
 
     fn read_metahash(

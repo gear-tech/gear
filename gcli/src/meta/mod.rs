@@ -108,7 +108,7 @@ impl Meta {
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
         core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+            gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
             String,
         >(
             method.into(),

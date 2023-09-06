@@ -45,7 +45,7 @@ pub enum StateRequest {
 #[cfg(not(feature = "std"))]
 pub(crate) mod wasm {
     use super::*;
-    use gstd::{debug, msg, prelude::*, BTreeMap};
+    use gstd::{collections::BTreeMap, debug, msg, prelude::*};
 
     pub(crate) type State = BTreeMap<u32, u32>;
 

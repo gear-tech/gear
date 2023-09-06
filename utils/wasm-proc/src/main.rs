@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 66] = [
+const RT_ALLOWED_IMPORTS: [&str; 67] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -37,6 +37,7 @@ const RT_ALLOWED_IMPORTS: [&str; 66] = [
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
+    "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",
     "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",

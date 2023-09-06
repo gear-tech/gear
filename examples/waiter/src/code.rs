@@ -4,13 +4,16 @@ use crate::{
 };
 use core::ops::{Deref, DerefMut};
 use futures::future;
-use gstd::{errors::Error, exec, format, lock, msg, MessageId};
+use gstd::{
+    exec, format, msg,
+    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
-static mut MUTEX: lock::Mutex<()> = lock::Mutex::new(());
-static mut MUTEX_LOCK_GUARD: Option<lock::MutexGuard<()>> = None;
-static mut RW_LOCK: lock::RwLock<()> = lock::RwLock::new(());
-static mut R_LOCK_GUARD: Option<lock::RwLockReadGuard<()>> = None;
-static mut W_LOCK_GUARD: Option<lock::RwLockWriteGuard<()>> = None;
+static mut MUTEX: Mutex<()> = Mutex::new(());
+static mut MUTEX_LOCK_GUARD: Option<MutexGuard<()>> = None;
+static mut RW_LOCK: RwLock<()> = RwLock::new(());
+static mut R_LOCK_GUARD: Option<RwLockReadGuard<()>> = None;
+static mut W_LOCK_GUARD: Option<RwLockWriteGuard<()>> = None;
 
 #[gstd::async_main]
 async fn main() {
@@ -80,8 +83,14 @@ async fn main() {
         Command::WakeUp(msg_id) => {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
-        Command::MxLock(continuation) => {
-            let lock_guard = unsafe { MUTEX.lock().await };
+        Command::MxLock(lock_duration, continuation) => {
+            let lock_guard = unsafe {
+                MUTEX
+                    .lock()
+                    .own_up_for(lock_duration)
+                    .expect("Failed to set mx ownership duration")
+                    .await
+            };
             process_mx_lock_continuation(
                 unsafe { &mut MUTEX_LOCK_GUARD },
                 lock_guard,
@@ -134,11 +143,14 @@ fn process_wait_subcommand(subcommand: WaitSubcommand) {
 }
 
 async fn process_mx_lock_continuation(
-    static_lock_guard: &'static mut Option<lock::MutexGuard<'static, ()>>,
-    lock_guard: lock::MutexGuard<'static, ()>,
+    static_lock_guard: &'static mut Option<MutexGuard<'static, ()>>,
+    lock_guard: MutexGuard<'static, ()>,
     continuation: MxLockContinuation,
 ) {
     match continuation {
+        MxLockContinuation::Lock => unsafe {
+            MUTEX.lock().await;
+        },
         MxLockContinuation::General(continuation) => {
             process_lock_continuation(static_lock_guard, lock_guard, continuation).await
         }
@@ -168,6 +180,10 @@ async fn process_lock_continuation<G>(
         LockContinuation::MoveToStatic => unsafe {
             *static_lock_guard = Some(lock_guard);
         },
+        LockContinuation::Wait => exec::wait(),
+        LockContinuation::Forget => {
+            gstd::mem::forget(lock_guard);
+        }
     }
 }
 

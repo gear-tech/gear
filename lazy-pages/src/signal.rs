@@ -19,16 +19,13 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
-    common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
     globals::{self, GlobalNo},
     process::{self, AccessHandler},
-    LazyPagesVersion, LAZY_PAGES_CONTEXT,
+    LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::lazy_pages::Status;
-use gear_core::{
-    gas::GasLeft,
-    pages::{GearPage, PageDynSize},
-};
+use gear_core::pages::{GearPage, PageDynSize};
 use std::convert::TryFrom;
 
 pub(crate) trait UserSignalHandler {
@@ -80,38 +77,20 @@ unsafe fn user_signal_handler_internal(
     let page = GearPage::from_offset(ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
-        let gas_left_charger = GasLeftCharger {
+        let gas_charger = GasCharger {
             read_cost: ctx.weight(WeightNo::SignalRead),
             write_cost: ctx.weight(WeightNo::SignalWrite),
             write_after_read_cost: ctx.weight(WeightNo::SignalWriteAfterRead),
             load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
 
-        let gas_left = match ctx.version {
-            LazyPagesVersion::Version1 => {
-                let gas =
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(None)
-                    })?;
-                let allowance = globals::apply_for_global(
-                    ctx.version,
-                    globals_config,
-                    GlobalNo::GasAllowance,
-                    |_| Ok(None),
-                )?;
+        let gas_counter = globals::apply_for_global(
+            globals_config,
+            globals_config.names[GlobalNo::Gas as usize].as_str(),
+            |_| Ok(None),
+        )?;
 
-                (gas, allowance).into()
-            }
-            LazyPagesVersion::Version2 => {
-                let gas =
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(None)
-                    })?;
-                (gas, gas).into()
-            }
-        };
-
-        Some((gas_left, gas_left_charger))
+        Some((gas_counter, gas_charger))
     } else {
         None
     };
@@ -133,7 +112,7 @@ pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Erro
 
 struct SignalAccessHandler {
     is_write: bool,
-    gas_ctx: Option<(GasLeft, GasLeftCharger)>,
+    gas_ctx: Option<(u64, GasCharger)>,
 }
 
 impl AccessHandler for SignalAccessHandler {
@@ -175,19 +154,19 @@ impl AccessHandler for SignalAccessHandler {
         page: GearPage,
         is_accessed: bool,
     ) -> Result<Status, Error> {
-        let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
+        let (gas_counter, gas_charger) = match self.gas_ctx.as_mut() {
             Some(ctx) => ctx,
             None => return Ok(Status::Normal),
         };
-        gas_left_charger.charge_for_page_access(gas_left, page, self.is_write, is_accessed)
+        gas_charger.charge_for_page_access(gas_counter, page, self.is_write, is_accessed)
     }
 
     fn charge_for_page_data_loading(&mut self) -> Result<Status, Error> {
-        let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
+        let (gas_counter, gas_charger) = match self.gas_ctx.as_mut() {
             Some(ctx) => ctx,
             None => return Ok(Status::Normal),
         };
-        Ok(gas_left_charger.charge_for_page_data_load(gas_left))
+        Ok(gas_charger.charge_for_page_data_load(gas_counter))
     }
 
     fn process_pages(
@@ -198,26 +177,30 @@ impl AccessHandler for SignalAccessHandler {
     }
 
     fn into_output(self, ctx: &mut LazyPagesExecutionContext) -> Result<Self::Output, Error> {
-        if let (Some((gas_left, _)), Some(globals_config)) =
+        if let (Some((gas_counter, _)), Some(globals_config)) =
             (self.gas_ctx, ctx.globals_context.as_ref())
         {
-            match ctx.version {
-                LazyPagesVersion::Version1 => unsafe {
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(Some(gas_left.gas))
-                    })?;
-                    globals::apply_for_global(
-                        ctx.version,
-                        globals_config,
-                        GlobalNo::GasAllowance,
-                        |_| Ok(Some(gas_left.allowance)),
-                    )?;
-                },
-                LazyPagesVersion::Version2 => unsafe {
-                    globals::apply_for_global(ctx.version, globals_config, GlobalNo::Gas, |_| {
-                        Ok(Some(gas_left.gas.min(gas_left.allowance)))
-                    })?;
-                },
+            let mut diff = 0;
+            unsafe {
+                globals::apply_for_global(
+                    globals_config,
+                    globals_config.names[GlobalNo::Gas as usize].as_str(),
+                    |current| {
+                        diff = current - gas_counter;
+                        Ok(Some(gas_counter))
+                    },
+                )?
+            };
+
+            // support old runtimes
+            if globals_config.names.len() == 2
+                && globals_config.names[1].as_str() == "gear_allowance"
+            {
+                unsafe {
+                    globals::apply_for_global(globals_config, "gear_allowance", |current| {
+                        Ok(Some(current.saturating_sub(diff)))
+                    })?
+                };
             }
         }
         Ok(())

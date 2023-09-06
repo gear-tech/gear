@@ -43,6 +43,7 @@ use gsdk::{
             },
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
+            pallet_gear_bank::pallet::BankAccount,
             sp_weights::weight_v2::Weight,
         },
         system::Event as SystemEvent,
@@ -295,6 +296,33 @@ impl GearApi {
             }
         })?;
 
+        let src_program_account_bank_data = self
+            .bank_data_at(src_program_id, src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(BankAccount { gas: 0, value: 0 })
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        let src_bank_account_data = self
+            .account_data_at(crate::bank_address(), src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        misc_frozen: 0,
+                        fee_frozen: 0,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
+
         let mut src_program = self
             .0
             .api()
@@ -357,6 +385,23 @@ impl GearApi {
             .await?;
 
         dest_node_api
+            .set_balance(
+                crate::bank_address(),
+                src_bank_account_data.free,
+                src_bank_account_data.reserved,
+            )
+            .await?;
+
+        dest_node_api
+            .0
+            .storage
+            .set_bank_account_storage(
+                src_program_id.into_account_id(),
+                src_program_account_bank_data,
+            )
+            .await?;
+
+        dest_node_api
             .0
             .storage
             .set_code_storage(src_code_id, &src_code)
@@ -378,6 +423,17 @@ impl GearApi {
             let src_account_data = self
                 .account_data_at(account_with_reserved_funds, src_block_hash)
                 .await?;
+            let src_account_bank_data = self
+                .bank_data_at(account_with_reserved_funds, src_block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
             let dest_account_data = dest_node_api
                 .account_data(account_with_reserved_funds)
                 .await
@@ -393,6 +449,17 @@ impl GearApi {
                         Err(e)
                     }
                 })?;
+            let dest_account_bank_data = self
+                .bank_data_at(account_with_reserved_funds, None)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
             dest_node_api
                 .set_balance(
                     account_with_reserved_funds.into_account_id(),
@@ -400,6 +467,22 @@ impl GearApi {
                     dest_account_data
                         .reserved
                         .saturating_add(src_account_data.reserved),
+                )
+                .await?;
+
+            dest_node_api
+                .0
+                .storage
+                .set_bank_account_storage(
+                    account_with_reserved_funds.into_account_id(),
+                    BankAccount {
+                        gas: src_account_bank_data
+                            .gas
+                            .saturating_add(dest_account_bank_data.gas),
+                        value: src_account_bank_data
+                            .value
+                            .saturating_add(dest_account_bank_data.value),
+                    },
                 )
                 .await?;
         }
