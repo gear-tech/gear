@@ -4426,6 +4426,7 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "static_assertions",
+ "thiserror",
  "wasm-smith",
  "wasmparser-nostd 0.100.1",
  "wasmprinter",

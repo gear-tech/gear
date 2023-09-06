@@ -66,6 +66,9 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
             InvocableSysCall::Precise(sys_call) => match sys_call {
                 SysCallName::ReservationSend => "precise_gr_reservation_send",
+                SysCallName::ReservationReply => "precise_gr_reservation_reply",
+                SysCallName::SendCommit => "precise_gr_send_commit",
+                SysCallName::SendCommitWGas => "precise_gr_send_commit_wgas",
                 _ => unimplemented!(),
             },
         }
@@ -83,6 +86,27 @@ impl InvocableSysCall {
                     ParamType::Gas,          // Amount of gas to reserve
                     ParamType::Duration,     // Duration of the reservation
                     ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::ReservationReply => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of value
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Gas,          // Amount of gas to reserve
+                    ParamType::Duration,     // Duration of the reservation
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommit => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Delay,        // Number of blocks to delay the sending for
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommitWGas => SysCallSignature::gr([
+                    ParamType::Ptr(None), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Delay,     // Number of blocks to delay the sending for
+                    ParamType::Gas,       // Amount of gas to reserve
+                    ParamType::Ptr(None), // Address of error returned
                 ]),
                 _ => unimplemented!(),
             },
