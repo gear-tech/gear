@@ -6087,7 +6087,6 @@ fn test_pausing_programs_works() {
         let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
-        let child_program_id = generate_program_id(&child_code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), child_code,));
 
@@ -6116,6 +6115,9 @@ fn test_pausing_programs_works() {
             0,
             false,
         ));
+
+        let child_program_id = ProgramId::generate_with_id(child_code_hash.into(), DEFAULT_SALT, get_last_message_id());
+
         run_to_next_block(None);
 
         let child_bn = System::block_number();
@@ -7336,7 +7338,7 @@ fn test_create_program_miscellaneous() {
             RuntimeOrigin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
-                // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
+                // duplicate in the next block: init is executed due to new ProgramId generation (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt3".to_vec(), 200_000_000),
@@ -7350,7 +7352,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(5, None);
 
         assert_total_dequeued(18 + 4 + 6); // +4 for 3 send_message calls and 1 upload_program call +6 for auto generated replies
-        assert_init_success(3 + 1); // +1 for submitting factory
+        assert_init_success(4 + 1); // +1 for submitting factory
     });
 }
 
