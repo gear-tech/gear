@@ -4603,6 +4603,7 @@ dependencies = [
  "gsdk",
  "gsdk-codegen",
  "hex",
+ "indexmap 2.0.0",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
