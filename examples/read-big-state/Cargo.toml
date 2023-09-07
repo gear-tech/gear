@@ -15,5 +15,6 @@ gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
+wasm-wrapper = []
+std = ["wasm-wrapper", "parity-scale-codec/std"]
 default = ["std"]
-std = []

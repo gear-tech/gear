@@ -299,7 +299,7 @@ case "$COMMAND" in
 
       fuzz)
         header "Running fuzzer for runtime panic checks"
-        run_fuzzer "$ROOT_DIR" "$1"; ;;
+        run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
 
       fuzz-repr)
         header "Running fuzzer reproduction"

@@ -67,7 +67,8 @@ function start_container_post {
      	-c "cargo install cargo-binutils && \
 		rustup component add llvm-tools-preview && \
 		rustup component add --toolchain nightly llvm-tools-preview && \
-		cargo fuzz coverage --release --sanitizer=none main /corpus/main && \
+		cargo fuzz coverage --release --sanitizer=none main /corpus/main -- \
+        -rss_limit_mb=8192 -max_len=35000000 -len_control=0 && \
 		cargo cov -- show target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
         --format=text \
         --show-line-counts \
