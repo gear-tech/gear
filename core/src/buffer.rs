@@ -53,11 +53,9 @@ where
                 e1 = precision;
                 s2 = len - precision;
             }
-        } else if !f.sign_plus() {
-            if median > 8 {
-                e1 = 8;
-                s2 = len - 8;
-            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
         }
 
         let p1 = hex::encode(&self.0[..e1]);
