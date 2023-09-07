@@ -19,7 +19,9 @@
 mod claim;
 mod info;
 mod key;
-mod program;
+// TODO: #3222
+//
+// mod program;
 mod reply;
 mod send;
 mod transfer;
