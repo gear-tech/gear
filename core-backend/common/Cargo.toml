@@ -14,9 +14,7 @@ repository.workspace = true
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-wasm-instrument.workspace = true
-gear-backend-codegen.workspace = true
 
-blake2-rfc.workspace = true
 derive_more.workspace = true
 gsys.workspace = true
 log.workspace = true

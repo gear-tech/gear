@@ -29,7 +29,6 @@ mod utils;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
 
-pub mod funcs;
 pub mod memory;
 pub mod runtime;
 

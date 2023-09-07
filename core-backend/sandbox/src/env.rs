@@ -19,6 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
+    funcs::FuncsHandler,
     memory::MemoryWrap,
     runtime,
     runtime::CallerWrap,
@@ -27,7 +28,6 @@ use crate::{
 use alloc::{collections::BTreeSet, format};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
-    funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,

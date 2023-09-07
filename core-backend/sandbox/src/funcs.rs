@@ -18,23 +18,25 @@
 
 //! Syscall implementations generic over wasmi and sandbox backends.
 
-use crate::{
-    memory::{MemoryAccessError, WasmMemoryRead},
-    runtime::{RunFallibleError, Runtime},
-    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
-    BackendSyscallError, MessageWaitedType, TrapExplanation, UndefinedTerminationReason,
-    UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
-};
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
+use gear_backend_common::{
+    memory::{MemoryAccessError, WasmMemoryRead},
+    runtime::{RunFallibleError, Runtime},
+    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
+    BackendSyscallError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    UnrecoverableMemoryError, PTR_SPECIAL,
+};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
     env::{DropPayloadLockBound, Externalities},
     gas::CounterType,
-    message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
+    message::{
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
+    },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
