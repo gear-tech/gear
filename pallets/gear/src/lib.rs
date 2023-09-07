@@ -614,7 +614,7 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
-
+            // Make sure there is no program with such id in program storage
             ensure!(
                 !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists

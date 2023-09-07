@@ -291,7 +291,6 @@ impl MessageContext {
         }
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
-
         let message = InitMessage::from_packet(message_id, packet);
 
         self.store.outgoing.insert(last, None);
