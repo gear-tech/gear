@@ -49,8 +49,9 @@ where
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
-        let max_balance: BalanceOf<T> =
-            T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
+        let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
+            .gas_to_value(initial_gas)
+            + value.unique_saturated_into();
         CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
         let who = frame_support::dispatch::RawOrigin::Signed(account);

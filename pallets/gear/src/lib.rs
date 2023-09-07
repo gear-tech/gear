@@ -622,7 +622,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             let origin = who.clone().into_origin();
@@ -1215,7 +1215,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             Ok(packet)
@@ -1526,7 +1526,7 @@ pub mod pallet {
                     // If no such voucher exists, the call is invalidated.
                     let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
 
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                         log::debug!(
                             "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
                         );
@@ -1536,7 +1536,7 @@ pub mod pallet {
                     voucher_id
                 } else {
                     // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+                    GearBank::<T>::deposit_gas(&who, gas_limit)?;
 
                     who.clone()
                 };
@@ -1650,7 +1650,7 @@ pub mod pallet {
                 // If no such voucher exists, the call is invalidated.
                 let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
 
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                     log::debug!(
                         "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
                     );
@@ -1660,7 +1660,7 @@ pub mod pallet {
                 voucher_id
             } else {
                 // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&origin, gas_limit)?;
+                GearBank::<T>::deposit_gas(&origin, gas_limit)?;
 
                 origin.clone()
             };

@@ -31,7 +31,7 @@ fn deposit_gas_different_users() {
         assert_balance(&BOB, BOB_BALANCE);
 
         const ALICE_GAS: u64 = 1_234_567;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, ALICE_GAS));
+        assert_ok!(GearBank::deposit_gas(&ALICE, ALICE_GAS));
 
         assert_bank_balance(ALICE_GAS, 0);
 
@@ -39,7 +39,7 @@ fn deposit_gas_different_users() {
         assert_gas_value(&ALICE, ALICE_GAS, 0);
 
         const BOB_GAS: u64 = 56_789;
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, BOB_GAS));
+        assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS));
 
         assert_bank_balance(ALICE_GAS + BOB_GAS, 0);
 
@@ -55,7 +55,7 @@ fn deposit_gas_different_users() {
 fn deposit_gas_single_user() {
     new_test_ext().execute_with(|| {
         const GAS_1: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_1));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_1));
 
         assert_bank_balance(GAS_1, 0);
 
@@ -63,7 +63,7 @@ fn deposit_gas_single_user() {
         assert_gas_value(&ALICE, GAS_1, 0);
 
         const GAS_2: u64 = 67_890;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_2));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_2));
 
         assert_bank_balance(GAS_1 + GAS_2, 0);
 
@@ -82,7 +82,7 @@ fn deposit_gas_user_account_deleted() {
 
         assert_eq!(GasConverter::gas_price(GAS_AMOUNT), BALANCE_DIFF);
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_bank_balance(GAS_AMOUNT, 0);
 
@@ -96,9 +96,9 @@ fn deposit_gas_zero() {
     new_test_ext().execute_with(|| {
         let h = frame_support::storage_root(frame_support::StateVersion::V1);
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, 0));
+        assert_ok!(GearBank::deposit_gas(&ALICE, 0));
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::deposit_gas(&Zero::zero(), 0));
 
         // No-op operation assertion.
         assert_eq!(
@@ -117,7 +117,7 @@ fn deposit_gas_insufficient_balance() {
         assert!(GasConverter::gas_price(GAS_AMOUNT) > Balances::free_balance(ALICE));
 
         assert_noop!(
-            GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT),
+            GearBank::deposit_gas(&ALICE, GAS_AMOUNT),
             Error::<Test>::InsufficientBalance
         );
     })
@@ -138,7 +138,7 @@ fn deposit_gas_insufficient_deposit() {
         ));
 
         assert_noop!(
-            GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT),
+            GearBank::deposit_gas(&ALICE, GAS_AMOUNT),
             Error::<Test>::InsufficientDeposit
         );
     })
@@ -148,13 +148,13 @@ fn deposit_gas_insufficient_deposit() {
 fn withdraw_gas_different_users() {
     new_test_ext().execute_with(|| {
         const ALICE_GAS: u64 = 1_234_567;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, ALICE_GAS));
+        assert_ok!(GearBank::deposit_gas(&ALICE, ALICE_GAS));
 
         const BOB_GAS: u64 = 56_789;
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, BOB_GAS));
+        assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS));
 
         const ALICE_WITHDRAW: u64 = ALICE_GAS - 123_456;
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, ALICE_WITHDRAW));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, ALICE_WITHDRAW, mult()));
 
         assert_bank_balance(ALICE_GAS - ALICE_WITHDRAW + BOB_GAS, 0);
 
@@ -165,7 +165,7 @@ fn withdraw_gas_different_users() {
         assert_gas_value(&BOB, BOB_GAS, 0);
 
         const BOB_WITHDRAW: u64 = BOB_GAS - 1_234;
-        assert_ok!(GearBank::withdraw_gas::<GC>(&BOB, BOB_WITHDRAW));
+        assert_ok!(GearBank::withdraw_gas(&BOB, BOB_WITHDRAW, mult()));
 
         assert_bank_balance(ALICE_GAS - ALICE_WITHDRAW + BOB_GAS - BOB_WITHDRAW, 0);
 
@@ -181,10 +181,10 @@ fn withdraw_gas_different_users() {
 fn withdraw_gas_single_user() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         const WITHDRAW_1: u64 = GAS_AMOUNT - 23_456;
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, WITHDRAW_1));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, WITHDRAW_1, mult()));
 
         assert_bank_balance(GAS_AMOUNT - WITHDRAW_1, 0);
 
@@ -192,7 +192,7 @@ fn withdraw_gas_single_user() {
         assert_gas_value(&ALICE, GAS_AMOUNT - WITHDRAW_1, 0);
 
         const WITHDRAW_2: u64 = GAS_AMOUNT - WITHDRAW_1 - 10_000;
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, WITHDRAW_2));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, WITHDRAW_2, mult()));
 
         assert_bank_balance(GAS_AMOUNT - WITHDRAW_1 - WITHDRAW_2, 0);
 
@@ -207,9 +207,9 @@ fn withdraw_gas_single_user() {
 fn withdraw_gas_all_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -229,8 +229,8 @@ fn withdraw_gas_all_balance_user_account_deleted() {
         assert_eq!(GasConverter::gas_price(GAS_AMOUNT), BALANCE_DIFF);
         assert!(BALANCE_DIFF > CurrencyOf::<Test>::minimum_balance());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -246,9 +246,9 @@ fn withdraw_gas_small_amount() {
 
         assert!(GasConverter::gas_price(GAS_AMOUNT) < CurrencyOf::<Test>::minimum_balance());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -266,7 +266,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
         assert_eq!(GasConverter::gas_price(GAS_AMOUNT), GAS_VALUE_AMOUNT);
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_ok!(Balances::transfer_all(
             RuntimeOrigin::signed(ALICE),
@@ -274,7 +274,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
             false,
         ));
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
@@ -291,9 +291,9 @@ fn withdraw_gas_zero() {
     new_test_ext().execute_with(|| {
         let h = frame_support::storage_root(frame_support::StateVersion::V1);
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, 0));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, 0, mult()));
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::withdraw_gas(&Zero::zero(), 0, mult()));
 
         // No-op operation assertion.
         assert_eq!(
@@ -310,7 +310,7 @@ fn withdraw_gas_insufficient_bank_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_ok!(Balances::transfer_all(
             RuntimeOrigin::signed(BANK_ADDRESS),
@@ -319,7 +319,7 @@ fn withdraw_gas_insufficient_bank_balance() {
         ));
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT),
+            GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()),
             Error::<Test>::InsufficientBankBalance
         );
     })
@@ -330,17 +330,17 @@ fn withdraw_gas_insufficient_gas_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            GearBank::withdraw_gas(&ALICE, GAS_AMOUNT + 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&BOB, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            GearBank::withdraw_gas(&ALICE, GAS_AMOUNT + 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
     })
@@ -350,26 +350,26 @@ fn withdraw_gas_insufficient_gas_balance() {
 fn withdraw_gas_insufficient_inexistent_gas_balance() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&ALICE, 1),
+            GearBank::withdraw_gas(&ALICE, 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&Zero::zero(), 1),
+            GearBank::withdraw_gas(&Zero::zero(), 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&BOB, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&ALICE, 1),
+            GearBank::withdraw_gas(&ALICE, 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         assert_noop!(
-            GearBank::withdraw_gas::<GC>(&Zero::zero(), 1),
+            GearBank::withdraw_gas(&Zero::zero(), 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
     })
@@ -379,13 +379,13 @@ fn withdraw_gas_insufficient_inexistent_gas_balance() {
 fn spend_gas_different_users() {
     new_test_ext().execute_with(|| {
         const ALICE_GAS: u64 = 1_234_567;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, ALICE_GAS));
+        assert_ok!(GearBank::deposit_gas(&ALICE, ALICE_GAS));
 
         const BOB_GAS: u64 = 56_789;
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, BOB_GAS));
+        assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS));
 
         const ALICE_BURN: u64 = ALICE_GAS - 123_456;
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, ALICE_BURN));
+        assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
 
@@ -398,7 +398,7 @@ fn spend_gas_different_users() {
         assert_gas_value(&BOB, BOB_GAS, 0);
 
         const BOB_BURN: u64 = BOB_GAS - 1_234;
-        assert_ok!(GearBank::spend_gas::<GC>(&BOB, BOB_BURN));
+        assert_ok!(GearBank::spend_gas(&BOB, BOB_BURN, mult()));
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
 
@@ -416,10 +416,10 @@ fn spend_gas_different_users() {
 fn spend_gas_single_user() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         const BURN_1: u64 = GAS_AMOUNT - 23_456;
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, BURN_1));
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_1, mult()));
 
         assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
 
@@ -429,7 +429,7 @@ fn spend_gas_single_user() {
         assert_gas_value(&ALICE, GAS_AMOUNT - BURN_1, 0);
 
         const BURN_2: u64 = GAS_AMOUNT - BURN_1 - 10_000;
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, BURN_2));
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_2, mult()));
 
         assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
 
@@ -444,9 +444,9 @@ fn spend_gas_single_user() {
 fn spend_gas_all_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -464,7 +464,7 @@ fn spend_gas_all_balance_validator_account_deleted() {
 
         assert!(GasConverter::gas_price(GAS_AMOUNT) >= CurrencyOf::<Test>::minimum_balance());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_ok!(Balances::transfer_all(
             RuntimeOrigin::signed(BLOCK_AUTHOR),
@@ -472,7 +472,7 @@ fn spend_gas_all_balance_validator_account_deleted() {
             false,
         ));
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -490,9 +490,9 @@ fn spend_gas_small_amount() {
 
         assert!(GasConverter::gas_price(GAS_AMOUNT) < CurrencyOf::<Test>::minimum_balance());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_bank_balance(0, 0);
 
@@ -512,7 +512,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
         assert_eq!(GasConverter::gas_price(GAS_AMOUNT), GAS_VALUE_AMOUNT);
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_ok!(Balances::transfer_all(
             RuntimeOrigin::signed(BLOCK_AUTHOR),
@@ -520,7 +520,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
             false,
         ));
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
@@ -539,9 +539,9 @@ fn spend_gas_zero() {
     new_test_ext().execute_with(|| {
         let h = frame_support::storage_root(frame_support::StateVersion::V1);
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, 0));
+        assert_ok!(GearBank::spend_gas(&ALICE, 0, mult()));
 
-        assert_ok!(GearBank::spend_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::spend_gas(&Zero::zero(), 0, mult()));
 
         // No-op operation assertion.
         assert_eq!(
@@ -558,7 +558,7 @@ fn spend_gas_insufficient_bank_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_ok!(Balances::transfer_all(
             RuntimeOrigin::signed(BANK_ADDRESS),
@@ -569,7 +569,7 @@ fn spend_gas_insufficient_bank_balance() {
         assert_balance(&BANK_ADDRESS, 0);
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT),
+            GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()),
             Error::<Test>::InsufficientBankBalance
         );
     })
@@ -580,17 +580,17 @@ fn spend_gas_insufficient_gas_balance() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            GearBank::spend_gas(&ALICE, GAS_AMOUNT + 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&BOB, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT + 1),
+            GearBank::spend_gas(&ALICE, GAS_AMOUNT + 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
     })
@@ -600,25 +600,25 @@ fn spend_gas_insufficient_gas_balance() {
 fn spend_gas_insufficient_inexistent_gas_balance() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            GearBank::spend_gas::<GC>(&ALICE, 1),
+            GearBank::spend_gas(&ALICE, 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&Zero::zero(), 1),
+            GearBank::spend_gas(&Zero::zero(), 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&BOB, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&BOB, GAS_AMOUNT));
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&ALICE, 1),
+            GearBank::spend_gas(&ALICE, 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
 
         assert_noop!(
-            GearBank::spend_gas::<GC>(&Zero::zero(), 1),
+            GearBank::spend_gas(&Zero::zero(), 1, mult()),
             Error::<Test>::InsufficientGasBalance
         );
     })
@@ -1312,16 +1312,16 @@ fn empty_accounts_deleted() {
 
         const GAS_AMOUNT: u64 = 123_456;
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
         assert!(GearBank::account(ALICE).is_some());
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
         assert!(GearBank::account(ALICE).is_none());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
         assert!(GearBank::account(ALICE).is_some());
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
         assert!(GearBank::account(ALICE).is_none());
 
         const VALUE: Balance = 123_456_000;
@@ -1351,13 +1351,13 @@ fn empty_zero_accounts_deleted() {
     new_test_ext().execute_with(|| {
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
 
-        assert_ok!(GearBank::deposit_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::deposit_gas(&Zero::zero(), 0));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::withdraw_gas(&Zero::zero(), 0, mult()));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
 
-        assert_ok!(GearBank::spend_gas::<GC>(&Zero::zero(), 0));
+        assert_ok!(GearBank::spend_gas(&Zero::zero(), 0, mult()));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
 
         assert_ok!(GearBank::deposit_value(&Zero::zero(), 0));
@@ -1378,7 +1378,7 @@ fn empty_zero_accounts_deleted() {
 fn empty_composite_accounts_deleted() {
     new_test_ext().execute_with(|| {
         const GAS_AMOUNT: u64 = 123_456;
-        assert_ok!(GearBank::deposit_gas::<GC>(&ALICE, GAS_AMOUNT));
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT));
 
         assert_bank_balance(GAS_AMOUNT, 0);
 
@@ -1397,7 +1397,7 @@ fn empty_composite_accounts_deleted() {
 
         const GAS_BURN: u64 = GAS_AMOUNT / 2;
 
-        assert_ok!(GearBank::spend_gas::<GC>(&ALICE, GAS_BURN));
+        assert_ok!(GearBank::spend_gas(&ALICE, GAS_BURN, mult()));
 
         assert_bank_balance(GAS_AMOUNT - GAS_BURN, VALUE);
 
@@ -1413,7 +1413,11 @@ fn empty_composite_accounts_deleted() {
         assert_alice_dec(GasConverter::gas_price(GAS_AMOUNT));
         assert_gas_value(&ALICE, GAS_AMOUNT - GAS_BURN, 0);
 
-        assert_ok!(GearBank::withdraw_gas::<GC>(&ALICE, GAS_AMOUNT - GAS_BURN));
+        assert_ok!(GearBank::withdraw_gas(
+            &ALICE,
+            GAS_AMOUNT - GAS_BURN,
+            mult()
+        ));
 
         assert_bank_balance(0, 0);
 
@@ -1434,8 +1438,6 @@ mod utils {
         type GasToBalanceMultiplier = ConstU128<VALUE_PER_GAS>;
     }
 
-    pub type GC = GasConverter;
-
     // For some reason `assert_noop!` doesnt work for the pallet fns.
     impl PartialEq for Error<Test> {
         fn eq(&self, other: &Self) -> bool {
@@ -1455,6 +1457,10 @@ mod utils {
         new_test_ext().execute_with(|| {
             assert_eq!(EXISTENTIAL_DEPOSIT, CurrencyOf::<Test>::minimum_balance());
         })
+    }
+
+    pub fn mult() -> GasMultiplier<Test> {
+        GasMultiplierOf::<Test>::get()
     }
 
     #[track_caller]

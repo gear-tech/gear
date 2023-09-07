@@ -59,6 +59,7 @@ pub use consts::*;
 
 parameter_types! {
     pub const BankAddress: AccountId = BANK_ADDRESS;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1_000);
     pub const BlockHashCount: u64 = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
@@ -131,6 +132,7 @@ impl pallet_balances::Config for Test {
 impl pallet_gear_bank::Config for Test {
     type Currency = Balances;
     type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 pub fn new_test_ext() -> TestExternalities {

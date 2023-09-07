@@ -228,11 +228,11 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(id)
+        let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Transferring reserved funds from external user to block author.
-        GearBank::<T>::spend_gas::<T::GasPrice>(&external, amount)
+        GearBank::<T>::spend_gas(&external, amount, multiplier)
             .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
@@ -247,7 +247,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
-        if let Some((imbalance, _multiplier, external)) = outcome {
+        if let Some((imbalance, multiplier, external)) = outcome {
             // Peeking numeric value from negative imbalance.
             let gas_left = imbalance.peek();
 
@@ -257,7 +257,7 @@ where
                     "Consumed message {id}. Unreserving {gas_left} (gas) from {external:?}"
                 );
 
-                GearBank::<T>::withdraw_gas::<T::GasPrice>(&external, gas_left)
+                GearBank::<T>::withdraw_gas(&external, gas_left, multiplier)
                     .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
         }
@@ -1044,9 +1044,7 @@ where
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
-        use common::{GasMultiplier, GasPrice as _};
-
-        let multiplier = GasMultiplier::ValuePerGas(T::GasPrice::gas_price(1));
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
             GasHandlerOf::<T>::create(origin, multiplier, key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

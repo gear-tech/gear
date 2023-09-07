@@ -60,7 +60,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -162,12 +162,12 @@ impl<Balance: One, Gas> Default for GasMultiplier<Balance, Gas> {
 
 impl<Balance, Gas> GasMultiplier<Balance, Gas>
 where
-    Balance: BaseArithmetic + From<Gas> + Copy + Unsigned,
-    Gas: BaseArithmetic + Copy + Unsigned,
+    Balance: BaseArithmetic + Copy + Unsigned,
+    Gas: BaseArithmetic + Copy + Unsigned + UniqueSaturatedInto<Balance>,
 {
     /// Converts given gas amount into its value equivalent.
     pub fn gas_to_value(&self, gas: Gas) -> Balance {
-        let gas: Balance = gas.into();
+        let gas: Balance = gas.unique_saturated_into();
 
         match self {
             Self::ValuePerGas(multiplier) => gas.saturating_mul(*multiplier),

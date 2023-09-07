@@ -69,8 +69,8 @@ use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasMultiplier, GasPrice, GasTree, Origin,
-    PausedProgramStorage, ProgramStorage, ReservableTree,
+    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -453,9 +453,9 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
-        let multiplier = GasMultiplier::ValuePerGas(T::GasPrice::gas_price(1));
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
@@ -699,9 +699,9 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
-        let multiplier = GasMultiplier::ValuePerGas(T::GasPrice::gas_price(1));
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
