@@ -644,12 +644,7 @@ fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
     fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
-pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
-    ProgramId::generate(code_id, salt)
-}
-
-//TODO: rename
-pub fn calculate_child_program_id(code_id: CodeId, salt: &[u8], id: MessageId) -> ProgramId {
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: MessageId) -> ProgramId {
     ProgramId::generate_with_id(code_id, salt, id)
 }
 

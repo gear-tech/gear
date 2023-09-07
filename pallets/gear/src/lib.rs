@@ -1222,24 +1222,23 @@ pub mod pallet {
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
+            ensure!(
+                !Self::program_exists(packet.destination()),
+                Error::<T>::ProgramAlreadyExists
+            );
+
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
             let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
-            let program_id = packet.destination();
-
-            ensure!(
-                !Self::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
-            );
-
             ExtManager::<T>::default().set_program(
-                program_id,
+                packet.destination(),
                 &code_info,
                 message_id,
                 expiration_block,
             );
 
+            let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {

@@ -108,7 +108,7 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use gtest::{calculate_child_program_id, Program, System};
+    use gtest::{calculate_program_id, Program, System};
     use std::io::Write;
 
     // Creates a new factory and initializes it.
@@ -148,7 +148,7 @@ mod tests {
 
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, CreateProgram::Default.encode());
-        let child_id_expected = calculate_child_program_id(
+        let child_id_expected = calculate_program_id(
             CHILD_CODE_HASH.into(),
             &0i32.to_le_bytes(),
             res.sent_message_id(),
@@ -170,7 +170,7 @@ mod tests {
         let res = factory.send_bytes(10001, payload.encode());
 
         let child_id_expected =
-            calculate_child_program_id(CHILD_CODE_HASH.into(), &salt, res.sent_message_id());
+            calculate_program_id(CHILD_CODE_HASH.into(), &salt, res.sent_message_id());
 
         assert!(!res.main_failed());
         assert!(sys.is_active_program(child_id_expected));
@@ -196,7 +196,7 @@ mod tests {
         let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
         let fictional_program_id =
-            calculate_child_program_id(non_existing_code_hash.into(), salt, res.sent_message_id());
+            calculate_program_id(non_existing_code_hash.into(), salt, res.sent_message_id());
         assert!(!res.main_failed());
         // No new program with fictional id
         assert!(sys.is_active_program(fictional_program_id));

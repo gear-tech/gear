@@ -177,7 +177,7 @@ impl InitPacket {
         }
     }
 
-    /// Program id.
+    /// Packet destination (newly created program id)
     pub fn destination(&self) -> ProgramId {
         self.program_id
     }

@@ -278,6 +278,12 @@ impl MessageContext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Error> {
+        let program_id = packet.destination();
+
+        if self.store.initialized.contains(&program_id) {
+            return Err(Error::DuplicateInit);
+        }
+
         let last = self.store.outgoing.len() as u32;
 
         if last >= self.settings.outgoing_limit {
@@ -287,12 +293,6 @@ impl MessageContext {
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
 
         let message = InitMessage::from_packet(message_id, packet);
-
-        let program_id = message.destination();
-
-        if self.store.initialized.contains(&program_id) {
-            return Err(Error::DuplicateInit);
-        }
 
         self.store.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
