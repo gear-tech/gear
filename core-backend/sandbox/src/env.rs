@@ -18,14 +18,18 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{memory::MemoryWrap, runtime, runtime::CallerWrap};
+use crate::{
+    memory::MemoryWrap,
+    runtime,
+    runtime::CallerWrap,
+    state::{HostState, State},
+};
 use alloc::{collections::BTreeSet, format};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
-    state::{HostState, State},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
     BackendSyscallError, BackendTermination, Environment, EnvironmentError,
     EnvironmentExecutionResult, LimitedStr,

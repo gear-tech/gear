@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason};
+use gear_backend_common::{
+    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
+};
 
 pub type HostState<Ext, Mem> = Option<State<Ext, Mem>>;
 

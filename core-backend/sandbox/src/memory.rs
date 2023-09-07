@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_backend_common::state::HostState;
+use crate::state::HostState;
 use gear_core::{
     env::Externalities,
     memory::{HostPointer, Memory, MemoryError},
@@ -128,9 +128,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::{
-        assert_err, assert_ok, mock::MockExt, state::State, ActorTerminationReason,
-    };
+    use crate::state::State;
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use gear_sandbox::{AsContextExt, SandboxStore};
 

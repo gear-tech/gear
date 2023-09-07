@@ -32,7 +32,6 @@ pub mod mock;
 pub mod funcs;
 pub mod memory;
 pub mod runtime;
-pub mod state;
 
 use crate::runtime::RunFallibleError;
 use actor_system_error::actor_system_error;
