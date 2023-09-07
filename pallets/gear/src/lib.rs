@@ -1207,6 +1207,13 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
 
+            let program_id = packet.destination();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !Self::program_exists(program_id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
@@ -1221,11 +1228,6 @@ pub mod pallet {
             code_info: CodeInfo,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
-
-            ensure!(
-                !Self::program_exists(packet.destination()),
-                Error::<T>::ProgramAlreadyExists
-            );
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
