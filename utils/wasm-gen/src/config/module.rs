@@ -24,6 +24,7 @@
 //! and [`ConstantParams`].
 
 use arbitrary::{Arbitrary, Result, Unstructured};
+pub use wasm_smith::InstructionKind;
 use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
 
 /// Wasm module generation config.
@@ -58,13 +59,11 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             exceptions_enabled,
             max_exports,
             max_imports,
-            max_instructions,
             max_memories,
             min_memories,
             max_tables,
             memory64_enabled,
             min_exports,
-            max_funcs,
             min_imports,
             multi_value_enabled,
             reference_types_enabled,
@@ -73,13 +72,19 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             sign_extension_enabled,
             simd_enabled,
             float_enabled,
-            allowed_instructions,
             memory_grow_enabled,
-            min_funcs,
+            max_data_segments,
+            min_data_segments,
+            max_types,
+            min_types,
         } = ConstantParams::default();
 
         let SelectableParams {
             call_indirect_enabled,
+            allowed_instructions,
+            max_instructions,
+            min_funcs,
+            max_funcs,
         } = selectable_params;
 
         let ArbitraryParams {
@@ -88,7 +93,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             export_everything,
             max_aliases,
             max_components,
-            max_data_segments,
             max_element_segments,
             max_elements,
             max_globals,
@@ -97,23 +101,22 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
-            min_data_segments,
             min_element_segments,
             min_elements,
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
             table_max_size_required,
             max_memory_pages,
         } = arbitrary_params;
+
+        let allowed_instructions = InstructionKinds::new(&allowed_instructions);
 
         Self(SwarmConfig {
             allow_start_export,
@@ -185,7 +188,6 @@ pub struct ArbitraryParams {
     export_everything: bool,
     max_aliases: usize,
     max_components: usize,
-    max_data_segments: usize,
     max_element_segments: usize,
     max_elements: usize,
     max_globals: usize,
@@ -194,17 +196,14 @@ pub struct ArbitraryParams {
     max_nesting_depth: usize,
     max_tags: usize,
     max_type_size: u32,
-    max_types: usize,
     max_values: usize,
     memory_max_size_required: bool,
     memory_offset_choices: (u32, u32, u32),
-    min_data_segments: usize,
     min_element_segments: usize,
     min_elements: usize,
     min_globals: usize,
     min_tables: u32,
     min_tags: usize,
-    min_types: usize,
     min_uleb_size: u8,
     threads_enabled: bool,
     max_table_elements: u32,
@@ -221,7 +220,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             export_everything,
             max_aliases,
             max_components,
-            max_data_segments,
             max_element_segments,
             max_elements,
             max_globals,
@@ -230,17 +228,14 @@ impl Arbitrary<'_> for ArbitraryParams {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
-            min_data_segments,
             min_element_segments,
             min_elements,
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
@@ -255,7 +250,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             export_everything,
             max_aliases,
             max_components,
-            max_data_segments,
             max_element_segments,
             max_elements,
             max_globals,
@@ -264,17 +258,14 @@ impl Arbitrary<'_> for ArbitraryParams {
             max_nesting_depth,
             max_tags,
             max_type_size,
-            max_types,
             max_values,
             memory_max_size_required,
             memory_offset_choices,
-            min_data_segments,
             min_element_segments,
             min_elements,
             min_globals,
             min_tables,
             min_tags,
-            min_types,
             min_uleb_size,
             threads_enabled,
             max_table_elements,
@@ -292,15 +283,16 @@ pub struct ConstantParams {
     allow_start_export: bool,
     bulk_memory_enabled: bool,
     exceptions_enabled: bool,
+    max_data_segments: usize,
     max_exports: usize,
     max_imports: usize,
-    max_instructions: usize,
+    max_types: usize,
     max_memories: usize,
     min_memories: u32,
     max_tables: usize,
     memory64_enabled: bool,
     min_exports: usize,
-    max_funcs: usize,
+    min_data_segments: usize,
     min_imports: usize,
     multi_value_enabled: bool,
     reference_types_enabled: bool,
@@ -309,17 +301,13 @@ pub struct ConstantParams {
     sign_extension_enabled: bool,
     simd_enabled: bool,
     float_enabled: bool,
-    allowed_instructions: InstructionKinds,
     memory_grow_enabled: bool,
-    min_funcs: usize,
+    min_types: usize,
 }
 
 impl Default for ConstantParams {
     fn default() -> Self {
         ConstantParams {
-            allowed_instructions: InstructionKinds::new(&[
-                Numeric, Reference, Parametric, Variable, Table, Memory, Control,
-            ]),
             bulk_memory_enabled: false,
             sign_extension_enabled: false,
             saturating_float_to_int_enabled: false,
@@ -340,9 +328,10 @@ impl Default for ConstantParams {
             max_exports: 0,
             min_imports: 0,
             max_imports: 0,
-            max_instructions: 100_000,
-            min_funcs: 15,
-            max_funcs: 100,
+            max_data_segments: 0,
+            min_data_segments: 0,
+            max_types: 100,
+            min_types: 5,
         }
     }
 }
@@ -353,12 +342,30 @@ pub struct SelectableParams {
     /// Flag signalizing whether `call_indirect` instruction
     /// must be used or not.
     pub call_indirect_enabled: bool,
+    /// Set of [`InstructionKind`], that are allowed to
+    /// be generated by `wasm-gen`.
+    pub allowed_instructions: Vec<InstructionKind>,
+    /// Maximum amount of instructions that `wasm-gen`
+    /// can generate before inserting syscalls.
+    pub max_instructions: usize,
+    /// Minimum amount of functions `wasm-gen` will insert
+    /// into generated wasm.
+    pub min_funcs: usize,
+    /// Maximum amount of functions `wasm-gen` will insert
+    /// into generated wasm.
+    pub max_funcs: usize,
 }
 
 impl Default for SelectableParams {
     fn default() -> Self {
         Self {
             call_indirect_enabled: true,
+            allowed_instructions: vec![
+                Numeric, Reference, Parametric, Variable, Table, Memory, Control,
+            ],
+            max_instructions: 100_000,
+            min_funcs: 15,
+            max_funcs: 30,
         }
     }
 }

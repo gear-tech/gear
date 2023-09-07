@@ -10,7 +10,9 @@ use gear_call_gen::{
     CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, SendMessageArgs,
     SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
+use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
+use gear_wasm_gen::StandardGearWasmConfigsBundle;
 use std::iter;
 use tracing::instrument;
 
@@ -143,8 +145,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     ) -> Batch {
         match batch_id {
             0 => {
-                let config =
-                    utils::get_config_with_seed_log(seed, context.programs.iter().copied());
+                let config = utils::get_wasm_gen_config(seed, context.programs.iter().copied());
                 Self::gen_batch::<UploadProgramArgs, _, _>(
                     self.batch_size,
                     seed,
@@ -153,8 +154,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 )
             }
             1 => {
-                let config =
-                    utils::get_config_with_seed_log(seed, context.programs.iter().copied());
+                let config = utils::get_wasm_gen_config(seed, context.programs.iter().copied());
                 Self::gen_batch::<UploadCodeArgs, _, _>(
                     self.batch_size,
                     seed,
@@ -206,7 +206,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     fn gen_batch<
         T: CallArgs,
         FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
-        ConstArgsFn: Fn() -> T::ConstArgs,
+        ConstArgsFn: Fn() -> T::ConstArgs<StandardGearWasmConfigsBundle<ProgramId>>,
     >(
         batch_size: usize,
         seed: Seed,
@@ -225,7 +225,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                     generator_for = T::name(),
                     call_id = i
                 )
-                .in_scope(|| T::generate::<Rng>(fuzzer_args, const_args_fn()))
+                .in_scope(|| T::generate::<Rng, _>(fuzzer_args, const_args_fn()))
             })
             .collect();
 

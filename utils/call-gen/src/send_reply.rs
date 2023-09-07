@@ -18,29 +18,32 @@
 
 //! Send reply args generator.
 
-use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
+use crate::{
+    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
+    Seed,
+};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
 // reply to message id, payload, gas limit, value
-type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
+type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128, bool);
 
 /// Send reply args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_reply` call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SendReplyArgs(pub SendReplyArgsInner);
 
 impl_convert_traits!(SendReplyArgs, SendReplyArgsInner, SendReply, "send_reply");
 
 impl GeneratableCallArgs for SendReplyArgs {
     type FuzzerArgs = (NonEmpty<MessageId>, Seed);
-    type ConstArgs = (u64,);
+    type ConstArgs<C: GearWasmGenConfigsBundle> = (u64,);
 
     /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
-    fn generate<Rng: CallGenRng>(
+    fn generate<Rng: CallGenRng, Config>(
         (mailbox, rng_seed): Self::FuzzerArgs,
-        (gas_limit,): Self::ConstArgs,
+        (gas_limit,): Self::ConstArgs<()>,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -59,6 +62,8 @@ impl GeneratableCallArgs for SendReplyArgs {
         // TODO #2203
         let value = 0;
 
-        Self((message_id, payload, gas_limit, value))
+        let prepaid = false;
+
+        Self((message_id, payload, gas_limit, value, prepaid))
     }
 }

@@ -24,6 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
+use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     format,
@@ -54,12 +55,9 @@ use scale_info::{
     TypeInfo,
 };
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum PrepareMemoryError {
-    #[display(fmt = "{_0}")]
-    Actor(ActorPrepareMemoryError),
-    #[display(fmt = "{_0}")]
-    System(SystemPrepareMemoryError),
+actor_system_error! {
+    /// Prepare memory error.
+    pub type PrepareMemoryError = ActorSystemError<ActorPrepareMemoryError, SystemPrepareMemoryError>;
 }
 
 /// Prepare memory error
@@ -295,7 +293,20 @@ where
     let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
 
     // Creating value counter.
-    let value_counter = ValueCounter::new(balance + dispatch.value());
+    //
+    // NOTE: Value available equals free balance with message value if value
+    // wasn't transferred to program yet.
+    //
+    // In case of second execution (between waits) - message value already
+    // included in free balance or wasted.
+    let value_available = balance.saturating_add(
+        dispatch
+            .context()
+            .is_none()
+            .then(|| dispatch.value())
+            .unwrap_or_default(),
+    );
+    let value_counter = ValueCounter::new(value_available);
 
     let context = ProcessorContext {
         gas_counter,
@@ -391,10 +402,11 @@ where
             return Err(ExecutionError::System(e.into()));
         }
         Err(EnvironmentError::Actor(gas_amount, err)) => {
+            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment(err.into()),
-            }))
+                reason: ActorExecutionErrorReplyReason::Environment,
+            }));
         }
     };
 

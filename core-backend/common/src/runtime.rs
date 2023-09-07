@@ -50,16 +50,22 @@ pub trait Runtime<Ext: BackendExternalities>:
 
     fn ext_mut(&mut self) -> &mut Ext;
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(
+        &mut self,
+        gas: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(u64, T), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>;
 
     fn run_fallible<T: Sized, F, R>(
         &mut self,
+        gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(u64, ()), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized;

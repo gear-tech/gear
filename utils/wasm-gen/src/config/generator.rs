@@ -88,16 +88,16 @@ pub struct MemoryPagesConfig {
     pub initial_size: u32,
     /// Optional memory maximum.
     pub upper_limit: Option<u32>,
-    /// Optional stack end.
-    pub stack_end: Option<u32>,
+    /// Optional stack end page.
+    pub stack_end_page: Option<u32>,
 }
 
 impl Default for MemoryPagesConfig {
     fn default() -> Self {
         Self {
-            initial_size: Self::MAX_VALUE / 2 + 1,
-            upper_limit: Some(Self::MAX_VALUE),
-            stack_end: None,
+            initial_size: Self::MAX_VALUE / 2 + 5,
+            upper_limit: None,
+            stack_end_page: Some(Self::MAX_VALUE / 2),
         }
     }
 }

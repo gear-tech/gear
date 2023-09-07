@@ -50,6 +50,7 @@ impl Create {
 
         let gas = if self.gas_limit == 0 {
             signer
+                .rpc
                 .calculate_create_gas(None, code_id, payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
@@ -62,6 +63,7 @@ impl Create {
 
         // create program
         signer
+            .calls
             .create_program(code_id, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 

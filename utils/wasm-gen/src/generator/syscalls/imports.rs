@@ -26,47 +26,61 @@ use crate::{
     wasm::{PageCount as WasmPageCount, WasmModule},
     InvocableSysCall, SysCallsConfig,
 };
-use arbitrary::{Result, Unstructured};
+use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{BlockType, Instruction, Instructions},
     },
-    syscalls::{ParamType, SysCallName, SysCallSignature},
+    syscalls::SysCallName,
 };
-use gsys::{ErrorWithHash, HashWithValue, Length};
-use std::{collections::HashMap, mem};
+use gsys::{Handle, Hash, Length};
+use std::{collections::BTreeMap, mem};
 
 /// Gear sys-calls imports generator.
-pub struct SysCallsImportsGenerator<'a> {
-    unstructured: &'a mut Unstructured<'a>,
+pub struct SysCallsImportsGenerator<'a, 'b> {
+    unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
-    sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 /// Sys-calls imports generator instantiator.
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
-pub struct SysCallsImportsGeneratorInstantiator<'a>(
+pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
     (
-        GearWasmGenerator<'a>,
+        GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
         GearEntryPointGenerationProof,
     ),
 );
 
-impl<'a>
+/// The set of sys-calls that need to be imported to create precise sys-call.
+#[derive(thiserror::Error, Debug)]
+#[error("The following sys-calls must be imported: {0:?}")]
+pub struct RequiredSysCalls(&'static [SysCallName]);
+
+/// An error that occurs when generating precise sys-call.
+#[derive(thiserror::Error, Debug)]
+pub enum PreciseSysCallError {
+    #[error("{0}")]
+    RequiredImports(#[from] RequiredSysCalls),
+    #[error("{0}")]
+    Arbitrary(#[from] ArbitraryError),
+}
+
+impl<'a, 'b>
     From<(
-        GearWasmGenerator<'a>,
+        GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
         GearEntryPointGenerationProof,
-    )> for SysCallsImportsGeneratorInstantiator<'a>
+    )> for SysCallsImportsGeneratorInstantiator<'a, 'b>
 {
     fn from(
         inner: (
-            GearWasmGenerator<'a>,
+            GearWasmGenerator<'a, 'b>,
             MemoryImportGenerationProof,
             GearEntryPointGenerationProof,
         ),
@@ -75,10 +89,13 @@ impl<'a>
     }
 }
 
-impl<'a> From<SysCallsImportsGeneratorInstantiator<'a>>
-    for (SysCallsImportsGenerator<'a>, FrozenGearWasmGenerator<'a>)
+impl<'a, 'b> From<SysCallsImportsGeneratorInstantiator<'a, 'b>>
+    for (
+        SysCallsImportsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
+    )
 {
-    fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a>) -> Self {
+    fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
         let SysCallsImportsGeneratorInstantiator((
             generator,
             _mem_import_gen_proof,
@@ -101,7 +118,7 @@ impl<'a> From<SysCallsImportsGeneratorInstantiator<'a>>
     }
 }
 
-impl<'a> SysCallsImportsGenerator<'a> {
+impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Instantiate a new gear sys-calls imports generator.
     ///
     /// The generator instantiations requires having type-level proof that the wasm module has memory import in it.
@@ -109,7 +126,7 @@ impl<'a> SysCallsImportsGenerator<'a> {
     pub fn new(
         module_with_indexes: ModuleWithCallIndexes,
         config: SysCallsConfig,
-        unstructured: &'a mut Unstructured<'a>,
+        unstructured: &'b mut Unstructured<'a>,
         _mem_import_gen_proof: MemoryImportGenerationProof,
         _gen_ep_gen_proof: GearEntryPointGenerationProof,
     ) -> Self {
@@ -128,7 +145,11 @@ impl<'a> SysCallsImportsGenerator<'a> {
     }
 
     /// Disable current generator.
-    pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a> {
+    pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a, 'b> {
+        log::trace!(
+            "Random data when disabling sys-calls imports generator - {}",
+            self.unstructured.len()
+        );
         DisabledSysCallsImportsGenerator {
             unstructured: self.unstructured,
             call_indexes: self.call_indexes,
@@ -145,25 +166,24 @@ impl<'a> SysCallsImportsGenerator<'a> {
     pub fn generate(
         mut self,
     ) -> Result<(
-        DisabledSysCallsImportsGenerator<'a>,
+        DisabledSysCallsImportsGenerator<'a, 'b>,
         SysCallsImportsGenerationProof,
     )> {
+        log::trace!("Generating sys-calls imports");
+
         let sys_calls_proof = self.generate_sys_calls_imports()?;
-        self.generate_send_from_reservation();
+        self.generate_precise_sys_calls()?;
 
-        let disabled = DisabledSysCallsImportsGenerator {
-            unstructured: self.unstructured,
-            call_indexes: self.call_indexes,
-            module: self.module,
-            config: self.config,
-            sys_calls_imports: self.sys_calls_imports,
-        };
-
-        Ok((disabled, sys_calls_proof))
+        Ok((self.disable(), sys_calls_proof))
     }
 
     /// Generates sys-calls imports from config, used to instantiate the generator.
     pub fn generate_sys_calls_imports(&mut self) -> Result<SysCallsImportsGenerationProof> {
+        log::trace!(
+            "Random data before sys-calls imports - {}",
+            self.unstructured.len()
+        );
+
         for sys_call in SysCallName::instrumentable() {
             let sys_call_generation_data = self.generate_sys_call_import(sys_call)?;
             if let Some(sys_call_generation_data) = sys_call_generation_data {
@@ -173,6 +193,25 @@ impl<'a> SysCallsImportsGenerator<'a> {
         }
 
         Ok(SysCallsImportsGenerationProof(()))
+    }
+
+    /// Generates precise sys-calls and handles errors if any occurred during generation.
+    fn generate_precise_sys_calls(&mut self) -> Result<()> {
+        for result in [
+            self.generate_send_from_reservation(),
+            self.generate_reply_from_reservation(),
+            self.generate_send_commit(),
+            self.generate_send_commit_with_gas(),
+        ] {
+            if let Err(err) = result {
+                match err {
+                    PreciseSysCallError::RequiredImports(err) => log::trace!("{err}"),
+                    PreciseSysCallError::Arbitrary(err) => return Err(err),
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Generate import of the gear sys-call defined by `sys_call` param.
@@ -186,9 +225,14 @@ impl<'a> SysCallsImportsGenerator<'a> {
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
         let sys_call_amount_range = self.config.injection_amounts(sys_call);
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
-
         Ok((sys_call_amount != 0).then(|| {
             let call_indexes_handle = self.insert_sys_call_import(sys_call);
+            log::trace!(
+                " -- Generated {} amount of {} sys-call",
+                sys_call_amount,
+                sys_call.to_str()
+            );
+
             (sys_call_amount, call_indexes_handle)
         }))
     }
@@ -230,73 +274,134 @@ impl<'a> SysCallsImportsGenerator<'a> {
     }
 }
 
-impl<'a> SysCallsImportsGenerator<'a> {
-    /// Generates a function which calls "properly" the `gr_reservation_send`.
-    fn generate_send_from_reservation(&mut self) {
-        let (reserve_gas_idx, reservation_send_idx) = {
-            let maybe_reserve_gas = self
+impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
+    /// The amount of memory used to create a precise sys-call.
+    const PRECISE_SYS_CALL_MEMORY_SIZE: u32 = 100;
+
+    /// Returns the indexes of invocable sys-calls.
+    fn invocable_sys_calls_indexes<const N: usize>(
+        &self,
+        sys_calls: &'static [SysCallName; N],
+    ) -> Result<[usize; N], RequiredSysCalls> {
+        let mut indexes = [0; N];
+
+        for (index, &sys_call) in indexes.iter_mut().zip(sys_calls.iter()) {
+            *index = self
                 .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReserveGas))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
-            let maybe_reservation_send = self
-                .sys_calls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::ReservationSend))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle);
+                .get(&InvocableSysCall::Loose(sys_call))
+                .map(|&(_, call_indexes_handle)| call_indexes_handle)
+                .ok_or_else(|| RequiredSysCalls(&sys_calls[..]))?;
+        }
 
-            match maybe_reserve_gas.zip(maybe_reservation_send) {
-                Some(indexes) => indexes,
-                None => return,
-            }
-        };
+        Ok(indexes)
+    }
 
-        let send_from_reservation_signature = SysCallSignature {
-            params: vec![
-                ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                ParamType::Ptr(Some(2)), // Pointer to payload
-                ParamType::Size,         // Size of the payload
-                ParamType::Delay,        // Number of blocks to delay the sending for
-                ParamType::Gas,          // Amount of gas to reserve
-                ParamType::Duration,     // Duration of the reservation
-            ],
-            results: Default::default(),
-        };
+    /// Generates a function which calls "properly" the given sys-call.
+    fn generate_proper_sys_call_invocation(
+        &mut self,
+        sys_call: SysCallName,
+        func_instructions: Instructions,
+    ) {
+        let invocable_sys_call = InvocableSysCall::Precise(sys_call);
+        let signature = invocable_sys_call.into_signature();
 
-        let send_from_reservation_func_ty = send_from_reservation_signature.func_type();
+        let func_ty = signature.func_type();
         let func_signature = builder::signature()
-            .with_params(send_from_reservation_func_ty.params().iter().copied())
-            .with_results(send_from_reservation_func_ty.results().iter().copied())
+            .with_params(func_ty.params().iter().copied())
+            .with_results(func_ty.results().iter().copied())
             .build_sig();
 
-        let memory_size_in_bytes = {
-            let initial_mem_size: WasmPageCount = self
-                .module
-                .initial_mem_size()
-                .expect("generator is instantiated with a mem import generation proof")
-                .into();
-            initial_mem_size.memory_size()
-        };
+        let func_idx = self.module.with(|module| {
+            let mut module_builder = builder::from_module(module);
+            let idx = module_builder.push_function(
+                builder::function()
+                    .with_signature(func_signature)
+                    .body()
+                    .with_instructions(func_instructions)
+                    .build()
+                    .build(),
+            );
+
+            (module_builder.build(), idx)
+        });
+
+        log::trace!(
+            "Built proper call to {precise_sys_call_name}",
+            precise_sys_call_name = InvocableSysCall::Precise(sys_call).to_str()
+        );
+
+        let call_indexes_handle = self.call_indexes.len();
+        self.call_indexes.add_func(func_idx.signature as usize);
+
+        // TODO: make separate config for precise sys-calls (#3122)
+        self.sys_calls_imports
+            .insert(invocable_sys_call, (1, call_indexes_handle));
+    }
+
+    /// Returns the size of the memory in bytes that can be used to build precise sys-call.
+    fn memory_size_in_bytes(&self) -> u32 {
+        let initial_mem_size: WasmPageCount = self
+            .module
+            .initial_mem_size()
+            .expect("generator is instantiated with a mem import generation proof")
+            .into();
+        initial_mem_size.memory_size()
+    }
+
+    /// Reserves enough memory build precise sys-call.
+    fn reserve_memory(&self) -> i32 {
+        self.memory_size_in_bytes()
+            .saturating_sub(Self::PRECISE_SYS_CALL_MEMORY_SIZE) as i32
+    }
+
+    /// Generates a function which calls "properly" the `gr_reservation_send`.
+    fn generate_send_from_reservation(&mut self) -> Result<(), PreciseSysCallError> {
+        const SYS_CALL: SysCallName = SysCallName::ReservationSend;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(SYS_CALL).to_str()
+        );
+
+        let [reserve_gas_idx, reservation_send_idx] =
+            self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
+
         // subtract to be sure we are in memory boundaries.
-        let reserve_gas_result_ptr = memory_size_in_bytes.saturating_sub(100) as i32;
-        let rid_pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<Length>() as i32;
-        let pid_value_ptr = reserve_gas_result_ptr + mem::size_of::<ErrorWithHash>() as i32;
-        let reservation_send_result_ptr = pid_value_ptr + mem::size_of::<HashWithValue>() as i32;
+        let rid_pid_value_ptr = self.reserve_memory();
+        let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
             // Amount of gas to reserve
             Instruction::GetLocal(4),
             // Duration of the reservation
             Instruction::GetLocal(5),
-            // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(6),
             Instruction::Call(reserve_gas_idx as u32),
-            // Pointer to the LengthWithHash struct
-            Instruction::I32Const(reserve_gas_result_ptr),
-            // Load LengthWithHash.length
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(6),
+            // Load ErrorWithHash.error
             Instruction::I32Load(2, 0),
-            // Check if LengthWithHash.length == 0
+            // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
-            // If LengthWithHash.length == 0
+            // If ErrorWithHash.error == 0
             Instruction::If(BlockType::NoResult),
+            // Copy the Hash struct (32 bytes) containing the reservation id.
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 4),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::GetLocal(6),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
             // Copy the HashWithValue struct (48 bytes) containing
             // the recipient and value after the obtained reservation ID
             Instruction::I32Const(pid_value_ptr),
@@ -332,34 +437,302 @@ impl<'a> SysCallsImportsGenerator<'a> {
             // Number of blocks to delay the sending for
             Instruction::GetLocal(3),
             // Pointer to the result of the reservation send
-            Instruction::I32Const(reservation_send_result_ptr),
+            Instruction::GetLocal(6),
             Instruction::Call(reservation_send_idx as u32),
             Instruction::End,
             Instruction::End,
         ]);
 
-        let send_from_reservation_func_idx = self.module.with(|module| {
-            let mut module_builder = builder::from_module(module);
-            let idx = module_builder.push_function(
-                builder::function()
-                    .with_signature(func_signature)
-                    .body()
-                    .with_instructions(func_instructions)
-                    .build()
-                    .build(),
-            );
+        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
 
-            (module_builder.build(), idx)
-        });
+        Ok(())
+    }
 
-        let call_indexes_handle = self.call_indexes.len();
-        self.call_indexes
-            .add_func(send_from_reservation_func_idx.signature as usize);
-
-        self.sys_calls_imports.insert(
-            InvocableSysCall::Precise(send_from_reservation_signature),
-            (1, call_indexes_handle),
+    /// Generates a function which calls "properly" the `gr_reservation_reply`.
+    fn generate_reply_from_reservation(&mut self) -> Result<(), PreciseSysCallError> {
+        const SYS_CALL: SysCallName = SysCallName::ReservationReply;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(SYS_CALL).to_str()
         );
+
+        let [reserve_gas_idx, reservation_reply_idx] =
+            self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
+
+        // subtract to be sure we are in memory boundaries.
+        let rid_value_ptr = self.reserve_memory();
+        let value_ptr = rid_value_ptr + mem::size_of::<Hash>() as i32;
+
+        let func_instructions = Instructions::new(vec![
+            // Amount of gas to reserve
+            Instruction::GetLocal(3),
+            // Duration of the reservation
+            Instruction::GetLocal(4),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(5),
+            Instruction::Call(reserve_gas_idx as u32),
+            // Pointer to the ErrorWithHash struct
+            Instruction::GetLocal(5),
+            // Load ErrorWithHash.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHash.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHash.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Hash struct (32 bytes) containing the reservation id.
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 4),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
+            // Copy the value (16 bytes).
+            Instruction::I32Const(value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            // Pointer to reservation ID and value
+            Instruction::I32Const(rid_value_ptr),
+            // Pointer to payload
+            Instruction::GetLocal(1),
+            // Size of the payload
+            Instruction::GetLocal(2),
+            // Pointer to the result of the reservation reply
+            Instruction::GetLocal(5),
+            Instruction::Call(reservation_reply_idx as u32),
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+
+        Ok(())
+    }
+
+    /// Generates a function which calls "properly" the `gr_send_commit`.
+    fn generate_send_commit(&mut self) -> Result<(), PreciseSysCallError> {
+        const SYS_CALL: SysCallName = SysCallName::SendCommit;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(SYS_CALL).to_str()
+        );
+
+        let [send_init_idx, send_push_idx, send_commit_idx] =
+            self.invocable_sys_calls_indexes(&[
+                SysCallName::SendInit,
+                SysCallName::SendPush,
+                SYS_CALL,
+            ])?;
+
+        // subtract to be sure we are in memory boundaries.
+        let handle_ptr = self.reserve_memory();
+        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
+
+        let mut elements = vec![
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(4),
+            Instruction::Call(send_init_idx as u32),
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(4),
+            // Load ErrorWithHandle.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHandle.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHandle.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Handle
+            Instruction::I32Const(handle_ptr),
+            Instruction::GetLocal(4),
+            Instruction::I32Load(2, 4),
+            Instruction::I32Store(2, 0),
+        ];
+
+        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        for _ in 0..number_of_pushes {
+            elements.extend_from_slice(&[
+                // Handle of message
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(2, 0),
+                // Pointer to payload
+                Instruction::GetLocal(1),
+                // Size of the payload
+                Instruction::GetLocal(2),
+                // Pointer to the result of the send push
+                Instruction::GetLocal(4),
+                Instruction::Call(send_push_idx as u32),
+            ]);
+        }
+
+        elements.extend_from_slice(&[
+            // Copy the HashWithValue struct (48 bytes) containing the recipient and value
+            // TODO: extract into another method
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to recipient ID and value
+            Instruction::I32Const(pid_value_ptr),
+            // Number of blocks to delay the sending for
+            Instruction::GetLocal(3),
+            // Pointer to the result of the send commit
+            Instruction::GetLocal(4),
+            Instruction::Call(send_commit_idx as u32),
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        let func_instructions = Instructions::new(elements);
+
+        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+
+        Ok(())
+    }
+
+    /// Generates a function which calls "properly" the `gr_send_commit_wgas`.
+    fn generate_send_commit_with_gas(&mut self) -> Result<(), PreciseSysCallError> {
+        const SYS_CALL: SysCallName = SysCallName::SendCommitWGas;
+        log::trace!(
+            "Constructing {name} sys-call...",
+            name = InvocableSysCall::Precise(SYS_CALL).to_str()
+        );
+
+        let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] = self
+            .invocable_sys_calls_indexes(&[
+                SysCallName::Size,
+                SysCallName::SendInit,
+                SysCallName::SendPushInput,
+                SYS_CALL,
+            ])?;
+
+        // subtract to be sure we are in memory boundaries.
+        let handle_ptr = self.reserve_memory();
+        let pid_value_ptr = handle_ptr + mem::size_of::<Handle>() as i32;
+        let length_ptr = pid_value_ptr + mem::size_of::<Length>() as i32;
+
+        let mut elements = vec![
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(3),
+            Instruction::Call(send_init_idx as u32),
+            // Pointer to the ErrorWithHandle struct
+            Instruction::GetLocal(3),
+            // Load ErrorWithHandle.error
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHandle.error == 0
+            Instruction::I32Eqz,
+            // If ErrorWithHandle.error == 0
+            Instruction::If(BlockType::NoResult),
+            // Copy the Handle
+            Instruction::I32Const(handle_ptr),
+            Instruction::GetLocal(3),
+            Instruction::I32Load(2, 4),
+            Instruction::I32Store(2, 0),
+            // Pointer to message length
+            Instruction::I32Const(length_ptr),
+            Instruction::Call(size_idx as u32),
+        ];
+
+        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        for _ in 0..number_of_pushes {
+            elements.extend_from_slice(&[
+                // Handle of message
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(2, 0),
+                // Offset of input
+                Instruction::I32Const(0),
+                // Length of input
+                Instruction::I32Const(length_ptr),
+                Instruction::I32Load(2, 0),
+                // Pointer to the result of the send push input
+                Instruction::GetLocal(3),
+                Instruction::Call(send_push_input_idx as u32),
+            ]);
+        }
+
+        elements.extend_from_slice(&[
+            // Copy the HashWithValue struct (48 bytes) containing the recipient and value
+            // TODO: extract into another method
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
+            // Handle of message
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(2, 0),
+            // Pointer to recipient ID and value
+            Instruction::I32Const(pid_value_ptr),
+            // Gas limit for message
+            Instruction::GetLocal(2),
+            // Number of blocks to delay the sending for
+            Instruction::GetLocal(1),
+            // Pointer to the result of the send commit
+            Instruction::GetLocal(3),
+            Instruction::Call(send_commit_wgas_idx as u32),
+            Instruction::End,
+            Instruction::End,
+        ]);
+
+        let func_instructions = Instructions::new(elements);
+
+        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+
+        Ok(())
     }
 }
 
@@ -370,16 +743,16 @@ pub struct SysCallsImportsGenerationProof(());
 ///
 /// Instance of this types signals that there was once active sys-calls generator,
 /// but it ended up it's work.
-pub struct DisabledSysCallsImportsGenerator<'a> {
-    pub(super) unstructured: &'a mut Unstructured<'a>,
+pub struct DisabledSysCallsImportsGenerator<'a, 'b> {
+    pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
     pub(super) config: SysCallsConfig,
-    pub(super) sys_calls_imports: HashMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    pub(super) sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
-impl<'a> From<DisabledSysCallsImportsGenerator<'a>> for ModuleWithCallIndexes {
-    fn from(disabled_sys_call_gen: DisabledSysCallsImportsGenerator<'a>) -> Self {
+impl<'a, 'b> From<DisabledSysCallsImportsGenerator<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(disabled_sys_call_gen: DisabledSysCallsImportsGenerator<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: disabled_sys_call_gen.module,
             call_indexes: disabled_sys_call_gen.call_indexes,

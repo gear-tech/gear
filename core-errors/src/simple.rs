@@ -331,6 +331,9 @@ impl SimpleProgramCreationError {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing signal code and reason of its creation.
+///
+/// # Testing
+/// See [this document](../signal-code-testing.md).
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
     #[display(fmt = "Signal message sent due to execution error ({_0})")]

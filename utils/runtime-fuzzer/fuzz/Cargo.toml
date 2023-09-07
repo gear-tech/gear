@@ -14,6 +14,7 @@ gear-utils.workspace = true
 env_logger.workspace = true
 log.workspace = true
 once_cell.workspace = true
+gear-call-gen.workspace = true
 
 [[bin]]
 name = "main"

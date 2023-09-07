@@ -93,7 +93,7 @@ pub trait WasmProgram: Debug {
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {data}");
     }
 }
 
@@ -171,6 +171,38 @@ impl From<&str> for ProgramIdWrapper {
 
         Self(bytes.into())
     }
+}
+
+#[macro_export]
+macro_rules! state_args {
+    () => {
+        Option::<()>::None
+    };
+    ($single:expr) => {
+        Some($single)
+    };
+    ($($multiple:expr),*) => {
+        Some(($($multiple,)*))
+    };
+}
+
+#[macro_export]
+macro_rules! state_args_encoded {
+    () => {
+        Option::<Vec<u8>>::None
+    };
+    ($single:expr) => {
+        {
+            use $crate::codec::Encode;
+            Some(($single).encode())
+        }
+    };
+    ($($multiple:expr),*) => {
+        {
+            use $crate::codec::Encode;
+            Some((($($multiple,)*)).encode())
+        }
+    };
 }
 
 pub struct Program<'a> {
@@ -421,15 +453,58 @@ impl<'a> Program<'a> {
     /// Reads the program’s transformed state as a byte vector. The transformed
     /// state is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by
+    /// using [`state_args_encoded`] macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use gtest::{state_args_encoded, Program, System, WasmProgram, Result};
+    /// # use codec::Encode;
+    /// # fn doctest() -> Result<()> {
+    /// # #[derive(Debug)]
+    /// # struct MockWasm {}
+    /// #
+    /// # impl WasmProgram for MockWasm {
+    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
+    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
+    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
+    /// #  }
+    /// # let system = System::new();
+    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let ARG_1 = 0u8;
+    /// # let ARG_2 = 0u8;
+    /// //Read state bytes with no arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<Vec<u8>>::None)?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!())?;
+    /// // Read state bytes with one argument passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1.encode()))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1))?;
+    /// // Read state bytes with multiple arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2).encode()))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1, ARG_2))?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn read_state_bytes_using_wasm(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)
+            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, args)
     }
 
     /// Reads and decodes the program's state .
@@ -441,6 +516,48 @@ impl<'a> Program<'a> {
     /// Reads and decodes the program’s transformed state. The transformed state
     /// is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by
+    /// using [`state_args`] macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use gtest::{state_args, Program, System, WasmProgram, Result};
+    /// # fn doctest() -> Result<()> {
+    /// # #[derive(Debug)]
+    /// # struct MockWasm {}
+    /// #
+    /// # impl WasmProgram for MockWasm {
+    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
+    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
+    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
+    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
+    /// #  }
+    /// # let system = System::new();
+    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let ARG_1 = 0u8;
+    /// # let ARG_2 = 0u8;
+    /// //Read state bytes with no arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!())?;
+    /// // Read state bytes with one argument passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1))?;
+    /// // Read state bytes with multiple arguments passed to wasm.
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// # let WASM = vec![];
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2))?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
         fn_name: &str,
@@ -713,22 +830,19 @@ mod tests {
 
     #[test]
     fn save_load_memory_dump() {
+        use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            420,
-            demo_capacitor::WASM_BINARY.to_vec(),
-            None,
-        );
+        let mut prog =
+            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
 
         let signer = 42;
 
-        // Init capacitor with CAPACITY = 15
-        prog.send_bytes(signer, b"15");
+        // Init capacitor with limit = 15
+        prog.send(signer, InitMessage::Capacitor("15".to_string()));
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = dbg!(prog.send_bytes(signer, b"10"));
         let log = Log::builder()
             .source(prog.id())
@@ -739,21 +853,22 @@ mod tests {
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
         };
-        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.save_memory_dump("./296c6962726/demo_custom.dump");
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)
             .payload_bytes("Discharged: 20");
+        // dbg!(log.clone());
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
 
-        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        prog.load_memory_dump("./296c6962726/demo_custom.dump");
         drop(cleanup);
 
-        // Charge capacitor with CHARGE = 10
+        // Charge capacitor with charge = 10
         let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())

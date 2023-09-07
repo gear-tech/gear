@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{exec, msg, BTreeMap, MessageId};
+use gstd::{exec, msg, collections::BTreeMap, MessageId};
 
 #[derive(PartialEq, Debug)]
 enum State {

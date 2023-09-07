@@ -23,7 +23,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
-use sp_core::ConstU128;
+use sp_core::{ConstBool, ConstU128};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConvertInto, IdentityLookup},
@@ -56,6 +56,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         Airdrop: pallet_airdrop,
         Vesting: pallet_vesting,
@@ -152,12 +153,17 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
@@ -177,6 +183,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<true>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -221,7 +229,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ROOT, 100_000_000_u128), (BOB, 100_000_000_u128)],
+        balances: vec![
+            (ROOT, 100_000_000_u128),
+            (BOB, 100_000_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

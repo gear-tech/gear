@@ -67,13 +67,15 @@ pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;
-pub mod stack_buffer;
+pub use gear_stack_buffer as stack_buffer;
 
 mod general;
 pub use general::*;
 
 mod utils;
 pub use utils::ext;
+
+pub use gsys::{BlockCount, BlockNumber};
 
 use core::mem::size_of;
 use static_assertions::const_assert;

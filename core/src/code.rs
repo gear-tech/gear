@@ -127,7 +127,8 @@ fn get_global_init_const_i32(module: &Module, global_index: u32) -> Result<i32, 
 }
 
 fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
-    let Some(&stack_end_global_index) = get_export_global_index(module, STACK_END_EXPORT_NAME) else {
+    let Some(&stack_end_global_index) = get_export_global_index(module, STACK_END_EXPORT_NAME)
+    else {
         return Ok(());
     };
     let stack_end_offset = get_global_init_const_i32(module, stack_end_global_index)?;
