@@ -38,8 +38,8 @@ use scale_info::{
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
 impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
-    where
-        [T]: AsRef<[u8]>,
+where
+    [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
