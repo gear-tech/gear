@@ -29,10 +29,38 @@ use std::{collections::HashMap, ops::RangeInclusive};
 /// This is basically a map, which creates a relationship between each kind of
 /// param, that a sys-call can have, and allowed values ("rules") for each of
 /// the params.
+///
+/// # Note:
+///
+/// Configs with some [`ParamType`] variants will not be applied, as we select
+/// values for all memory-related operations in accordance to generated WASM
+/// module parameters:
+///  - [`ParamType::Alloc`] and [`ParamType::Ptr`] will always be ignored.
+///  - [`ParamType::Size`] will be ignored when it means length of some in-memory
+/// array.
 #[derive(Debug, Clone)]
 pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
+    /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
+    pub fn all_constant_value(value: i64) -> Self {
+        let allowed_values: SysCallParamAllowedValues = (value..=value).into();
+        Self(
+            [
+                ParamType::Size,
+                ParamType::Gas,
+                ParamType::MessagePosition,
+                ParamType::Duration,
+                ParamType::Delay,
+                ParamType::Handler,
+                ParamType::Free,
+            ]
+            .into_iter()
+            .map(|param_type| (param_type, allowed_values.clone()))
+            .collect(),
+        )
+    }
+
     /// Get allowed values for the `param`.
     pub fn get_rule(&self, param: &ParamType) -> Option<SysCallParamAllowedValues> {
         self.0.get(param).cloned()
@@ -40,6 +68,9 @@ impl SysCallsParamsConfig {
 
     /// Set allowed values for the `param`.
     pub fn add_rule(&mut self, param: ParamType, allowed_values: SysCallParamAllowedValues) {
+        matches!(param, ParamType::Ptr(..))
+            .then(|| panic!("ParamType::Ptr(..) isn't supported in SysCallsParamsConfig"));
+
         self.0.insert(param, allowed_values);
     }
 }
@@ -49,19 +80,16 @@ impl Default for SysCallsParamsConfig {
         Self(
             [
                 (ParamType::Size, (0..=0x10000).into()),
-                // There are no rules for memory arrays as they are chose in accordance
-                // to memory pages config.
-                (ParamType::Ptr(None), (0..=513 * 0x10000 - 1).into()),
+                // There are no rules for memory arrays and pointers as they are chosen
+                // in accordance to memory pages config.
                 (ParamType::Gas, (0..=250_000_000_000).into()),
                 (ParamType::MessagePosition, (0..=10).into()),
-                (ParamType::Duration, (0..=100).into()),
+                (ParamType::Duration, (1..=8).into()),
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
-                (ParamType::Alloc, (0..=512).into()),
                 (ParamType::Free, (0..=512).into()),
             ]
-            .iter()
-            .cloned()
+            .into_iter()
             .collect(),
         )
     }
@@ -84,6 +112,14 @@ impl SysCallParamAllowedValues {
     /// it's value.
     pub fn zero() -> Self {
         Self(0..=0)
+    }
+
+    /// Constant param value.
+    ///
+    /// That means that for particular param `value` will be always
+    /// it's value.
+    pub fn constant(value: i64) -> Self {
+        Self(value..=value)
     }
 }
 

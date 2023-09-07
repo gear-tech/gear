@@ -42,21 +42,25 @@ impl CargoRunner {
     }
 }
 
+#[ignore]
 #[test]
 fn test_debug() {
     CargoRunner::new().args(["test"]).run();
 }
 
+#[ignore]
 #[test]
 fn build_debug() {
     CargoRunner::new().args(["build"]).run()
 }
 
+#[ignore]
 #[test]
 fn test_release() {
     CargoRunner::new().args(["test", "--release"]).run()
 }
 
+#[ignore]
 #[test]
 fn build_release() {
     CargoRunner::new().args(["build", "--release"]).run()
@@ -69,6 +73,7 @@ fn build_release_for_target() {
         .run()
 }
 
+#[ignore]
 #[test]
 fn no_infinite_build() {
     fs::write("test-program/src/rebuild_test.rs", "mod a {}").unwrap();

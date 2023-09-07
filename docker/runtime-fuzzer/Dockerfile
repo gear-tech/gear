@@ -18,10 +18,12 @@ RUN apt update -y && \
     rustup target add wasm32-unknown-unknown --toolchain nightly; \
     rustup default nightly; \
     # Install cargo-fuzz \
-    cargo install cargo-fuzz; \
+    cargo install --git https://github.com/rust-fuzz/cargo-fuzz; \
     # Set rights \
-    chmod +x ./scripts/gear.sh
+    chmod +x ./scripts/gear.sh && \
+    # Create dir for corpus \
+    mkdir -p /corpus/main
 
 # Run the fuzzer
 ENTRYPOINT ["./scripts/gear.sh"]
-CMD ["test", "fuzz"]
+CMD ["test", "fuzz", "/corpus/main"]

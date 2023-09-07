@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::mock::{
-    new_test_ext, Airdrop, AirdropCall, AirdropError, Balances, RuntimeCall, RuntimeOrigin, Sudo,
-    Test, Vesting, VestingError, ALICE, BOB, ROOT,
+    new_test_ext, Airdrop, AirdropCall, AirdropError, Balances, BankAddress, ExistentialDeposit,
+    RuntimeCall, RuntimeOrigin, Sudo, Test, Vesting, VestingError, ALICE, BOB, ROOT,
 };
 use frame_support::{assert_err, assert_noop, assert_ok};
 use frame_system::Config;
@@ -29,7 +29,10 @@ use pallet_vesting::VestingInfo;
 fn test_setup_works() {
     new_test_ext().execute_with(|| {
         assert_eq!(Sudo::key(), Some(ROOT));
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
     });
 }
 
@@ -44,7 +47,14 @@ fn sudo_call_works() {
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
         assert_eq!(Balances::total_balance(&ALICE), 10_000_000);
         assert_eq!(Balances::total_balance(&ROOT), 90_000_000);
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_balance(&BankAddress::get()),
+            ExistentialDeposit::get()
+        );
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
 
         assert_eq!(Balances::locks(BOB).len(), 1);
         let call = Box::new(RuntimeCall::Airdrop(AirdropCall::transfer_vested {
@@ -57,7 +67,10 @@ fn sudo_call_works() {
         assert_eq!(Balances::total_balance(&BOB), 0);
         assert_eq!(Balances::locks(BOB), vec![]);
         assert_eq!(Balances::total_balance(&ALICE), 110_000_000);
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
     });
 }
 #[test]
@@ -75,7 +88,14 @@ fn vesting_transfer_works() {
         assert_eq!(Balances::total_balance(&ALICE), 0);
         assert_eq!(Balances::total_balance(&BOB), 100_000_000);
         assert_eq!(Balances::total_balance(&ROOT), 100_000_000);
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_balance(&BankAddress::get()),
+            ExistentialDeposit::get()
+        );
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
 
         // Vesting must exist on the source account
         assert_err!(
@@ -113,7 +133,10 @@ fn vesting_transfer_works() {
         );
         assert_eq!(Balances::total_balance(&BOB), 90_000_000);
         assert_eq!(Balances::free_balance(ALICE), 10_000_000);
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
 
         // Transfer all of vested funds to ALICE
         assert_ok!(Airdrop::transfer_vested(
@@ -128,7 +151,10 @@ fn vesting_transfer_works() {
         assert_eq!(Vesting::vesting(BOB), None);
         assert_eq!(Balances::total_balance(&BOB), 0);
         assert_eq!(Balances::free_balance(ALICE), 100_000_000);
-        assert_eq!(Balances::total_issuance(), 200_000_000);
+        assert_eq!(
+            Balances::total_issuance(),
+            200_000_000 + ExistentialDeposit::get()
+        );
     });
 }
 

@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use gstd::errors::SignalCode;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -44,6 +45,15 @@ pub enum HandleAction {
     AcrossWaits,
     ZeroReserve,
     ForbiddenCallInSignal([u8; 32]),
+    ForbiddenAction,
+    SaveSignal(SignalCode),
+    ExceedMemory,
+    UnreachableInstruction,
+    InvalidDebugCall,
+    UnrecoverableExt,
+    IncorrectFree,
+    WaitWithoutSendingMessage,
+    MemoryAccess,
 }
 
 pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;

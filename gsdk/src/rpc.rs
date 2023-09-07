@@ -156,6 +156,7 @@ impl Api {
     pub async fn read_state_using_wasm(
         &self,
         pid: H256,
+        payload: Vec<u8>,
         method: &str,
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
@@ -166,6 +167,7 @@ impl Api {
                 "gear_readStateUsingWasm",
                 rpc_params![
                     pid,
+                    hex::encode(payload),
                     hex::encode(method),
                     hex::encode(wasm),
                     args.map(hex::encode),
