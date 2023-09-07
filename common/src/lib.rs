@@ -148,6 +148,7 @@ impl Origin for CodeId {
 )]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
+/// Type representing converter between gas and value in different relations.
 pub enum GasMultiplier<Balance, Gas> {
     ValuePerGas(Balance),
     GasPerValue(Gas),
