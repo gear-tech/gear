@@ -509,40 +509,5 @@ pub trait BackendTermination<Ext: BackendExternalities>: Sized {
     }
 }
 
-#[macro_export]
-macro_rules! syscall_args_trace {
-    ($val:expr) => {
-        {
-            let s = stringify!($val);
-            if s.ends_with("_ptr") {
-                alloc::format!(", {} = {:#x?}", s, $val)
-            } else {
-                alloc::format!(", {} = {:?}", s, $val)
-            }
-        }
-    };
-    ($val:expr, $($rest:expr),+) => {
-        {
-            let mut s = $crate::syscall_args_trace!($val);
-            s.push_str(&$crate::syscall_args_trace!($($rest),+));
-            s
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! syscall_trace {
-    ($name:expr, $($args:expr),+) => {
-        {
-            $crate::log::trace!(target: "syscalls", "{}{}", $name, $crate::syscall_args_trace!($($args),+));
-        }
-    };
-    ($name:expr) => {
-        {
-            $crate::log::trace!(target: "syscalls", "{}", $name);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests;

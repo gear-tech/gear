@@ -26,9 +26,9 @@ use gear_backend_codegen::host;
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead},
     runtime::RunFallibleError,
-    syscall_trace, ActorTerminationReason, BackendAllocSyscallError, BackendExternalities,
-    BackendState, BackendSyscallError, TrapExplanation, UndefinedTerminationReason,
-    UnrecoverableExecutionError, UnrecoverableMemoryError, PTR_SPECIAL,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendState,
+    BackendSyscallError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
@@ -47,6 +47,40 @@ use gsys::{
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
     HashWithValue, TwoHashesWithValue,
 };
+
+#[macro_export(local_inner_macros)]
+macro_rules! syscall_args_trace {
+    ($val:expr) => {
+        {
+            let s = ::core::stringify!($val);
+            if s.ends_with("_ptr") {
+                alloc::format!(", {} = {:#x?}", s, $val)
+            } else {
+                alloc::format!(", {} = {:?}", s, $val)
+            }
+        }
+    };
+    ($val:expr, $($rest:expr),+) => {
+        {
+            let mut s = syscall_args_trace!($val);
+            s.push_str(&syscall_args_trace!($($rest),+));
+            s
+        }
+    };
+}
+
+macro_rules! syscall_trace {
+    ($name:expr, $($args:expr),+) => {
+        {
+            ::log::trace!(target: "syscalls", "{}{}", $name, syscall_args_trace!($($args),+));
+        }
+    };
+    ($name:expr) => {
+        {
+            ::log::trace!(target: "syscalls", "{}", $name);
+        }
+    }
+}
 
 pub struct FuncsHandler<Ext: Externalities + 'static> {
     _phantom: PhantomData<Ext>,
