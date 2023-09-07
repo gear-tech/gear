@@ -37,12 +37,42 @@ use scale_info::{
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
+impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
+    where
+        [T]: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        }
+
+        let p1 = hex::encode(&self.0[..e1]);
+        let p2 = hex::encode(&self.0[s2..]);
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+        if f.alternate() {
+            write!(f, "LimitedVec(0x{p1}{sep}{p2})")
+        } else {
+            write!(f, "0x{p1}{sep}{p2}")
+        }
+    }
+}
+
 impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
 where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.inner()))
+        core::fmt::Display::fmt(self, f)
     }
 }
 
