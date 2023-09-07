@@ -31,7 +31,7 @@ use gear_sandbox::{
 
 pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
 
-pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
+pub struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
     pub memory: DefaultExecutorMemory,
     pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
 }

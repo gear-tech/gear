@@ -23,10 +23,10 @@
 extern crate alloc;
 
 pub mod env;
-pub mod funcs;
+mod funcs;
 pub mod memory;
 pub mod runtime;
-pub mod state;
+mod state;
 
 pub use env::SandboxEnvironment;
 pub use memory::{DefaultExecutorMemory, MemoryWrap};

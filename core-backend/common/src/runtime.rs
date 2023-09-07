@@ -18,11 +18,7 @@
 
 //! Trait that both sandbox and wasmi runtimes must implement.
 
-use crate::{
-    memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExternalities, BackendState, BackendSyscallError, UndefinedTerminationReason,
-};
-use gear_core::{costs::RuntimeCosts, pages::WasmPage};
+use crate::{BackendSyscallError, UndefinedTerminationReason};
 use gear_core_errors::ExtError as FallibleExtError;
 
 /// Error returned from closure argument in [`Runtime::run_fallible`].
@@ -39,36 +35,4 @@ where
     fn from(err: E) -> Self {
         err.into_run_fallible_error()
     }
-}
-
-pub trait Runtime<Ext: BackendExternalities>:
-    MemoryOwner + MemoryAccessRecorder + BackendState
-{
-    type Error;
-
-    fn unreachable_error() -> Self::Error;
-
-    fn ext_mut(&mut self) -> &mut Ext;
-
-    fn run_any<T, F>(
-        &mut self,
-        gas: u64,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> Result<(u64, T), Self::Error>
-    where
-        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>;
-
-    fn run_fallible<T: Sized, F, R>(
-        &mut self,
-        gas: u64,
-        res_ptr: u32,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> Result<(u64, ()), Self::Error>
-    where
-        F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
-        R: From<Result<T, u32>> + Sized;
-
-    fn alloc(&mut self, pages: u32) -> Result<WasmPage, Ext::AllocError>;
 }

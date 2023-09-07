@@ -30,7 +30,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    runtime::{RunFallibleError, Runtime as CommonRuntime},
+    runtime::RunFallibleError,
     BackendExternalities, BackendState, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
@@ -63,25 +63,28 @@ pub(crate) fn caller_host_state_take<Ext>(
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
+pub struct CallerWrap<'a, 'b: 'a, Ext> {
     pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
     pub manager: MemoryAccessManager<Ext>,
     pub memory: DefaultExecutorMemory,
 }
 
-impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerWrap<'a, 'b, Ext> {
-    type Error = HostError;
-
-    fn ext_mut(&mut self) -> &mut Ext {
+impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
+    pub fn ext_mut(&mut self) -> &mut Ext {
         &mut self.host_state_mut().ext
     }
 
-    fn unreachable_error() -> Self::Error {
+    pub fn unreachable_error() -> HostError {
         HostError
     }
 
     #[track_caller]
-    fn run_any<T, F>(&mut self, gas: u64, cost: RuntimeCosts, f: F) -> Result<(u64, T), Self::Error>
+    pub fn run_any<T, F>(
+        &mut self,
+        gas: u64,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(u64, T), HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
@@ -101,13 +104,13 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerW
     }
 
     #[track_caller]
-    fn run_fallible<T: Sized, F, R>(
+    pub fn run_fallible<T: Sized, F, R>(
         &mut self,
         gas: u64,
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(u64, ()), Self::Error>
+    ) -> Result<(u64, ()), HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
         R: From<Result<T, u32>> + Sized,
@@ -127,7 +130,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CommonRuntime<Ext> for CallerW
         )
     }
 
-    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
+    pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         let mut state = caller_host_state_take(self.caller);
         let mut mem = CallerWrap::memory(self.caller, self.memory.clone());
         let res = state.ext.alloc(pages, &mut mem);
