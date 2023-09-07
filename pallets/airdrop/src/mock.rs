@@ -23,7 +23,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
-use sp_core::{ConstBool, ConstU128};
+use sp_core::ConstBool;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConvertInto, IdentityLookup},
@@ -142,12 +142,6 @@ impl pallet_gear_program::Config for Test {
     type CurrentBlockNumber = ();
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
@@ -166,7 +160,6 @@ impl pallet_gear_bank::Config for Test {
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;

@@ -70,9 +70,8 @@ pub use runtime_common::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
-    AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
-    VALUE_PER_GAS,
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -964,7 +963,6 @@ impl pallet_gear_bank::Config for Runtime {
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;

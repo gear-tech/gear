@@ -51,7 +51,7 @@ pub use weights::WeightInfo;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
+    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
     PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
@@ -188,9 +188,6 @@ pub mod pallet {
 
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-
-        /// Gas to Currency converter
-        type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;

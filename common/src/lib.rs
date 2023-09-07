@@ -50,7 +50,6 @@ use frame_support::{
         traits::{Dispatchable, SignedExtension},
     },
     traits::Get,
-    weights::{ConstantMultiplier, Weight, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -176,20 +175,6 @@ where
                 unimplemented!("Currently unsupported that 1 Value > 1 Gas");
             }
         }
-    }
-}
-
-pub trait GasPrice {
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
-
-    type GasToBalanceMultiplier: Get<Self::Balance>;
-
-    /// A price for the `gas` amount of gas.
-    /// In general case, this doesn't necessarily has to be constant.
-    fn gas_price(gas: u64) -> Self::Balance {
-        ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
-            &Weight::from_parts(gas, 0),
-        )
     }
 }
 

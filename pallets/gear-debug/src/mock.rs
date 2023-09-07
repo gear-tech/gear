@@ -27,7 +27,7 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
-use sp_core::{ConstBool, ConstU128};
+use sp_core::ConstBool;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
@@ -125,12 +125,6 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = ();
@@ -154,7 +148,6 @@ impl pallet_gear_bank::Config for Test {
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type GasPrice = GasConverter;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;

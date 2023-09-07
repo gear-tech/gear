@@ -164,12 +164,6 @@ impl pallet_transaction_payment::Config for Test {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
@@ -191,7 +185,6 @@ impl pallet_gear_bank::Config for Test {
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;

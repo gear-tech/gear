@@ -53,13 +53,15 @@ mod consts {
     pub const EVE: AccountId = 4;
 
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
+
+    pub const VALUE_PER_GAS: Balance = 1_000;
 }
 
 pub use consts::*;
 
 parameter_types! {
     pub const BankAddress: AccountId = BANK_ADDRESS;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1_000);
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: u64 = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
