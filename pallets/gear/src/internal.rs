@@ -1044,9 +1044,9 @@ where
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
-        use common::GasPrice as _;
+        use common::{GasMultiplier, GasPrice as _};
 
-        let multiplier = T::GasPrice::gas_price(1).unique_saturated_into();
+        let multiplier = GasMultiplier::ValuePerGas(T::GasPrice::gas_price(1));
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
             GasHandlerOf::<T>::create(origin, multiplier, key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

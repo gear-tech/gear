@@ -249,6 +249,7 @@ pub mod pallet {
             ExternalOrigin = Self::AccountId,
             NodeId = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
+            Funds = BalanceOf<Self>,
             Error = DispatchError,
         >;
 

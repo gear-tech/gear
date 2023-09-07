@@ -21,12 +21,14 @@
 extern crate alloc;
 
 use crate::{mock::*, *};
-use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
+use common::{
+    scheduler::*, storage::*, GasMultiplier, GasPrice as _, GasTree, LockId, LockableTree as _,
+    Origin,
+};
 use gear_core::{ids::*, message::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
 
 type GasPrice = <Test as pallet_gear::Config>::GasPrice;
 type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
@@ -74,7 +76,7 @@ fn populate_wl_from(
     GearBank::deposit_gas::<<Test as pallet_gear::Config>::GasPrice>(&src, DEFAULT_GAS)
         .expect("Cannot reserve gas");
 
-    let multiplier = <Test as pallet_gear::Config>::GasPrice::gas_price(1).unique_saturated_into();
+    let multiplier = GasMultiplier::ValuePerGas(GasPrice::gas_price(1));
     GasHandlerOf::<Test>::create(src, multiplier, mid, DEFAULT_GAS)
         .expect("Failed to create gas handler");
     // Locking funds for holding.

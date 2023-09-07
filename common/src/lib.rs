@@ -42,6 +42,7 @@ pub mod benchmarking;
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
+    pallet_prelude::MaxEncodedLen,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -59,7 +60,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -140,6 +141,41 @@ impl Origin for CodeId {
 
     fn from_origin(val: H256) -> Self {
         val.to_fixed_bytes().into()
+    }
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, MaxEncodedLen, TypeInfo,
+)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum GasMultiplier<Balance, Gas> {
+    ValuePerGas(Balance),
+    GasPerValue(Gas),
+}
+
+impl<Balance: One, Gas> Default for GasMultiplier<Balance, Gas> {
+    fn default() -> Self {
+        Self::ValuePerGas(One::one())
+    }
+}
+
+impl<Balance, Gas> GasMultiplier<Balance, Gas>
+where
+    Balance: BaseArithmetic + From<Gas> + Copy + Unsigned,
+    Gas: BaseArithmetic + Copy + Unsigned,
+{
+    /// Converts given gas amount into its value equivalent.
+    pub fn gas_to_value(&self, gas: Gas) -> Balance {
+        let gas: Balance = gas.into();
+
+        match self {
+            Self::ValuePerGas(multiplier) => gas.saturating_mul(*multiplier),
+            Self::GasPerValue(_multiplier) => {
+                // Consider option to return `(*cost*, *amount of gas to be bought*)`.
+                unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+            }
+        }
     }
 }
 

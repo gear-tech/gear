@@ -131,13 +131,13 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
+pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
     /// A root node for each gas tree.
     ///
     /// Usually created when a new gas-ful logic started (i.e., message sent).
     External {
         id: ExternalId,
-        multiplier: Balance,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
@@ -152,7 +152,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// (not node's parent, not node's child).
     Cut {
         id: ExternalId,
-        multiplier: Balance,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
     },
@@ -162,7 +162,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such node types are detached from initial tree and may act the a root of new tree.
     Reserved {
         id: ExternalId,
-        multiplier: Balance,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
         refs: ChildrenRefs,
@@ -212,7 +212,8 @@ impl<
         ExternalId: Clone,
         Id: Clone + Copy,
         Balance: Default + Zero + Clone + Copy + sp_runtime::traits::Saturating,
-    > GasNode<ExternalId, Id, Balance>
+        Funds: Clone,
+    > GasNode<ExternalId, Id, Balance, Funds>
 {
     /// Returns total gas value inside GasNode.
     pub fn total_value(&self) -> Balance {
@@ -223,11 +224,16 @@ impl<
     }
 }
 
-impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy>
-    GasNode<ExternalId, Id, Balance>
+impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy, Funds: Clone>
+    GasNode<ExternalId, Id, Balance, Funds>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
-    pub fn new(id: ExternalId, multiplier: Balance, value: Balance, deposit: bool) -> Self {
+    pub fn new(
+        id: ExternalId,
+        multiplier: GasMultiplier<Funds, Balance>,
+        value: Balance,
+        deposit: bool,
+    ) -> Self {
         Self::External {
             id,
             multiplier,
@@ -419,11 +425,11 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     }
 
     /// Returns external origin and funds multiplier of the node if contains that data inside.
-    pub fn external_data(&self) -> Option<(ExternalId, Balance)> {
+    pub fn external_data(&self) -> Option<(ExternalId, GasMultiplier<Funds, Balance>)> {
         match self {
             Self::External { id, multiplier, .. }
             | Self::Cut { id, multiplier, .. }
-            | Self::Reserved { id, multiplier, .. } => Some((id.clone(), *multiplier)),
+            | Self::Reserved { id, multiplier, .. } => Some((id.clone(), multiplier.clone())),
             Self::SpecifiedLocal { .. } | Self::UnspecifiedLocal { .. } => None,
         }
     }

@@ -33,11 +33,15 @@ enum CatchValueOutput<Balance> {
 }
 
 impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
-    fn into_consume_output<ExternalId>(
+    fn into_consume_output<ExternalId, Funds>(
         self,
         origin: ExternalId,
-        multiplier: Balance,
-    ) -> Option<(NegativeImbalance<Balance>, Balance, ExternalId)> {
+        multiplier: GasMultiplier<Funds, Balance>,
+    ) -> Option<(
+        NegativeImbalance<Balance>,
+        GasMultiplier<Funds, Balance>,
+        ExternalId,
+    )> {
         match self {
             CatchValueOutput::Caught(value) => {
                 Some((NegativeImbalance::new(value), multiplier, origin))
@@ -66,16 +70,17 @@ pub struct TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, Storag
     )>,
 );
 
-impl<TotalValue, Balance, InternalError, Error, ExternalId, NodeId, StorageMap>
+impl<TotalValue, Balance, Funds, InternalError, Error, ExternalId, NodeId, StorageMap>
     TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>
 where
     Balance: BalanceTrait,
+    Funds: Clone,
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Clone,
     NodeId: Copy,
-    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance>>,
+    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance, Funds>>,
 {
     pub(super) fn get_node(key: impl Into<NodeId>) -> Option<StorageMap::Value> {
         StorageMap::get(&key.into())
@@ -305,7 +310,7 @@ where
             }
 
             consume_output = consume_output
-                .or_else(|| catch_output.into_consume_output(external.clone(), multiplier));
+                .or_else(|| catch_output.into_consume_output(external.clone(), multiplier.clone()));
 
             if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
@@ -341,9 +346,9 @@ where
         constructor: impl FnOnce(
             NodeId,
             Balance,
-            &mut GasNode<ExternalId, NodeId, Balance>,
+            &mut GasNode<ExternalId, NodeId, Balance, Funds>,
             NodeId,
-        ) -> Result<GasNode<ExternalId, NodeId, Balance>, Error>,
+        ) -> Result<GasNode<ExternalId, NodeId, Balance, Funds>, Error>,
     ) -> Result<(), Error> {
         let key = key.into();
         let new_node_key = new_node_key.into();
@@ -392,7 +397,7 @@ where
     // Get limit node fn that may work with both: consumed and not, depending on `validate` argument.
     fn get_limit_node_impl(
         key: impl Into<NodeId>,
-        validate: impl FnOnce(&GasNode<ExternalId, NodeId, Balance>) -> Result<(), Error>,
+        validate: impl FnOnce(&GasNode<ExternalId, NodeId, Balance, Funds>) -> Result<(), Error>,
     ) -> Result<(Balance, NodeId), Error> {
         let key = key.into();
 
@@ -411,20 +416,22 @@ where
     }
 }
 
-impl<TotalValue, Balance, InternalError, Error, ExternalId, NodeId, StorageMap> Tree
+impl<TotalValue, Balance, Funds, InternalError, Error, ExternalId, NodeId, StorageMap> Tree
     for TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>
 where
     Balance: BalanceTrait,
+    Funds: Clone,
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Clone,
     NodeId: Copy,
-    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance>>,
+    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance, Funds>>,
 {
     type ExternalOrigin = ExternalId;
     type NodeId = NodeId;
     type Balance = Balance;
+    type Funds = Funds;
 
     type PositiveImbalance = PositiveImbalance<Balance>;
     type NegativeImbalance = NegativeImbalance<Balance>;
@@ -438,7 +445,7 @@ where
 
     fn create(
         origin: Self::ExternalOrigin,
-        multiplier: Self::Balance,
+        multiplier: GasMultiplier<Self::Funds, Self::Balance>,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error> {
@@ -798,16 +805,17 @@ where
     }
 }
 
-impl<TotalValue, Balance, InternalError, Error, ExternalId, NodeId, StorageMap> LockableTree
+impl<TotalValue, Balance, Funds, InternalError, Error, ExternalId, NodeId, StorageMap> LockableTree
     for TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>
 where
     Balance: BalanceTrait,
+    Funds: Clone,
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Clone,
     NodeId: Copy,
-    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance>>,
+    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance, Funds>>,
 {
     fn lock(
         key: impl Into<Self::NodeId>,
@@ -935,16 +943,17 @@ where
     }
 }
 
-impl<TotalValue, Balance, InternalError, Error, ExternalId, NodeId, StorageMap> ReservableTree
-    for TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>
+impl<TotalValue, Balance, Funds, InternalError, Error, ExternalId, NodeId, StorageMap>
+    ReservableTree for TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>
 where
     Balance: BalanceTrait,
+    Funds: Clone,
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Clone,
     NodeId: Copy,
-    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance>>,
+    StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance, Funds>>,
 {
     fn reserve(
         key: impl Into<Self::NodeId>,

@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use common::{
     gas_provider::{GasNodeId, Imbalance, NegativeImbalance},
-    GasTree as _, LockId, LockableTree as _, Origin,
+    GasMultiplier, GasTree as _, LockId, LockableTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok};
 use gear_core::ids::MessageId;
@@ -34,7 +34,7 @@ fn random_node_id() -> MessageId {
     MessageId::from_origin(H256::random())
 }
 
-const MULTIPLIER: Balance = 123;
+const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(123);
 
 #[test]
 fn simple_value_tree() {

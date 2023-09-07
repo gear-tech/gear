@@ -45,7 +45,7 @@ pub use reservable::ReservableTree;
 pub type ConsumeResultOf<T> = Result<
     Option<(
         <T as Tree>::NegativeImbalance,
-        <T as Tree>::Balance,
+        GasMultiplier<<T as Tree>::Funds, <T as Tree>::Balance>,
         <T as Tree>::ExternalOrigin,
     )>,
     <T as Tree>::Error,
@@ -54,7 +54,7 @@ pub type ConsumeResultOf<T> = Result<
 /// Simplified type for `GasTree::get_origin_node` call.
 pub type OriginNodeDataOf<T> = (
     <T as Tree>::ExternalOrigin,
-    <T as Tree>::Balance,
+    GasMultiplier<<T as Tree>::Funds, <T as Tree>::Balance>,
     <T as Tree>::NodeId,
 );
 
@@ -72,6 +72,9 @@ pub trait Tree {
 
     /// Type representing a quantity of value.
     type Balance: Clone;
+
+    /// Type representing a quantity of token balance.
+    type Funds: Clone;
 
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
@@ -100,7 +103,7 @@ pub trait Tree {
     /// already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
-        multiplier: Self::Balance,
+        multiplier: GasMultiplier<Self::Funds, Self::Balance>,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error>;
@@ -123,7 +126,9 @@ pub trait Tree {
     /// The funds multiplier for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_funds_multiplier(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
+    fn get_funds_multiplier(
+        key: impl Into<Self::NodeId>,
+    ) -> Result<GasMultiplier<Self::Funds, Self::Balance>, Self::Error> {
         Self::get_origin_node(key).map(|(_external, multiplier, _key)| multiplier)
     }
 
@@ -253,6 +258,9 @@ pub trait Provider {
     /// Type representing a quantity of value.
     type Balance;
 
+    /// Type representing a quantity of token balance.
+    type Funds;
+
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
@@ -267,6 +275,7 @@ pub trait Provider {
             ExternalOrigin = Self::ExternalOrigin,
             NodeId = Self::NodeId,
             Balance = Self::Balance,
+            Funds = Self::Funds,
             InternalError = Self::InternalError,
             Error = Self::Error,
         > + ReservableTree;

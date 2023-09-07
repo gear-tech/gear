@@ -278,6 +278,7 @@ pub mod pallet {
     }
 
     pub type Balance = u64;
+    pub type Funds = u128;
 
     // ----
 
@@ -295,7 +296,7 @@ pub mod pallet {
     // ----
 
     pub type Key = GasNodeId<MessageId, ReservationId>;
-    pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
+    pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance, Funds>;
 
     // Private storage for nodes of the gas tree.
     #[pallet::storage]
@@ -337,6 +338,7 @@ pub mod pallet {
         type ExternalOrigin = AccountIdOf<T>;
         type NodeId = GasNodeId<MessageId, ReservationId>;
         type Balance = Balance;
+        type Funds = Funds;
         type InternalError = Error<T>;
         type Error = DispatchError;
 
