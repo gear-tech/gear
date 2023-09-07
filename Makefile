@@ -256,14 +256,6 @@ doc:
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
-.PHONY: fuzz
-fuzz:
-	@ ./scripts/gear.sh test fuzz $(target)
-
-.PHONY: fuzz-vara #TODO 2434 test it works
-fuzz-vara:
-	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
-
 .PHONY: kill-gear
 kill:
 	@ pkill -f 'gear |gear$' -9
