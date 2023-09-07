@@ -645,9 +645,10 @@ fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
 }
 
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
-    match id {
-        Some(id) => ProgramId::generate_with_id(code_id, salt, id),
-        None => ProgramId::generate(code_id, salt),
+    if let Some(id) = id {
+        ProgramId::generate_with_id(code_id, salt, id)
+    } else {
+        ProgramId::generate(code_id, salt)
     }
 }
 
