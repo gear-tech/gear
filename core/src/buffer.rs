@@ -200,6 +200,8 @@ mod test {
 
     const N: usize = 1000;
     type TestBuffer = LimitedVec<u8, RuntimeBufferSizeError, N>;
+    const M: usize = 64;
+    type SmallTestBuffer = LimitedVec<u8, RuntimeBufferSizeError, M>;
 
     #[test]
     fn test_try_from() {
@@ -263,5 +265,44 @@ mod test {
 
         assert_eq!(&z.into_vec(), &[0, 2, 3, 42, 1, 2, 3]);
         assert_eq!(TestBuffer::max_len(), N);
+    }
+
+    #[test]
+    fn formatting_test() {
+        use alloc::format;
+
+        let buffer = SmallTestBuffer::try_from(b"abcdefghijklmnopqrstuvwxyz012345".to_vec())
+            .expect("String is 64 bytes");
+
+        // `Debug`/`Display`.
+        assert_eq!(
+            format!("{buffer:?}"),
+            "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
+        );
+        // `Debug`/`Display` with precision 0.
+        assert_eq!(format!("{buffer:.0?}"), "0x..");
+        // `Debug`/`Display` with precision 1.
+        assert_eq!(format!("{buffer:.1?}"), "0x61..35");
+        // `Debug`/`Display` with precision 2.
+        assert_eq!(format!("{buffer:.2?}"), "0x6162..3435");
+        // `Debug`/`Display` with precision 4.
+        assert_eq!(format!("{buffer:.4?}"), "0x61626364..32333435");
+        // `Debug`/`Display` with precision 15.
+        assert_eq!(
+            format!("{buffer:.15?}"),
+            "0x6162636465666768696a6b6c6d6e6f..72737475767778797a303132333435"
+        );
+        // `Debug`/`Display` with precision 30 (the same for any case >= 16).
+        assert_eq!(
+            format!("{buffer:.30?}"),
+            "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
+        );
+        // Alternate formatter.
+        assert_eq!(
+            format!("{buffer:#}"),
+            "LimitedVec(0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435)"
+        );
+        // Alternate formatter with precision 2.
+        assert_eq!(format!("{buffer:#.2}"), "LimitedVec(0x6162..3435)");
     }
 }
