@@ -53,6 +53,11 @@ where
                 e1 = precision;
                 s2 = len - precision;
             }
+        } else if !f.sign_plus() {
+            if median > 8 {
+                e1 = 8;
+                s2 = len - 8;
+            }
         }
 
         let p1 = hex::encode(&self.0[..e1]);
@@ -276,8 +281,13 @@ mod test {
 
         // `Debug`/`Display`.
         assert_eq!(
-            format!("{buffer:?}"),
+            format!("{buffer:+?}"),
             "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
+        );
+        // `Debug`/`Display` with default precision.
+        assert_eq!(
+            format!("{buffer:?}"),
+            "0x6162636465666768..797a303132333435"
         );
         // `Debug`/`Display` with precision 0.
         assert_eq!(format!("{buffer:.0?}"), "0x..");
@@ -292,14 +302,19 @@ mod test {
             format!("{buffer:.15?}"),
             "0x6162636465666768696a6b6c6d6e6f..72737475767778797a303132333435"
         );
-        // `Debug`/`Display` with precision 30 (the same for any case >= 16).
+        // `Debug`/`Display` with precision 30.
         assert_eq!(
             format!("{buffer:.30?}"),
             "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
         );
-        // Alternate formatter.
+        // Alternate formatter with default precision.
         assert_eq!(
             format!("{buffer:#}"),
+            "LimitedVec(0x6162636465666768..797a303132333435)"
+        );
+        // Alternate formatter with max precision.
+        assert_eq!(
+            format!("{buffer:+#}"),
             "LimitedVec(0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435)"
         );
         // Alternate formatter with precision 2.
