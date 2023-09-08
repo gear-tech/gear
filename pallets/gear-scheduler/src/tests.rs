@@ -200,10 +200,10 @@ fn gear_handles_tasks() {
         let task_gas = pallet_gear::manager::get_maximum_task_gas::<Test>(&task);
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
-        // Read of the first block of incomplete tasks, read of the first task and write for removal of task.
+        // Read of the first block of incomplete tasks and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(2, 1).ref_time() - task_gas
+            u64::MAX - db_r_w(1, 1).ref_time() - task_gas
         );
 
         // Storages checking.
@@ -342,10 +342,10 @@ fn gear_handles_outdated_tasks() {
 
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
-        // Delete of the first block of incomplete tasks + single DB read (task) + single task processing.
+        // Delete of the first block of incomplete tasks + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(1, 2).ref_time() - task_gas
+            u64::MAX - db_r_w(0, 2).ref_time() - task_gas
         );
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);
