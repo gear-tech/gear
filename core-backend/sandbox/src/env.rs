@@ -35,10 +35,11 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, EnvironmentError, LimitedStr,
+    BackendSyscallError, LimitedStr,
 };
 use gear_core::{
     env::Externalities,
+    gas::GasAmount,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
@@ -164,13 +165,31 @@ fn store_host_state_mut<Ext>(
 
 type EnvironmentBackendReport<Ext> = BackendReport<MemoryWrap<Ext>, Ext>;
 
-pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> = Result<
-    EnvironmentBackendReport<Ext>,
-    EnvironmentError<SandboxEnvironmentError, PrepareMemoryError>,
->;
+pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> =
+    Result<EnvironmentBackendReport<Ext>, SandboxEnvironmentError<PrepareMemoryError>>;
 
 #[derive(Debug, derive_more::Display)]
-pub enum SandboxEnvironmentError {
+pub enum SandboxEnvironmentError<PrepareMemoryError: Display> {
+    #[display(fmt = "Actor backend error: {_1}")]
+    Actor(GasAmount, String),
+    #[display(fmt = "System backend error: {_0}")]
+    System(SandboxSystemEnvironmentError),
+    #[display(fmt = "Prepare error: {_1}")]
+    PrepareMemory(GasAmount, PrepareMemoryError),
+}
+
+impl<PrepareMemoryError: Display> SandboxEnvironmentError<PrepareMemoryError> {
+    pub fn from_infallible(err: SandboxEnvironmentError<Infallible>) -> Self {
+        match err {
+            SandboxEnvironmentError::System(err) => Self::System(err),
+            SandboxEnvironmentError::PrepareMemory(_, err) => match err {},
+            SandboxEnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
+        }
+    }
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum SandboxSystemEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
@@ -347,9 +366,9 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<SandboxEnvironmentError, Infallible>> {
-        use EnvironmentError::*;
+    ) -> Result<Self, SandboxEnvironmentError<Infallible>> {
         use SandboxEnvironmentError::*;
+        use SandboxSystemEnvironmentError::*;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -425,8 +444,8 @@ where
         ) -> Result<(), PrepareMemoryError>,
         PrepareMemoryError: Display,
     {
-        use EnvironmentError::*;
         use SandboxEnvironmentError::*;
+        use SandboxSystemEnvironmentError::*;
 
         let Self {
             mut instance,

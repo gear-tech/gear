@@ -28,6 +28,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
+use gear_backend_sandbox::env::SandboxSystemEnvironmentError;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -492,7 +493,7 @@ pub enum SystemExecutionError {
     PrepareMemory(SystemPrepareMemoryError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
-    Environment(String),
+    Environment(SandboxSystemEnvironmentError),
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]

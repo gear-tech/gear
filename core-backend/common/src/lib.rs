@@ -36,13 +36,9 @@ use crate::runtime::RunFallibleError;
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
-use core::{
-    convert::Infallible,
-    fmt::{Debug, Display},
-};
+use core::fmt::Debug;
 use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
@@ -337,28 +333,6 @@ where
     pub termination_reason: TerminationReason,
     pub memory_wrap: EnvMem,
     pub ext: Ext,
-}
-
-#[derive(Debug, derive_more::Display)]
-pub enum EnvironmentError<EnvSystemError: Display, PrepareMemoryError: Display> {
-    #[display(fmt = "Actor backend error: {_1}")]
-    Actor(GasAmount, String),
-    #[display(fmt = "System backend error: {_0}")]
-    System(EnvSystemError),
-    #[display(fmt = "Prepare error: {_1}")]
-    PrepareMemory(GasAmount, PrepareMemoryError),
-}
-
-impl<EnvSystemError: Display, PrepareMemoryError: Display>
-    EnvironmentError<EnvSystemError, PrepareMemoryError>
-{
-    pub fn from_infallible(err: EnvironmentError<EnvSystemError, Infallible>) -> Self {
-        match err {
-            EnvironmentError::System(err) => Self::System(err),
-            EnvironmentError::PrepareMemory(_, err) => match err {},
-            EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
-        }
-    }
 }
 
 #[cfg(test)]
