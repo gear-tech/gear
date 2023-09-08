@@ -16,14 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::paused_program_storage::SessionId;
+use crate::{paused_program_storage::SessionId, Gas};
 use frame_support::{
     codec::{self, Decode, Encode, MaxEncodedLen},
     scale_info::{self, TypeInfo},
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
-
-pub type Gas = u64;
 
 /// Scheduled task sense and required data for processing action.
 ///
@@ -120,7 +118,7 @@ pub trait TaskHandler<AccountId> {
     // -----
     /// Pause program action.
     fn pause_program(&mut self, program_id: ProgramId) -> Gas;
-    /// Remove code action
+    /// Remove code action.
     fn remove_code(&mut self, code_id: CodeId) -> Gas;
     /// Remove from mailbox action.
     fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId) -> Gas;

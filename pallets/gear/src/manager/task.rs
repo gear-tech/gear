@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet,
+    manager::ExtManager, weights::WeightInfo, Config, DbWeightOf, DispatchStashOf, Event, Pallet,
     ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::string::ToString;
@@ -29,7 +29,7 @@ use common::{
     paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
-    Origin, PausedProgramStorage, Program, ProgramStorage,
+    ActiveProgram, Gas, Origin, PausedProgramStorage, Program, ProgramState, ProgramStorage,
 };
 use core::cmp;
 use gear_core::{
@@ -47,12 +47,17 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
 
     match task {
         PauseProgram(_) => {
-            let count =
-                u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
-            cmp::max(
-                <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
-                <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
-            )
+            // TODO: #3079
+            if <T as Config>::ProgramRentEnabled::get() {
+                let count =
+                    u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
+                cmp::max(
+                    <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
+                    <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
+                )
+            } else {
+                DbWeightOf::<T>::get().writes(2).ref_time()
+            }
         }
         RemoveCode(_) => todo!("#646"),
         RemoveFromMailbox(_, _) => {
@@ -85,6 +90,10 @@ where
     T::AccountId: Origin,
 {
     fn pause_program(&mut self, program_id: ProgramId) -> Gas {
+        //
+        // TODO: #3079
+        //
+
         if !<T as Config>::ProgramRentEnabled::get() {
             log::debug!("Program rent logic is disabled.");
 
@@ -104,18 +113,17 @@ where
             TaskPoolOf::<T>::add(expiration_block, task)
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-            return 0;
+            return DbWeightOf::<T>::get().writes(1).ref_time();
         }
 
-        let program = ProgramStorageOf::<T>::get_program(program_id)
-            .unwrap_or_else(|| unreachable!("Program to pause not found."));
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .unwrap_or_else(|| unreachable!("Program to pause not found."))
+            .try_into()
+            .unwrap_or_else(|e| unreachable!("Pause program task logic corrupted: {e:?}"));
 
-        let pages_with_data = match program {
-            Program::Active(ref p) => p.pages_with_data.len() as u32,
-            _ => unreachable!("Pause program task logic corrupted!"),
-        };
+        let pages_with_data = program.pages_with_data.len() as u32;
 
-        let Some(init_message_id) = program.is_uninitialized() else {
+        let ProgramState::Uninitialized{ message_id: init_message_id } = program.state else {
             // pause initialized program
             let gas_reservation_map =
                 ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())

@@ -73,6 +73,9 @@ pub use gas_provider::{
     LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
 };
 
+/// Type alias for gas entity.
+pub type Gas = u64;
+
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -205,18 +208,6 @@ impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
                 ..
             })
         )
-    }
-
-    pub fn is_uninitialized(&self) -> Option<MessageId> {
-        if let Program::Active(ActiveProgram {
-            state: ProgramState::Uninitialized { message_id },
-            ..
-        }) = self
-        {
-            Some(*message_id)
-        } else {
-            None
-        }
     }
 }
 
