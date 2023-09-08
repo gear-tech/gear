@@ -8,7 +8,7 @@ main() {
     dd if=/dev/urandom of=utils/runtime-fuzzer/fuzz/corpus/main/check-fuzzer-bytes bs=1 count=27000000
 
     echo " >> Running fuzzer with failpoint"
-    RUST_BACKTRACE=1 FAILPOINTS=fail_fuzzer=return ./scripts/gear.sh test fuzz > fuzz_run 2>&1
+    RUST_BACKTRACE=1 FAILPOINTS=fail_fuzzer=return ./scripts/gear.sh test fuzz "" wlogs > fuzz_run 2>&1
 
     echo " >> Checking fuzzer output"
     if cat fuzz_run | grep -qzP '(?s)(?=.*GasTree corrupted)(?=.*NodeAlreadyExists)(?=.*\Qpallet_gear::pallet::Pallet<T>>::consume_and_retrieve\E)' ; then

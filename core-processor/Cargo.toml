@@ -29,3 +29,4 @@ enum-iterator.workspace = true
 
 [features]
 strict = []
+mock = []

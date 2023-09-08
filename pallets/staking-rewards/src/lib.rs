@@ -41,9 +41,9 @@
 #![allow(clippy::items_after_test_module)]
 
 pub mod extension;
-mod inflation;
-pub mod migration;
 pub mod weights;
+
+mod inflation;
 
 #[cfg(test)]
 mod mock;

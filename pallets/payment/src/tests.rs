@@ -102,19 +102,19 @@ fn custom_fee_multiplier_updated_per_block() {
         populate_message_queue::<Test>(10);
         run_to_block(2);
 
-        // CustomFeeMultiplier is 2^(10 / 5) == 4
+        // CustomFeeMultiplier is (10 / 5 + 1) == 3
         assert_eq!(
             TransactionPayment::next_fee_multiplier(),
-            Multiplier::saturating_from_integer(4)
+            Multiplier::saturating_from_integer(3)
         );
 
         populate_message_queue::<Test>(33);
         run_to_block(3);
 
-        // CustomFeeMultiplier is 2^(33 / 5) == 64
+        // CustomFeeMultiplier is (33 / 5 + 1) == 7
         assert_eq!(
             TransactionPayment::next_fee_multiplier(),
-            Multiplier::saturating_from_integer(64)
+            Multiplier::saturating_from_integer(7)
         );
     });
 }
@@ -261,14 +261,14 @@ fn mq_size_affecting_fee_works() {
         let alice_initial_balance = Balances::free_balance(ALICE);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        // Fee multiplier should have been set to 16
+        // Fee multiplier should have been set to 5
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
 
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - (fee_weight * 16 + fee_length)
+            alice_initial_balance - (fee_weight * 5 + fee_length)
         );
 
         assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
@@ -280,11 +280,11 @@ fn mq_size_affecting_fee_works() {
         ));
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - (fee_weight * 16 + fee_length)
+            alice_initial_balance - (fee_weight * 5 + fee_length)
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            author_initial_balance + (fee_weight * 16 + fee_length)
+            author_initial_balance + (fee_weight * 5 + fee_length)
         );
     });
 }
@@ -492,7 +492,7 @@ fn query_info_and_fee_details_work() {
         populate_message_queue::<Test>(20);
         run_to_block(2);
 
-        // Extra fee multiplier is now 2^(20 / 5) == 16
+        // Extra fee multiplier is now (20 / 5 + 1) == 5
         assert_eq!(
             GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
@@ -500,13 +500,13 @@ fn query_info_and_fee_details_work() {
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + fee_affecting_length  /* len * 1 */
-                    + fee_affecting_weight * 16u128 /* weight * 16 */
+                    + fee_affecting_weight * 5u128 /* weight * 5 */
             },
         );
 
         // Extra fee not applicable => fee should be exactly what it was for empty MQ
         // However, we must account for the rounding error in this case
-        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(16, 0));
+        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(5, 0));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
@@ -533,7 +533,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: fee_affecting_length,
-                    adjusted_weight_fee: fee_affecting_weight * 16u128,
+                    adjusted_weight_fee: fee_affecting_weight * 5u128,
                 }),
                 tip: 0,
             },
