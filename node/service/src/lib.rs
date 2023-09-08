@@ -90,14 +90,14 @@ type TransactionPool<RuntimeApi, ExecutorDispatch> =
     sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>;
 
 macro_rules! chain_ops {
-    ($config:expr, $scope:ident, $executor:ident, $variant:ident) => {{
+    ($config:expr, $rpc_max_gas_allowance:expr, $scope:ident, $executor:ident, $variant:ident) => {{
         let PartialComponents {
             client,
             backend,
             import_queue,
             task_manager,
             ..
-        } = new_partial::<$scope::RuntimeApi, $executor>($config)?;
+        } = new_partial::<$scope::RuntimeApi, $executor>($config, $rpc_max_gas_allowance)?;
 
         Ok((
             Arc::new(Client::$variant(client)),
@@ -112,6 +112,7 @@ macro_rules! chain_ops {
 #[allow(clippy::type_complexity)]
 pub fn new_chain_ops(
     config: &Configuration,
+    rpc_max_gas_allowance: u64,
 ) -> Result<
     (
         Arc<Client>,
@@ -124,11 +125,23 @@ pub fn new_chain_ops(
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
         spec if spec.is_gear() => {
-            chain_ops!(config, gear_runtime, GearExecutorDispatch, Gear)
+            chain_ops!(
+                config,
+                rpc_max_gas_allowance,
+                gear_runtime,
+                GearExecutorDispatch,
+                Gear
+            )
         }
         #[cfg(feature = "vara-native")]
         spec if spec.is_vara() => {
-            chain_ops!(config, vara_runtime, VaraExecutorDispatch, Vara)
+            chain_ops!(
+                config,
+                rpc_max_gas_allowance,
+                vara_runtime,
+                VaraExecutorDispatch,
+                Vara
+            )
         }
         _ => Err("invalid chain spec".into()),
     }
@@ -139,6 +152,7 @@ pub fn new_chain_ops(
 #[allow(clippy::type_complexity)]
 pub fn new_partial<RuntimeApi, ExecutorDispatch>(
     config: &Configuration,
+    rpc_max_gas_allowance: u64,
 ) -> Result<
     PartialComponents<
         FullClient<RuntimeApi, ExecutorDispatch>,
@@ -309,6 +323,9 @@ where
                     subscription_executor,
                     finality_provider: finality_proof_provider.clone(),
                 },
+                gear: crate::rpc::GearDeps {
+                    gas_allowance: rpc_max_gas_allowance.clone(),
+                },
             };
 
             crate::rpc::create_full(deps, rpc_backend.clone()).map_err(Into::into)
@@ -369,6 +386,7 @@ pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
         &sc_consensus_babe::BabeLink<Block>,
     ),
     max_gas: Option<u64>,
+    rpc_max_gas_allowance: u64,
 ) -> Result<NewFullBase<RuntimeApi, ExecutorDispatch>, ServiceError>
 where
     RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -395,7 +413,7 @@ where
         select_chain,
         transaction_pool,
         other: (rpc_builder, import_setup, rpc_setup, mut telemetry),
-    } = new_partial(&config)?;
+    } = new_partial(&config, rpc_max_gas_allowance)?;
 
     let shared_voter_state = rpc_setup;
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
@@ -643,6 +661,7 @@ pub fn new_full(
     config: Configuration,
     disable_hardware_benchmarks: bool,
     max_gas: Option<u64>,
+    rpc_max_gas_allowance: u64,
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
@@ -651,6 +670,7 @@ pub fn new_full(
             disable_hardware_benchmarks,
             |_, _| (),
             max_gas,
+            rpc_max_gas_allowance,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
@@ -659,6 +679,7 @@ pub fn new_full(
             disable_hardware_benchmarks,
             |_, _| (),
             max_gas,
+            rpc_max_gas_allowance,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),

@@ -141,14 +141,16 @@ pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>
     client: Arc<C>,
+    gas_allowance: u64,
     _marker: std::marker::PhantomData<P>,
 }
 
 impl<C, P> Gear<C, P> {
     /// Creates a new instance of the Gear Rpc helper.
-    pub fn new(client: Arc<C>) -> Self {
+    pub fn new(client: Arc<C>, gas_allowance: u64) -> Self {
         Self {
             client,
+            gas_allowance,
             _marker: Default::default(),
         }
     }
@@ -261,7 +263,7 @@ where
                     value,
                     allow_other_panics,
                     None,
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })?;
             self.run_with_api_copy(|api| {
@@ -273,7 +275,7 @@ where
                     value,
                     allow_other_panics,
                     Some(min_limit),
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })
         }
@@ -338,7 +340,7 @@ where
                     value,
                     allow_other_panics,
                     None,
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })?;
             self.run_with_api_copy(|api| {
@@ -350,7 +352,7 @@ where
                     value,
                     allow_other_panics,
                     Some(min_limit),
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })
         }
@@ -415,7 +417,7 @@ where
                     value,
                     allow_other_panics,
                     None,
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })?;
             self.run_with_api_copy(|api| {
@@ -427,7 +429,7 @@ where
                     value,
                     allow_other_panics,
                     Some(min_limit),
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })
         }
@@ -501,7 +503,7 @@ where
                     value,
                     allow_other_panics,
                     None,
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })?;
             self.run_with_api_copy(|api| {
@@ -516,7 +518,7 @@ where
                     value,
                     allow_other_panics,
                     Some(min_limit),
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
             })
         }
@@ -551,7 +553,12 @@ where
             .map(Bytes)
         } else {
             self.run_with_api_copy(|api| {
-                api.read_state(at_hash, program_id, payload.to_vec(), Some(GAS_ALLOWANCE))
+                api.read_state(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    Some(self.gas_allowance),
+                )
             })
             .map(Bytes)
         }
@@ -602,7 +609,7 @@ where
                 .into_iter()
                 .map(|(program_id, payload)| {
                     self.run_with_api_copy(|api| {
-                        api.read_state(at_hash, program_id, payload.0, Some(GAS_ALLOWANCE))
+                        api.read_state(at_hash, program_id, payload.0, Some(self.gas_allowance))
                     })
                     .map(Bytes)
                 })
@@ -656,7 +663,7 @@ where
                     fn_name.to_vec(),
                     wasm.to_vec(),
                     argument.map(|v| v.to_vec()),
-                    Some(GAS_ALLOWANCE),
+                    Some(self.gas_allowance),
                 )
                 .map(|r| r.map(Bytes))
             })
@@ -725,7 +732,7 @@ where
                             fn_name.clone().to_vec(),
                             wasm.clone().to_vec(),
                             argument.clone().map(|v| v.to_vec()),
-                            Some(GAS_ALLOWANCE),
+                            Some(self.gas_allowance),
                         )
                         .map(|r| r.map(Bytes))
                     })
@@ -759,7 +766,7 @@ where
             self.run_with_api_copy(|api| api.read_metahash_before_version_2(at_hash, program_id))
         } else {
             self.run_with_api_copy(|api| {
-                api.read_metahash(at_hash, program_id, Some(GAS_ALLOWANCE))
+                api.read_metahash(at_hash, program_id, Some(self.gas_allowance))
             })
         }
     }

@@ -154,28 +154,32 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::CheckBlock(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, import_queue, task_manager) =
+                    service::new_chain_ops(&config, cli.run.rpc_max_gas_allowance)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
         Some(Subcommand::ExportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, _, task_manager) =
+                    service::new_chain_ops(&config, cli.run.rpc_max_gas_allowance)?;
                 Ok((cmd.run(client, config.database), task_manager))
             })
         }
         Some(Subcommand::ExportState(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, _, task_manager) =
+                    service::new_chain_ops(&config, cli.run.rpc_max_gas_allowance)?;
                 Ok((cmd.run(client, config.chain_spec), task_manager))
             })
         }
         Some(Subcommand::ImportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, import_queue, task_manager) =
+                    service::new_chain_ops(&config, cli.run.rpc_max_gas_allowance)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -186,7 +190,8 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Revert(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, backend, _, task_manager) =
+                    service::new_chain_ops(&config, cli.run.rpc_max_gas_allowance)?;
                 let aux_revert = Box::new(|client, backend, blocks| {
                     service::revert_backend(client, backend, blocks, config)
                         .map_err(|err| sc_cli::Error::Application(err.into()))
@@ -362,8 +367,13 @@ pub fn run() -> sc_cli::Result<()> {
             };
 
             runner.run_node_until_exit(|config| async move {
-                service::new_full(config, cli.no_hardware_benchmarks, cli.run.max_gas)
-                    .map_err(sc_cli::Error::Service)
+                service::new_full(
+                    config,
+                    cli.no_hardware_benchmarks,
+                    cli.run.max_gas,
+                    cli.run.rpc_max_gas_allowance,
+                )
+                .map_err(sc_cli::Error::Service)
             })
         }
     }

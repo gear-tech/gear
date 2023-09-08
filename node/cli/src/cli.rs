@@ -33,6 +33,10 @@ pub struct RunCmd {
     /// The upper limit for the amount of gas a validator can burn in one block.
     #[arg(long)]
     pub max_gas: Option<u64>,
+
+    /// The upper limit for the amount of gas a runtime api can burn in one call.
+    #[arg(long, default_value_t = 600_000_000)]
+    pub rpc_max_gas_allowance: u64,
 }
 
 #[derive(Debug, Parser)]

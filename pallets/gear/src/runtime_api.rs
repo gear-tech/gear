@@ -38,6 +38,7 @@ where
         QueueProcessingOf::<T>::allow();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn calculate_gas_info_impl(
         source: H256,
         kind: HandleKind,
