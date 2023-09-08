@@ -27,7 +27,7 @@ use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
     memory::{
-        MemoryAccessError, MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs,
+        MemoryAccessError, MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs,
         WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::RunFallibleError,
@@ -219,16 +219,16 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 }
 
-impl<'a, 'b, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, 'b, Ext> {
-    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
+    pub fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
 
-    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read_as(memory, read, gas_left))
     }
 
-    fn read_decoded<T: Decode + MaxEncodedLen>(
+    pub fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
@@ -237,13 +237,13 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a,
         })
     }
 
-    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+    pub fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| {
             manager.write(memory, write, buff, gas_left)
         })
     }
 
-    fn write_as<T: Sized>(
+    pub fn write_as<T: Sized>(
         &mut self,
         write: WasmMemoryWriteAs<T>,
         obj: T,

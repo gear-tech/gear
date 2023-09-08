@@ -98,30 +98,6 @@ impl BackendSyscallError for MemoryAccessError {
     }
 }
 
-pub trait MemoryOwner {
-    /// Read from owned memory to new byte vector.
-    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError>;
-
-    /// Read from owned memory to new object `T`.
-    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError>;
-
-    /// Read from owned memory and decoded data into object `T`.
-    fn read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        read: WasmMemoryReadDecoded<T>,
-    ) -> Result<T, MemoryAccessError>;
-
-    /// Write data from `buff` to owned memory.
-    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError>;
-
-    /// Write data from `obj` to owned memory.
-    fn write_as<T: Sized>(
-        &mut self,
-        write: WasmMemoryWriteAs<T>,
-        obj: T,
-    ) -> Result<(), MemoryAccessError>;
-}
-
 /// Memory access manager. Allows to pre-register memory accesses,
 /// and pre-process, them together. For example:
 /// ```ignore

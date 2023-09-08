@@ -24,7 +24,7 @@ use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
 use gear_backend_common::{
-    memory::{MemoryAccessError, MemoryOwner, WasmMemoryRead},
+    memory::{MemoryAccessError, WasmMemoryRead},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
     TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
