@@ -13,7 +13,7 @@ jobs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Create image tag
         id: image-tag
@@ -24,7 +24,7 @@ jobs:
     needs: tag-image
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Echo tag
         run: echo ${{ needs.tag-image.outputs.image_tag }}
@@ -53,7 +53,7 @@ jobs:
 #    needs: [docker, tag-image]
 #    steps:
 #      - name: Checkout
-#        uses: actions/checkout@v3
+#        uses: actions/checkout@v4
 
 
 
@@ -89,7 +89,7 @@ jobs:
 #    needs: [docker, deploy-one-validator,tag-image]
 #    steps:
 #      - name: Checkout
-#        uses: actions/checkout@v3
+#        uses: actions/checkout@v4
 
 
 
