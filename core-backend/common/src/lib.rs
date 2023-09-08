@@ -413,41 +413,6 @@ where
         PrepareMemoryError: Display;
 }
 
-pub trait BackendState {
-    /// Set termination reason
-    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason);
-
-    /// Process fallible syscall function result
-    fn process_fallible_func_result<T: Sized>(
-        &mut self,
-        res: Result<T, RunFallibleError>,
-    ) -> Result<Result<T, u32>, UndefinedTerminationReason> {
-        match res {
-            Err(RunFallibleError::FallibleExt(ext_err)) => {
-                let code = ext_err.to_u32();
-                log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
-                Ok(Err(code))
-            }
-            Err(RunFallibleError::UndefinedTerminationReason(reason)) => Err(reason),
-            Ok(res) => Ok(Ok(res)),
-        }
-    }
-
-    /// Process alloc function result
-    fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocSyscallError>(
-        &mut self,
-        res: Result<T, ExtAllocError>,
-    ) -> Result<Result<T, ExtAllocError>, UndefinedTerminationReason> {
-        match res {
-            Ok(t) => Ok(Ok(t)),
-            Err(err) => match err.into_backend_error() {
-                Ok(ext_err) => Err(ext_err.into()),
-                Err(alloc_err) => Ok(Err(alloc_err)),
-            },
-        }
-    }
-}
-
 /// A trait for termination of the gear sys-calls execution backend.
 ///
 /// Backend termination aims to return to the caller gear wasm program

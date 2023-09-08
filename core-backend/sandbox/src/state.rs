@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{
-    BackendExternalities, BackendState, BackendTermination, UndefinedTerminationReason,
-};
+use gear_backend_common::{BackendExternalities, BackendTermination, UndefinedTerminationReason};
 
 pub type HostState<Ext, Mem> = Option<State<Ext, Mem>>;
 
@@ -36,11 +34,5 @@ impl<Ext: BackendExternalities, Mem> BackendTermination<Ext> for State<Ext, Mem>
             ..
         } = self;
         (ext, termination_reason)
-    }
-}
-
-impl<Ext, Mem> BackendState for State<Ext, Mem> {
-    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
-        self.termination_reason = reason;
     }
 }

@@ -26,8 +26,8 @@ use gear_backend_codegen::host;
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendState,
-    BackendSyscallError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
     UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use gear_core::{

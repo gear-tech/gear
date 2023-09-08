@@ -31,7 +31,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::RunFallibleError,
-    BackendExternalities, BackendState, UndefinedTerminationReason,
+    BackendAllocSyscallError, BackendExternalities, UndefinedTerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
@@ -120,7 +120,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
             cost,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
-                let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+                let res = ctx.process_fallible_func_result(res)?;
 
                 // TODO: move above or make normal process memory access.
                 let write_res = ctx.register_write_as::<R>(res_ptr);
@@ -212,9 +212,39 @@ impl<'a, 'b, Ext> MemoryAccessRecorder for CallerWrap<'a, 'b, Ext> {
     }
 }
 
-impl<Ext: BackendExternalities + 'static> BackendState for CallerWrap<'_, '_, Ext> {
-    fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
-        self.host_state_mut().set_termination_reason(reason);
+impl<Ext: BackendExternalities + 'static> CallerWrap<'_, '_, Ext> {
+    pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
+        self.host_state_mut().termination_reason = reason;
+    }
+
+    /// Process fallible syscall function result
+    pub fn process_fallible_func_result<T: Sized>(
+        &mut self,
+        res: Result<T, RunFallibleError>,
+    ) -> Result<Result<T, u32>, UndefinedTerminationReason> {
+        match res {
+            Err(RunFallibleError::FallibleExt(ext_err)) => {
+                let code = ext_err.to_u32();
+                log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
+                Ok(Err(code))
+            }
+            Err(RunFallibleError::UndefinedTerminationReason(reason)) => Err(reason),
+            Ok(res) => Ok(Ok(res)),
+        }
+    }
+
+    /// Process alloc function result
+    pub fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocSyscallError>(
+        &mut self,
+        res: Result<T, ExtAllocError>,
+    ) -> Result<Result<T, ExtAllocError>, UndefinedTerminationReason> {
+        match res {
+            Ok(t) => Ok(Ok(t)),
+            Err(err) => match err.into_backend_error() {
+                Ok(ext_err) => Err(ext_err.into()),
+                Err(alloc_err) => Ok(Err(alloc_err)),
+            },
+        }
     }
 }
 
