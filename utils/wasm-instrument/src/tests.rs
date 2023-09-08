@@ -622,8 +622,8 @@ test_gas_counter_injection! {
 #[test]
 fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
-    use gear_backend_common::{mock::MockExt, ActorTerminationReason, BackendReport};
-    use gear_backend_sandbox::SandboxEnvironment;
+    use gear_backend_common::{mock::MockExt, ActorTerminationReason};
+    use gear_backend_sandbox::{env::BackendReport, SandboxEnvironment};
     use gear_core::message::DispatchKind;
     use parity_wasm::builder;
 

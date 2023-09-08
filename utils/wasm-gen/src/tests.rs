@@ -18,8 +18,8 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExplanation};
-use gear_backend_sandbox::SandboxEnvironment;
+use gear_backend_common::{TerminationReason, TrapExplanation};
+use gear_backend_sandbox::env::BackendReport;
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},

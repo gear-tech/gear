@@ -279,14 +279,5 @@ pub trait BackendAllocSyscallError: Sized {
     fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
 
-pub struct BackendReport<EnvMem, Ext>
-where
-    Ext: Externalities,
-{
-    pub termination_reason: TerminationReason,
-    pub memory_wrap: EnvMem,
-    pub ext: Ext,
-}
-
 #[cfg(test)]
 mod tests;

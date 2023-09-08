@@ -34,8 +34,8 @@ use core::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, LimitedStr,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    LimitedStr, TerminationReason,
 };
 use gear_core::{
     env::Externalities,
@@ -163,10 +163,8 @@ fn store_host_state_mut<Ext>(
         .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
 }
 
-type EnvironmentBackendReport<Ext> = BackendReport<MemoryWrap<Ext>, Ext>;
-
 pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> =
-    Result<EnvironmentBackendReport<Ext>, SandboxEnvironmentError<PrepareMemoryError>>;
+    Result<BackendReport<Ext>, SandboxEnvironmentError<PrepareMemoryError>>;
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError<PrepareMemoryError: Display> {
@@ -209,6 +207,15 @@ where
     entry_point: EntryPoint,
     store: Store<HostState<Ext, DefaultExecutorMemory>>,
     memory: DefaultExecutorMemory,
+}
+
+pub struct BackendReport<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    pub termination_reason: TerminationReason,
+    pub memory_wrap: MemoryWrap<Ext>,
+    pub ext: Ext,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
