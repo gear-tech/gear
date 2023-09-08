@@ -54,8 +54,8 @@ use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
 /// which is pretty hard to predict beforehand with a generator. So this call context
 /// is created from scratch - first `gr_reserve_gas` is called and then it's result
 /// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum InvocableSysCall {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocableSysCall {
     Loose(SysCallName),
     Precise(SysCallName),
 }
@@ -66,6 +66,9 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
             InvocableSysCall::Precise(sys_call) => match sys_call {
                 SysCallName::ReservationSend => "precise_gr_reservation_send",
+                SysCallName::ReservationReply => "precise_gr_reservation_reply",
+                SysCallName::SendCommit => "precise_gr_send_commit",
+                SysCallName::SendCommitWGas => "precise_gr_send_commit_wgas",
                 _ => unimplemented!(),
             },
         }
@@ -83,6 +86,27 @@ impl InvocableSysCall {
                     ParamType::Gas,          // Amount of gas to reserve
                     ParamType::Duration,     // Duration of the reservation
                     ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::ReservationReply => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of value
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Gas,          // Amount of gas to reserve
+                    ParamType::Duration,     // Duration of the reservation
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommit => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Delay,        // Number of blocks to delay the sending for
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommitWGas => SysCallSignature::gr([
+                    ParamType::Ptr(None), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Delay,     // Number of blocks to delay the sending for
+                    ParamType::Gas,       // Amount of gas to reserve
+                    ParamType::Ptr(None), // Address of error returned
                 ]),
                 _ => unimplemented!(),
             },

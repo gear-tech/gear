@@ -361,6 +361,11 @@ benchmarks! {
     }
 
     #[extra]
+    read_big_state {
+        syscalls_integrity::read_big_state::<T>();
+    } : {}
+
+    #[extra]
     check_all {
         syscalls_integrity::main_test::<T>();
         tests::check_stack_overflow::<T>();

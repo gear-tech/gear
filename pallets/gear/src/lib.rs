@@ -33,7 +33,6 @@ mod runtime_api;
 mod schedule;
 
 pub mod manager;
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]

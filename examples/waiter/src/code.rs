@@ -83,8 +83,14 @@ async fn main() {
         Command::WakeUp(msg_id) => {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
-        Command::MxLock(continuation) => {
-            let lock_guard = unsafe { MUTEX.lock().await };
+        Command::MxLock(lock_duration, continuation) => {
+            let lock_guard = unsafe {
+                MUTEX
+                    .lock()
+                    .own_up_for(lock_duration)
+                    .expect("Failed to set mx ownership duration")
+                    .await
+            };
             process_mx_lock_continuation(
                 unsafe { &mut MUTEX_LOCK_GUARD },
                 lock_guard,
@@ -142,6 +148,9 @@ async fn process_mx_lock_continuation(
     continuation: MxLockContinuation,
 ) {
     match continuation {
+        MxLockContinuation::Lock => unsafe {
+            MUTEX.lock().await;
+        },
         MxLockContinuation::General(continuation) => {
             process_lock_continuation(static_lock_guard, lock_guard, continuation).await
         }
@@ -171,6 +180,10 @@ async fn process_lock_continuation<G>(
         LockContinuation::MoveToStatic => unsafe {
             *static_lock_guard = Some(lock_guard);
         },
+        LockContinuation::Wait => exec::wait(),
+        LockContinuation::Forget => {
+            gstd::mem::forget(lock_guard);
+        }
     }
 }
 

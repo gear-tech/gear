@@ -133,13 +133,8 @@ use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
-pub mod migration;
-
 #[cfg(test)]
 mod mock;
-
-pub(crate) type TaskPoolOf<T> =
-    <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
 
 #[frame_support::pallet]
 pub mod pallet {

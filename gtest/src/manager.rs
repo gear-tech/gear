@@ -216,7 +216,7 @@ pub(crate) struct ExtManager {
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
-    pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
+    pub(crate) gas_limits: BTreeMap<MessageId, u64>,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
 
     // Last run info
@@ -369,7 +369,9 @@ impl ExtManager {
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.prepare_for(&dispatch);
 
-        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+        self.gas_limits
+            .entry(dispatch.id())
+            .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
@@ -471,7 +473,7 @@ impl ExtManager {
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
         let mapping_code = Code::try_new_mock_const_or_no_rules(
             wasm,
@@ -484,8 +486,7 @@ impl ExtManager {
             .into_parts()
             .0;
 
-        // The `metawasm` macro knows how to decode this as a tuple
-        let mut mapping_code_payload = argument.unwrap_or_default();
+        let mut mapping_code_payload = args.unwrap_or_default();
         mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
 
         core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
@@ -796,8 +797,7 @@ impl ExtManager {
         let gas_limit = self
             .gas_limits
             .get(&dispatch.id())
-            .expect("Unable to find gas limit for message")
-            .unwrap_or(u64::MAX);
+            .expect("Unable to find gas limit for message");
         let block_config = BlockConfig {
             block_info: self.block_info,
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
@@ -830,7 +830,7 @@ impl ExtManager {
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
             u64::MAX,
-            dispatch.into_incoming(gas_limit),
+            dispatch.into_incoming(*gas_limit),
             dest,
         ) {
             Ok(d) => d,
@@ -933,7 +933,9 @@ impl JournalHandler for ExtManager {
 
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
-        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+        self.gas_limits
+            .entry(dispatch.id())
+            .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
@@ -1155,6 +1157,7 @@ impl JournalHandler for ExtManager {
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 
-    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
+    fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        self.gas_limits.insert(future_reply_id, amount);
     }
 }
