@@ -225,6 +225,10 @@ impl Optimizer {
                     *function_body = nop_function.clone();
                 }
 
+                if let Some(elements_section) = module.elements_section_mut() {
+                    *elements_section.entries_mut() = vec![];
+                }
+
                 let mut code = vec![];
                 module.serialize(&mut code)?;
 
