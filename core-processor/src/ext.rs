@@ -26,7 +26,7 @@ use gear_backend_common::{
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
+    SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
@@ -42,10 +42,10 @@ use gear_core::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
+        ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
+        MessageContext, Packet, ReplyPacket,
     },
-    pages::{PageU32Size, WasmPage},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{
@@ -152,11 +152,29 @@ impl ProcessorContext {
     }
 }
 
+#[derive(Debug)]
+pub struct ExtInfo {
+    pub gas_amount: GasAmount,
+    pub gas_reserver: GasReserver,
+    pub system_reservation_context: SystemReservationContext,
+    pub allocations: BTreeSet<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
+    pub awakening: Vec<(MessageId, u32)>,
+    pub reply_deposits: Vec<(MessageId, u64)>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_rents: BTreeMap<ProgramId, u32>,
+    pub context_store: ContextStore,
+}
+
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
+
+    /// Convert externalities into [`ExtInfo`].
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
@@ -345,26 +363,6 @@ impl ProcessorExternalities for Ext {
         }
     }
 
-    fn lazy_pages_init_for_program(
-        mem: &mut impl Memory,
-        prog_id: ProgramId,
-        stack_end: Option<WasmPage>,
-        globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
-    ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
-    }
-
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        lazy_pages::remove_lazy_pages_prot(mem);
-    }
-
-    fn lazy_pages_status() -> Status {
-        lazy_pages::get_status()
-    }
-}
-
-impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let ProcessorContext {
             allocations_context,
@@ -429,6 +427,26 @@ impl BackendExternalities for Ext {
         Ok(info)
     }
 
+    fn lazy_pages_init_for_program(
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
+    ) {
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
+    }
+
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        lazy_pages::remove_lazy_pages_prot(mem);
+    }
+
+    fn lazy_pages_status() -> Status {
+        lazy_pages::get_status()
+    }
+}
+
+impl BackendExternalities for Ext {
     fn gas_amount(&self) -> GasAmount {
         self.context.gas_counter.to_amount()
     }

@@ -497,51 +497,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::lazy_pages::Status;
-    use gear_core::pages::WasmPage;
-
-    struct TestExt;
-    struct LazyTestExt;
-
-    impl ProcessorExternalities for TestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn lazy_pages_init_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) {
-        }
-
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
-        }
-    }
-
-    impl ProcessorExternalities for LazyTestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn lazy_pages_init_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) {
-        }
-
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
-        }
-    }
 
     #[test]
     fn check_memory_insufficient() {

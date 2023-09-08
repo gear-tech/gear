@@ -34,19 +34,13 @@ pub mod runtime;
 
 use crate::runtime::RunFallibleError;
 use actor_system_error::actor_system_error;
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
 use core::fmt::Debug;
 use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryError, MemoryInterval, PageBuf},
-    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType},
-    pages::{GearPage, WasmPage},
-    reservation::GasReserver,
+    ids::ProgramId,
+    memory::MemoryInterval,
+    message::{IncomingDispatch, MessageWaitedType},
 };
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -279,25 +273,8 @@ impl SystemReservationContext {
     }
 }
 
-#[derive(Debug)]
-pub struct ExtInfo {
-    pub gas_amount: GasAmount,
-    pub gas_reserver: GasReserver,
-    pub system_reservation_context: SystemReservationContext,
-    pub allocations: BTreeSet<WasmPage>,
-    pub pages_data: BTreeMap<GearPage, PageBuf>,
-    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
-    pub awakening: Vec<(MessageId, u32)>,
-    pub reply_deposits: Vec<(MessageId, u64)>,
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    pub program_rents: BTreeMap<ProgramId, u32>,
-    pub context_store: ContextStore,
-}
-
 /// Extended externalities that can manage gas counters.
 pub trait BackendExternalities: Externalities + CountersOwner {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
-
     fn gas_amount(&self) -> GasAmount;
 
     /// Pre-process memory access if need.

@@ -18,8 +18,7 @@
 
 use crate::{
     memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
-    BackendExternalities, BackendSyscallError, ExtInfo, SystemReservationContext,
-    UndefinedTerminationReason,
+    BackendExternalities, BackendSyscallError, UndefinedTerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
@@ -29,9 +28,8 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
-    message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    reservation::GasReserver,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -277,26 +275,6 @@ impl Externalities for MockExt {
 }
 
 impl BackendExternalities for MockExt {
-    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        Ok(ExtInfo {
-            gas_amount: GasCounter::new(0).to_amount(),
-            gas_reserver: GasReserver::new(
-                &<IncomingDispatch as Default>::default(),
-                Default::default(),
-                1024,
-            ),
-            system_reservation_context: SystemReservationContext::default(),
-            allocations: Default::default(),
-            pages_data: Default::default(),
-            generated_dispatches: Default::default(),
-            awakening: Default::default(),
-            reply_deposits: Default::default(),
-            program_candidates_data: Default::default(),
-            program_rents: Default::default(),
-            context_store: Default::default(),
-        })
-    }
-
     fn gas_amount(&self) -> GasAmount {
         GasCounter::new(0).to_amount()
     }
