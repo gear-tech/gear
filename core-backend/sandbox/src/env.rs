@@ -31,8 +31,7 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, BackendTermination, Environment, EnvironmentError,
-    EnvironmentExecutionResult, LimitedStr,
+    BackendSyscallError, Environment, EnvironmentError, EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
     env::Externalities,
