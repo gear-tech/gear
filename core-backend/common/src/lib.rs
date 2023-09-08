@@ -40,7 +40,7 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::ProgramId,
     memory::MemoryInterval,
-    message::{IncomingDispatch, MessageWaitedType},
+    message::MessageWaitedType,
 };
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
@@ -247,30 +247,6 @@ pub enum TrapExplanation {
     Panic(LimitedStr<'static>),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
-}
-
-#[derive(Debug, Default)]
-pub struct SystemReservationContext {
-    /// Reservation created in current execution.
-    pub current_reservation: Option<u64>,
-    /// Reservation from `ContextStore`.
-    pub previous_reservation: Option<u64>,
-}
-
-impl SystemReservationContext {
-    pub fn from_dispatch(dispatch: &IncomingDispatch) -> Self {
-        Self {
-            current_reservation: None,
-            previous_reservation: dispatch
-                .context()
-                .as_ref()
-                .and_then(|ctx| ctx.system_reservation()),
-        }
-    }
-
-    pub fn has_any(&self) -> bool {
-        self.current_reservation.is_some() || self.previous_reservation.is_some()
-    }
 }
 
 /// Extended externalities that can manage gas counters.

@@ -30,7 +30,6 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{
     runtime::RunFallibleError, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    SystemReservationContext,
 };
 use gear_core::{
     env::Externalities,

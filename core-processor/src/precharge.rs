@@ -20,14 +20,15 @@ use crate::{
         PrechargedDispatch,
     },
     configs::{BlockConfig, PageCosts},
-    context::{ContextChargedForCodeLength, ContextChargedForMemory, ContextData},
+    context::{
+        ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
+    },
     processing::{
         process_allowance_exceed, process_error, process_non_executable, process_success,
     },
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_backend_common::SystemReservationContext;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,

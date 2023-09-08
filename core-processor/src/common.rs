@@ -19,7 +19,8 @@
 //! Common structures for processing.
 
 use crate::{
-    executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
+    context::SystemReservationContext, executor::SystemPrepareMemoryError,
+    precharge::PreChargeGasOperation, ActorPrepareMemoryError,
 };
 use actor_system_error::actor_system_error;
 use alloc::{
@@ -27,7 +28,7 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
+use gear_backend_common::{SystemTerminationReason, TrapExplanation};
 use gear_backend_sandbox::env::SandboxSystemEnvironmentError;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},

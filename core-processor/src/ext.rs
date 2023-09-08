@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PageCosts};
+use crate::{
+    configs::{BlockInfo, PageCosts},
+    context::SystemReservationContext,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
@@ -26,9 +29,8 @@ use gear_backend_common::{
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
-    UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
-    UnrecoverableWaitError,
+    TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
