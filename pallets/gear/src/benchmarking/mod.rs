@@ -242,14 +242,14 @@ where
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
-fn get_last_session_id_if_any<T: Config>() -> Option<SessionId> {
-    filter_event_reverse::<T, _, _>(|event| match event {
+fn get_last_session_id<T: Config>() -> Option<SessionId> {
+    find_latest_event::<T, _, _>(|event| match event {
         Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
         _ => None,
     })
 }
 
-pub fn filter_event_reverse<T, F, R>(mapping_filter: F) -> Option<R>
+pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
 where
     T: Config,
     F: Fn(Event<T>) -> Option<R>,
@@ -296,7 +296,7 @@ where
         pages
     };
 
-    (get_last_session_id_if_any::<T>().unwrap(), memory_pages)
+    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 #[track_caller]
@@ -2843,7 +2843,7 @@ benchmarks! {
         )
         .expect("failed to start resume session");
 
-        let session_id = get_last_session_id_if_any::<T>().unwrap();
+        let session_id = get_last_session_id::<T>().unwrap();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.remove_resume_session(session_id);
@@ -3049,7 +3049,7 @@ benchmarks! {
 
         Gear::<T>::process_queue(Default::default());
 
-        let expiration = filter_event_reverse::<T, _, _>(|event| match event {
+        let expiration = find_latest_event::<T, _, _>(|event| match event {
             Event::MessageWaited { expiration, .. } => Some(expiration),
             _ => None,
         }).expect("message should be waited");
@@ -3073,7 +3073,7 @@ benchmarks! {
     tasks_remove_from_mailbox {
         tasks_send_user_message_prepare::<T>(0u32);
 
-        let (user, message_id) = filter_event_reverse::<T, _, _>(|event| match event {
+        let (user, message_id) = find_latest_event::<T, _, _>(|event| match event {
             Event::UserMessageSent {
                 message,
                 ..
