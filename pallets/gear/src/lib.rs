@@ -682,7 +682,7 @@ pub mod pallet {
 
             let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
                 .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
+                    log::debug!("Code failed to load: {e:?}");
                     Error::<T>::ProgramConstructionFailed
                 })?;
 

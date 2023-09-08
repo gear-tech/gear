@@ -453,7 +453,7 @@ impl Code {
     /// )
     /// ```
     ///
-    /// After instrumentation code will be:
+    /// After instrumentation code will be like:
     /// ```wasm
     /// (module
     ///   (import "env" "memory" (memory 1))
@@ -479,11 +479,6 @@ impl Code {
     ///         <-- some code -->
     ///      end
     ///   )
-    ///   (func $f3
-    ///      i32.const 123
-    ///      call $gas_charge
-    ///      <-- f3 code -->
-    ///   )
     ///   (func $init
     ///      i32.const 123
     ///      call $gas_charge
@@ -493,9 +488,6 @@ impl Code {
     ///      <-- stack limit decrease -->
     ///      <-- stack limit check and increase -->
     ///      call $f2
-    ///      <-- stack limit decrease -->
-    ///      <-- stack limit check and increase -->
-    ///      call $f3
     ///      <-- stack limit decrease -->
     ///      <-- some code -->
     ///   )
