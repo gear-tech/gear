@@ -30,8 +30,6 @@ use gear_backend_common::{
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
-#[cfg(any(feature = "mock", test))]
-use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
