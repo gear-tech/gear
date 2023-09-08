@@ -27,8 +27,8 @@ use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
     memory::{
-        MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
-        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+        MemoryAccessError, MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs,
+        WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::RunFallibleError,
     BackendAllocSyscallError, BackendExternalities, UndefinedTerminationReason,
@@ -123,7 +123,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
                 let res = ctx.process_fallible_func_result(res)?;
 
                 // TODO: move above or make normal process memory access.
-                let write_res = ctx.register_write_as::<R>(res_ptr);
+                let write_res = ctx.manager.register_write_as::<R>(res_ptr);
 
                 ctx.write_as(write_res, R::from(res)).map_err(Into::into)
             },
@@ -137,9 +137,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         self.caller.data_mut().replace(state);
         res
     }
-}
 
-impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     #[track_caller]
     pub fn prepare(
         caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
@@ -185,34 +183,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
             .decrease_current_counter_to(gas_counter);
         res
     }
-}
 
-impl<'a, 'b, Ext> MemoryAccessRecorder for CallerWrap<'a, 'b, Ext> {
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        self.manager.register_read(ptr, size)
-    }
-
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        self.manager.register_read_as(ptr)
-    }
-
-    fn register_read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        ptr: u32,
-    ) -> WasmMemoryReadDecoded<T> {
-        self.manager.register_read_decoded(ptr)
-    }
-
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.manager.register_write(ptr, size)
-    }
-
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.manager.register_write_as(ptr)
-    }
-}
-
-impl<Ext: BackendExternalities + 'static> CallerWrap<'_, '_, Ext> {
     pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.host_state_mut().termination_reason = reason;
     }

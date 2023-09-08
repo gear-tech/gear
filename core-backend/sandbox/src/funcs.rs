@@ -24,7 +24,7 @@ use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
 use gear_backend_common::{
-    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead},
+    memory::{MemoryAccessError, MemoryOwner, WasmMemoryRead},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
     TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
@@ -100,7 +100,7 @@ where
         value_ptr: u32,
     ) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
-            let read_value = ctx.register_read_decoded(value_ptr);
+            let read_value = ctx.manager.register_read_decoded(value_ptr);
             return ctx.read_decoded(read_value);
         }
 
@@ -128,8 +128,8 @@ where
         len: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_hash_val = ctx.register_read_as(pid_value_ptr);
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_hash_val = ctx.manager.register_read_as(pid_value_ptr);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let HashWithValue {
             hash: destination,
             value,
@@ -149,7 +149,7 @@ where
         pid_value_ptr: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_pid_value = ctx.register_read_as(pid_value_ptr);
+        let read_pid_value = ctx.manager.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
             value,
@@ -177,7 +177,7 @@ where
         payload_ptr: u32,
         len: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
         ctx.ext_mut()
@@ -194,8 +194,8 @@ where
         len: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_rid_pid_value = ctx.manager.register_read_as(rid_pid_value_ptr);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let TwoHashesWithValue {
             hash1: reservation_id,
             hash2: destination,
@@ -220,7 +220,7 @@ where
         rid_pid_value_ptr: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+        let read_rid_pid_value = ctx.manager.register_read_as(rid_pid_value_ptr);
         let TwoHashesWithValue {
             hash1: reservation_id,
             hash2: destination,
@@ -248,7 +248,7 @@ where
         let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
         payload_lock
             .drop_with::<MemoryAccessError, _>(|payload_access| {
-                let write_buffer = ctx.register_write(buffer_ptr, len);
+                let write_buffer = ctx.manager.register_write(buffer_ptr, len);
                 let write_res = ctx.write(write_buffer, payload_access.as_slice());
                 let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
 
@@ -266,7 +266,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let size = ctx.ext_mut().size()? as u32;
 
-        let write_size = ctx.register_write_as(size_ptr);
+        let write_size = ctx.manager.register_write_as(size_ptr);
         ctx.write_as(write_size, size.to_le_bytes())
             .map_err(Into::into)
     }
@@ -277,7 +277,7 @@ where
         gas: u64,
         inheritor_id_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
+        let read_inheritor_id = ctx.manager.register_read_decoded(inheritor_id_ptr);
         let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
@@ -359,7 +359,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let height = ctx.ext_mut().block_height()?;
 
-        let write_height = ctx.register_write_as(height_ptr);
+        let write_height = ctx.manager.register_write_as(height_ptr);
         ctx.write_as(write_height, height.to_le_bytes())
             .map_err(Into::into)
     }
@@ -372,7 +372,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let timestamp = ctx.ext_mut().block_timestamp()?;
 
-        let write_timestamp = ctx.register_write_as(timestamp_ptr);
+        let write_timestamp = ctx.manager.register_write_as(timestamp_ptr);
         ctx.write_as(write_timestamp, timestamp.to_le_bytes())
             .map_err(Into::into)
     }
@@ -384,8 +384,8 @@ where
         subject_ptr: u32,
         bn_random_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_subject = ctx.register_read_decoded(subject_ptr);
-        let write_bn_random = ctx.register_write_as(bn_random_ptr);
+        let read_subject = ctx.manager.register_read_decoded(subject_ptr);
+        let write_bn_random = ctx.manager.register_write_as(bn_random_ptr);
 
         let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
@@ -407,7 +407,7 @@ where
         len: u32,
         value_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 
@@ -437,8 +437,8 @@ where
         payload_ptr: u32,
         len: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_rid_value = ctx.register_read_as(rid_value_ptr);
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_rid_value = ctx.manager.register_read_as(rid_value_ptr);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let HashWithValue {
             hash: reservation_id,
             value,
@@ -456,7 +456,7 @@ where
         gas: u64,
         rid_value_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_rid_value = ctx.register_read_as(rid_value_ptr);
+        let read_rid_value = ctx.manager.register_read_as(rid_value_ptr);
         let HashWithValue {
             hash: reservation_id,
             value,
@@ -491,7 +491,7 @@ where
         payload_ptr: u32,
         len: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_payload = ctx.register_read(payload_ptr, len);
+        let read_payload = ctx.manager.register_read(payload_ptr, len);
         let payload = ctx.read(read_payload)?;
 
         ctx.ext_mut().reply_push(&payload).map_err(Into::into)
@@ -540,7 +540,7 @@ where
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
         // Charge for `len` inside `send_push_input`
-        let read_pid_value = ctx.register_read_as(pid_value_ptr);
+        let read_pid_value = ctx.manager.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
             value,
@@ -579,7 +579,7 @@ where
         data_ptr: u32,
         data_len: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_data = ctx.register_read(data_ptr, data_len);
+        let read_data = ctx.manager.register_read(data_ptr, data_len);
         let data: RuntimeBuffer = ctx
             .read(read_data)?
             .try_into()
@@ -603,7 +603,7 @@ where
         data_ptr: u32,
         data_len: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_data = ctx.register_read(data_ptr, data_len);
+        let read_data = ctx.manager.register_read(data_ptr, data_len);
         let data = ctx.read(read_data).unwrap_or_default();
 
         let s = String::from_utf8_lossy(&data).to_string();
@@ -635,7 +635,7 @@ where
         message_id_ptr: u32,
         gas_value: u64,
     ) -> Result<(u64, ()), HostError> {
-        let read_message_id = ctx.register_read_decoded(message_id_ptr);
+        let read_message_id = ctx.manager.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
         ctx.ext_mut()
@@ -649,7 +649,7 @@ where
         gas: u64,
         reservation_id_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
+        let read_reservation_id = ctx.manager.register_read_decoded(reservation_id_ptr);
         let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
         ctx.ext_mut()
@@ -676,7 +676,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let gas_available = ctx.ext_mut().gas_available()?;
 
-        let write_gas = ctx.register_write_as(gas_ptr);
+        let write_gas = ctx.manager.register_write_as(gas_ptr);
         ctx.write_as(write_gas, gas_available.to_le_bytes())
             .map_err(Into::into)
     }
@@ -689,7 +689,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let message_id = ctx.ext_mut().message_id()?;
 
-        let write_message_id = ctx.register_write_as(message_id_ptr);
+        let write_message_id = ctx.manager.register_write_as(message_id_ptr);
         ctx.write_as(write_message_id, message_id.into_bytes())
             .map_err(Into::into)
     }
@@ -702,7 +702,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let program_id = ctx.ext_mut().program_id()?;
 
-        let write_program_id = ctx.register_write_as(program_id_ptr);
+        let write_program_id = ctx.manager.register_write_as(program_id_ptr);
         ctx.write_as(write_program_id, program_id.into_bytes())
             .map_err(Into::into)
     }
@@ -713,7 +713,7 @@ where
         gas: u64,
         rent_pid_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
+        let read_rent_pid = ctx.manager.register_read_as(rent_pid_ptr);
 
         let HashWithValue {
             hash: program_id,
@@ -733,7 +733,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let source = ctx.ext_mut().source()?;
 
-        let write_source = ctx.register_write_as(source_ptr);
+        let write_source = ctx.manager.register_write_as(source_ptr);
         ctx.write_as(write_source, source.into_bytes())
             .map_err(Into::into)
     }
@@ -746,7 +746,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let value = ctx.ext_mut().value()?;
 
-        let write_value = ctx.register_write_as(value_ptr);
+        let write_value = ctx.manager.register_write_as(value_ptr);
         ctx.write_as(write_value, value.to_le_bytes())
             .map_err(Into::into)
     }
@@ -759,7 +759,7 @@ where
     ) -> Result<(u64, ()), HostError> {
         let value_available = ctx.ext_mut().value_available()?;
 
-        let write_value = ctx.register_write_as(value_ptr);
+        let write_value = ctx.manager.register_write_as(value_ptr);
         ctx.write_as(write_value, value_available.to_le_bytes())
             .map_err(Into::into)
     }
@@ -806,7 +806,7 @@ where
         message_id_ptr: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_message_id = ctx.register_read_decoded(message_id_ptr);
+        let read_message_id = ctx.manager.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
         ctx.ext_mut().wake(message_id, delay).map_err(Into::into)
@@ -824,9 +824,9 @@ where
         payload_len: u32,
         delay: u32,
     ) -> Result<(u64, ()), HostError> {
-        let read_cid_value = ctx.register_read_as(cid_value_ptr);
-        let read_salt = ctx.register_read(salt_ptr, salt_len);
-        let read_payload = ctx.register_read(payload_ptr, payload_len);
+        let read_cid_value = ctx.manager.register_read_as(cid_value_ptr);
+        let read_salt = ctx.manager.register_read(salt_ptr, salt_len);
+        let read_payload = ctx.manager.register_read(payload_ptr, payload_len);
         let HashWithValue {
             hash: code_id,
             value,

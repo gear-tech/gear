@@ -98,27 +98,6 @@ impl BackendSyscallError for MemoryAccessError {
     }
 }
 
-/// Memory accesses recorder/registrar, which allow to register new accesses.
-pub trait MemoryAccessRecorder {
-    /// Register new read access.
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead;
-
-    /// Register new read static size type access.
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T>;
-
-    /// Register new read decoded type access.
-    fn register_read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        ptr: u32,
-    ) -> WasmMemoryReadDecoded<T>;
-
-    /// Register new write access.
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite;
-
-    /// Register new write static size access.
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T>;
-}
-
 pub trait MemoryOwner {
     /// Read from owned memory to new byte vector.
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError>;
@@ -177,15 +156,15 @@ impl<Ext> Default for MemoryAccessManager<Ext> {
     }
 }
 
-impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+impl<Ext> MemoryAccessManager<Ext> {
+    pub fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryRead { ptr, size }
     }
 
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    pub fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         let size = size_of::<T>() as u32;
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
@@ -196,7 +175,7 @@ impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
         }
     }
 
-    fn register_read_decoded<T: Decode + MaxEncodedLen>(
+    pub fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
@@ -210,14 +189,14 @@ impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
         }
     }
 
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+    pub fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryWrite { ptr, size }
     }
 
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+    pub fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         let size = size_of::<T>() as u32;
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
