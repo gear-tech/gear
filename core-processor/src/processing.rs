@@ -29,7 +29,8 @@ use crate::{
 };
 use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{
-    BackendExternalities, BackendSyscallError, Environment, SystemReservationContext,
+    runtime::RunFallibleError, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    SystemReservationContext,
 };
 use gear_core::{
     env::Externalities,
@@ -40,15 +41,17 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<E>(
+pub fn process<Ext>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
-    E: Environment,
-    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
@@ -117,7 +120,7 @@ where
         outgoing_limit,
     );
 
-    let exec_result = executor::execute_wasm::<E>(
+    let exec_result = executor::execute_wasm::<Ext>(
         balance,
         dispatch.clone(),
         execution_context,

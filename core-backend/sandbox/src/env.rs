@@ -26,12 +26,16 @@ use crate::{
     state::{HostState, State},
 };
 use alloc::{collections::BTreeSet, format};
-use core::{any::Any, convert::Infallible, fmt::Display};
+use core::{
+    any::Any,
+    convert::Infallible,
+    fmt::{Debug, Display},
+};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendReport,
-    BackendSyscallError, Environment, EnvironmentError, EnvironmentExecutionResult, LimitedStr,
+    BackendSyscallError, EnvironmentError, LimitedStr,
 };
 use gear_core::{
     env::Externalities,
@@ -157,6 +161,13 @@ fn store_host_state_mut<Ext>(
         .as_mut()
         .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
 }
+
+type EnvironmentBackendReport<Ext> = BackendReport<MemoryWrap<Ext>, Ext>;
+
+pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> = Result<
+    EnvironmentBackendReport<Ext>,
+    EnvironmentError<SandboxEnvironmentError, PrepareMemoryError>,
+>;
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
@@ -322,7 +333,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
     }
 }
 
-impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
+impl<EnvExt, EntryPoint> SandboxEnvironment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
@@ -330,17 +341,13 @@ where
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
-    type Ext = EnvExt;
-    type Memory = MemoryWrap<EnvExt>;
-    type SystemError = SandboxEnvironmentError;
-
-    fn new(
-        ext: Self::Ext,
+    pub fn new(
+        ext: EnvExt,
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
+    ) -> Result<Self, EnvironmentError<SandboxEnvironmentError, Infallible>> {
         use EnvironmentError::*;
         use SandboxEnvironmentError::*;
 
@@ -406,13 +413,13 @@ where
         })
     }
 
-    fn execute<PrepareMemory, PrepareMemoryError>(
+    pub fn execute<PrepareMemory, PrepareMemoryError>(
         self,
         prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
+    ) -> EnvironmentExecutionResult<EnvExt, PrepareMemoryError>
     where
         PrepareMemory: FnOnce(
-            &mut Self::Memory,
+            &mut MemoryWrap<EnvExt>,
             Option<u32>,
             GlobalsAccessConfig,
         ) -> Result<(), PrepareMemoryError>,

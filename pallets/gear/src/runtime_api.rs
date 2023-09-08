@@ -296,7 +296,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
             None,
@@ -325,7 +325,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
             Some(allocations),
@@ -351,7 +351,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
             Some(allocations),

@@ -48,13 +48,10 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval, PageBuf},
-    message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntryPoint,
-    },
+    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType},
     pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
-use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -362,55 +359,6 @@ impl<EnvSystemError: Display, PrepareMemoryError: Display>
             EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
         }
     }
-}
-
-type EnvironmentBackendReport<Env, EntryPoint> =
-    BackendReport<<Env as Environment<EntryPoint>>::Memory, <Env as Environment<EntryPoint>>::Ext>;
-
-pub type EnvironmentExecutionResult<PrepareMemoryError, Env, EntryPoint> = Result<
-    EnvironmentBackendReport<Env, EntryPoint>,
-    EnvironmentError<<Env as Environment<EntryPoint>>::SystemError, PrepareMemoryError>,
->;
-
-pub trait Environment<EntryPoint = DispatchKind>: Sized
-where
-    EntryPoint: WasmEntryPoint,
-{
-    type Ext: BackendExternalities + 'static;
-
-    /// Memory type for current environment.
-    type Memory: Memory;
-
-    /// That's an error which originally comes from the primary
-    /// wasm execution environment (set by wasmi or sandbox).
-    /// So it's not the error of the `Self` itself, it's a kind
-    /// of wrapper over the underlying executor error.
-    type SystemError: Debug + Display;
-
-    /// 1) Instantiates wasm binary.
-    /// 2) Creates wasm memory
-    /// 3) Runs `prepare_memory` to fill the memory before running instance.
-    /// 4) Instantiate external funcs for wasm module.
-    fn new(
-        ext: Self::Ext,
-        binary: &[u8],
-        entry_point: EntryPoint,
-        entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>>;
-
-    /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<PrepareMemory, PrepareMemoryError>(
-        self,
-        prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
-    where
-        PrepareMemory: FnOnce(
-            &mut Self::Memory,
-            Option<u32>,
-            GlobalsAccessConfig,
-        ) -> Result<(), PrepareMemoryError>,
-        PrepareMemoryError: Display;
 }
 
 #[cfg(test)]

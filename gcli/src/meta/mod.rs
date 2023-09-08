@@ -114,10 +114,7 @@ impl Meta {
         ));
 
         sp_io::TestExternalities::default().execute_with(|| {
-            core_processor::informational::execute_for_reply::<
-                gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
-                String,
-            >(
+            core_processor::informational::execute_for_reply::<core_processor::Ext, String>(
                 method.into(),
                 wasm,
                 None,

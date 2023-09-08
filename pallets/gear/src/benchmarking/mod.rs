@@ -85,7 +85,6 @@ use frame_support::{
     traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_backend_common::Environment;
 use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
