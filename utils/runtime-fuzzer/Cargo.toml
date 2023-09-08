@@ -9,7 +9,6 @@ anyhow.workspace = true
 arbitrary.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
-itertools = "0.11.0"
 log.workspace = true
 sha-1.workspace = true
 static_assertions.workspace = true
