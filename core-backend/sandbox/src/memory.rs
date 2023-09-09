@@ -22,6 +22,7 @@ use crate::{
     state::HostState, BackendExternalities, BackendSyscallError, RunFallibleError, TrapExplanation,
     UndefinedTerminationReason, UnrecoverableMemoryError,
 };
+use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
 use gear_backend_common::lazy_pages::ProcessAccessError;

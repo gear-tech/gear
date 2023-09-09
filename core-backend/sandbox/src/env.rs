@@ -27,7 +27,7 @@ use crate::{
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
     RunFallibleError, TerminationReason,
 };
-use alloc::{collections::BTreeSet, format};
+use alloc::{collections::BTreeSet, format, string::String};
 use core::{
     any::Any,
     convert::Infallible,
