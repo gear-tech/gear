@@ -21,7 +21,7 @@
 extern crate alloc;
 
 use crate::{mock::*, *};
-use common::{scheduler::*, storage::*, GasMultiplier, GasTree, LockId, LockableTree as _, Origin};
+use common::{scheduler::*, storage::*, GasTree, LockId, LockableTree as _, Origin};
 use gear_core::{ids::*, message::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
@@ -75,7 +75,7 @@ fn populate_wl_from(
     WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
     GearBank::deposit_gas(&src, DEFAULT_GAS).expect("Cannot reserve gas");
 
-    let multiplier = GasMultiplier::ValuePerGas(gas_price(1));
+    let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
     GasHandlerOf::<Test>::create(src, multiplier, mid, DEFAULT_GAS)
         .expect("Failed to create gas handler");
     // Locking funds for holding.

@@ -1917,14 +1917,10 @@ fn unstoppable_block_execution_works() {
 
     new_test_ext().execute_with(|| {
         let user_balance = Balances::free_balance(USER_1);
-        let user_gas = Balances::free_balance(USER_1) as u64 / 1_000;
 
         // This manipulations are required due to we have only gas to value conversion.
-        assert_eq!(gas_price(user_gas), user_balance);
-        let executions_amount = 100;
-        let gas_for_each_execution = user_gas / executions_amount;
-
-        assert!(gas_for_each_execution < BlockGasLimitOf::<Test>::get());
+        let executions_amount = 100_u64;
+        let gas_for_each_execution = BlockGasLimitOf::<Test>::get();
 
         let program_id = {
             let res = upload_program_default(USER_2, ProgramCodeKind::Default);
@@ -1974,7 +1970,7 @@ fn unstoppable_block_execution_works() {
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            gas_price(user_gas - real_gas_to_burn)
+            user_balance - gas_price(real_gas_to_burn)
         );
     })
 }

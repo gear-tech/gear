@@ -54,7 +54,7 @@ mod consts {
 
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
 
-    pub const VALUE_PER_GAS: Balance = 1_000;
+    pub const VALUE_PER_GAS: Balance = 25;
 }
 
 pub use consts::*;

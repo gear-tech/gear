@@ -34,7 +34,7 @@ fn random_node_id() -> MessageId {
     MessageId::from_origin(H256::random())
 }
 
-const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(123);
+const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(25);
 
 #[test]
 fn simple_value_tree() {

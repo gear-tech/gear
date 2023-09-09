@@ -202,7 +202,7 @@ impl Drop for DynamicScheduleReset {
 
 parameter_types! {
     pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1_000);
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
 
 impl pallet_gear_bank::Config for Test {
