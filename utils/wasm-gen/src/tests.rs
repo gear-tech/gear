@@ -244,7 +244,7 @@ fn execute_wasm_with_syscall_injected(
 
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_syscall_inject";
 
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         PROGRAM_STORAGE_PREFIX
     ));
 

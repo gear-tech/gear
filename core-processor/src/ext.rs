@@ -56,7 +56,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
-use gear_lazy_pages_common as lazy_pages;
+use gear_lazy_pages_interface as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.

@@ -16,7 +16,7 @@ gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
 gear-wasm-instrument.workspace = true
-gear-lazy-pages-common.workspace = true
+gear-lazy-pages-interface.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
@@ -30,6 +30,6 @@ enum-iterator.workspace = true
 
 [features]
 default = ["std"]
-std = ["gear-lazy-pages-common/std", "gear-backend-sandbox/std"]
+std = ["gear-lazy-pages-interface/std", "gear-backend-sandbox/std"]
 strict = []
 mock = []

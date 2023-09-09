@@ -28,7 +28,7 @@ use gear_core::{
     memory::MemoryInterval,
     pages::{PageNumber, PageU32Size},
 };
-use gear_lazy_pages_common as lazy_pages;
+use gear_lazy_pages_interface as lazy_pages;
 use rand::{Rng, SeedableRng};
 
 use super::*;

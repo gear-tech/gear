@@ -3655,7 +3655,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gmeta",
  "gsdk",
  "hex",
@@ -3960,7 +3960,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-wasm-instrument",
  "log",
  "scale-info",
@@ -3993,7 +3993,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-lazy-pages-common"
+name = "gear-lazy-pages-interface"
 version = "0.1.0"
 dependencies = [
  "byteorder",
@@ -4430,7 +4430,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4764,7 +4764,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
@@ -7369,7 +7369,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",

@@ -72,7 +72,7 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
-use gear_lazy_pages_common as lazy_pages;
+use gear_lazy_pages_interface as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{

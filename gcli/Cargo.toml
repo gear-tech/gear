@@ -41,7 +41,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
 core-processor = { workspace = true, features = [ "std" ] }
-gear-lazy-pages-common = { workspace = true, features = [ "std" ] }
+gear-lazy-pages-interface = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }

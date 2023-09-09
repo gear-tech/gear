@@ -1,5 +1,5 @@
 [package]
-name = "gear-lazy-pages-common"
+name = "gear-lazy-pages-interface"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
