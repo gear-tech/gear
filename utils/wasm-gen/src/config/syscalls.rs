@@ -54,7 +54,7 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` sys-calls must use `gr_source` result for message destination.
+    /// Set whether `gr_send*` and `gr_exit` sys-calls must use `gr_source` result for message destination.
     pub fn with_source_msg_dest(mut self) -> Self {
         self.0.sending_message_destination = MessageDestination::Source;
         self.enable_sys_call(SysCallName::Source);
@@ -62,7 +62,7 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` sys-calls must use some address from `addresses` collection
+    /// Set whether `gr_send*` and `gr_exit` sys-calls must use some address from `addresses` collection
     /// as a message destination.
     pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
@@ -149,7 +149,7 @@ impl SysCallsConfig {
         self.injection_amounts.get(name)
     }
 
-    /// Get defined message destination for `gr_send*` sys-calls.
+    /// Get defined message destination for `gr_send*` and `gr_exit` sys-calls.
     ///
     /// For more info, read [`MessageDestination`].
     pub fn sending_message_destination(&self) -> &MessageDestination {
@@ -176,7 +176,7 @@ impl SysCallsConfig {
 
 /// Message destination choice.
 ///
-/// `gr_send*` sys-calls generated from this crate can send messages
+/// `gr_send*` and `gr_exit` sys-calls generated from this crate can send messages
 /// to different destination in accordance to the config.
 /// It's either to the message source, to some existing known address,
 /// or to some random, most probably non-existing, address.

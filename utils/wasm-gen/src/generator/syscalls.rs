@@ -42,7 +42,18 @@ pub use additional_data::*;
 pub use imports::*;
 pub use invocator::*;
 
+use crate::generator::CallIndexesHandle;
 use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
+
+/// Additional information about [`InvocableSysCall`].
+///
+/// Mainly used as an argument when building a sys-call.
+/// It is also possible to modify the signature while building sys-call.
+pub struct InvocableSysCallData {
+    invocable: InvocableSysCall,
+    signature: SysCallSignature,
+    call_indexes_handle: CallIndexesHandle,
+}
 
 /// Type of invocable sys-call.
 ///
@@ -177,6 +188,17 @@ impl InvocableSysCall {
             | SysCallName::SystemReserveGas
             | SysCallName::UnreserveGas
             | SysCallName::Wake => true,
+        }
+    }
+
+    pub(crate) fn into_call_data(
+        self,
+        call_indexes_handle: CallIndexesHandle,
+    ) -> InvocableSysCallData {
+        InvocableSysCallData {
+            invocable: self,
+            signature: self.into_signature(),
+            call_indexes_handle,
         }
     }
 }

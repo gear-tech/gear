@@ -24,7 +24,8 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
+    InvocableSysCall, InvocableSysCallData, SysCallParamAllowedValues, SysCallsConfig,
+    SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -87,7 +88,7 @@ pub(crate) fn process_sys_call_params(
 /// data injection outcome ([`AddressesInjectionOutcome`]). The latter was introduced
 /// to give additional guarantees for config and generators consistency. Otherwise,
 /// if there wasn't any addresses injection outcome, which signals that there was a try to
-/// inject addresses, sys-calls invocator could falsely set `gr_send*` call's destination param
+/// inject addresses, sys-calls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
 /// to random value. For example, existing addresses could have been defined in the config, but
 /// additional data injector was disabled, before injecting addresses from the config. As a result,
 /// invocator would set un-intended by config values as messages destination. To avoid such
@@ -170,8 +171,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         );
 
         for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
-            let instructions =
-                self.build_sys_call_invoke_instructions(invocable, call_indexes_handle)?;
+            let call_data = invocable.into_call_data(call_indexes_handle);
+            let instructions = self.build_sys_call_invoke_instructions(call_data)?;
 
             log::trace!(
                 "Inserting the {} sys_call {} times",
@@ -199,48 +200,47 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_sys_call_invoke_instructions(
         &mut self,
-        invocable: InvocableSysCall,
-        call_indexes_handle: CallIndexesHandle,
+        call_data: InvocableSysCallData,
     ) -> Result<Vec<Instruction>> {
+        let invocable = call_data.invocable;
         log::trace!(
             "Random data before building {} sys-call invoke instructions - {}",
             invocable.to_str(),
             self.unstructured.len()
         );
 
-        let insert_error_processing = self
-            .config
-            .error_processing_config()
-            .error_should_be_processed(&invocable);
-        let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
-
-        if self.is_not_send_sys_call(invocable) {
+        if self.is_send_sys_call(invocable) {
             log::trace!(
-                " -- Generating build call for non-send sys-call {}",
+                " -- Generating build call for send sys-call {}",
                 invocable.to_str()
             );
-            return self.build_call(
-                signature,
-                fallible,
-                insert_error_processing,
-                call_indexes_handle,
+
+            self.build_sys_call_with_destination(call_data)
+        } else if self.is_exit_sys_call(invocable) {
+            log::trace!(
+                " -- Generating build call for control sys-call {}",
+                invocable.to_str()
             );
+
+            self.build_sys_call_with_destination(call_data)
+        } else {
+            log::trace!(
+                " -- Generating build call for common sys-call {}",
+                invocable.to_str()
+            );
+
+            self.build_call(call_data)
         }
+    }
 
-        log::trace!(
-            " -- Generating build call for send sys-call {}",
-            invocable.to_str()
-        );
-
+    fn build_sys_call_with_destination(
+        &mut self,
+        mut call_data: InvocableSysCallData,
+    ) -> Result<Vec<Instruction>> {
         // The value for the first param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
-        signature.params.remove(0);
-        let mut call_without_destination_instrs = self.build_call(
-            signature,
-            fallible,
-            insert_error_processing,
-            call_indexes_handle,
-        )?;
+        call_data.signature.params.remove(0);
+        let mut call_without_destination_instrs = self.build_call(call_data)?;
 
         let res = if self.config.sending_message_destination().is_source() {
             log::trace!(" -- Message destination is result of `gr_source`");
@@ -303,24 +303,31 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(res)
     }
 
-    fn is_not_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
+    fn is_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
         use InvocableSysCall::*;
-        ![
+        [
             Loose(SysCallName::Send),
             Loose(SysCallName::SendWGas),
             Loose(SysCallName::SendInput),
             Loose(SysCallName::SendInputWGas),
             Precise(SysCallName::ReservationSend),
+            Precise(SysCallName::SendCommit),
+            Precise(SysCallName::SendCommitWGas),
         ]
         .contains(&sys_call)
     }
 
+    fn is_exit_sys_call(&self, sys_call: InvocableSysCall) -> bool {
+        matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
+    }
+
     fn build_call(
         &mut self,
-        signature: SysCallSignature,
-        fallible: bool,
-        insert_error_processing: bool,
-        call_indexes_handle: CallIndexesHandle,
+        InvocableSysCallData {
+            invocable,
+            signature,
+            call_indexes_handle,
+        }: InvocableSysCallData,
     ) -> Result<Vec<Instruction>> {
         let param_setters = self.build_param_setters(&signature.params)?;
         let mut instructions: Vec<_> = param_setters
@@ -331,9 +338,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
+        let insert_error_processing = self
+            .config
+            .error_processing_config()
+            .error_should_be_processed(&invocable);
+
         let mut result_processing = if !insert_error_processing {
             Self::build_result_processing_ignored(signature)
-        } else if fallible {
+        } else if invocable.is_fallible() {
             Self::build_result_processing_fallible(signature, &param_setters)
         } else {
             Self::build_result_processing_infallible(signature)
