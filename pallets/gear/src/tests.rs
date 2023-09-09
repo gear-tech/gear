@@ -63,7 +63,7 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{
+use gear_backend_sandbox::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core::{
@@ -14343,7 +14343,6 @@ mod utils {
         traits::tokens::{currency::Currency, Balance},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
-    use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},

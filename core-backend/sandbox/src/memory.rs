@@ -18,13 +18,13 @@
 
 //! sp-sandbox extensions for memory.
 
-use crate::{state::HostState, BackendExternalities};
+use crate::{
+    state::HostState, BackendExternalities, BackendSyscallError, RunFallibleError, TrapExplanation,
+    UndefinedTerminationReason, UnrecoverableMemoryError,
+};
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
-use gear_backend_common::{
-    lazy_pages::ProcessAccessError, runtime::RunFallibleError, BackendSyscallError,
-    TrapExplanation, UndefinedTerminationReason, UnrecoverableMemoryError,
-};
+use gear_backend_common::lazy_pages::ProcessAccessError;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Externalities,
@@ -467,8 +467,8 @@ pub struct WasmMemoryWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::MockExt, state::State};
-    use gear_backend_common::{assert_err, assert_ok, ActorTerminationReason};
+    use crate::{mock::MockExt, state::State, ActorTerminationReason};
+    use gear_backend_common::{assert_err, assert_ok};
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use gear_sandbox::{AsContextExt, SandboxStore};
 

@@ -31,14 +31,11 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, TerminationReason,
-};
+use gear_backend_common::lazy_pages::{GlobalsAccessConfig, LazyPagesWeights};
 use gear_backend_sandbox::{
     env::{BackendReport, SandboxEnvironmentError},
-    BackendExternalities, MemoryWrap, SandboxEnvironment,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    MemoryWrap, RunFallibleError, SandboxEnvironment, TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,

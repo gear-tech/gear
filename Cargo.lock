@@ -3791,7 +3791,6 @@ dependencies = [
 name = "gear-backend-common"
 version = "1.0.0"
 dependencies = [
- "actor-system-error",
  "derive_more",
  "gear-core",
  "gear-core-errors",
@@ -3808,6 +3807,7 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "actor-system-error",
  "blake2-rfc",
  "derive_more",
  "gear-backend-codegen",

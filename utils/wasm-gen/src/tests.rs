@@ -18,8 +18,7 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{TerminationReason, TrapExplanation};
-use gear_backend_sandbox::env::BackendReport;
+use gear_backend_sandbox::{env::BackendReport, TerminationReason, TrapExplanation};
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},
@@ -174,7 +173,7 @@ fn injecting_addresses_works() {
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
-    use gear_backend_common::ActorTerminationReason;
+    use gear_backend_sandbox::ActorTerminationReason;
 
     let fallible_syscalls = SysCallName::instrumentable()
         .into_iter()

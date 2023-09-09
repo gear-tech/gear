@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::BackendExternalities;
-use core::fmt::Debug;
-use gear_backend_common::{
-    ActorTerminationReason, TerminationReason, TrapExplanation, UndefinedTerminationReason,
+use crate::{
+    ActorTerminationReason, BackendExternalities, TerminationReason, TrapExplanation,
+    UndefinedTerminationReason,
 };
+use core::fmt::Debug;
 
 pub type HostState<Ext, Mem> = Option<State<Ext, Mem>>;
 

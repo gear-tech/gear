@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::BackendExternalities;
+use crate::{
+    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
+    UndefinedTerminationReason,
+};
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::Cell, fmt, fmt::Debug};
-use gear_backend_common::{
-    lazy_pages::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
-    BackendSyscallError, UndefinedTerminationReason,
-};
+use gear_backend_common::lazy_pages::ProcessAccessError;
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},

@@ -28,10 +28,9 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{string::ToString, vec::Vec};
-use gear_backend_common::{
-    runtime::RunFallibleError, BackendAllocSyscallError, BackendSyscallError,
+use gear_backend_sandbox::{
+    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
 };
-use gear_backend_sandbox::BackendExternalities;
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},

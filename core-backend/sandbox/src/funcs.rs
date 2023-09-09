@@ -21,17 +21,15 @@
 use crate::{
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::CallerWrap,
-    BackendExternalities,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    UnrecoverableMemoryError,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
-use gear_backend_common::{
-    runtime::RunFallibleError, ActorTerminationReason, BackendAllocSyscallError,
-    BackendSyscallError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
-    UnrecoverableMemoryError, PTR_SPECIAL,
-};
+use gear_backend_common::PTR_SPECIAL;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,

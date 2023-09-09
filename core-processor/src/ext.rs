@@ -24,14 +24,16 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status},
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, TrapExplanation,
-    UndefinedTerminationReason, UnrecoverableExecutionError,
+use gear_backend_common::lazy_pages::{
+    GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status,
+};
+use gear_backend_sandbox::{
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
     UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
 };
-use gear_backend_sandbox::BackendExternalities;
+#[cfg(any(feature = "mock", test))]
+use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},

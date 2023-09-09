@@ -24,11 +24,11 @@ use crate::{
         WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     state::{HostState, State},
-    BackendExternalities, DefaultExecutorMemory,
+    BackendAllocSyscallError, BackendExternalities, DefaultExecutorMemory, RunFallibleError,
+    UndefinedTerminationReason,
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
-use gear_backend_common::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason};
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
 

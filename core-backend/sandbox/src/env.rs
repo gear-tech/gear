@@ -24,7 +24,8 @@ use crate::{
     runtime,
     runtime::CallerWrap,
     state::{HostState, State},
-    BackendExternalities,
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    RunFallibleError, TerminationReason,
 };
 use alloc::{collections::BTreeSet, format};
 use core::{
@@ -34,9 +35,7 @@ use core::{
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, LimitedStr,
-    TerminationReason,
+    LimitedStr,
 };
 use gear_core::{
     env::Externalities,

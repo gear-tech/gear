@@ -28,8 +28,9 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use gear_backend_common::{SystemTerminationReason, TrapExplanation};
-use gear_backend_sandbox::env::SandboxSystemEnvironmentError;
+use gear_backend_sandbox::{
+    env::SandboxSystemEnvironmentError, SystemTerminationReason, TrapExplanation,
+};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
