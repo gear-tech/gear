@@ -18,13 +18,20 @@
 
 //! Core logic for usage both in runtime and in lazy-pages native part.
 
-use core::fmt::Debug;
-
-use core::any::Any;
+use crate::utils::LimitedStr;
+use core::{any::Any, fmt::Debug};
 use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use scale_info::scale::{self, Decode, Encode};
 
-use crate::utils::LimitedStr;
+/// Memory access error during sys-call that lazy-pages have caught.
+/// 0 index is reserved for an ok result.
+#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum ProcessAccessError {
+    OutOfBounds = 1,
+    GasLimitExceeded = 2,
+}
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]

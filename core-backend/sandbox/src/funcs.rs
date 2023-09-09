@@ -18,16 +18,18 @@
 
 //! Syscall implementations generic over wasmi and sandbox backends.
 
-use crate::runtime::CallerWrap;
+use crate::{
+    memory::{MemoryAccessError, WasmMemoryRead},
+    runtime::CallerWrap,
+    BackendExternalities,
+};
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
 use gear_backend_common::{
-    memory::{MemoryAccessError, WasmMemoryRead},
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    runtime::RunFallibleError, ActorTerminationReason, BackendAllocSyscallError,
+    BackendSyscallError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
     UnrecoverableMemoryError, PTR_SPECIAL,
 };
 use gear_core::{

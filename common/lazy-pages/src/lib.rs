@@ -25,8 +25,7 @@ extern crate alloc;
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status},
     LimitedStr,
 };
 use gear_common::Origin;

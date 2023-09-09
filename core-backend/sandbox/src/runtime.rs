@@ -19,20 +19,16 @@
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
 use crate::{
-    memory::MemoryWrapRef,
+    memory::{
+        MemoryAccessError, MemoryAccessManager, MemoryWrapRef, WasmMemoryRead, WasmMemoryReadAs,
+        WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+    },
     state::{HostState, State},
-    DefaultExecutorMemory,
+    BackendExternalities, DefaultExecutorMemory,
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
-use gear_backend_common::{
-    memory::{
-        MemoryAccessError, MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs,
-        WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
-    },
-    runtime::RunFallibleError,
-    BackendAllocSyscallError, BackendExternalities, UndefinedTerminationReason,
-};
+use gear_backend_common::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason};
 use gear_core::{costs::RuntimeCosts, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
 

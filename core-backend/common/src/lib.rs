@@ -26,26 +26,18 @@ pub mod lazy_pages;
 
 mod utils;
 
-#[cfg(any(feature = "mock", test))]
-pub mod mock;
-
-pub mod memory;
 pub mod runtime;
 
-use crate::runtime::RunFallibleError;
 use actor_system_error::actor_system_error;
 use core::fmt::Debug;
 use gear_core::{
-    env::Externalities,
-    gas::{ChargeError, CounterType, CountersOwner, GasAmount},
+    gas::{ChargeError, CounterType},
     ids::ProgramId,
-    memory::MemoryInterval,
     message::MessageWaitedType,
 };
-use memory::ProcessAccessError;
 use scale_info::scale::{self, Decode, Encode};
 
-pub use crate::utils::LimitedStr;
+pub use crate::{runtime::RunFallibleError, utils::LimitedStr};
 pub use log;
 
 pub const PTR_SPECIAL: u32 = u32::MAX;
@@ -249,18 +241,6 @@ pub enum TrapExplanation {
     Unknown,
 }
 
-/// Extended externalities that can manage gas counters.
-pub trait BackendExternalities: Externalities + CountersOwner {
-    fn gas_amount(&self) -> GasAmount;
-
-    /// Pre-process memory access if need.
-    fn pre_process_memory_accesses(
-        reads: &[MemoryInterval],
-        writes: &[MemoryInterval],
-        gas_counter: &mut u64,
-    ) -> Result<(), ProcessAccessError>;
-}
-
 /// A trait for conversion of the externalities API error
 /// to `UndefinedTerminationReason` and `RunFallibleError`.
 pub trait BackendSyscallError: Sized {
@@ -278,6 +258,3 @@ pub trait BackendAllocSyscallError: Sized {
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
-
-#[cfg(test)]
-mod tests;

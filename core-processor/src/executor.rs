@@ -34,12 +34,11 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    TerminationReason,
+    ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, TerminationReason,
 };
 use gear_backend_sandbox::{
     env::{BackendReport, SandboxEnvironmentError},
-    MemoryWrap, SandboxEnvironment,
+    BackendExternalities, MemoryWrap, SandboxEnvironment,
 };
 use gear_core::{
     code::InstrumentedCode,

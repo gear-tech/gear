@@ -17,7 +17,7 @@ enum-iterator.workspace = true
 [dev-dependencies]
 wasmparser.workspace = true
 wat.workspace = true
-gear-backend-sandbox.workspace = true
+gear-backend-sandbox = { workspace = true, features = ["mock"] }
 gear-backend-common = { workspace = true, features = ["mock"] }
 gear-core.workspace = true
 

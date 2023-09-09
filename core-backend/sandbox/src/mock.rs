@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    memory::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
-    BackendExternalities, BackendSyscallError, UndefinedTerminationReason,
-};
+use crate::BackendExternalities;
 use alloc::{collections::BTreeSet, vec, vec::Vec};
+use codec::{Decode, Encode};
 use core::{cell::Cell, fmt, fmt::Debug};
+use gear_backend_common::{
+    lazy_pages::ProcessAccessError, runtime::RunFallibleError, BackendAllocSyscallError,
+    BackendSyscallError, UndefinedTerminationReason,
+};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -33,11 +35,10 @@ use gear_core::{
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
-use scale_info::scale::{self, Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub struct Error;
 
 impl fmt::Display for Error {

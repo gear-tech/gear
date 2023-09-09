@@ -24,8 +24,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, Status},
-    memory::ProcessAccessError,
+    lazy_pages::{GlobalsAccessConfig, ProcessAccessError, Status},
     LimitedStr,
 };
 use gear_core::{

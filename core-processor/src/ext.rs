@@ -25,13 +25,13 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status},
     runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, TrapExplanation,
+    UndefinedTerminationReason, UnrecoverableExecutionError,
     UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
 };
+use gear_backend_sandbox::BackendExternalities;
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},

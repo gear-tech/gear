@@ -23,7 +23,7 @@ use crate::{
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
+use gear_backend_common::lazy_pages::{ProcessAccessError, Status};
 use gear_core::{
     self,
     memory::MemoryInterval,
