@@ -139,6 +139,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
+
 type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
