@@ -18,16 +18,20 @@
 
 #![allow(clippy::items_after_test_module)]
 
-mod arbitrary_call;
+mod gear_calls;
 mod runtime;
 #[cfg(test)]
 mod tests;
 
+use std::rc::Rc;
+
 use arbitrary::Result;
-pub use arbitrary_call::GearCalls;
+pub use gear_calls::GearCalls;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
+use gear_calls::MailboxProvider;
+use gear_core::ids::MessageId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
@@ -39,7 +43,10 @@ pub fn run(data: &[u8]) -> Result<()> {
 
 fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     let sender = runtime::account(runtime::alice());
-    let gear_calls = GearCalls::new(data, sender.clone())?;
+    let mailbox_provider = Rc::from(Box::from(MailboxProviderImpl {
+        account_id: sender.clone(),
+    }) as Box<dyn MailboxProvider>);
+    let gear_calls = GearCalls::new(data, mailbox_provider)?;
 
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {
@@ -59,14 +66,22 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
             log::info!("Extrinsic result: {call_res:?}");
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
-            run_to_next_block();
-            run_to_next_block();
         }
 
         Ok(())
     })?;
 
     Ok(test_ext)
+}
+
+struct MailboxProviderImpl {
+    account_id: AccountId,
+}
+
+impl MailboxProvider for MailboxProviderImpl {
+    fn fetch_messages(&self) -> Vec<MessageId> {
+        get_mailbox_messages(&self.account_id)
+    }
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
