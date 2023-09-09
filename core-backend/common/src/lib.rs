@@ -28,5 +28,3 @@ mod utils;
 
 pub use crate::utils::LimitedStr;
 pub use log;
-
-pub const PTR_SPECIAL: u32 = u32::MAX;

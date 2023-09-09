@@ -29,7 +29,6 @@ use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
 use gear_backend_codegen::host;
-use gear_backend_common::PTR_SPECIAL;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
@@ -81,6 +80,8 @@ macro_rules! syscall_trace {
         }
     }
 }
+
+const PTR_SPECIAL: u32 = u32::MAX;
 
 pub struct FuncsHandler<Ext: Externalities + 'static> {
     _phantom: PhantomData<Ext>,
