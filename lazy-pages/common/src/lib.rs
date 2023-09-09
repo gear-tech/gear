@@ -18,11 +18,13 @@
 
 //! Core logic for usage both in runtime and in lazy-pages native part.
 
-use crate::utils::LimitedStr;
+#![no_std]
+
+use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
+use gear_backend_common::LimitedStr;
 use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use scale_info::scale::{self, Decode, Encode};
 
 /// Memory access error during sys-call that lazy-pages have caught.
 /// 0 index is reserved for an ok result.
@@ -35,7 +37,7 @@ pub enum ProcessAccessError {
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub enum GlobalsAccessMod {
     /// Is wasm runtime.
     WasmRuntime,
@@ -45,7 +47,7 @@ pub enum GlobalsAccessMod {
 
 /// Lazy-pages cases weights.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
     pub signal_read: CostPerPage<GearPage>,
@@ -65,7 +67,7 @@ pub struct LazyPagesWeights {
 
 /// Globals ctx for lazy-pages initialization for program.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub struct GlobalsAccessConfig {
     /// Raw pointer to the globals access provider.
     pub access_ptr: HostPointer,
@@ -105,7 +107,7 @@ pub trait GlobalsAccessor {
 /// termination reason sets as `gas limit exceeded` or `gas allowance exceeded`, depending on status.
 /// NOTE: `repr(i64)` is important to be able add additional fields, without old runtimes separate support logic.
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 #[repr(i64)]
 // TODO: consider removal of two exceed options in favor of one global (issue #3018).
 // Will require bump of many RI func's versions.

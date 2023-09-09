@@ -23,7 +23,6 @@ use crate::{
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::Cell, fmt, fmt::Debug};
-use gear_backend_common::lazy_pages::ProcessAccessError;
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -34,6 +33,7 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
+use gear_lazy_pages_common::ProcessAccessError;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error

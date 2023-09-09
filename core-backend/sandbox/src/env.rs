@@ -33,16 +33,16 @@ use core::{
     convert::Infallible,
     fmt::{Debug, Display},
 };
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    LimitedStr,
-};
+use gear_backend_common::LimitedStr;
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, WasmPage},
+};
+use gear_lazy_pages_common::{
+    GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
 };
 use gear_sandbox::{
     default_executor::{

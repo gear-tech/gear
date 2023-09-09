@@ -24,9 +24,6 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::lazy_pages::{
-    GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status,
-};
 use gear_backend_sandbox::{
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
     RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
@@ -56,6 +53,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_lazy_pages_interface as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 

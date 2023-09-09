@@ -3814,6 +3814,7 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "gear-lazy-pages-common",
  "gear-sandbox",
  "gear-sandbox-env",
  "gear-wasm-instrument",
@@ -3960,6 +3961,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
+ "gear-lazy-pages-common",
  "gear-lazy-pages-interface",
  "gear-wasm-instrument",
  "log",
@@ -3977,6 +3979,7 @@ dependencies = [
  "errno",
  "gear-backend-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -3993,6 +3996,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+dependencies = [
+ "gear-backend-common",
+ "gear-core",
+ "num_enum",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "gear-lazy-pages-interface"
 version = "0.1.0"
 dependencies = [
@@ -4001,6 +4014,7 @@ dependencies = [
  "gear-backend-common",
  "gear-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "log",
@@ -4182,6 +4196,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-primitives",
  "log",
  "pallet-authorship",
@@ -4205,6 +4220,7 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -13507,6 +13523,7 @@ dependencies = [
  "gear-backend-common",
  "gear-common",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",

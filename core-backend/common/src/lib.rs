@@ -22,8 +22,6 @@
 
 extern crate alloc;
 
-pub mod lazy_pages;
-
 mod utils;
 
 pub use crate::utils::LimitedStr;

@@ -25,7 +25,6 @@ use crate::{
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
-use gear_backend_common::lazy_pages::ProcessAccessError;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Externalities,
@@ -33,6 +32,7 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
+use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{
     default_executor::{Caller, Store},
     SandboxMemory,

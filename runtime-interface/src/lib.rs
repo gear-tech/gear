@@ -23,14 +23,12 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, ProcessAccessError, Status},
-    LimitedStr,
-};
+use gear_backend_common::LimitedStr;
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
 };
+use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,

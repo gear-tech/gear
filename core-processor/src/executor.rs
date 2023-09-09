@@ -31,7 +31,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use gear_backend_common::lazy_pages::{GlobalsAccessConfig, LazyPagesWeights};
 use gear_backend_sandbox::{
     env::{BackendReport, SandboxEnvironmentError},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
@@ -51,6 +50,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,

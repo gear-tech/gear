@@ -1,0 +1,13 @@
+[package]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gear-core.workspace = true
+gear-backend-common.workspace = true
+
+num_enum.workspace = true
+codec.workspace = true
