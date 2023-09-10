@@ -20,7 +20,7 @@ use super::*;
 use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use gear_core::pages::WasmPage;
+use gear_core::{code::TryNewCodeConfig, pages::WasmPage};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -291,11 +291,10 @@ where
             return Err("Wasm too big".into());
         }
 
-        let code = Code::new_raw_with_rules(
+        let code = Code::try_new_mock_with_rules(
             wasm,
-            schedule.instruction_weights.version,
-            false,
             |module| schedule.rules(module),
+            TryNewCodeConfig::new_no_exports_check(),
         )
         .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
