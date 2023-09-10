@@ -624,7 +624,7 @@ fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
     use gear_core::message::DispatchKind;
     use gear_core_backend::{
-        env::BackendReport, mock::MockExt, ActorTerminationReason, SandboxEnvironment,
+        env::BackendReport, mock::MockExt, ActorTerminationReason, Environment,
     };
     use parity_wasm::builder;
 
@@ -658,8 +658,8 @@ fn test_sys_calls_table() {
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let env = SandboxEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into())
-        .unwrap();
+    let env =
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
     let report = env
         .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
         .unwrap();

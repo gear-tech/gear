@@ -164,30 +164,30 @@ fn store_host_state_mut<Ext>(
 }
 
 pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> =
-    Result<BackendReport<Ext>, SandboxEnvironmentError<PrepareMemoryError>>;
+    Result<BackendReport<Ext>, EnvironmentError<PrepareMemoryError>>;
 
 #[derive(Debug, derive_more::Display)]
-pub enum SandboxEnvironmentError<PrepareMemoryError: Display> {
+pub enum EnvironmentError<PrepareMemoryError: Display> {
     #[display(fmt = "Actor backend error: {_1}")]
     Actor(GasAmount, String),
     #[display(fmt = "System backend error: {_0}")]
-    System(SandboxSystemEnvironmentError),
+    System(SystemEnvironmentError),
     #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepareMemoryError),
 }
 
-impl<PrepareMemoryError: Display> SandboxEnvironmentError<PrepareMemoryError> {
-    pub fn from_infallible(err: SandboxEnvironmentError<Infallible>) -> Self {
+impl<PrepareMemoryError: Display> EnvironmentError<PrepareMemoryError> {
+    pub fn from_infallible(err: EnvironmentError<Infallible>) -> Self {
         match err {
-            SandboxEnvironmentError::System(err) => Self::System(err),
-            SandboxEnvironmentError::PrepareMemory(_, err) => match err {},
-            SandboxEnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
+            EnvironmentError::System(err) => Self::System(err),
+            EnvironmentError::PrepareMemory(_, err) => match err {},
+            EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
         }
     }
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum SandboxSystemEnvironmentError {
+pub enum SystemEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
@@ -197,7 +197,7 @@ pub enum SandboxSystemEnvironmentError {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<Ext, EntryPoint = DispatchKind>
+pub struct Environment<Ext, EntryPoint = DispatchKind>
 where
     Ext: BackendExternalities,
     EntryPoint: WasmEntryPoint,
@@ -264,7 +264,7 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
     }
 }
 
-impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
+impl<Ext, EntryPoint> Environment<Ext, EntryPoint>
 where
     Ext: BackendExternalities + 'static,
     Ext::UnrecoverableError: BackendSyscallError,
@@ -359,7 +359,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
     }
 }
 
-impl<EnvExt, EntryPoint> SandboxEnvironment<EnvExt, EntryPoint>
+impl<EnvExt, EntryPoint> Environment<EnvExt, EntryPoint>
 where
     EnvExt: BackendExternalities + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
@@ -373,9 +373,9 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, SandboxEnvironmentError<Infallible>> {
-        use SandboxEnvironmentError::*;
-        use SandboxSystemEnvironmentError::*;
+    ) -> Result<Self, EnvironmentError<Infallible>> {
+        use EnvironmentError::*;
+        use SystemEnvironmentError::*;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -451,8 +451,8 @@ where
         ) -> Result<(), PrepareMemoryError>,
         PrepareMemoryError: Display,
     {
-        use SandboxEnvironmentError::*;
-        use SandboxSystemEnvironmentError::*;
+        use EnvironmentError::*;
+        use SystemEnvironmentError::*;
 
         let Self {
             mut instance,

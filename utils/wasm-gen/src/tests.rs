@@ -312,7 +312,7 @@ fn execute_wasm_with_syscall_injected(
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);
-    let env = SandboxEnvironment::new(
+    let env = Environment::new(
         ext,
         code.code(),
         DispatchKind::Init,

@@ -46,9 +46,9 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    env::{BackendReport, SandboxEnvironmentError},
+    env::{BackendReport, EnvironmentError},
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    MemoryWrap, RunFallibleError, SandboxEnvironment, TerminationReason,
+    Environment, MemoryWrap, RunFallibleError, TerminationReason,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{
@@ -225,14 +225,14 @@ where
 
     // Execute program in backend env.
     let execute = || {
-        let env = SandboxEnvironment::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             kind,
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(SandboxEnvironmentError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
@@ -268,19 +268,19 @@ where
 
             (termination, memory, ext)
         }
-        Err(SandboxEnvironmentError::System(e)) => {
+        Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
         }
-        Err(SandboxEnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+        Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReplyReason::PrepareMemory(e),
             }))
         }
-        Err(SandboxEnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
+        Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(SandboxEnvironmentError::Actor(gas_amount, err)) => {
+        Err(EnvironmentError::Actor(gas_amount, err)) => {
             log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
@@ -420,14 +420,14 @@ where
 
     // Execute program in backend env.
     let f = || {
-        let env = SandboxEnvironment::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             function,
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(SandboxEnvironmentError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,

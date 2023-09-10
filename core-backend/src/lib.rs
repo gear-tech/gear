@@ -32,7 +32,7 @@ pub mod runtime;
 mod state;
 
 use codec::{Decode, Encode};
-pub use env::SandboxEnvironment;
+pub use env::Environment;
 pub use memory::{DefaultExecutorMemory, MemoryWrap};
 
 use actor_system_error::actor_system_error;

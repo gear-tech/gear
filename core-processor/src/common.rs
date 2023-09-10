@@ -39,9 +39,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_backend::{
-    env::SandboxSystemEnvironmentError, SystemTerminationReason, TrapExplanation,
-};
+use gear_core_backend::{env::SystemEnvironmentError, SystemTerminationReason, TrapExplanation};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
 
@@ -495,7 +493,7 @@ pub enum SystemExecutionError {
     PrepareMemory(SystemPrepareMemoryError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
-    Environment(SandboxSystemEnvironmentError),
+    Environment(SystemEnvironmentError),
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
