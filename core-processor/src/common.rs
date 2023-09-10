@@ -28,9 +28,6 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use gear_backend_sandbox::{
-    env::SandboxSystemEnvironmentError, SystemTerminationReason, TrapExplanation,
-};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -41,6 +38,9 @@ use gear_core::{
     pages::{GearPage, WasmPage},
     program::Program,
     reservation::{GasReservationMap, GasReserver},
+};
+use gear_core_backend::{
+    env::SandboxSystemEnvironmentError, SystemTerminationReason, TrapExplanation,
 };
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};

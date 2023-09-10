@@ -18,7 +18,6 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_sandbox::{env::BackendReport, TerminationReason, TrapExplanation};
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},
@@ -29,7 +28,7 @@ use gear_core::{
     },
     pages::WASM_PAGE_SIZE,
 };
-use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+use gear_core_backend::{env::BackendReport, TerminationReason, TrapExplanation};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -173,7 +172,7 @@ fn injecting_addresses_works() {
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
-    use gear_backend_sandbox::ActorTerminationReason;
+    use gear_core_backend::ActorTerminationReason;
 
     let fallible_syscalls = SysCallName::instrumentable()
         .into_iter()

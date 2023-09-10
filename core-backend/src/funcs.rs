@@ -28,7 +28,6 @@ use crate::{
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use core::marker::PhantomData;
-use gear_backend_codegen::host;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
@@ -39,6 +38,7 @@ use gear_core::{
     },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
+use gear_core_backend_codegen::host;
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox_env::HostError;
 use gsys::{

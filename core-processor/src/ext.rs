@@ -24,11 +24,6 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_sandbox::{
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
-    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
-};
 #[cfg(any(feature = "mock", test))]
 use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
@@ -48,6 +43,11 @@ use gear_core::{
     },
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+    UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,

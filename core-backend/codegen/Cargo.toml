@@ -1,5 +1,5 @@
 [package]
-name = "gear-backend-codegen"
+name = "gear-core-backend-codegen"
 description = "Code generation library for gear-core-backend"
 keywords = ["gear", "wasm", "codegen"]
 categories = ["wasm"]

@@ -622,10 +622,10 @@ test_gas_counter_injection! {
 #[test]
 fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
-    use gear_backend_sandbox::{
+    use gear_core::message::DispatchKind;
+    use gear_core_backend::{
         env::BackendReport, mock::MockExt, ActorTerminationReason, SandboxEnvironment,
     };
-    use gear_core::message::DispatchKind;
     use parity_wasm::builder;
 
     // Make module with one empty function.

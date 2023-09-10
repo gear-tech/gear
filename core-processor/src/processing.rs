@@ -28,14 +28,14 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{string::ToString, vec::Vec};
-use gear_backend_sandbox::{
-    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
-};
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
+};
+use gear_core_backend::{
+    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 

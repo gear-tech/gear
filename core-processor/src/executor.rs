@@ -31,11 +31,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use gear_backend_sandbox::{
-    env::{BackendReport, SandboxEnvironmentError},
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    MemoryWrap, RunFallibleError, SandboxEnvironment, TerminationReason,
-};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -49,6 +44,11 @@ use gear_core::{
     pages::{PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    env::{BackendReport, SandboxEnvironmentError},
+    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
+    MemoryWrap, RunFallibleError, SandboxEnvironment, TerminationReason,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{

@@ -3779,34 +3779,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-backend-codegen"
-version = "1.0.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.31",
-]
-
-[[package]]
-name = "gear-backend-sandbox"
-version = "0.1.0"
-dependencies = [
- "actor-system-error",
- "blake2-rfc",
- "derive_more",
- "gear-backend-codegen",
- "gear-core",
- "gear-core-errors",
- "gear-lazy-pages-common",
- "gear-sandbox",
- "gear-sandbox-env",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
@@ -3925,6 +3897,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-backend"
+version = "0.1.0"
+dependencies = [
+ "actor-system-error",
+ "blake2-rfc",
+ "derive_more",
+ "gear-core",
+ "gear-core-backend-codegen",
+ "gear-core-errors",
+ "gear-lazy-pages-common",
+ "gear-sandbox",
+ "gear-sandbox-env",
+ "gear-wasm-instrument",
+ "gsys",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-core-backend-codegen"
+version = "0.3.2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "gear-core-errors"
 version = "1.0.0"
 dependencies = [
@@ -3941,8 +3941,8 @@ dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-lazy-pages-common",
  "gear-lazy-pages-interface",
@@ -4419,8 +4419,8 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-utils",
@@ -4443,8 +4443,8 @@ name = "gear-wasm-instrument"
 version = "1.0.0"
 dependencies = [
  "enum-iterator 1.4.1",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
@@ -7353,9 +7353,9 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-interface",

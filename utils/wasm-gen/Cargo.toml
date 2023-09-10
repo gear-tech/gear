@@ -24,6 +24,6 @@ wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
 
-gear-backend-sandbox = { workspace = true, features = ["std"] }
+gear-core-backend = { workspace = true, features = ["std"] }
 gear-core-processor = { workspace = true, features = ["std", "mock"] }
 gear-lazy-pages-interface = { workspace = true, features = ["std"] }
