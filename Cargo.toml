@@ -163,7 +163,7 @@ tokio = { version = "1.27.0" }
 url = "2.4.1"
 wat = "1.0.71"
 wabt = "0.10.0"
-wasmi = { version = "0.14.0", default-features = false }
+wasmi = { version = "0.30.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
 which = "4.4.0"
 winapi = "0.3.9"
