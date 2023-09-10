@@ -21,8 +21,10 @@
 use std::{collections::BTreeSet, mem::size_of, num::NonZeroU32};
 
 use crate::{globals::GlobalsContext, mprotect::MprotectError};
-use gear_backend_common::LimitedStr;
-use gear_core::pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage};
+use gear_core::{
+    pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
+    str::LimitedStr,
+};
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 
 // TODO: investigate error allocations #2441

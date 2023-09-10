@@ -24,12 +24,12 @@ extern crate alloc;
 
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
-use gear_backend_common::LimitedStr;
 use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};

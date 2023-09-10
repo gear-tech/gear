@@ -29,7 +29,6 @@
 #![allow(clippy::items_after_test_module)]
 
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_backend_common::LimitedStr;
 use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
@@ -54,6 +53,7 @@ use crate::{
 mod tests;
 
 pub use common::LazyPagesVersion;
+use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
 pub use host_func::pre_process_memory_accesses;
 

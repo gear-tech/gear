@@ -23,7 +23,6 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
-use gear_backend_common::LimitedStr;
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
@@ -40,6 +39,7 @@ extern crate alloc;
 #[cfg(feature = "std")]
 use gear_lazy_pages as lazy_pages;
 
+use gear_core::str::LimitedStr;
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
 mod gear_sandbox;

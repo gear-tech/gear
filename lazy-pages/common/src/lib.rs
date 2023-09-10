@@ -22,8 +22,7 @@
 
 use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
-use gear_backend_common::LimitedStr;
-use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage};
+use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage, str::LimitedStr};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Memory access error during sys-call that lazy-pages have caught.
@@ -83,16 +82,20 @@ pub struct GlobalsAccessError;
 pub trait GlobalsAccessor {
     /// Returns global `name` value, if `name` is I64 global export.
     fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError>;
+
     /// Set global `name` == `value`, if `name` is I64 global export.
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError>;
+
     /// Returns global `name` value, if `name` is I32 global export.
     fn get_i32(&self, _name: &LimitedStr) -> Result<i32, GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
+
     /// Set global `name` == `value`, if `name` is I32 global export.
     fn set_i32(&mut self, _name: &LimitedStr, _value: i32) -> Result<(), GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
+
     /// Returns as `&mut dyn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }

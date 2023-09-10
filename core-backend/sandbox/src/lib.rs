@@ -36,13 +36,13 @@ pub use env::SandboxEnvironment;
 pub use memory::{DefaultExecutorMemory, MemoryWrap};
 
 use actor_system_error::actor_system_error;
-use gear_backend_common::LimitedStr;
 use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
     ids::ProgramId,
     memory::MemoryInterval,
     message::MessageWaitedType,
+    str::LimitedStr,
 };
 use gear_core_errors::ExtError as FallibleExtError;
 use gear_lazy_pages_common::ProcessAccessError;

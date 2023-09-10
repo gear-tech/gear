@@ -3934,6 +3934,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "proptest",
+ "rand 0.8.5",
  "scale-info",
  "static_assertions",
  "wabt",

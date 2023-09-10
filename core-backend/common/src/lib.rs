@@ -24,5 +24,4 @@ extern crate alloc;
 
 mod utils;
 
-pub use crate::utils::LimitedStr;
 pub use log;
