@@ -3931,7 +3931,7 @@ dependencies = [
  "scale-info",
  "static_assertions",
  "wabt",
- "wasmparser-nostd",
+ "wasmparser-nostd 0.100.1",
 ]
 
 [[package]]
@@ -4229,7 +4229,7 @@ dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-wasm-interface 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
+ "wasmi 0.30.0",
  "wat",
 ]
 
@@ -4404,8 +4404,8 @@ dependencies = [
  "toml 0.7.7",
  "wabt",
  "wasm-opt",
- "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd",
+ "wasmi 0.14.0",
+ "wasmparser-nostd 0.100.1",
  "which",
 ]
 
@@ -4428,7 +4428,7 @@ dependencies = [
  "static_assertions",
  "thiserror",
  "wasm-smith",
- "wasmparser-nostd",
+ "wasmparser-nostd 0.100.1",
  "wasmprinter",
  "wat",
 ]
@@ -4442,7 +4442,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gwasm-instrument",
- "wasmparser-nostd",
+ "wasmparser-nostd 0.100.1",
  "wat",
 ]
 
@@ -14128,21 +14128,18 @@ source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b102
 dependencies = [
  "parity-wasm 0.45.0",
  "wasmi-validation",
- "wasmi_core 0.2.1",
+ "wasmi_core 0.2.1 (git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext)",
 ]
 
 [[package]]
 name = "wasmi"
-version = "0.30.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51fb5c61993e71158abf5bb863df2674ca3ec39ed6471c64f07aeaf751d67b4"
+checksum = "ae73f0dc2c05c94f30cb04498c67574b7588d0e674cc9255b96a05d21345528c"
 dependencies = [
- "intx",
- "smallvec",
  "spin 0.9.8",
- "wasmi_arena 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmi_core 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser-nostd",
+ "wasmi_core 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmparser-nostd 0.83.0",
 ]
 
 [[package]]
@@ -14153,9 +14150,9 @@ dependencies = [
  "intx",
  "smallvec",
  "spin 0.9.8",
- "wasmi_arena 0.4.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
- "wasmi_core 0.12.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
- "wasmparser-nostd",
+ "wasmi_arena",
+ "wasmi_core 0.12.0",
+ "wasmparser-nostd 0.100.1",
 ]
 
 [[package]]
@@ -14169,13 +14166,20 @@ dependencies = [
 [[package]]
 name = "wasmi_arena"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "401c1f35e413fac1846d4843745589d9ec678977ab35a384db8ae7830525d468"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
 
 [[package]]
-name = "wasmi_arena"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+name = "wasmi_core"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57d20cb3c59b788653d99541c646c561c9dd26506f25c0cebfe810659c54c6d7"
+dependencies = [
+ "downcast-rs",
+ "libm",
+ "memory_units",
+ "num-rational",
+ "num-traits",
+]
 
 [[package]]
 name = "wasmi_core"
@@ -14188,18 +14192,6 @@ dependencies = [
  "num-rational",
  "num-traits",
  "region",
-]
-
-[[package]]
-name = "wasmi_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "624e6333e861ef49095d2d678b76ebf30b06bf37effca845be7e5b87c90071b7"
-dependencies = [
- "downcast-rs",
- "libm",
- "num-traits",
- "paste",
 ]
 
 [[package]]
@@ -14247,6 +14239,12 @@ dependencies = [
  "indexmap 2.0.0",
  "semver 1.0.18",
 ]
+
+[[package]]
+name = "wasmparser-nostd"
+version = "0.83.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58a45f1058fed5ce7ff3da64153d0537a1ae664d09855fbb1402c6472f09571b"
 
 [[package]]
 name = "wasmparser-nostd"
