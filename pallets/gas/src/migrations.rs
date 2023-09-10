@@ -5,6 +5,8 @@ use frame_support::{
     dispatch::GetStorageVersion,
     traits::{Get, OnRuntimeUpgrade},
 };
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
 const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(1_000);
 
