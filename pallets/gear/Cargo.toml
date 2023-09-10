@@ -30,7 +30,6 @@ gear-lazy-pages-interface.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
 pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
@@ -172,7 +171,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
-	"gear-backend-common/mock",
+	"gear-backend-sandbox/mock",
 	"gear-core-errors/codec",
 	"gear-sandbox",
 	"sp-consensus-slots",

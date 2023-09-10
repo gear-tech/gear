@@ -10,7 +10,6 @@ repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true
-gear-backend-common = { workspace = true }
 gear-lazy-pages-common.workspace = true
 
 log = { workspace = true, optional = true }

@@ -18,7 +18,6 @@ enum-iterator.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
 gear-backend-sandbox = { workspace = true, features = ["mock"] }
-gear-backend-common = { workspace = true, features = ["mock"] }
 gear-core.workspace = true
 
 [features]

@@ -22,7 +22,6 @@ once_cell.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
-gear-backend-common.workspace = true
 gear-lazy-pages-common.workspace = true
 
 [target."cfg(target_vendor = \"apple\")".dependencies.mach]

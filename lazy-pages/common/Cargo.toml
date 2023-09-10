@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 gear-core.workspace = true
-gear-backend-common.workspace = true
 
 num_enum.workspace = true
 codec.workspace = true

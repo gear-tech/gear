@@ -13,7 +13,6 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true

@@ -79,7 +79,6 @@ substrate-wasm-builder = { workspace = true, optional = true }
 
 [dev-dependencies]
 gear-core-processor.workspace = true
-gear-backend-common.workspace = true
 
 [features]
 default = ["std"]

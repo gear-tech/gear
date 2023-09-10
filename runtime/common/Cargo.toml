@@ -28,7 +28,6 @@ frame-system-benchmarking = { workspace = true, optional = true }
 # Internal deps
 runtime-primitives.workspace = true
 gear-common.workspace = true
-gear-backend-common.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-core-processor.workspace = true
 gear-core.workspace = true

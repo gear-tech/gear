@@ -469,7 +469,6 @@ pub struct WasmMemoryWrite {
 mod tests {
     use super::*;
     use crate::{mock::MockExt, state::State, ActorTerminationReason};
-    use gear_backend_common::{assert_err, assert_ok};
     use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use gear_sandbox::{AsContextExt, SandboxStore};
 
@@ -501,52 +500,55 @@ mod tests {
     fn smoky() {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
             16.into()
         );
 
-        assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
             16.into()
         );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())));
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap();
         }
 
         // no more mem!
-        assert_err!(
+        assert_eq!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            AllocError::ProgramAllocOutOfBounds
+            Err(AllocError::ProgramAllocOutOfBounds)
         );
 
         // but we free some
-        assert_ok!(ctx.free(137.into()));
+        ctx.free(137.into()).unwrap();
 
         // and now can allocate page that was freed
-        assert_ok!(
+        assert_eq!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            137.into()
+            Ok(137.into())
         );
 
         // if we have 2 in a row we can allocate even 2
-        assert_ok!(ctx.free(117.into()));
-        assert_ok!(ctx.free(118.into()));
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
 
-        assert_ok!(
+        assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            117.into()
+            Ok(117.into())
         );
 
         // but if 2 are not in a row, bad luck
-        assert_ok!(ctx.free(117.into()));
-        assert_ok!(ctx.free(158.into()));
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
 
-        assert_err!(
+        assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            AllocError::ProgramAllocOutOfBounds
+            Err(AllocError::ProgramAllocOutOfBounds)
         );
     }
 }

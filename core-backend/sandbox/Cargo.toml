@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-backend-common.workspace = true
 gear-backend-codegen.workspace = true
 gear-lazy-pages-common.workspace = true
 gsys = { workspace = true }

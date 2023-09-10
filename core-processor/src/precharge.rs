@@ -457,7 +457,6 @@ pub fn precharge_for_memory(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::assert_ok;
 
     fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (
@@ -472,9 +471,11 @@ mod tests {
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
         let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
         let static_pages = 4.into();
-        let res = charger.charge_gas_for_pages(&costs, &Default::default(), static_pages);
+        let res = charger
+            .charge_gas_for_pages(&costs, &Default::default(), static_pages)
+            .unwrap();
         // Result is static pages count
-        assert_ok!(res, static_pages);
+        assert_eq!(res, static_pages);
         // Charging for static pages initialization
         let charge = costs.static_page.calc(static_pages);
         assert_eq!(charger.counter.left(), 1_000_000 - charge);
