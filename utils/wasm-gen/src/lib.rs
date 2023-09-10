@@ -57,8 +57,6 @@ pub fn generate_gear_program_code(
         wasmprinter::print_bytes(&bytes).expect("internal error: failed printing bytes")
     );
 
-    std::fs::write("./generated_wasm.wasm", &bytes).unwrap();
-
     Ok(bytes)
 }
 

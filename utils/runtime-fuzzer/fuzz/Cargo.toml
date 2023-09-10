@@ -8,7 +8,6 @@ edition.workspace = true
 cargo-fuzz = true
 
 [dependencies]
-arbitrary.workspace = true
 libfuzzer-sys.workspace = true
 runtime-fuzzer = { path = ".." }
 gear-utils.workspace = true

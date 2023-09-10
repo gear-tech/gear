@@ -23,18 +23,19 @@ mod runtime;
 #[cfg(test)]
 mod tests;
 
-use std::rc::Rc;
-
 use arbitrary::Result;
-pub use gear_calls::GearCalls;
-
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_calls::MailboxProvider;
+pub use gear_calls::GearCalls;
+use gear_calls::{
+    Config as GearCallsConfig, MailboxProvider, SendMessageGenerator, SendReplyGenerator,
+    UploadProgramGenerator,
+};
 use gear_core::ids::MessageId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
+use sha1::*;
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(data: &[u8]) -> Result<()> {
@@ -42,12 +43,17 @@ pub fn run(data: &[u8]) -> Result<()> {
 }
 
 fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
-    let sender = runtime::account(runtime::alice());
-    let mailbox_provider = Rc::from(Box::from(MailboxProviderImpl {
-        account_id: sender.clone(),
-    }) as Box<dyn MailboxProvider>);
-    let gear_calls = GearCalls::new(data, mailbox_provider)?;
+    log::trace!(
+        "New GearCalls generation: random data received {}",
+        data.len()
+    );
+    let test_input_id = get_sha1_string(data);
+    log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
+    let config = calls_config(test_input_id);
+    let gear_calls = GearCalls::new(data, config)?;
+
+    let sender = runtime::account(runtime::alice());
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {
         // Increase maximum balance of the `sender`.
@@ -72,6 +78,43 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     })?;
 
     Ok(test_ext)
+}
+
+pub fn min_unstructured_input_size() -> usize {
+    let config = calls_config("".to_string());
+    config.unstructured_size_hint()
+}
+
+fn calls_config(test_input_id: String) -> GearCallsConfig {
+    GearCallsConfig::new(vec![
+        (
+            10,
+            Box::new(UploadProgramGenerator {
+                gas: default_gas_limit(),
+                value: 0,
+                test_input_id,
+            }),
+        ),
+        (
+            15,
+            Box::new(SendMessageGenerator {
+                gas: default_gas_limit(),
+                value: 0,
+                prepaid: false,
+            }),
+        ),
+        (
+            1,
+            Box::new(SendReplyGenerator {
+                mailbox_provider: Box::from(MailboxProviderImpl {
+                    account_id: runtime::account(runtime::alice()),
+                }),
+                gas: default_gas_limit(),
+                value: 0,
+                prepaid: false,
+            }),
+        ),
+    ])
 }
 
 struct MailboxProviderImpl {
@@ -125,4 +168,11 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
         }
         _ => unimplemented!("Unsupported currently."),
     }
+}
+
+fn get_sha1_string(input: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(input);
+
+    hex::encode(hasher.finalize())
 }

@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::gear_calls::GearCalls;
 use crate::*;
 use proptest::prelude::*;
 
@@ -25,7 +24,7 @@ const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
 
 #[test]
 fn proptest_input_validity() {
-    assert!(MIN_GEAR_CALLS_BYTES >= GearCalls::unstructured_size_hint());
+    assert!(MIN_GEAR_CALLS_BYTES >= min_unstructured_input_size());
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 

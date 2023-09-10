@@ -18,7 +18,7 @@
 
 //! `GearCalls` implementation.
 
-use crate::{runtime::default_gas_limit, GearCall, SendMessageArgs, UploadProgramArgs};
+use crate::{GearCall, SendMessageArgs, UploadProgramArgs};
 use arbitrary::{Error, Result, Unstructured};
 use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
@@ -26,8 +26,6 @@ use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
 };
-use sha1::*;
-use std::rc::Rc;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -43,26 +41,14 @@ pub struct GearCalls<'a> {
     unstructured: Unstructured<'a>,
     intermediate_data: IntermediateData,
 
-    config: ExtrinsicsConfig,
+    config: Config,
 
     current_generator: usize,
     current_extrinsic: usize,
 }
 
 impl<'a> GearCalls<'a> {
-    pub fn new(
-        data: &'a [u8],
-        mailbox_provider: Rc<Box<dyn MailboxProvider>>,
-    ) -> Result<GearCalls<'a>> {
-        log::trace!(
-            "New GearCalls generation: random data received {}",
-            data.len()
-        );
-        let test_input_id = get_sha1_string(data);
-        log::trace!("Generating GearCalls from corpus - {}", test_input_id);
-
-        let config = Self::default_config(mailbox_provider, test_input_id);
-
+    pub fn new(data: &'a [u8], config: Config) -> Result<GearCalls<'a>> {
         if data.len() < config.unstructured_size_hint() {
             return Err(Error::NotEnoughData);
         }
@@ -74,49 +60,6 @@ impl<'a> GearCalls<'a> {
             current_extrinsic: 0,
             config,
         })
-    }
-
-    pub fn unstructured_size_hint() -> usize {
-        Self::default_config(
-            Rc::from(Box::from(MockMailboxProvider) as Box<dyn MailboxProvider>),
-            "".to_string(),
-        )
-        .unstructured_size_hint()
-    }
-
-    fn default_config(
-        mailbox_provider: Rc<Box<dyn MailboxProvider>>,
-        test_input_id: String,
-    ) -> ExtrinsicsConfig {
-        ExtrinsicsConfig {
-            generators: vec![
-                (
-                    10,
-                    Box::new(UploadProgramGenerator {
-                        gas: default_gas_limit(),
-                        value: 0,
-                        test_input_id,
-                    }),
-                ),
-                (
-                    15,
-                    Box::new(SendMessageGenerator {
-                        gas: default_gas_limit(),
-                        value: 0,
-                        prepaid: false,
-                    }),
-                ),
-                (
-                    1,
-                    Box::new(SendReplyGenerator {
-                        mailbox_provider,
-                        gas: default_gas_limit(),
-                        value: 0,
-                        prepaid: false,
-                    }),
-                ),
-            ],
-        }
     }
 }
 
@@ -141,33 +84,18 @@ impl Iterator for GearCalls<'_> {
     }
 }
 
-pub trait MailboxProvider {
-    fn fetch_messages(&self) -> Vec<MessageId>;
-}
+pub type ExtrinsicAmount = usize;
 
-#[derive(Clone)]
-struct MockMailboxProvider;
-
-impl MailboxProvider for MockMailboxProvider {
-    fn fetch_messages(&self) -> Vec<MessageId> {
-        unimplemented!()
-    }
-}
-
-/// Data that is persistent between different [`ExtrinsicGenerator`]s calls.
-#[derive(Default)]
-struct IntermediateData {
-    uploaded_programs: Vec<ProgramId>,
-}
-
-type ExtrinsicAmount = usize;
-
-struct ExtrinsicsConfig {
+pub struct Config {
     generators: Vec<(ExtrinsicAmount, Box<dyn ExtrinsicGenerator>)>,
 }
 
-impl ExtrinsicsConfig {
-    fn unstructured_size_hint(&self) -> usize {
+impl Config {
+    pub fn new(generators: Vec<(ExtrinsicAmount, Box<dyn ExtrinsicGenerator>)>) -> Config {
+        Config { generators }
+    }
+
+    pub fn unstructured_size_hint(&self) -> usize {
         self.generators
             .iter()
             .map(|(amount, generator)| amount * generator.unstructured_size_hint())
@@ -175,7 +103,11 @@ impl ExtrinsicsConfig {
     }
 }
 
-trait ExtrinsicGenerator {
+pub trait MailboxProvider {
+    fn fetch_messages(&self) -> Vec<MessageId>;
+}
+
+pub trait ExtrinsicGenerator {
     fn generate(
         &self,
         intermediate_data: &mut IntermediateData,
@@ -185,10 +117,16 @@ trait ExtrinsicGenerator {
     fn unstructured_size_hint(&self) -> usize;
 }
 
-struct UploadProgramGenerator {
-    gas: u64,
-    value: u128,
-    test_input_id: String,
+/// Data that is persistent between different [`ExtrinsicGenerator`]s calls.
+#[derive(Default)]
+pub struct IntermediateData {
+    uploaded_programs: Vec<ProgramId>,
+}
+
+pub struct UploadProgramGenerator {
+    pub gas: u64,
+    pub value: u128,
+    pub test_input_id: String,
 }
 
 impl ExtrinsicGenerator for UploadProgramGenerator {
@@ -239,10 +177,10 @@ impl ExtrinsicGenerator for UploadProgramGenerator {
     }
 }
 
-struct SendMessageGenerator {
-    gas: u64,
-    value: u128,
-    prepaid: bool,
+pub struct SendMessageGenerator {
+    pub gas: u64,
+    pub value: u128,
+    pub prepaid: bool,
 }
 
 impl ExtrinsicGenerator for SendMessageGenerator {
@@ -270,12 +208,12 @@ impl ExtrinsicGenerator for SendMessageGenerator {
     }
 }
 
-struct SendReplyGenerator {
-    mailbox_provider: Rc<Box<dyn MailboxProvider>>,
+pub struct SendReplyGenerator {
+    pub mailbox_provider: Box<dyn MailboxProvider>,
 
-    gas: u64,
-    value: u128,
-    prepaid: bool,
+    pub gas: u64,
+    pub value: u128,
+    pub prepaid: bool,
 }
 
 impl ExtrinsicGenerator for SendReplyGenerator {
@@ -288,8 +226,7 @@ impl ExtrinsicGenerator for SendReplyGenerator {
             "Random data before payload (send_reply) gen {}",
             unstructured.len()
         );
-        let message_id =
-            arbitrary_message_id_from_mailbox(unstructured, self.mailbox_provider.clone())?;
+        let message_id = arbitrary_message_id_from_mailbox(unstructured, &self.mailbox_provider)?;
 
         let payload = arbitrary_payload(unstructured)?;
         log::error!(
@@ -309,8 +246,8 @@ impl ExtrinsicGenerator for SendReplyGenerator {
     }
 }
 
-struct ClaimValueGenerator {
-    mailbox_provider: Rc<Box<dyn MailboxProvider>>,
+pub struct ClaimValueGenerator {
+    pub mailbox_provider: Box<dyn MailboxProvider>,
 }
 
 impl ExtrinsicGenerator for ClaimValueGenerator {
@@ -320,8 +257,7 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
         unstructured: &mut Unstructured,
     ) -> Result<GearCall> {
         log::trace!("Generating claim_value call");
-        let message_id =
-            arbitrary_message_id_from_mailbox(unstructured, self.mailbox_provider.clone())?;
+        let message_id = arbitrary_message_id_from_mailbox(unstructured, &self.mailbox_provider)?;
 
         Ok(ClaimValueArgs(message_id).into())
     }
@@ -334,7 +270,7 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
 
 fn arbitrary_message_id_from_mailbox(
     u: &mut Unstructured,
-    mailbox_provider: Rc<Box<dyn MailboxProvider>>,
+    mailbox_provider: &Box<dyn MailboxProvider>,
 ) -> Result<MessageId> {
     let messages = mailbox_provider.fetch_messages();
 
@@ -392,11 +328,4 @@ fn config(
 
         ..Default::default()
     }
-}
-
-fn get_sha1_string(input: &[u8]) -> String {
-    let mut hasher = sha1::Sha1::new();
-    hasher.update(input);
-
-    hex::encode(hasher.finalize())
 }
