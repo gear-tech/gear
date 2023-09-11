@@ -209,16 +209,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        if self.is_send_sys_call(invocable) {
+        if self.is_sys_call_with_destination(invocable) {
             log::trace!(
-                " -- Generating build call for send sys-call {}",
-                invocable.to_str()
-            );
-
-            self.build_sys_call_with_destination(call_data)
-        } else if self.is_exit_sys_call(invocable) {
-            log::trace!(
-                " -- Generating build call for control sys-call {}",
+                " -- Generating build call for {} sys-call with destination",
                 invocable.to_str()
             );
 
@@ -316,6 +309,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn is_exit_sys_call(&self, sys_call: InvocableSysCall) -> bool {
         matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
+    }
+
+    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
+        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
     }
 
     fn build_call(
