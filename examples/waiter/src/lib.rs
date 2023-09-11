@@ -21,8 +21,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use parity_scale_codec::{Decode, Encode};
 use gcore::BlockCount;
+use parity_scale_codec::{Decode, Encode};
 
 type ActorId = [u8; 32];
 

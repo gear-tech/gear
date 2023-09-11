@@ -948,16 +948,11 @@ pub mod pallet {
                     break;
                 }
 
-                let gas_delta = DbWeightOf::<T>::get()
-                    .writes(1)
-                    .ref_time()
-                    .saturating_sub(DbWeightOf::<T>::get().reads(1).ref_time());
-
                 // Iterating over tasks, scheduled on `bn`.
                 let mut last_task = None;
                 for task in tasks {
-                    // Decreasing gas allowance due to DB read.
-                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
+                    // Decreasing gas allowance due to DB deletion.
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
                     // gas required to process task.
                     let max_task_gas = manager::get_maximum_task_gas::<T>(&task);
@@ -968,21 +963,27 @@ pub mod pallet {
                     // Making sure we have gas to process the current task
                     // and update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get().saturating_sub(max_task_gas)
-                        <= DbWeightOf::<T>::get()
-                            .writes(1)
-                            .ref_time()
-                            .saturating_add(gas_delta)
+                        <= DbWeightOf::<T>::get().writes(1).ref_time()
                     {
+                        // Since the task is not processed write DB cost should be refunded.
+                        // In the same time gas allowance should be charged for read DB cost.
+                        GasAllowanceOf::<T>::put(
+                            GasAllowanceOf::<T>::get()
+                                .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time())
+                                .saturating_sub(DbWeightOf::<T>::get().reads(1).ref_time()),
+                        );
+
                         last_task = Some(task);
                         log::debug!("Not enough gas to process task at: {bn:?}");
+
                         break;
                     }
 
                     // Processing task and update allowance of gas.
                     let task_gas = task.process_with(ext_manager);
-                    GasAllowanceOf::<T>::decrease(task_gas + gas_delta);
+                    GasAllowanceOf::<T>::decrease(task_gas);
 
-                    // Check that there is enough gas allowance to read next task, update the first block of incomplete tasks and remove already processed tasks.
+                    // Check that there is enough gas allowance to query next task and update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get()
                         <= DbWeightOf::<T>::get().reads_writes(1, 1).ref_time()
                     {
@@ -997,12 +998,12 @@ pub mod pallet {
 
                     // since there is the overlay mechanism we don't need to subtract write cost
                     // from gas allowance on task insertion.
-                    TaskPoolOf::<T>::add(bn, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                     GasAllowanceOf::<T>::put(
                         GasAllowanceOf::<T>::get()
                             .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time()),
                     );
+                    TaskPoolOf::<T>::add(bn, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
 
                 // Stopping iteration over blocks if no resources left.
