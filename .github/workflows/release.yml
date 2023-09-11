@@ -17,7 +17,7 @@ jobs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Update config
@@ -50,7 +50,7 @@ jobs:
     runs-on: [kuberunner]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set cargo path
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
