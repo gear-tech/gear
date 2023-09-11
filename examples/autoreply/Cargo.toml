@@ -1,20 +1,21 @@
 [package]
-name = "demo-read-big-state"
+name = "demo-autoreply"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-workspace = "../../"
 
 [dependencies]
-gstd.workspace = true
-parity-scale-codec = { workspace = true, features = ["derive"] }
+gstd = { workspace = true, features = ["debug"] }
+parity-scale-codec.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-wasm-wrapper = []
-std = ["wasm-wrapper", "parity-scale-codec/std"]
 default = ["std"]
+std = []

@@ -224,7 +224,7 @@ where
     let execute = || {
         let env = E::new(
             ext,
-            program.raw_code(),
+            program.code_bytes(),
             kind,
             program.code().exports().clone(),
             memory_size,
@@ -419,7 +419,7 @@ where
     let f = || {
         let env = E::new(
             ext,
-            program.raw_code(),
+            program.code_bytes(),
             function,
             program.code().exports().clone(),
             memory_size,

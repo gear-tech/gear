@@ -220,7 +220,6 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
-            init_body: None,
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -1331,61 +1330,6 @@ where
 
         Self::prepare_handle(module, 0)
     }
-
-    // pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
-    //     let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-
-    //     let module = WasmModule::<T>::dummy();
-    //     let _ = Gear::<T>::upload_code_raw(
-    //         RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
-    //         module.code,
-    //     );
-
-    //     let mut cid_value = [0; CID_VALUE_SIZE as usize];
-    //     cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
-    //     cid_value[CID_SIZE as usize..].copy_from_slice(&0u128.to_le_bytes());
-
-    //     let cid_value_offset = COMMON_OFFSET;
-    //     let payload_offset = cid_value_offset + cid_value.len() as u32;
-    //     let payload_len = 10;
-    //     let res_offset = payload_offset + payload_len;
-
-    //     // Use previous result bytes as salt. First one uses 0 bytes.
-    //     let salt_offset = res_offset;
-    //     let salt_len = 32;
-
-    //     let module = ModuleDefinition {
-    //         memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-    //         imported_functions: vec![SysCallName::CreateProgramWGas],
-    //         data_segments: vec![DataSegment {
-    //             offset: cid_value_offset,
-    //             value: cid_value.to_vec(),
-    //         }],
-    //         handle_body: Some(body::fallible_syscall(
-    //             repetitions,
-    //             res_offset,
-    //             &[
-    //                 // cid value offset
-    //                 InstrI32Const(cid_value_offset),
-    //                 // salt offset
-    //                 InstrI32Const(salt_offset),
-    //                 // salt len
-    //                 InstrI32Const(salt_len),
-    //                 // payload offset
-    //                 InstrI32Const(payload_offset),
-    //                 // payload len
-    //                 InstrI32Const(payload_len),
-    //                 // gas limit
-    //                 InstrI64Const(100_000_000),
-    //                 // delay
-    //                 InstrI32Const(10),
-    //             ],
-    //         )),
-    //         ..Default::default()
-    //     };
-
-    //     Self::prepare_handle(module, 0)
-    // }
 
     pub fn gr_create_program(
         batches: u32,

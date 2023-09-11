@@ -24,6 +24,7 @@ gear-core.workspace = true
 gear-utils.workspace = true
 gear-runtime = { workspace = true, features = ["std", "fuzz"] }
 pallet-gear.workspace = true
+pallet-gear-bank.workspace = true
 
 frame-support.workspace = true
 frame-system.workspace = true
