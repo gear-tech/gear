@@ -24,8 +24,7 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, InvocableSysCallData, SysCallParamAllowedValues, SysCallsConfig,
-    SysCallsParamsConfig,
+    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -171,8 +170,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         );
 
         for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
-            let call_data = invocable.into_call_data(call_indexes_handle);
-            let instructions = self.build_sys_call_invoke_instructions(call_data)?;
+            let instructions = self.build_sys_call_invoke_instructions(
+                invocable,
+                invocable.into_signature(),
+                call_indexes_handle,
+            )?;
 
             log::trace!(
                 "Inserting the {} sys_call {} times",
@@ -200,9 +202,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_sys_call_invoke_instructions(
         &mut self,
-        call_data: InvocableSysCallData,
+        invocable: InvocableSysCall,
+        signature: SysCallSignature,
+        call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
-        let invocable = call_data.invocable;
         log::trace!(
             "Random data before building {} sys-call invoke instructions - {}",
             invocable.to_str(),
@@ -215,25 +218,28 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 invocable.to_str()
             );
 
-            self.build_sys_call_with_destination(call_data)
+            self.build_call_with_destination(invocable, signature, call_indexes_handle)
         } else {
             log::trace!(
                 " -- Generating build call for common sys-call {}",
                 invocable.to_str()
             );
 
-            self.build_call(call_data)
+            self.build_call(invocable, signature, call_indexes_handle)
         }
     }
 
-    fn build_sys_call_with_destination(
+    fn build_call_with_destination(
         &mut self,
-        mut call_data: InvocableSysCallData,
+        invocable: InvocableSysCall,
+        mut signature: SysCallSignature,
+        call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         // The value for the first param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
-        call_data.signature.params.remove(0);
-        let mut call_without_destination_instrs = self.build_call(call_data)?;
+        signature.params.remove(0);
+        let mut call_without_destination_instrs =
+            self.build_call(invocable, signature, call_indexes_handle)?;
 
         let res = if self.config.sys_call_destination().is_source() {
             log::trace!(" -- Sys-call destination is result of `gr_source`");
@@ -293,6 +299,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(res)
     }
 
+    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
+        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
+    }
+
     fn is_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
         use InvocableSysCall::*;
         [
@@ -311,17 +321,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
     }
 
-    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
-        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
-    }
-
     fn build_call(
         &mut self,
-        InvocableSysCallData {
-            invocable,
-            signature,
-            call_indexes_handle,
-        }: InvocableSysCallData,
+        invocable: InvocableSysCall,
+        signature: SysCallSignature,
+        call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let param_setters = self.build_param_setters(&signature.params)?;
         let mut instructions: Vec<_> = param_setters
