@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 18] = [
+const PACKAGES: [&str; 17] = [
     // Packages without local dependencies.
     "actor-system-error",
     "gear-backend-codegen",
@@ -31,8 +31,10 @@ const PACKAGES: [&str; 18] = [
     "gear-core",
     "gear-utils",
     "gear-backend-common",
+    // TODO: Refactor metadata parser (#3222)
+    //
     // "gear-sandbox-host",
-    "gear-core-processor",
+    // "gear-core-processor",
     "gear-common",
     "gsdk",
     "gcli",
