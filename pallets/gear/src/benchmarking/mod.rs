@@ -40,6 +40,7 @@ mod sandbox;
 
 mod syscalls;
 mod utils;
+mod tasks;
 use syscalls::Benches;
 
 mod tests;
@@ -297,108 +298,6 @@ where
     };
 
     (get_last_session_id::<T>().unwrap(), memory_pages)
-}
-
-#[track_caller]
-fn tasks_send_user_message_prepare<T>(delay: u32)
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    use demo_delayed_sender::WASM_BINARY;
-
-    let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-
-    init_block::<T>(None);
-
-    let salt = vec![];
-    Gear::<T>::upload_program(
-        RawOrigin::Signed(caller).into(),
-        WASM_BINARY.to_vec(),
-        salt,
-        delay.encode(),
-        100_000_000_000,
-        0u32.into(),
-    )
-    .expect("submit program failed");
-
-    Gear::<T>::process_queue(Default::default());
-}
-
-#[track_caller]
-fn tasks_send_user_message_common<T>() -> MessageId
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    let delay = 1u32;
-    tasks_send_user_message_prepare::<T>(delay);
-
-    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
-        .next()
-        .expect("task should be scheduled");
-    let (message_id, to_mailbox) = match task {
-        ScheduledTask::SendUserMessage {
-            message_id,
-            to_mailbox,
-        } => (message_id, to_mailbox),
-        _ => unreachable!("task should be SendUserMessage"),
-    };
-    assert!(to_mailbox);
-
-    message_id
-}
-
-#[track_caller]
-fn tasks_pause_program_prepare<T: Config>(c: u32, code: Vec<u8>) -> ProgramId
-where
-    T::AccountId: Origin,
-{
-    let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
-
-    init_block::<T>(None);
-
-    let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-    Gear::<T>::upload_program(
-        RawOrigin::Signed(caller).into(),
-        code,
-        salt,
-        b"init_payload".to_vec(),
-        10_000_000_000,
-        0u32.into(),
-    )
-    .expect("submit program failed");
-
-    Gear::<T>::process_queue(Default::default());
-
-    let memory_page = {
-        let mut page = PageBuf::new_zeroed();
-        page[0] = 1;
-
-        page
-    };
-
-    for i in 0..c {
-        ProgramStorageOf::<T>::set_program_page_data(
-            program_id,
-            GearPage::from(i as u16),
-            memory_page.clone(),
-        );
-    }
-
-    ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-        program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
-
-        let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-        program.allocations =
-            BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
-    })
-    .expect("program should exist");
-
-    program_id
 }
 
 /// An instantiated and deployed program.
@@ -2917,14 +2816,14 @@ benchmarks! {
     }
 
     tasks_send_user_message_to_mailbox {
-        let message_id = tasks_send_user_message_common::<T>();
+        let message_id = tasks::send_user_message_common::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.send_user_message(message_id, true);
     }
 
     tasks_send_user_message {
-        let message_id = tasks_send_user_message_common::<T>();
+        let message_id = tasks::send_user_message_common::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.send_user_message(message_id, false);
@@ -3079,7 +2978,7 @@ benchmarks! {
     }
 
     tasks_remove_from_mailbox {
-        tasks_send_user_message_prepare::<T>(0u32);
+        tasks::send_user_message_prepare::<T>(0u32);
 
         let (user, message_id) = find_latest_event::<T, _, _>(|event| match event {
             Event::UserMessageSent {
@@ -3098,7 +2997,7 @@ benchmarks! {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
-        let program_id = tasks_pause_program_prepare::<T>(c, code);
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
 
         let mut ext_manager = ExtManager::<T>::default();
     }: {
@@ -3108,7 +3007,7 @@ benchmarks! {
     tasks_pause_program_uninited {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-        let program_id = tasks_pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
 
         let mut ext_manager = ExtManager::<T>::default();
     }: {

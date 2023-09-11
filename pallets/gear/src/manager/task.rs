@@ -353,11 +353,11 @@ where
             .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
 
-        match to_mailbox {
-            true => <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox(),
-            false => <T as Config>::WeightInfo::tasks_send_user_message(),
+        if to_mailbox {
+            <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time()
+        } else {
+            <T as Config>::WeightInfo::tasks_send_user_message().ref_time()
         }
-        .ref_time()
     }
 
     fn remove_gas_reservation(
