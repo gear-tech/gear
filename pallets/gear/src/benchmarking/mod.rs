@@ -300,8 +300,9 @@ where
 }
 
 #[track_caller]
-fn tasks_send_user_message_prepare<T: Config>(delay: u32)
+fn tasks_send_user_message_prepare<T>(delay: u32)
 where
+    T: Config,
     T::AccountId: Origin,
 {
     use demo_delayed_sender::WASM_BINARY;
@@ -323,6 +324,30 @@ where
     .expect("submit program failed");
 
     Gear::<T>::process_queue(Default::default());
+}
+
+#[track_caller]
+fn tasks_send_user_message_common<T>() -> MessageId
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let delay = 1u32;
+    tasks_send_user_message_prepare::<T>(delay);
+
+    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+        .next()
+        .expect("task should be scheduled");
+    let (message_id, to_mailbox) = match task {
+        ScheduledTask::SendUserMessage {
+            message_id,
+            to_mailbox,
+        } => (message_id, to_mailbox),
+        _ => unreachable!("task should be SendUserMessage"),
+    };
+    assert!(to_mailbox);
+
+    message_id
 }
 
 #[track_caller]
@@ -2892,42 +2917,14 @@ benchmarks! {
     }
 
     tasks_send_user_message_to_mailbox {
-        let delay = 1u32;
-        tasks_send_user_message_prepare::<T>(delay);
-
-        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
-            .next()
-            .expect("task should be scheduled");
-        let (message_id, to_mailbox) = match task {
-            ScheduledTask::SendUserMessage {
-                message_id,
-                to_mailbox,
-            } => (message_id, to_mailbox),
-            _ => unreachable!("task should be SendUserMessage"),
-        };
-        assert!(to_mailbox);
-
+        let message_id = tasks_send_user_message_common::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.send_user_message(message_id, true);
     }
 
     tasks_send_user_message {
-        let delay = 1u32;
-        tasks_send_user_message_prepare::<T>(delay);
-
-        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
-            .next()
-            .expect("task should be scheduled");
-        let (message_id, to_mailbox) = match task {
-            ScheduledTask::SendUserMessage {
-                message_id,
-                to_mailbox,
-            } => (message_id, to_mailbox),
-            _ => unreachable!("task should be SendUserMessage"),
-        };
-        assert!(to_mailbox);
-
+        let message_id = tasks_send_user_message_common::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.send_user_message(message_id, false);
