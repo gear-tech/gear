@@ -66,6 +66,7 @@ fn is_missed_nonce_err(err: &GClientError) -> bool {
     err_str.contains(&utils::SUBXT_RPC_CALL_ERR_STR.to_lowercase())
         || err_str.contains(&utils::TRANSACTION_INVALID.to_lowercase())
         || err_str.contains(&utils::TRANSACTION_DROPPED.to_lowercase())
+        || err_str.contains(&utils::TRANSACTION_WASNT_FOUND.to_lowercase())
 }
 
 #[test]

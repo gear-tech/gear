@@ -31,6 +31,7 @@ pub const SUBXT_RPC_CALL_ERR_STR: &str = "Transaction would exhaust the block li
 pub const EVENTS_TIMEOUT_ERR_STR: &str = "Block events timeout";
 pub const TRANSACTION_INVALID: &str = "Transaction Invalid";
 pub const TRANSACTION_DROPPED: &str = "Transaction Dropped";
+pub const TRANSACTION_WASNT_FOUND: &str = "Transaction wasn't found";
 pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
     "Transaction finalization wait timeout is reached";
 
