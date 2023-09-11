@@ -37,9 +37,9 @@ runtime=$3
 flag=$4
 
 if [ -z $CI ] ; then
-  CARGO_FLAGS="--quiet"
-else
   CARGO_FLAGS=""
+else
+  CARGO_FLAGS="--quiet"
 fi
 
 dump_path="weight-dumps"
