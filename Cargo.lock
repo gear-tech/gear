@@ -9350,6 +9350,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "parity-scale-codec",
  "proptest",
  "rand 0.8.5",
