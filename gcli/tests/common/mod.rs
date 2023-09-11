@@ -22,7 +22,6 @@ pub use self::{
     result::{Error, Result},
     traits::NodeExec,
 };
-use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
