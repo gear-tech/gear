@@ -122,9 +122,6 @@ mod bag_thresholds;
 pub mod governance;
 use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
 
-mod extensions;
-pub use extensions::DisableValueTransfers;
-
 mod migrations;
 
 // By this we inject compile time version including commit hash
@@ -1248,8 +1245,6 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-    // RELEASE: remove before final release
-    DisableValueTransfers,
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
