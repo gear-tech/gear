@@ -2,8 +2,6 @@ name: Crates IO
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
 
 env:
   CARGO_INCREMENTAL: 0
