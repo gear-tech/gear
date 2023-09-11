@@ -60,11 +60,13 @@ pub enum LockContinuation {
     Nothing,
     SleepFor(u32),
     MoveToStatic,
+    Wait,
+    Forget,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub enum MxLockContinuation {
-    // Here will be Lock
+    Lock,
     General(LockContinuation),
 }
 
@@ -92,14 +94,14 @@ pub enum RwLockContinuation {
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
-    SendFor(ActorId, u32),
-    SendUpTo(ActorId, u32),
-    SendUpToWait(ActorId, u32),
-    SendAndWaitFor(u32, ActorId),
+    SendFor(ActorId, gstd::BlockCount),
+    SendUpTo(ActorId, gstd::BlockCount),
+    SendUpToWait(ActorId, gstd::BlockCount),
+    SendAndWaitFor(gstd::BlockCount, ActorId),
     ReplyAndWait(WaitSubcommand),
-    SleepFor(Vec<u32>, SleepForWaitType),
+    SleepFor(Vec<gstd::BlockCount>, SleepForWaitType),
     WakeUp([u8; 32]),
-    MxLock(MxLockContinuation),
+    MxLock(gstd::BlockCount, MxLockContinuation),
     MxLockStaticAccess(LockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
     RwLockStaticAccess(RwLockType, LockStaticAccessSubcommand),

@@ -33,7 +33,6 @@ mod runtime_api;
 mod schedule;
 
 pub mod manager;
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -52,7 +51,7 @@ pub use weights::WeightInfo;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
+    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
     PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
@@ -190,9 +189,6 @@ pub mod pallet {
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
-        /// Gas to Currency converter
-        type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
-
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
@@ -250,6 +246,7 @@ pub mod pallet {
             ExternalOrigin = Self::AccountId,
             NodeId = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
+            Funds = BalanceOf<Self>,
             Error = DispatchError,
         >;
 
@@ -266,7 +263,7 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        /// Type that allows to check calller's eligibility for using voucher for payment.
+        /// Type that allows to check caller's eligibility for using voucher for payment.
         type Voucher: PaymentVoucher<
             Self::AccountId,
             ProgramId,
@@ -476,7 +473,7 @@ pub mod pallet {
         ResumePeriodLessThanMinimal,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Voucher can't be redemmed
+        /// Voucher can't be redeemed
         FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
@@ -567,7 +564,8 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Submit program for benchmarks which does not check the code.
+        /// Upload program to the chain without stack limit injection and
+        /// does not make some checks for code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -577,22 +575,22 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            use gear_core::code::TryNewCodeConfig;
+
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let module =
-                gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                    log::debug!("Module failed to load: {:?}", e);
-                    Error::<T>::ProgramConstructionFailed
-                })?;
-
-            let code = Code::new_raw(
+            let code = Code::try_new_mock_const_or_no_rules(
                 code,
-                schedule.instruction_weights.version,
-                Some(module),
                 true,
-                true,
+                TryNewCodeConfig {
+                    // actual version to avoid re-instrumentation
+                    version: T::Schedule::get().instruction_weights.version,
+                    // some benchmarks have data in user stack memory
+                    check_and_canonize_stack_end: false,
+                    // without stack end canonization, program has mutable globals.
+                    check_mut_global_exports: false,
+                    ..Default::default()
+                },
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -622,7 +620,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             let origin = who.clone().into_origin();
@@ -674,24 +672,16 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Submit code for benchmarks which does not check nor instrument the code.
+        /// Upload code to the chain without gas and stack limit injection.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let code = Code::new_raw(
-                code,
-                schedule.instruction_weights.version,
-                None,
-                false,
-                true,
-            )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructionFailed
-            })?;
+            let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {e:?}");
+                    Error::<T>::ProgramConstructionFailed
+                })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -1215,7 +1205,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             Ok(packet)
@@ -1526,7 +1516,7 @@ pub mod pallet {
                     // If no such voucher exists, the call is invalidated.
                     let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
 
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                         log::debug!(
                             "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
                         );
@@ -1536,7 +1526,7 @@ pub mod pallet {
                     voucher_id
                 } else {
                     // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+                    GearBank::<T>::deposit_gas(&who, gas_limit)?;
 
                     who.clone()
                 };
@@ -1650,7 +1640,7 @@ pub mod pallet {
                 // If no such voucher exists, the call is invalidated.
                 let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
 
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                     log::debug!(
                         "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
                     );
@@ -1660,7 +1650,7 @@ pub mod pallet {
                 voucher_id
             } else {
                 // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&origin, gas_limit)?;
+                GearBank::<T>::deposit_gas(&origin, gas_limit)?;
 
                 origin.clone()
             };

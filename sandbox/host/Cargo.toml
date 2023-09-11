@@ -19,6 +19,7 @@ thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
 wasmer = { version = "2.2", features = ["singlepass"] }
 wasmi = { version = "0.13.2", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+wasmer-types = "2.2"
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }

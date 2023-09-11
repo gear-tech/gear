@@ -25,7 +25,7 @@ use gear_sandbox_env::HostError;
 use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
-    RuntimeValue, Trap,
+    RuntimeValue, Trap, TrapCode,
 };
 
 use crate::{
@@ -351,7 +351,17 @@ pub fn invoke(
             module
                 .invoke_export(export_name, &args, guest_externals)
                 .map(|result| result.map(Into::into))
-                .map_err(|error| error::Error::Sandbox(error.to_string()))
+                .map_err(|error| {
+                    if matches!(error, wasmi::Error::Trap(Trap::Code(TrapCode::StackOverflow))) {
+                        // Panic stops process queue execution in that case.
+                        // This allows to avoid error lead to consensus failures, that must be handled
+                        // in node binaries forever. If this panic occur, then we must increase stack memory size,
+                        // or tune stack limit injection.
+                        // see also https://github.com/wasmerio/wasmer/issues/4181
+                        unreachable!("Suppose that this can not happen, because we have a stack limit instrumentation in programs");
+                    }
+                    error::Error::Sandbox(error.to_string())
+                })
         })
     })
 }

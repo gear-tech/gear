@@ -21,13 +21,12 @@
 extern crate alloc;
 
 use crate::{mock::*, *};
-use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
+use common::{scheduler::*, storage::*, GasTree, LockId, LockableTree as _, Origin};
 use gear_core::{ids::*, message::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
 
-type GasPrice = <Test as pallet_gear::Config>::GasPrice;
 type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
 type TaskPoolOf<T> = <<T as pallet_gear::Config>::Scheduler as Scheduler>::TaskPool;
 
@@ -40,8 +39,12 @@ pub(crate) fn init_logger() {
 
 const DEFAULT_GAS: u64 = 1_000_000;
 
+fn gas_price(gas: u64) -> u128 {
+    <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+}
+
 fn wl_cost_for(amount_of_blocks: u64) -> u128 {
-    GasPrice::gas_price(<Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * amount_of_blocks)
+    gas_price(<Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * amount_of_blocks)
 }
 
 fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
@@ -70,9 +73,11 @@ fn populate_wl_from(
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
     WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
-    GearBank::deposit_gas::<<Test as pallet_gear::Config>::GasPrice>(&src, DEFAULT_GAS)
-        .expect("Cannot reserve gas");
-    GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
+    GearBank::deposit_gas(&src, DEFAULT_GAS).expect("Cannot reserve gas");
+
+    let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
+    GasHandlerOf::<Test>::create(src, multiplier, mid, DEFAULT_GAS)
+        .expect("Failed to create gas handler");
     // Locking funds for holding.
     GasHandlerOf::<Test>::lock(
         mid,
@@ -167,12 +172,9 @@ fn gear_handles_tasks() {
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user1_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_1),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_1), gas_price(DEFAULT_GAS));
 
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
@@ -190,12 +192,9 @@ fn gear_handles_tasks() {
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user1_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_1),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_1), gas_price(DEFAULT_GAS));
 
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
@@ -262,20 +261,14 @@ fn gear_handles_outdated_tasks() {
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user1_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_1),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_1), gas_price(DEFAULT_GAS));
         assert_eq!(
             Balances::free_balance(USER_2),
-            user2_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user2_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_2),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_2), gas_price(DEFAULT_GAS));
 
         // Check if tasks and messages exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
@@ -294,20 +287,14 @@ fn gear_handles_outdated_tasks() {
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user1_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_1),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_1), gas_price(DEFAULT_GAS));
         assert_eq!(
             Balances::free_balance(USER_2),
-            user2_balance - GasPrice::gas_price(DEFAULT_GAS)
+            user2_balance - gas_price(DEFAULT_GAS)
         );
-        assert_eq!(
-            GearBank::account_total(&USER_2),
-            GasPrice::gas_price(DEFAULT_GAS)
-        );
+        assert_eq!(GearBank::account_total(&USER_2), gas_price(DEFAULT_GAS));
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.

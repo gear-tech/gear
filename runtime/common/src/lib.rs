@@ -20,20 +20,19 @@
 
 mod apis;
 pub mod constants;
-pub mod migrations;
 pub mod weights;
 
 use frame_support::{
     pallet_prelude::DispatchClass,
     parameter_types,
-    traits::{ConstU128, Currency, OnUnbalanced},
+    traits::{Currency, OnUnbalanced},
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
         Weight,
     },
 };
 use frame_system::limits::BlockWeights;
-use runtime_primitives::{AccountId, Balance, BlockNumber};
+use runtime_primitives::{AccountId, BlockNumber};
 use sp_runtime::Perbill;
 
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
@@ -74,13 +73,7 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
 }
 
-pub const VALUE_PER_GAS: u128 = 1_000;
-
-pub struct GasConverter;
-impl gear_common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<VALUE_PER_GAS>;
-}
+pub const VALUE_PER_GAS: u128 = 25;
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,

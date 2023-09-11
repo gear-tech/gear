@@ -51,8 +51,8 @@ use crate::{
     TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
-    LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
+    Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
@@ -1340,7 +1340,7 @@ fn delayed_send_user_message_payment() {
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
                 delay
                     .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
@@ -1348,7 +1348,7 @@ fn delayed_send_user_message_payment() {
             ),
         );
 
-        let reserve_for_fee = GasPrice::gas_price(
+        let reserve_for_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash()
                 .saturating_mul(CostsPerBlockOf::<Test>::reserve_for().saturated_into()),
         );
@@ -1441,7 +1441,7 @@ fn delayed_send_user_message_with_reservation() {
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
                 delay
                     .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
@@ -1449,12 +1449,12 @@ fn delayed_send_user_message_with_reservation() {
             ),
         );
 
-        let reserve_for_fee = GasPrice::gas_price(
+        let reserve_for_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash()
                 .saturating_mul(CostsPerBlockOf::<Test>::reserve_for().saturated_into()),
         );
 
-        let mailbox_gas_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+        let mailbox_gas_threshold = gas_price(<Test as Config>::MailboxThreshold::get());
 
         // At this point a `Cut` node has been created with `mailbox_threshold` as value and
         // `delay` + 1 locked for using dispatch stash storage.
@@ -1549,7 +1549,7 @@ fn delayed_send_program_message_payment() {
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
                 delay
                     .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
@@ -1557,7 +1557,7 @@ fn delayed_send_program_message_payment() {
             ),
         );
 
-        let reserve_for_fee = GasPrice::gas_price(
+        let reserve_for_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash()
                 .saturating_mul(CostsPerBlockOf::<Test>::reserve_for().saturated_into()),
         );
@@ -1652,7 +1652,7 @@ fn delayed_send_program_message_with_reservation() {
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
                 delay
                     .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
@@ -1660,7 +1660,7 @@ fn delayed_send_program_message_with_reservation() {
             ),
         );
 
-        let reservation_holding_fee = GasPrice::gas_price(
+        let reservation_holding_fee = gas_price(
             80u64
                 .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
                 .saturating_mul(CostsPerBlockOf::<Test>::reservation()),
@@ -1676,13 +1676,13 @@ fn delayed_send_program_message_with_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
+            gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
             GearBank::<Test>::account_total(&USER_1),
-            GasPrice::gas_price(reservation_amount) + reservation_holding_fee
+            gas_price(reservation_amount) + reservation_holding_fee
         );
 
         // Run blocks to release message.
@@ -1763,7 +1763,7 @@ fn delayed_send_program_message_with_low_reservation() {
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
                 delay
                     .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
@@ -1771,7 +1771,7 @@ fn delayed_send_program_message_with_low_reservation() {
             ),
         );
 
-        let reservation_holding_fee = GasPrice::gas_price(
+        let reservation_holding_fee = gas_price(
             80u64
                 .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
                 .saturating_mul(CostsPerBlockOf::<Test>::reservation()),
@@ -1787,13 +1787,13 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
+            gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved while message is being held in storage.
         assert_eq!(
             GearBank::<Test>::account_total(&USER_1),
-            GasPrice::gas_price(reservation_amount) + reservation_holding_fee
+            gas_price(reservation_amount) + reservation_holding_fee
         );
 
         // Run blocks to release message.
@@ -1895,7 +1895,7 @@ fn delayed_program_creation_no_code() {
 
         let delayed_block_amount: u64 = 1;
 
-        let delay_holding_fee = GasPrice::gas_price(
+        let delay_holding_fee = gas_price(
             delayed_block_amount.saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
@@ -1903,7 +1903,7 @@ fn delayed_program_creation_no_code() {
             Balances::free_balance(USER_1),
             free_balance + reserved_balance
                 - delay_holding_fee
-                - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+                - gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -1917,14 +1917,10 @@ fn unstoppable_block_execution_works() {
 
     new_test_ext().execute_with(|| {
         let user_balance = Balances::free_balance(USER_1);
-        let user_gas = Balances::free_balance(USER_1) as u64 / 1_000;
 
         // This manipulations are required due to we have only gas to value conversion.
-        assert_eq!(GasPrice::gas_price(user_gas), user_balance);
-        let executions_amount = 100;
-        let gas_for_each_execution = user_gas / executions_amount;
-
-        assert!(gas_for_each_execution < BlockGasLimitOf::<Test>::get());
+        let executions_amount = 100_u64;
+        let gas_for_each_execution = BlockGasLimitOf::<Test>::get();
 
         let program_id = {
             let res = upload_program_default(USER_2, ProgramCodeKind::Default);
@@ -1974,7 +1970,7 @@ fn unstoppable_block_execution_works() {
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            GasPrice::gas_price(user_gas - real_gas_to_burn)
+            user_balance - gas_price(real_gas_to_burn)
         );
     })
 }
@@ -2302,8 +2298,8 @@ fn mailbox_rent_out_of_rent() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
-                GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+                user_1_balance - gas_price(gas_info.min_limit + data.extra_gas),
+                gas_price(gas_info.min_limit + data.extra_gas),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance, 0u128);
@@ -2322,8 +2318,8 @@ fn mailbox_rent_out_of_rent() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
-                GasPrice::gas_price(data.gas_limit_to_send),
+                user_1_balance - gas_price(gas_info.burned + data.gas_limit_to_send),
+                gas_price(data.gas_limit_to_send),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance - data.value, data.value);
@@ -2336,7 +2332,7 @@ fn mailbox_rent_out_of_rent() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_totally_burned),
+                user_1_balance - gas_price(gas_totally_burned),
                 0u128,
             );
             utils::assert_balance(USER_2, user_2_balance + data.value, 0u128);
@@ -2397,8 +2393,8 @@ fn mailbox_rent_claimed() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
-                GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+                user_1_balance - gas_price(gas_info.min_limit + data.extra_gas),
+                gas_price(gas_info.min_limit + data.extra_gas),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance, 0u128);
@@ -2410,8 +2406,8 @@ fn mailbox_rent_claimed() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
-                GasPrice::gas_price(data.gas_limit_to_send),
+                user_1_balance - gas_price(gas_info.burned + data.gas_limit_to_send),
+                gas_price(data.gas_limit_to_send),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance - data.value, data.value);
@@ -2424,8 +2420,8 @@ fn mailbox_rent_claimed() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
-                GasPrice::gas_price(data.gas_limit_to_send),
+                user_1_balance - gas_price(gas_info.burned + data.gas_limit_to_send),
+                gas_price(data.gas_limit_to_send),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance - data.value, data.value);
@@ -2435,7 +2431,7 @@ fn mailbox_rent_claimed() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.burned + duration * mb_cost),
+                user_1_balance - gas_price(gas_info.burned + duration * mb_cost),
                 0u128,
             );
             utils::assert_balance(USER_2, user_2_balance + data.value, 0u128);
@@ -2505,9 +2501,8 @@ fn mailbox_sending_instant_transfer() {
 
             utils::assert_balance(
                 USER_1,
-                user_1_balance
-                    - GasPrice::gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
-                GasPrice::gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
+                user_1_balance - gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
+                gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
             );
             utils::assert_balance(USER_2, user_2_balance, 0u128);
             utils::assert_balance(sender, prog_balance, 0u128);
@@ -2515,11 +2510,7 @@ fn mailbox_sending_instant_transfer() {
 
             run_to_next_block(None);
 
-            utils::assert_balance(
-                USER_1,
-                user_1_balance - GasPrice::gas_price(gas_info.burned),
-                0u128,
-            );
+            utils::assert_balance(USER_1, user_1_balance - gas_price(gas_info.burned), 0u128);
             utils::assert_balance(USER_2, user_2_balance + value, 0u128);
             utils::assert_balance(sender, prog_balance - value, 0u128);
             assert!(MailboxOf::<Test>::is_empty(&USER_2));
@@ -2603,7 +2594,7 @@ fn send_message_works() {
 
         // Balances check
         // Gas spends on sending 2 default messages (submit program and send message to program)
-        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
+        let user1_potential_msgs_spends = gas_price(2 * DEFAULT_GAS_LIMIT);
         // User 1 has sent two messages
         assert_eq!(
             Balances::free_balance(USER_1),
@@ -2890,7 +2881,7 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent = GasPrice::gas_price(
+        let gas_spent = gas_price(
             BlockGasLimitOf::<Test>::get()
                 .saturating_sub(GasAllowanceOf::<Test>::get())
                 .saturating_sub(minimal_weight.ref_time()),
@@ -2935,7 +2926,7 @@ fn unused_gas_released_back_works() {
 
         // Spends for submit program with default gas limit and sending default message with a huge gas limit
         let user1_potential_msgs_spends =
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
+            gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
 
         assert_eq!(
             Balances::free_balance(USER_1),
@@ -2948,7 +2939,7 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
 
-        let user1_actual_msgs_spends = GasPrice::gas_price(
+        let user1_actual_msgs_spends = gas_price(
             BlockGasLimitOf::<Test>::get()
                 .saturating_sub(GasAllowanceOf::<Test>::get())
                 .saturating_sub(minimal_weight.ref_time()),
@@ -3433,9 +3424,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
             run_to_next_block(None);
             assert_last_dequeued(1);
 
-            GasPrice::gas_price(
-                BlockGasLimitOf::<Test>::get().saturating_sub(GasAllowanceOf::<Test>::get()),
-            )
+            gas_price(BlockGasLimitOf::<Test>::get().saturating_sub(GasAllowanceOf::<Test>::get()))
         };
 
         let spent_for_initial_pages = gas_spent(wat_initial);
@@ -3706,7 +3695,7 @@ fn mailbox_works() {
 
         assert_eq!(
             GearBank::<Test>::account_total(&USER_1),
-            GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
+            gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
         );
 
         let (mailbox_message, _bn) = {
@@ -4085,7 +4074,7 @@ fn send_reply_value_claiming_works() {
 
             assert_eq!(
                 GearBank::<Test>::account_total(&USER_2),
-                GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
+                gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
             );
 
             // nothing changed
@@ -4102,7 +4091,7 @@ fn send_reply_value_claiming_works() {
                 false,
             ));
 
-            let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
+            let currently_sent = value_to_reply + gas_price(gas_limit_to_reply);
 
             assert_eq!(
                 Balances::free_balance(USER_1),
@@ -4157,7 +4146,7 @@ fn claim_value_works() {
         )
         .expect("calculate_gas_info failed");
 
-        let gas_burned = GasPrice::gas_price(gas_burned - may_be_returned);
+        let gas_burned = gas_price(gas_burned - may_be_returned);
 
         run_to_block(bn_of_insertion + holding_duration, None);
 
@@ -4174,7 +4163,7 @@ fn claim_value_works() {
         let expected_claimer_balance = claimer_balance + value_sent;
         assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
 
-        let burned_for_hold = GasPrice::gas_price(
+        let burned_for_hold = gas_price(
             GasBalanceOf::<Test>::saturated_from(holding_duration)
                 * CostsPerBlockOf::<Test>::mailbox(),
         );
@@ -4182,7 +4171,7 @@ fn claim_value_works() {
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
         let charged_for_page_load = if cfg!(feature = "lazy-pages") {
-            GasPrice::gas_price(
+            gas_price(
                 <Test as Config>::Schedule::get()
                     .memory_weights
                     .load_page_data
@@ -5656,12 +5645,10 @@ fn terminated_locking_funds() {
             );
         let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
         // Value, which will be returned to init message after wake.
-        let returned_from_wait_list =
-            <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl);
+        let returned_from_wait_list = gas_price(locked_gas_to_wl - gas_spent_in_wl);
 
         // Value, which will be returned to `USER1` after init message processing complete.
-        let returned_from_system_reservation =
-            <Test as Config>::GasPrice::gas_price(system_reservation);
+        let returned_from_system_reservation = gas_price(system_reservation);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
@@ -5768,7 +5755,7 @@ fn terminated_locking_funds() {
 
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
 
-        let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(
+        let extra_gas_to_mb = gas_price(
             CostsPerBlockOf::<Test>::mailbox()
                 * GasBalanceOf::<Test>::saturated_from(CostsPerBlockOf::<Test>::reserve_for()),
         );
@@ -5871,7 +5858,7 @@ fn test_create_program_works() {
         )
         .expect("Code failed to load");
 
-        let code_id = CodeId::generate(code.raw_code());
+        let code_id = CodeId::generate(code.original_code());
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
             code_id,
@@ -7465,7 +7452,7 @@ fn no_redundant_gas_value_after_exiting() {
         // before execution
         let free_after_send = Balances::free_balance(USER_1);
         let reserved_after_send = GearBank::<Test>::account_total(&USER_1);
-        assert_eq!(reserved_after_send, GasPrice::gas_price(gas_spent));
+        assert_eq!(reserved_after_send, gas_price(gas_spent));
 
         run_to_block(3, None);
 
@@ -7479,7 +7466,7 @@ fn no_redundant_gas_value_after_exiting() {
         let free_after_execution = Balances::free_balance(USER_1);
         assert_eq!(
             free_after_execution,
-            free_after_send + (reserved_after_send - GasPrice::gas_price(gas_spent))
+            free_after_send + (reserved_after_send - gas_price(gas_spent))
         );
 
         // reserved balance after execution is zero
@@ -7753,7 +7740,7 @@ fn gas_spent_vs_balance() {
 
         assert_eq!(
             (initial_balance - balance_after_init),
-            GasPrice::gas_price(init_gas_spent)
+            gas_price(init_gas_spent)
         );
 
         run_to_block(4, None);
@@ -7773,13 +7760,34 @@ fn gas_spent_vs_balance() {
 
         assert_eq!(
             balance_after_init - balance_after_handle,
-            GasPrice::gas_price(handle_gas_spent)
+            gas_price(handle_gas_spent)
         );
     });
 }
 
 #[test]
 fn gas_spent_precalculated() {
+    // After instrumentation will be:
+    // (export "handle" (func $handle_export))
+    // (func $add
+    //      <-- call gas_charge -->
+    //      local.get $0
+    //      local.get $1
+    //      i32.add
+    //      local.set $2
+    // )
+    // (func $handle
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $add (i32.const 2) (i32.const 2))
+    //      <-- stack limit decrease -->
+    // )
+    // (func $handle_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $handle
+    //      <-- stack limit decrease -->
+    // )
     let wat = r#"
     (module
         (import "env" "memory" (memory 1))
@@ -7799,14 +7807,63 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
-    let wat_no_counter = r#"
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $init)
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
+    let wat_empty_init = r#"
     (module
         (import "env" "memory" (memory 1))
         (export "init" (func $init))
         (func $init)
     )"#;
 
-    let wat_init = r#"
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $f1)
+    // (func $init
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $f1
+    //      <-- stack limit decrease -->
+    // )
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
+    let wat_two_stack_limits = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $f1)
+        (func $init
+            (call $f1)
+        )
+    )"#;
+
+    // After instrumentation will be:
+    // (export "init" (func $init_export))
+    // (func $init
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      i32.const 1
+    //      local.set $1
+    //      <-- stack limit decrease -->
+    // )
+    // (func $init_export
+    //      <-- call gas_charge -->
+    //      <-- stack limit check and increase -->
+    //      call $init
+    //      <-- stack limit decrease -->
+    // )
+    let wat_two_gas_charge = r#"
     (module
         (import "env" "memory" (memory 1))
         (export "init" (func $init))
@@ -7819,129 +7876,132 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog = ProgramCodeKind::Custom(wat);
-        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
-
-        let init_gas_id = upload_program_default(USER_3, ProgramCodeKind::Custom(wat_init))
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
             .expect("submit result was asserted");
-        let init_no_counter_id =
-            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_no_counter))
+        let empty_init_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_empty_init))
+                .expect("submit result was asserted");
+        let init_two_gas_charge_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_gas_charge))
+                .expect("submit result was asserted");
+        let init_two_stack_limits_pid =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_stack_limits))
                 .expect("submit result was asserted");
 
         run_to_block(2, None);
 
-        let code_id = CodeId::generate(&prog.to_bytes());
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code = code.code();
+        let get_program_code_len = |pid| {
+            let code_id = CodeId::from_origin(
+                ProgramStorageOf::<Test>::get_program(pid)
+                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                    .expect("program must exist")
+                    .code_hash,
+            );
+            <Test as Config>::CodeStorage::get_code(code_id)
+                .unwrap()
+                .code()
+                .len() as u64
+        };
 
-        let init_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_gas_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
-            .expect("program must exist")
-            .code_hash);
-        let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
+        let get_gas_charged_for_code = |pid| {
+            let schedule = <Test as Config>::Schedule::get();
+            let per_byte_cost = schedule.db_read_per_byte.ref_time();
+            let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
+            let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+            let code_len = get_program_code_len(pid);
+            core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len)
+                + module_instantiation_per_byte * code_len
+        };
 
-        let init_no_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_no_counter_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
-            .expect("program must exist")
-            .code_hash);
-        let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
+        let calc_gas_spent_for_init = |wat| {
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .unwrap()
+            .min_limit
+        };
 
-        // binaries have the same memory amount but different lengths
-        // so take this into account in gas calculations
-        let length_margin = init_code_len - init_no_gas_code_len;
+        let gas_two_gas_charge = calc_gas_spent_for_init(wat_two_gas_charge);
+        let gas_two_stack_limits = calc_gas_spent_for_init(wat_two_stack_limits);
+        let gas_empty_init = calc_gas_spent_for_init(wat_empty_init);
 
-        let GasInfo {
-            min_limit: gas_spent_init,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Init(ProgramCodeKind::Custom(wat_init).to_bytes()),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
+        macro_rules! cost {
+            ($name:ident) => {
+                <Test as Config>::Schedule::get().instruction_weights.$name as u64
+            };
+        }
 
-        let GasInfo {
-            min_limit: gas_spent_no_counter,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Init(ProgramCodeKind::Custom(wat_no_counter).to_bytes()),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
+        // `wat_empty_init` has 1 gas_charge call and
+        // `wat_two_gas_charge` has 2 gas_charge calls, so we can calculate
+        // gas_charge function call cost as difference between them,
+        // taking in account difference in other aspects.
+        let gas_charge_call_cost = (gas_two_gas_charge - gas_empty_init)
+            // Take in account difference in executed instructions
+            - cost!(i64const)
+            - cost!(local_set)
+            // Take in account difference in gas depended on code len
+            - (get_gas_charged_for_code(init_two_gas_charge_pid)
+                - get_gas_charged_for_code(empty_init_pid));
 
-        let schedule = <Test as Config>::Schedule::get();
-        let per_byte_cost = schedule.db_read_per_byte.ref_time();
-        let const_i64_cost = schedule.instruction_weights.i64const;
-        let set_local_cost = schedule.instruction_weights.local_set;
-        let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
+        // `wat_empty_init` has 1 stack limit check and
+        // `wat_two_stack_limits` has 2 stack limit checks, so we can calculate
+        // stack limit check cost as difference between them,
+        // taking in account difference in other aspects.
+        let stack_check_limit_cost = (gas_two_stack_limits - gas_empty_init)
+            // Take in account difference in executed instructions
+            - cost!(call)
+            // Take in account additional gas_charge call
+            - gas_charge_call_cost
+            // Take in account difference in gas depended on code len
+            - (get_gas_charged_for_code(init_two_stack_limits_pid)
+                - get_gas_charged_for_code(empty_init_pid));
 
-        // gas_charge call in handle and "add" func
-        let gas_cost = gas_spent_init
-            - gas_spent_no_counter
-            - const_i64_cost as u64
-            - set_local_cost as u64
-            - core_processor::calculate_gas_for_code(0, per_byte_cost, length_margin)
-            - module_instantiation_per_byte * length_margin;
-
-        let GasInfo {
-            min_limit: gas_spent_1,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .unwrap();
-
-        let call_cost = schedule.instruction_weights.call;
-        let get_local_cost = schedule.instruction_weights.local_get;
-        let add_cost = schedule.instruction_weights.i32add;
-        let module_instantiation = module_instantiation_per_byte * code.len() as u64;
-
-        let total_cost = {
-            let cost = call_cost
-                + const_i64_cost * 2
-                + set_local_cost
-                + get_local_cost * 2
-                + add_cost
-                + gas_cost as u32 * 2;
+        let gas_spent_expected = {
+            let execution_cost = cost!(call) * 2
+                + cost!(i64const) * 2
+                + cost!(local_set)
+                + cost!(local_get) * 2
+                + cost!(i32add)
+                + gas_charge_call_cost * 3
+                + stack_check_limit_cost * 2;
 
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-
-            u64::from(cost)
+            execution_cost
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code length
                 + read_cost
-                // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
-                + module_instantiation
+                // cost for code loading and instantiation
+                + get_gas_charged_for_code(pid)
                 // cost for one static page in program
                 + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
-        assert_eq!(gas_spent_1, total_cost);
+        let make_check = |gas_spent_expected| {
+            let GasInfo {
+                min_limit: gas_spent_calculated,
+                ..
+            } = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .unwrap();
 
-        let GasInfo {
-            min_limit: gas_spent_2,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true, true,
-        )
-        .expect("calculate_gas_info failed");
+            assert_eq!(gas_spent_calculated, gas_spent_expected);
+        };
 
-        assert_eq!(gas_spent_1, gas_spent_2);
+        // Check also, that gas spent is the same if we calculate it twice.
+        make_check(gas_spent_expected);
+        make_check(gas_spent_expected);
     });
 }
 
@@ -8650,8 +8710,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
             false,
         ));
 
-        let gas_to_spend = GasPrice::gas_price(gas_to_spend);
-        let gas_reserved = GasPrice::gas_price(gas_reserved);
+        let gas_to_spend = gas_price(gas_to_spend);
+        let gas_reserved = gas_price(gas_reserved);
         let reserved_balance = gas_reserved + value;
 
         assert_balance(
@@ -8701,8 +8761,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
         utils::assert_balance(
             USER_1,
-            user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
-            GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+            user_1_balance - gas_price(gas_info.min_limit + data.extra_gas),
+            gas_price(gas_info.min_limit + data.extra_gas),
         );
         utils::assert_balance(USER_2, user_2_balance, 0u128);
         utils::assert_balance(sender, prog_balance, 0u128);
@@ -8720,8 +8780,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
         utils::assert_balance(
             USER_1,
-            user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
-            GasPrice::gas_price(data.gas_limit_to_send),
+            user_1_balance - gas_price(gas_info.burned + data.gas_limit_to_send),
+            gas_price(data.gas_limit_to_send),
         );
         utils::assert_balance(USER_2, user_2_balance, 0u128);
         utils::assert_balance(sender, prog_balance - data.value, data.value);
@@ -8738,7 +8798,7 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         // Block which already can't be paid.
         run_to_next_block(None);
 
-        let gas_totally_burned = GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send);
+        let gas_totally_burned = gas_price(gas_info.burned + data.gas_limit_to_send);
 
         utils::assert_balance(USER_1, user_1_balance - gas_totally_burned, 0u128);
         utils::assert_balance(USER_2, user_2_balance, 0u128);
@@ -8963,7 +9023,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
         Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -8995,17 +9055,21 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
             (msg_id, msg_block_number)
         };
 
-        let (lock_owner_msg_id, _lock_owner_msg_block_number) = send_command_to_waiter(
-            WaiterCommand::MxLock(MxLockContinuation::General(LockContinuation::SleepFor(4))),
-        );
+        let (lock_owner_msg_id, _lock_owner_msg_block_number) =
+            send_command_to_waiter(WaiterCommand::MxLock(
+                u32::MAX,
+                MxLockContinuation::General(LockContinuation::SleepFor(4)),
+            ));
 
         let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
         let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+            u32::MAX,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
@@ -9030,7 +9094,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
         assert_succeed(lock_owner_msg_id);
         assert_succeed(lock_rival_1_msg_id);
         assert_succeed(lock_rival_2_msg_id);
-    };
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -9043,7 +9107,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
         WASM_BINARY as WAITER_WASM,
     };
 
-    let execution = || {
+    fn execution() {
         System::reset_events();
 
         Gear::upload_program(
@@ -9160,7 +9224,251 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
             assert_succeed(lock_rival_1_msg_id);
             assert_succeed(lock_rival_2_msg_id);
         }
+    }
+
+    init_logger();
+    new_test_ext().execute_with(execution);
+}
+
+#[test]
+fn mx_lock_ownership_exceedance() {
+    use demo_waiter::{
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
+
+    const LOCK_HOLD_DURATION: u32 = 3;
+
+    fn execution() {
+        System::reset_events();
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Helper functions (collapse the block)
+        let (run_test_case, get_lock_ownership_exceeded_trap) = {
+            let send_command_to_waiter = |command: WaiterCommand| {
+                MailboxOf::<Test>::clear();
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    waiter_prog_id,
+                    command.encode(),
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                    false,
+                )
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                let msg_id = get_last_message_id();
+                let msg_block_number = System::block_number() + 1;
+                run_to_next_block(None);
+                (msg_id, msg_block_number)
+            };
+
+            let run_test_case =
+                move |command: WaiterCommand,
+                      run_for_blocks_before_lock_assert: u32,
+                      assert_command_result: &dyn Fn(MessageId),
+                      assert_lock_result: &dyn Fn(MessageId, MessageId)| {
+                    let (command_msg_id, _) = send_command_to_waiter(command);
+
+                    // Subtract 1 because sending command to waiter below adds 1 block
+                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
+
+                    assert_command_result(command_msg_id);
+
+                    let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
+                        1,
+                        MxLockContinuation::General(LockContinuation::Nothing),
+                    ));
+
+                    assert_lock_result(command_msg_id, lock_msg_id);
+                };
+
+            let get_lock_ownership_exceeded_trap = |command_msg_id| {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    format!(
+                        "Message 0x{} has exceeded lock ownership time",
+                        hex::encode(command_msg_id)
+                    )
+                    .into(),
+                ))
+            };
+
+            (run_test_case, get_lock_ownership_exceeded_trap)
+        };
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and forgets its lock guard
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::Forget),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert_succeed(command_msg_id);
+            },
+            &|_command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and goes into sleep for longer than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                LOCK_HOLD_DURATION,
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
+        // Msg1 acquires lock and tries to re-enter the same lock
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
+        run_test_case(
+            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+            },
+        );
+    }
 
     init_logger();
     new_test_ext().execute_with(execution);
@@ -9652,7 +9960,7 @@ fn missing_functions_are_not_executed() {
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
             balance_before,
-            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost)
         );
 
         // this value is actually a constant in the wat.
@@ -9704,7 +10012,7 @@ fn missing_functions_are_not_executed() {
 
         assert_eq!(
             balance_before - reply_value + locked_value,
-            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost)
         );
     });
 }
@@ -10673,7 +10981,7 @@ fn system_reservation_unreserve_works() {
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
-        let burned = GasPrice::gas_price(burned);
+        let burned = gas_price(burned);
         assert_eq!(
             Balances::free_balance(USER_1),
             user_initial_balance - burned
@@ -11171,9 +11479,9 @@ fn gas_reservation_works() {
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 2);
 
-        let gas_reserved = GasPrice::gas_price(spent_gas);
-        let reservation_amount = GasPrice::gas_price(RESERVATION_AMOUNT);
-        let reservation_holding = 15 * GasPrice::gas_price(CostsPerBlockOf::<Test>::reservation());
+        let gas_reserved = gas_price(spent_gas);
+        let reservation_amount = gas_price(RESERVATION_AMOUNT);
+        let reservation_holding = 15 * gas_price(CostsPerBlockOf::<Test>::reservation());
 
         assert_eq!(
             Balances::free_balance(USER_1),
@@ -13314,12 +13622,12 @@ fn send_gasless_message_works() {
             RuntimeOrigin::signed(USER_1),
             USER_2,
             program_id,
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
+            gas_price(DEFAULT_GAS_LIMIT),
         ));
 
         // Balances check
         // USER_1 can spend up to 2 default messages worth of gas (submit program and issue voucher)
-        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
+        let user1_potential_msgs_spends = gas_price(2 * DEFAULT_GAS_LIMIT);
         assert_eq!(
             Balances::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
@@ -13333,7 +13641,7 @@ fn send_gasless_message_works() {
         let voucher_id = GearVoucher::voucher_account_id(&USER_2, &program_id);
         assert_eq!(
             Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
+            gas_price(DEFAULT_GAS_LIMIT)
         );
 
         // Test 2: USER_2 sends a gasless message to the program (intending to use a voucher).
@@ -13369,7 +13677,7 @@ fn send_gasless_message_works() {
         // Check that the gas leftover has been returned to the voucher
         assert_eq!(
             Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT) - GasPrice::gas_price(actual_gas_burned)
+            gas_price(DEFAULT_GAS_LIMIT) - gas_price(actual_gas_burned)
         );
 
         // USER_2 total balance has been reduced by the value in the message
@@ -13408,7 +13716,7 @@ fn send_gasless_reply_works() {
             RuntimeOrigin::signed(USER_2),
             USER_1,
             prog_id,
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
+            gas_price(DEFAULT_GAS_LIMIT),
         ));
         let voucher_id = GearVoucher::voucher_account_id(&USER_1, &prog_id);
 
@@ -13417,7 +13725,7 @@ fn send_gasless_reply_works() {
         // Balance check
         assert_eq!(
             Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
+            gas_price(DEFAULT_GAS_LIMIT)
         );
 
         // USER_1 sends a gasless reply using a voucher
@@ -13453,14 +13761,14 @@ fn send_gasless_reply_works() {
         // Balances check before processing queue
         assert_eq!(
             Balances::free_balance(voucher_id),
-            GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
+            gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
 
         run_to_block(4, None);
         // Ensure that some gas leftover has been returned to the voucher account
         assert!(
             Balances::free_balance(voucher_id)
-                > GasPrice::gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
+                > gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
     })
 }
@@ -14057,7 +14365,6 @@ mod utils {
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
-    pub(super) type GasPrice = <Test as pallet::Config>::GasPrice;
 
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
@@ -14938,5 +15245,9 @@ mod utils {
             let mail_msg = get_last_mail(USER_1);
             assert_eq!(mail_msg.payload_bytes(), true.encode());
         });
+    }
+
+    pub(super) fn gas_price(gas: u64) -> u128 {
+        <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
     }
 }

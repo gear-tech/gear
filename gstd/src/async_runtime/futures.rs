@@ -36,6 +36,7 @@ type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 pub struct Task {
     waker: Waker,
     future: PinnedFuture,
+    lock_exceeded: bool,
 }
 
 impl Task {
@@ -46,7 +47,12 @@ impl Task {
         Self {
             waker: super::waker::empty(),
             future: future.boxed_local(),
+            lock_exceeded: false,
         }
+    }
+
+    pub(crate) fn set_lock_exceeded(&mut self) {
+        self.lock_exceeded = true;
     }
 }
 
@@ -66,6 +72,15 @@ where
             .expect("Failed to reserve gas for system signal");
         Task::new(future)
     });
+
+    if task.lock_exceeded {
+        // Futures and locks for the message will be cleaned up by
+        // the async_runtime::handle_signal function
+        panic!(
+            "Message 0x{} has exceeded lock ownership time",
+            hex::encode(msg_id)
+        );
+    }
 
     let mut cx = Context::from_waker(&task.waker);
 
