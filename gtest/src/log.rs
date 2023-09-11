@@ -130,6 +130,13 @@ impl Log {
         Default::default()
     }
 
+    pub fn success_builder(success_reason: SuccessReplyReason) -> Self {
+        Self {
+            reply_code: Some(ReplyCode::Success(success_reason)),
+            ..Default::default()
+        }
+    }
+
     pub fn error_builder(error_reason: ErrorReplyReason) -> Self {
         let mut log = Self::builder();
         log.reply_code = Some(error_reason.into());

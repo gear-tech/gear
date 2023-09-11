@@ -26,6 +26,7 @@ mod system;
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
+pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;
 
