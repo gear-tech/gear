@@ -278,7 +278,16 @@ impl PartialEq<CoreLog> for Log {
 
 impl PartialEq<Log> for CoreLog {
     fn eq(&self, other: &Log) -> bool {
-        other.eq(self)
+        if let (Some(source), Some(destination), Some(payload)) =
+            (other.source, other.destination, other.payload.as_ref())
+        {
+            return self.source == source
+                && self.destination == destination
+                && &self.payload == payload
+                && self.reply_code == other.reply_code;
+        }
+
+        false
     }
 }
 
