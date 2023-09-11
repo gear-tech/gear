@@ -1,8 +1,6 @@
-name: Time consuming tests
+name: Comparison table
 
 on:
-  schedule:
-    - cron: "0 0 * * MON"
   workflow_dispatch:
 
 env:
@@ -10,13 +8,15 @@ env:
   TERM: xterm-256color
 
 jobs:
-  time-consuming-tests:
+  comparison-table:
     runs-on: [kuberunner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
-      - name: "ACTIONS: Checkout"
+      - name: "ACTIONS: Checkout & fetch all history"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -27,8 +27,6 @@ jobs:
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
-      - name: "Test: Time consuming tests"
-        run: ./scripts/gear.sh test time-consuming --release
+      - name: "Generate comparison tables"
+        run: |
+          ./scripts/weight-diff.sh master $(git branch --show-current) gear --display-units
