@@ -27,6 +27,7 @@ static_assertions.workspace = true
 common.workspace = true
 gear-runtime-interface = { workspace = true }
 gear-lazy-pages-interface.workspace = true
+gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true

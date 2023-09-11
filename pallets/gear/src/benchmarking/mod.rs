@@ -58,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -77,7 +77,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -94,7 +94,7 @@ use gear_core::{
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_backend::{DefaultExecutorMemory, MemoryWrap};
+use gear_core_backend::{DefaultExecutorMemory, Environment, MemoryWrap};
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
@@ -233,12 +233,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-    )
-    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
 fn get_last_session_id<T: Config>() -> Option<SessionId> {
@@ -459,7 +455,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -1644,7 +1640,7 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::new(None);
         let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_backend_common::mock::MockExt>::new(mem, store);
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(1.into()).unwrap();
