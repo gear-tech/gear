@@ -3930,6 +3930,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "paste",
+ "proptest",
  "scale-info",
  "static_assertions",
  "wabt",
@@ -3959,7 +3960,6 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-wasm-instrument",
  "log",
- "proptest",
  "scale-info",
  "static_assertions",
 ]

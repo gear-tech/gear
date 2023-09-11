@@ -24,7 +24,6 @@ static_assertions.workspace = true
 actor-system-error.workspace = true
 
 [dev-dependencies]
-proptest.workspace = true
 env_logger.workspace = true
 enum-iterator.workspace = true
 
