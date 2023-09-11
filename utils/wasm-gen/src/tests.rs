@@ -296,7 +296,7 @@ fn execute_wasm_with_syscall_injected(
     // Imitate that reply was already sent.
     let _ = message_context.reply_commit(ReplyPacket::auto(), None);
 
-    let code_id = CodeId::generate(code.raw_code());
+    let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate(code_id, b"");
 
     let processor_context = ProcessorContext {

@@ -75,7 +75,6 @@ where
         &exec.block_config,
         exec.context,
         exec.random_data,
-        exec.memory_pages,
     )
     .unwrap()
     .into_iter()
