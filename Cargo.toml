@@ -437,7 +437,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.7"                                                            # utils/wasm-builder
+toml = "0.7.8"                                                            # utils/wasm-builder
 tracing = "0.1.37"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
