@@ -36,16 +36,15 @@ branch2=$2
 runtime=$3
 flag=$4
 
+dump_path="weight-dumps"
+mkdir -p "$dump_path"
+
 if [ -z $CI ] ; then
+  set -x
   CARGO_FLAGS=""
 else
   CARGO_FLAGS="--quiet"
 fi
-
-dump_path="weight-dumps"
-mkdir -p "$dump_path"
-
-set -x
 
 git checkout "$branch1"
 dump_path1="$dump_path/${branch1//\//-}.json"
