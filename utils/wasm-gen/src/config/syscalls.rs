@@ -41,7 +41,7 @@ impl SysCallsConfigBuilder {
         Self(SysCallsConfig {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
-            sending_message_destination: MessageDestination::default(),
+            sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
         })
@@ -54,23 +54,23 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` sys-calls must use `gr_source` result for message destination.
+    /// Set whether `gr_send*` and `gr_exit` sys-calls must use `gr_source` result for sys-call destination.
     pub fn with_source_msg_dest(mut self) -> Self {
-        self.0.sending_message_destination = MessageDestination::Source;
+        self.0.sys_call_destination = SysCallDestination::Source;
         self.enable_sys_call(SysCallName::Source);
 
         self
     }
 
     /// Set whether `gr_send*` and `gr_exit` sys-calls must use some address from `addresses` collection
-    /// as a message destination.
+    /// as a sys-call destination.
     pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
             hash: pid.into(),
             value: 0,
         }))
         .expect("collected from non empty");
-        self.0.sending_message_destination = MessageDestination::ExistingAddresses(addresses);
+        self.0.sys_call_destination = SysCallDestination::ExistingAddresses(addresses);
 
         self
     }
@@ -138,7 +138,7 @@ impl ErrorProcessingConfig {
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
-    sending_message_destination: MessageDestination,
+    sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
 }
@@ -149,11 +149,11 @@ impl SysCallsConfig {
         self.injection_amounts.get(name)
     }
 
-    /// Get defined message destination for `gr_send*` and `gr_exit` sys-calls.
+    /// Get defined sys-call destination for `gr_send*` and `gr_exit` sys-calls.
     ///
-    /// For more info, read [`MessageDestination`].
-    pub fn sending_message_destination(&self) -> &MessageDestination {
-        &self.sending_message_destination
+    /// For more info, read [`SysCallDestination`].
+    pub fn sys_call_destination(&self) -> &SysCallDestination {
+        &self.sys_call_destination
     }
 
     /// Get defined log info.
@@ -174,33 +174,33 @@ impl SysCallsConfig {
     }
 }
 
-/// Message destination choice.
+/// Sys-call destination choice.
 ///
-/// `gr_send*` and `gr_exit` sys-calls generated from this crate can send messages
+/// `gr_send*` and `gr_exit` sys-calls generated from this crate can be sent
 /// to different destination in accordance to the config.
 /// It's either to the message source, to some existing known address,
 /// or to some random, most probably non-existing, address.
 #[derive(Debug, Clone, Default)]
-pub enum MessageDestination {
+pub enum SysCallDestination {
     Source,
     ExistingAddresses(NonEmpty<HashWithValue>),
     #[default]
     Random,
 }
 
-impl MessageDestination {
-    /// Check whether message destination is a result of `gr_source`.
+impl SysCallDestination {
+    /// Check whether sys-call destination is a result of `gr_source`.
     pub fn is_source(&self) -> bool {
-        matches!(&self, MessageDestination::Source)
+        matches!(&self, SysCallDestination::Source)
     }
 
-    /// Check whether message destination is defined randomly.
+    /// Check whether sys-call destination is defined randomly.
     pub fn is_random(&self) -> bool {
-        matches!(&self, MessageDestination::Random)
+        matches!(&self, SysCallDestination::Random)
     }
 
-    /// Check whether message destination is defined from a collection of existing addresses.
+    /// Check whether sys-call destination is defined from a collection of existing addresses.
     pub fn is_existing_addresses(&self) -> bool {
-        matches!(&self, MessageDestination::ExistingAddresses(_))
+        matches!(&self, SysCallDestination::ExistingAddresses(_))
     }
 }

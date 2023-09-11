@@ -242,8 +242,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         call_data.signature.params.remove(0);
         let mut call_without_destination_instrs = self.build_call(call_data)?;
 
-        let res = if self.config.sending_message_destination().is_source() {
-            log::trace!(" -- Message destination is result of `gr_source`");
+        let res = if self.config.sys_call_destination().is_source() {
+            log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
                 .sys_call_imports
@@ -278,17 +278,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
-                    assert!(self
-                        .config
-                        .sending_message_destination()
-                        .is_existing_addresses());
-                    log::trace!(" -- Message destination is an existing program address");
+                    assert!(self.config.sys_call_destination().is_existing_addresses());
+                    log::trace!(" -- Sys-call destination is an existing program address");
 
                     offsets.next_offset()
                 }
                 None => {
-                    assert!(self.config.sending_message_destination().is_random());
-                    log::trace!(" -- Message destination is a random address");
+                    assert!(self.config.sys_call_destination().is_random());
+                    log::trace!(" -- Sys-call destination is a random address");
 
                     self.unstructured.arbitrary()?
                 }
