@@ -29,4 +29,10 @@ jobs:
 
       - name: "Generate comparison tables"
         run: |
-          ./scripts/weight-diff.sh master $(git branch --show-current) gear --display-units
+          ./scripts/weight-diff.sh master $(git branch --show-current) gear --display-units > gear-tables.txt
+
+      - name: "ACTIONS: Upload artifact with comparison tables (gear)"
+        uses: actions/upload-artifact@v3
+        with:
+          name: gear-tables
+          path: gear-tables.txt
