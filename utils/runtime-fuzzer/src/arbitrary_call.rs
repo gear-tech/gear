@@ -196,6 +196,8 @@ fn config(
     injection_amounts.set(SysCallName::OomPanic, 0, 0);
     injection_amounts.set(SysCallName::Send, 20, 30);
     injection_amounts.set(SysCallName::Exit, 0, 1);
+    // TODO: test actual coverage
+    // injection_amounts.set(SysCallName::Alloc, 5, 10);
 
     let existing_addresses = NonEmpty::collect(
         programs
