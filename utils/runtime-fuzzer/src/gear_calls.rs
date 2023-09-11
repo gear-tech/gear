@@ -226,7 +226,8 @@ impl ExtrinsicGenerator for SendReplyGenerator {
             "Random data before payload (send_reply) gen {}",
             unstructured.len()
         );
-        let message_id = arbitrary_message_id_from_mailbox(unstructured, &self.mailbox_provider)?;
+        let message_id =
+            arbitrary_message_id_from_mailbox(unstructured, self.mailbox_provider.as_ref())?;
 
         let payload = arbitrary_payload(unstructured)?;
         log::error!(
@@ -257,7 +258,8 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
         unstructured: &mut Unstructured,
     ) -> Result<GearCall> {
         log::trace!("Generating claim_value call");
-        let message_id = arbitrary_message_id_from_mailbox(unstructured, &self.mailbox_provider)?;
+        let message_id =
+            arbitrary_message_id_from_mailbox(unstructured, self.mailbox_provider.as_ref())?;
 
         Ok(ClaimValueArgs(message_id).into())
     }
@@ -270,7 +272,7 @@ impl ExtrinsicGenerator for ClaimValueGenerator {
 
 fn arbitrary_message_id_from_mailbox(
     u: &mut Unstructured,
-    mailbox_provider: &Box<dyn MailboxProvider>,
+    mailbox_provider: &dyn MailboxProvider,
 ) -> Result<MessageId> {
     let messages = mailbox_provider.fetch_messages();
 
