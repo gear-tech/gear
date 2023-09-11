@@ -22,6 +22,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
+use gcore::BlockCount;
 
 type ActorId = [u8; 32];
 
@@ -101,14 +102,14 @@ pub enum RwLockContinuation {
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
-    SendFor(ActorId, gstd::BlockCount),
-    SendUpTo(ActorId, gstd::BlockCount),
-    SendUpToWait(ActorId, gstd::BlockCount),
-    SendAndWaitFor(gstd::BlockCount, ActorId),
+    SendFor(ActorId, BlockCount),
+    SendUpTo(ActorId, BlockCount),
+    SendUpToWait(ActorId, BlockCount),
+    SendAndWaitFor(BlockCount, ActorId),
     ReplyAndWait(WaitSubcommand),
-    SleepFor(Vec<gstd::BlockCount>, SleepForWaitType),
+    SleepFor(Vec<BlockCount>, SleepForWaitType),
     WakeUp([u8; 32]),
-    MxLock(gstd::BlockCount, MxLockContinuation),
+    MxLock(BlockCount, MxLockContinuation),
     MxLockStaticAccess(LockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
     RwLockStaticAccess(RwLockType, LockStaticAccessSubcommand),

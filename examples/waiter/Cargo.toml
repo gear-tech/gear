@@ -10,6 +10,7 @@ workspace = "../../"
 parity-scale-codec = { workspace = true, features = ["derive"] }
 futures.workspace = true
 gstd.workspace = true
+gcore.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
