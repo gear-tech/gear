@@ -37,7 +37,7 @@ use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
-    message::{Message, MessageDetails, SignalDetails, Value},
+    message::{Message, Value},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReservationSlot,
 };
@@ -1056,7 +1056,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_signal_handle(module)
+        Self::prepare_signal_handle(module, 0)
     }
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1070,7 +1070,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_signal_handle(module)
+        Self::prepare_signal_handle(module, 0)
     }
 
     pub fn gr_reply_input(
