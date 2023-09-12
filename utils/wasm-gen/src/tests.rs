@@ -18,7 +18,8 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{TerminationReason, TrapExplanation};
+use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExplanation};
+use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::Code,
     memory::Memory,
@@ -26,9 +27,14 @@ use gear_core::{
     pages::WASM_PAGE_SIZE,
 };
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{Instruction, Module},
+use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+use gear_wasm_instrument::{
+    rules::CustomConstantCostRules,
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module}
+    }
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -231,12 +237,6 @@ fn execute_wasm_with_syscall_injected(
     params_config: SysCallsParamsConfig,
     initial_memory_write: Option<MemoryWrite>,
 ) -> TerminationReason {
-    use gear_backend_common::{BackendReport, Environment};
-    use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
-    use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
-
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
 
@@ -357,4 +357,71 @@ proptest! {
 
         assert_eq!(first, second);
     }
+}
+
+#[test]
+fn execute_alloc() {
+    gear_utils::init_default_logger();
+
+    let mut params_config = SysCallsParamsConfig::empty();
+    params_config.add_rule(ParamType::Alloc, (10..=20).into());
+
+    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
+    injection_amounts.set(SysCallName::Alloc, 20, 30);
+
+    let gear_config = (
+        GearWasmGeneratorConfigBuilder::new()
+            .with_sys_calls_config(
+                SysCallsConfigBuilder::new(injection_amounts)
+                    .with_params_config(params_config)
+                    .build(),
+            )
+            .with_entry_points_config(EntryPointsSet::Init)
+            .build(),
+        SelectableParams {
+            call_indirect_enabled: false,
+            allowed_instructions: vec![],
+            max_instructions: 0,
+            min_funcs: 1,
+            max_funcs: 1,
+        },
+    );
+
+    // We create Unstructured from zeroes here as we just need any
+    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut unstructured = Unstructured::new(&buf);
+
+    let code =
+        generate_gear_program_code(&mut unstructured, gear_config).expect("failed wasm generation");
+    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
+        .expect("Failed to create Code");
+
+    let mut message_context = MessageContext::new(
+        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
+        Default::default(),
+        ContextSettings::new(0, 0, 0, 0, 0, 0),
+    );
+
+    let processor_context = ProcessorContext {
+        message_context,
+        max_pages: 512.into(),
+        ..ProcessorContext::new_mock()
+    };
+
+    let ext = gear_core_processor::Ext::new(processor_context);
+    let env = SandboxEnvironment::new(
+        ext,
+        code.code(),
+        DispatchKind::Init,
+        vec![DispatchKind::Init].into_iter().collect(),
+        (DEFAULT_INITIAL_SIZE as u16).into(),
+    )
+    .expect("Failed to create environment");
+
+    let _ = env
+        .execute(|_, _, _| -> Result<(), u32> {
+
+            Ok(())
+        })
+        .expect("Failed to execute WASM module");
 }

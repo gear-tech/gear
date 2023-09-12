@@ -21,8 +21,10 @@
 //! Types here are used to create [`crate::SysCallsConfig`].
 
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::syscalls::ParamType;
 use std::{collections::HashMap, ops::RangeInclusive};
+use crate::DEFAULT_INITIAL_SIZE;
+
+pub use gear_wasm_instrument::syscalls::ParamType;
 
 /// Sys-calls params config.
 ///
@@ -42,6 +44,10 @@ use std::{collections::HashMap, ops::RangeInclusive};
 pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
 
 impl SysCallsParamsConfig {
+    pub fn empty() -> Self {
+        Self(HashMap::new())
+    }
+
     /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
     pub fn all_constant_value(value: i64) -> Self {
         let allowed_values: SysCallParamAllowedValues = (value..=value).into();
@@ -87,7 +93,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Duration, (1..=8).into()),
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
-                (ParamType::Free, (0..=512).into()),
+                (ParamType::Free, (0..=DEFAULT_INITIAL_SIZE as i64).into()),
             ]
             .into_iter()
             .collect(),

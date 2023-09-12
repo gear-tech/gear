@@ -147,6 +147,12 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub injection_amounts: SysCallsInjectionAmounts,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
+    /// Inital wasm memory pages.
+    pub initial_pages: u32,
+    /// Optional stack end pages.
+    pub stack_end_page: Option<u32>,
+    /// Sys-calls params config
+    pub params_config: SysCallsParamsConfig,
 }
 
 impl<T> Default for StandardGearWasmConfigsBundle<T> {
@@ -158,6 +164,9 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
             call_indirect_enabled: true,
             injection_amounts: SysCallsInjectionAmounts::all_once(),
             entry_points_set: Default::default(),
+            initial_pages: DEFAULT_INITIAL_SIZE,
+            stack_end_page: None,
+            params_config: SysCallsParamsConfig::default(),
         }
     }
 }
@@ -171,6 +180,9 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             call_indirect_enabled,
             injection_amounts,
             entry_points_set,
+            initial_pages,
+            stack_end_page,
+            params_config,
         } = self;
 
         let selectable_params = SelectableParams {
@@ -188,10 +200,18 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         } else {
             sys_calls_config_builder = sys_calls_config_builder.with_source_msg_dest();
         }
+        sys_calls_config_builder = sys_calls_config_builder.with_params_config(params_config);
+
+        let memory_pages_config = MemoryPagesConfig {
+            initial_size: initial_pages,
+            stack_end_page,
+            upper_limit: None,
+        };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
             .with_recursions_removed(remove_recursion)
             .with_sys_calls_config(sys_calls_config_builder.build())
             .with_entry_points_config(entry_points_set)
+            .with_memory_config(memory_pages_config)
             .build();
 
         (gear_wasm_generator_config, selectable_params)
