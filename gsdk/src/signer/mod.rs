@@ -40,13 +40,13 @@ mod storage;
 mod utils;
 
 /// Signer representation that provides access to gear API.
-/// Implements low-level methods such as [`run_tx`](`SignerInner::run_tx`)
-/// and [`force_batch`](`SignerInner::force_batch`).
+/// Implements low-level methods such as [`run_tx`](`Inner::run_tx`)
+/// and [`force_batch`](`Inner::force_batch`).
 /// Other higher-level calls are provided by [`Signer::storage`],
 /// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
 pub struct Signer {
-    signer: Arc<SignerInner>,
+    signer: Arc<Inner>,
     /// Calls that get or set storage.
     pub storage: SignerStorage,
     /// Calls for interaction with on-chain programs.
@@ -57,7 +57,7 @@ pub struct Signer {
 
 /// Implementation of low-level calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerInner {
+pub struct Inner {
     api: Api,
     /// Current signer.
     signer: PairSigner<GearConfig, Pair>,
@@ -73,7 +73,7 @@ impl Signer {
 
     /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        let signer = SignerInner {
+        let signer = Inner {
             api,
             signer: PairSigner::new(
                 Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
@@ -85,7 +85,7 @@ impl Signer {
         Ok(Self::from_inner(signer))
     }
 
-    fn from_inner(signer: SignerInner) -> Self {
+    fn from_inner(signer: Inner) -> Self {
         let signer = Arc::new(signer);
 
         Self {
@@ -96,7 +96,7 @@ impl Signer {
         }
     }
 
-    fn replace_inner(&mut self, mut inner: SignerInner) {
+    fn replace_inner(&mut self, mut inner: Inner) {
         let backtrace = self.backtrace();
         inner.backtrace = backtrace;
 
@@ -118,7 +118,7 @@ impl Signer {
         let signer =
             PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
 
-        self.replace_inner(SignerInner {
+        self.replace_inner(Inner {
             signer,
             ..self.signer.as_ref().clone()
         });
@@ -128,14 +128,14 @@ impl Signer {
 
     /// Set nonce of the signer
     pub fn set_nonce(&mut self, nonce: u32) {
-        self.replace_inner(SignerInner {
+        self.replace_inner(Inner {
             nonce: Some(nonce),
             ..self.signer.as_ref().clone()
         });
     }
 }
 
-impl SignerInner {
+impl Inner {
     /// Get address of the current signer
     pub fn address(&self) -> String {
         self.account_id().to_ss58check()
@@ -154,7 +154,7 @@ impl SignerInner {
 
 impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
     fn from((api, signer): (Api, PairSigner<GearConfig, Pair>)) -> Self {
-        let signer = SignerInner {
+        let signer = Inner {
             api,
             signer,
             nonce: None,
@@ -166,9 +166,9 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
 }
 
 impl Deref for Signer {
-    type Target = SignerInner;
+    type Target = Inner;
 
-    fn deref(&self) -> &SignerInner {
+    fn deref(&self) -> &Inner {
         self.signer.as_ref()
     }
 }

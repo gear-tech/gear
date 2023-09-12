@@ -18,7 +18,7 @@
 
 //! Utils
 
-use super::SignerInner;
+use super::Inner;
 use crate::{
     backtrace::BacktraceStatus,
     config::GearConfig,
@@ -43,7 +43,7 @@ use subxt::{
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-impl SignerInner {
+impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
         let signer_rpc = SignerRpc(Arc::new(self.clone()));

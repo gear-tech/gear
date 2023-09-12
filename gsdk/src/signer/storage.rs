@@ -29,7 +29,7 @@ use crate::{
         },
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
     },
-    signer::SignerInner,
+    signer::Inner,
     utils::storage_address_bytes,
     Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages, Result,
 };
@@ -50,7 +50,7 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerStorage(pub(crate) Arc<SignerInner>);
+pub struct SignerStorage(pub(crate) Arc<Inner>);
 
 // pallet-system
 impl SignerStorage {

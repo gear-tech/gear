@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api calls
-use super::SignerInner;
+use super::Inner;
 use crate::{
     config::GearConfig,
     metadata::{
@@ -36,7 +36,7 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
-pub struct SignerCalls(pub(crate) Arc<SignerInner>);
+pub struct SignerCalls(pub(crate) Arc<Inner>);
 
 // pallet-balances
 impl SignerCalls {
