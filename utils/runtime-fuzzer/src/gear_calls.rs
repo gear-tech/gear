@@ -230,13 +230,11 @@ impl ExtrinsicGenerator for SendReplyGenerator {
             arbitrary_message_id_from_mailbox(unstructured, self.mailbox_provider.as_ref())?;
 
         let payload = arbitrary_payload(unstructured)?;
-        log::error!(
+        log::trace!(
             "Random data after payload (send_reply) gen {}",
             unstructured.len()
         );
         log::trace!("Payload (send_reply) length {:?}", payload.len());
-
-        log::error!("\n");
 
         Ok(SendReplyArgs((message_id, payload, self.gas, self.value, self.prepaid)).into())
     }
