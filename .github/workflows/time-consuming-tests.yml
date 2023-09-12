@@ -2,6 +2,14 @@ name: Time consuming tests
 
 on:
   workflow_dispatch:
+    inputs:
+      runtime:
+        description: For which runtime generate comparison table?
+        required: true
+        type: choice
+        options:
+          - gear
+          - vara
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,12 +35,12 @@ jobs:
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
-      - name: "Generate comparison tables"
+      - name: "Generate comparison tables (${{ inputs.runtime }})"
         run: |
-          ./scripts/weight-diff.sh master $(git branch --show-current) gear --display-units > gear-tables.txt
+          ./scripts/weight-diff.sh master $(git branch --show-current) ${{ inputs.runtime }} --display-units > ${{ inputs.runtime }}-tables.txt
 
-      - name: "ACTIONS: Upload artifact with comparison tables (gear)"
+      - name: "ACTIONS: Upload artifact with comparison tables (${{ inputs.runtime }})"
         uses: actions/upload-artifact@v3
         with:
-          name: gear-tables
-          path: gear-tables.txt
+          name: ${{ inputs.runtime }}-tables
+          path: ${{ inputs.runtime }}-tables.txt
