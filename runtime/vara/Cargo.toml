@@ -98,7 +98,6 @@ pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
-pallet-airdrop.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -185,7 +184,6 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
-	"pallet-airdrop/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -200,7 +198,6 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-airdrop/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-conviction-voting/runtime-benchmarks",
@@ -255,7 +252,6 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-whitelist/try-runtime",
-	"pallet-airdrop/try-runtime",
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
