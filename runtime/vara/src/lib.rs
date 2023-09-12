@@ -1015,12 +1015,6 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
-impl pallet_airdrop::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = weights::pallet_airdrop::SubstrateWeight<Runtime>;
-    type VestingSchedule = Vesting;
-}
-
 pub struct ExtraFeeFilter;
 impl Contains<RuntimeCall> for ExtraFeeFilter {
     fn contains(call: &RuntimeCall) -> bool {
@@ -1167,8 +1161,7 @@ construct_runtime!(
         // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
 
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -1232,8 +1225,7 @@ construct_runtime!(
         // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
 
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
     }
 );
 
@@ -1295,7 +1287,6 @@ mod benches {
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
         // Gear pallets
-        [pallet_airdrop, Airdrop]
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
     );
