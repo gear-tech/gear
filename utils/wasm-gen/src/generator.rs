@@ -252,7 +252,9 @@ impl CallIndexes {
     }
 
     fn custom_funcs(&self) -> Vec<usize> {
-        self.custom_funcs.iter().cloned().collect()
+        let mut funcs: Vec<_> = self.custom_funcs.iter().cloned().collect();
+        funcs.sort();
+        funcs
     }
 
     fn len(&self) -> usize {

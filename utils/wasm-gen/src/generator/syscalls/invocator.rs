@@ -31,10 +31,7 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName, SysCallSignature},
 };
-use std::{
-    collections::{hash_map::Entry, BTreeMap, HashMap},
-    iter,
-};
+use std::{collections::BTreeMap, iter};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -530,16 +527,20 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         );
 
         let insert_into_funcs = self.call_indexes.custom_funcs();
-        let mut insertion_mapping: HashMap<_, Vec<SysCallInvokeInstructions>> = HashMap::new();
+        // Keep it sorted by func_id to perform binary search on it.
+        let mut insertion_mapping: Vec<(usize, Vec<SysCallInvokeInstructions>)> = vec![];
         for ixs in instructions {
             let insert_into = *self.unstructured.choose(&insert_into_funcs)?;
-            match insertion_mapping.entry(insert_into) {
-                Entry::Occupied(mut entry) => {
-                    entry.get_mut().push(ixs);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(vec![ixs]);
-                }
+            let partition =
+                insertion_mapping.partition_point(|&(func_id, _)| func_id < insert_into);
+
+            if !insertion_mapping.is_empty()
+                && partition != insertion_mapping.len()
+                && insertion_mapping[partition].0 == insert_into
+            {
+                insertion_mapping[partition].1.push(ixs);
+            } else {
+                insertion_mapping.insert(partition, (insert_into, vec![ixs]));
             }
         }
 
