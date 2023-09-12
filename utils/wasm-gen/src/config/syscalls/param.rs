@@ -20,9 +20,9 @@
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
+use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
 use std::{collections::HashMap, ops::RangeInclusive};
-use crate::DEFAULT_INITIAL_SIZE;
 
 pub use gear_wasm_instrument::syscalls::ParamType;
 

@@ -368,10 +368,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     let pages_to_alloc = if let Some(allowed_values) = allowed_values {
                         allowed_values.get_i32(self.unstructured)?
                     } else {
-                        let mem_size = (mem_size / 3).max(1);
-                        self
-                            .unstructured
-                            .int_in_range(0..=mem_size)? as i32
+                        let mem_size_pages = (mem_size_pages / 3).max(1);
+                        self.unstructured.int_in_range(0..=mem_size_pages)? as i32
                     };
 
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");

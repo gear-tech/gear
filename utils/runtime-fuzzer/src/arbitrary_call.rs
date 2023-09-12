@@ -23,7 +23,8 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts, ParamType, SysCallsParamsConfig,
+    EntryPointsSet, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 use sha1::*;
 use std::{
@@ -191,14 +192,18 @@ fn config(
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    // TODO use set multiple!
-    injection_amounts.set(SysCallName::Leave, 0, 0);
-    injection_amounts.set(SysCallName::Panic, 0, 0);
-    injection_amounts.set(SysCallName::OomPanic, 0, 0);
-    injection_amounts.set(SysCallName::Send, 20, 30);
-    injection_amounts.set(SysCallName::Exit, 0, 1);
-    injection_amounts.set(SysCallName::Alloc, 20, 30);
-    injection_amounts.set(SysCallName::Free, 20, 30);
+    injection_amounts.set_multiple(
+        [
+            (SysCallName::Leave, 0..=0),
+            (SysCallName::Panic, 0..=0),
+            (SysCallName::OomPanic, 0..=0),
+            (SysCallName::Send, 20..=30),
+            (SysCallName::Exit, 0..=1),
+            (SysCallName::Alloc, 20..=30),
+            (SysCallName::Free, 20..=30),
+        ]
+        .into_iter(),
+    );
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (10..=20).into());
@@ -220,6 +225,7 @@ fn config(
         injection_amounts,
         existing_addresses,
         log_info,
+        params_config,
         ..Default::default()
     }
 }
