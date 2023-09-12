@@ -41,7 +41,7 @@ mod utils;
 
 /// Signer representation that provides access to gear API.
 /// Implements low-level methods such as [`run_tx`](`Inner::run_tx`)
-/// and [`force_batch`](`Inner::force_batch`).
+/// and [`force_batch`](`Signer.calls()::force_batch`).
 /// Other higher-level calls are provided by [`Signer::storage`],
 /// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
