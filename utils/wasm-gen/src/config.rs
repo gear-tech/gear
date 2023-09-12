@@ -147,7 +147,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub injection_amounts: SysCallsInjectionAmounts,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
-    /// Inital wasm memory pages.
+    /// Initial wasm memory pages.
     pub initial_pages: u32,
     /// Optional stack end pages.
     pub stack_end_page: Option<u32>,
