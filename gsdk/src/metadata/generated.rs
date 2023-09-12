@@ -8798,11 +8798,6 @@ pub mod runtime_types {
         }
         pub mod vara_runtime {
             use super::runtime_types;
-            pub mod extensions {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DisableValueTransfers;
-            }
             pub mod governance {
                 use super::runtime_types;
                 pub mod origins {
