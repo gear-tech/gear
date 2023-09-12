@@ -101,6 +101,7 @@ pub trait WeightInfo {
     fn gr_reservation_reply_commit(r: u32, ) -> Weight;
     fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
+    fn gr_signal_code(r: u32, ) -> Weight;
     fn gr_signal_from(r: u32, ) -> Weight;
     fn gr_reply_push_input(r: u32, ) -> Weight;
     fn gr_reply_push_input_per_kb(n: u32, ) -> Weight;
@@ -902,6 +903,16 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(75_405_776, 0)
             // Standard Error: 330_490
             .saturating_add(Weight::from_parts(78_457_591, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_signal_code(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 84_124_000 picoseconds.
+        Weight::from_parts(74_488_011, 0)
+            // Standard Error: 336_019
+            .saturating_add(Weight::from_parts(112_631_557, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {
@@ -2747,6 +2758,17 @@ impl WeightInfo for () {
         Weight::from_parts(75_405_776, 0)
             // Standard Error: 330_490
             .saturating_add(Weight::from_parts(78_457_591, 0).saturating_mul(r.into()))
+    }
+
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_signal_code(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 84_124_000 picoseconds.
+        Weight::from_parts(74_488_011, 0)
+            // Standard Error: 336_019
+            .saturating_add(Weight::from_parts(112_631_557, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {

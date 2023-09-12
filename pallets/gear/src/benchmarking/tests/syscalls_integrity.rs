@@ -139,6 +139,7 @@ where
             SysCallName::ReplyCommit => check_reply_raw::<T>(None),
             SysCallName::ReplyCommitWGas => check_reply_raw::<T>(Some(25_000_000_000)),
             SysCallName::ReplyTo => check_reply_details::<T>(),
+            SysCallName::SignalCode => check_signal_details::<T>(),
             SysCallName::SignalFrom => check_signal_details::<T>(),
             SysCallName::ReplyPush => {/* skipped, due to test being run in SendCommit* variants */},
             SysCallName::ReplyInput => check_reply_input::<T>(None),

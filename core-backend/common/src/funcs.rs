@@ -242,8 +242,7 @@ where
             .map_err(Into::into)
     }
 
-    // TODO: write proper benchmark #2825
-    #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithSignalCode)]
+    #[host(fallible, cost = RuntimeCosts::SignalCode, err = ErrorWithSignalCode)]
     pub fn signal_code(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut()
             .signal_code()
@@ -408,7 +407,6 @@ where
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
-    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
     pub fn signal_from(ctx: &mut R, gas: u64) -> Result<(u64, ()), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)

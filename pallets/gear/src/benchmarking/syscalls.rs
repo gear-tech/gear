@@ -1011,6 +1011,22 @@ where
         )
     }
 
+    // TODO(tltsutltsu): write proper benchmark
+    pub fn gr_signal_code(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::SignalCode],
+            handle_body: Some(body::syscall(repetitions, &[InstrI32Const(res_offset)])),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    // TODO(tltsutltsu): write proper benchmark
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
