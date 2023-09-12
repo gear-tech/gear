@@ -96,7 +96,6 @@ impl Signer {
         }
     }
 
-    #[deny(unused_variables)]
     fn replace_inner(&mut self, mut inner: SignerInner) {
         let backtrace = self.backtrace();
         inner.backtrace = backtrace;
