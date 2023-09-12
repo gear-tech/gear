@@ -26,10 +26,9 @@ mod tests;
 use arbitrary::Result;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-pub use gear_calls::GearCalls;
 use gear_calls::{
-    Config as GearCallsConfig, MailboxProvider, SendMessageGenerator, SendReplyGenerator,
-    UploadProgramGenerator,
+    Config as GearCallsConfig, GearCalls, MailboxProvider, SendMessageGenerator,
+    SendReplyGenerator, UploadProgramGenerator,
 };
 use gear_core::ids::MessageId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};

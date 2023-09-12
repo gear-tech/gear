@@ -37,7 +37,7 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 ///
 /// `Iterator<Item = GearCall>` is implemented for this struct, so for
 /// generating gear calls you need to iterate over [`GearCalls`].
-pub struct GearCalls<'a> {
+pub(crate) struct GearCalls<'a> {
     unstructured: Unstructured<'a>,
     intermediate_data: IntermediateData,
 
@@ -84,9 +84,10 @@ impl Iterator for GearCalls<'_> {
     }
 }
 
-pub type ExtrinsicAmount = usize;
+pub(crate) type ExtrinsicAmount = usize;
 
-pub struct Config {
+/// Config that's used in the process of generation gear calls.
+pub(crate) struct Config {
     generators: Vec<(ExtrinsicAmount, Box<dyn ExtrinsicGenerator>)>,
 }
 
@@ -95,7 +96,7 @@ impl Config {
         Config { generators }
     }
 
-    pub fn unstructured_size_hint(&self) -> usize {
+    pub(crate) fn unstructured_size_hint(&self) -> usize {
         self.generators
             .iter()
             .map(|(amount, generator)| amount * generator.unstructured_size_hint())
@@ -103,11 +104,12 @@ impl Config {
     }
 }
 
-pub trait MailboxProvider {
+/// Type that's expected by some generators in order to fetch mailbox messages.
+pub(crate) trait MailboxProvider {
     fn fetch_messages(&self) -> Vec<MessageId>;
 }
 
-pub trait ExtrinsicGenerator {
+pub(crate) trait ExtrinsicGenerator {
     fn generate(
         &self,
         intermediate_data: &mut IntermediateData,
@@ -119,11 +121,12 @@ pub trait ExtrinsicGenerator {
 
 /// Data that is persistent between different [`ExtrinsicGenerator`]s calls.
 #[derive(Default)]
-pub struct IntermediateData {
+pub(crate) struct IntermediateData {
     uploaded_programs: Vec<ProgramId>,
 }
 
-pub struct UploadProgramGenerator {
+/// Extrinsic generator that's capable of generationg `UploadProgram` calls.
+pub(crate) struct UploadProgramGenerator {
     pub gas: u64,
     pub value: u128,
     pub test_input_id: String,
@@ -177,7 +180,8 @@ impl ExtrinsicGenerator for UploadProgramGenerator {
     }
 }
 
-pub struct SendMessageGenerator {
+/// Extrinsic generator that's capable of generating `SendMessage` calls.
+pub(crate) struct SendMessageGenerator {
     pub gas: u64,
     pub value: u128,
     pub prepaid: bool,
@@ -208,7 +212,8 @@ impl ExtrinsicGenerator for SendMessageGenerator {
     }
 }
 
-pub struct SendReplyGenerator {
+/// Extrinsic generator that's capable of generating `SendReply` calls.
+pub(crate) struct SendReplyGenerator {
     pub mailbox_provider: Box<dyn MailboxProvider>,
 
     pub gas: u64,
@@ -245,7 +250,8 @@ impl ExtrinsicGenerator for SendReplyGenerator {
     }
 }
 
-pub struct ClaimValueGenerator {
+/// Extrinsic generator that's capable of generating `ClaimValue` calls.
+pub(crate) struct ClaimValueGenerator {
     pub mailbox_provider: Box<dyn MailboxProvider>,
 }
 
