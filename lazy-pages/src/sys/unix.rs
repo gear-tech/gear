@@ -47,6 +47,12 @@ cfg_if! {
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
         }
+    } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            let error_reg = nix::libc::LOG_ERR as usize;
+            let error_code = (*ucontext).uc_mcontext.regs[error_reg];
+            Some(error_code & 0b10 == 0b10)
+        }
     } else if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             // See https://wiki.osdev.org/Exceptions
