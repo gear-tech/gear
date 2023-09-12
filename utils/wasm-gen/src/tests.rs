@@ -338,10 +338,10 @@ proptest! {
             ..Default::default()
         };
 
-        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
         assert!(code_res.is_ok());
     }
 

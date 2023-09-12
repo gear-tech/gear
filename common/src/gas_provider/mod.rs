@@ -43,9 +43,20 @@ pub use reservable::ReservableTree;
 
 /// Simplified type for result of `GasTree::consume` call.
 pub type ConsumeResultOf<T> = Result<
-    Option<(<T as Tree>::NegativeImbalance, <T as Tree>::ExternalOrigin)>,
+    Option<(
+        <T as Tree>::NegativeImbalance,
+        GasMultiplier<<T as Tree>::Funds, <T as Tree>::Balance>,
+        <T as Tree>::ExternalOrigin,
+    )>,
     <T as Tree>::Error,
 >;
+
+/// Simplified type for `GasTree::get_origin_node` call.
+pub type OriginNodeDataOf<T> = (
+    <T as Tree>::ExternalOrigin,
+    GasMultiplier<<T as Tree>::Funds, <T as Tree>::Balance>,
+    <T as Tree>::NodeId,
+);
 
 /// Abstraction for a chain of value items each piece of which has an attributed
 /// owner and can be traced up to some root origin.
@@ -61,6 +72,9 @@ pub trait Tree {
 
     /// Type representing a quantity of value.
     type Balance: Clone;
+
+    /// Type representing a quantity of token balance.
+    type Funds: Clone;
 
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
@@ -89,31 +103,40 @@ pub trait Tree {
     /// already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
+        multiplier: GasMultiplier<Self::Funds, Self::Balance>,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// The id of node and external origin for a key.
+    /// The id of node, external origin and funds multiplier for a key.
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn get_origin_node(
-        key: impl Into<Self::NodeId>,
-    ) -> Result<(Self::ExternalOrigin, Self::NodeId), Self::Error>;
+    fn get_origin_node(key: impl Into<Self::NodeId>)
+        -> Result<OriginNodeDataOf<Self>, Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
     fn get_external(key: impl Into<Self::NodeId>) -> Result<Self::ExternalOrigin, Self::Error> {
-        Self::get_origin_node(key).map(|(external, _key)| external)
+        Self::get_origin_node(key).map(|(external, _multiplier, _key)| external)
+    }
+
+    /// The funds multiplier for a key.
+    ///
+    /// See [`get_origin_node`](Self::get_origin_node) for details.
+    fn get_funds_multiplier(
+        key: impl Into<Self::NodeId>,
+    ) -> Result<GasMultiplier<Self::Funds, Self::Balance>, Self::Error> {
+        Self::get_origin_node(key).map(|(_external, multiplier, _key)| multiplier)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
     fn get_origin_key(key: impl Into<Self::NodeId>) -> Result<Self::NodeId, Self::Error> {
-        Self::get_origin_node(key).map(|(_external, key)| key)
+        Self::get_origin_node(key).map(|(_external, _multiplier, key)| key)
     }
 
     /// Get value associated with given id and the key of an ancestor,
@@ -235,6 +258,9 @@ pub trait Provider {
     /// Type representing a quantity of value.
     type Balance;
 
+    /// Type representing a quantity of token balance.
+    type Funds;
+
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
@@ -249,6 +275,7 @@ pub trait Provider {
             ExternalOrigin = Self::ExternalOrigin,
             NodeId = Self::NodeId,
             Balance = Self::Balance,
+            Funds = Self::Funds,
             InternalError = Self::InternalError,
             Error = Self::Error,
         > + ReservableTree;

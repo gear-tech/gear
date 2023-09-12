@@ -14,7 +14,7 @@ jobs:
       || github.event.label.name == 'A4-insubstantial'
       || github.event.label.name == 'A2-mergeoncegreen'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/github-script@v6
