@@ -58,7 +58,9 @@ mod tests {
         assert!(!res.main_failed());
 
         // Check whether the auto-reply was received
-        let reply_received: bool = prog2.read_state(Default::default()).expect("Failed to read state");
+        let reply_received: bool = prog2
+            .read_state(Default::default())
+            .expect("Failed to read state");
         assert!(reply_received);
     }
 }
