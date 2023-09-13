@@ -61,21 +61,21 @@ macro_rules! export_module_error {
                              error: raw.error,
                          },
                      }),*,
-                     // `pallet_fellowship_referenda => 19`
-                     //
-                     // shares the same error with
-                     //
-                     // `pallet_fellowship_collective => 18`
-                     19 => {
-                         let mb_error = RanckedCollective::decode(&mut raw.error.as_ref());
-                         match mb_error {
-                             Ok(e) => ModuleError::RanckedCollective(e),
-                             Err(_) => ModuleError::Unknown {
-                                 pallet_index: raw.pallet_index,
-                                 error: raw.error,
-                             },
-                         }
-                     },
+                    //  // `pallet_fellowship_referenda => 19`
+                    //  //
+                    //  // shares the same error with
+                    //  //
+                    //  // `pallet_fellowship_collective => 18`
+                    //  19 => {
+                    //      let mb_error = RanckedCollective::decode(&mut raw.error.as_ref());
+                    //      match mb_error {
+                    //          Ok(e) => ModuleError::RanckedCollective(e),
+                    //          Err(_) => ModuleError::Unknown {
+                    //              pallet_index: raw.pallet_index,
+                    //              error: raw.error,
+                    //          },
+                    //      }
+                    //  },
                      _ => ModuleError::Unknown {
                          pallet_index: raw.pallet_index,
                          error: raw.error,
@@ -104,22 +104,22 @@ export_module_error! {
     frame_system => System => 0,
     pallet_grandpa => Grandpa => 4,
     pallet_balances => Balances => 5,
-    pallet_vesting => Vesting => 10,
-    pallet_bags_list => BagsList => 11,
-    pallet_im_online => ImOnline => 12,
-    pallet_staking::pallet => Staking => 13,
+    // pallet_vesting => Vesting => 10,
+    // pallet_bags_list => BagsList => 11,
+    // pallet_im_online => ImOnline => 12,
+    // pallet_staking::pallet => Staking => 13,
     pallet_session => Session => 7,
-    pallet_treasury => Treasury => 14,
-    pallet_conviction_voting => ConvictionVoting => 16,
-    pallet_referenda => Referenda => 17,
-    pallet_ranked_collective => RanckedCollective => 18,
-    pallet_whitelist => Whitelist => 21,
+    // pallet_treasury => Treasury => 14,
+    // pallet_conviction_voting => ConvictionVoting => 16,
+    // pallet_referenda => Referenda => 17,
+    // pallet_ranked_collective => RanckedCollective => 18,
+    // pallet_whitelist => Whitelist => 21,
     pallet_sudo => Sudo => 99,
-    pallet_scheduler => Scheduler => 22,
-    pallet_preimage => Preimage => 23,
-    pallet_identity => Identity => 24,
+    // pallet_scheduler => Scheduler => 22,
+    // pallet_preimage => Preimage => 23,
+    // pallet_identity => Identity => 24,
     pallet_utility => Utility => 8,
     pallet_gear => Gear => 104,
-    pallet_gear_staking_rewards => GearStakingRewards => 106,
+    // pallet_gear_staking_rewards => GearStakingRewards => 106,
     pallet_gear_debug => GearDebug => 199
 }

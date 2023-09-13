@@ -8,8 +8,8 @@ use std::{
 const GSDK_API_GEN: &str = "GSDK_API_GEN";
 const GSDK_API_GEN_PKG: &str = "gsdk-api-gen";
 const GSDK_API_GEN_RELATIVE_PATH: &str = "gsdk-api-gen";
-const VARA_RUNTIME_PKG: &str = "vara-runtime";
-const VARA_RUNTIME_RELATIVE_PATH: &str = "wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
+const RUNTIME_PKG: &str = "gear-runtime";
+const RUNTIME_RELATIVE_PATH: &str = "wbuild/gear-runtime/gear_runtime.compact.compressed.wasm";
 const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
@@ -37,21 +37,17 @@ fn generate_api() -> Vec<u8> {
     let root = env!("CARGO_MANIFEST_DIR");
     let profile = env::var("PROFILE").expect("Environment PROFILE not found.");
 
-    // NOTE: use vara here since vara includes all pallets gear have,
-    // and the API we are building here is for both vara and gear.
-    let [vara_runtime, api_gen] = [
-        (
-            VARA_RUNTIME_RELATIVE_PATH,
-            VARA_RUNTIME_PKG,
-            vec!["debug-mode"],
-        ),
+    // NOTE: use gear here since gear includes all pallets vara have that we use,
+    // and the API we are building here is for both gear and vara.
+    let [gear_runtime, api_gen] = [
+        (RUNTIME_RELATIVE_PATH, RUNTIME_PKG, vec!["debug-mode"]),
         (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
     .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
 
     // Generate api
     let code = Command::new(api_gen)
-        .env(ENV_RUNTIME_WASM, vara_runtime)
+        .env(ENV_RUNTIME_WASM, gear_runtime)
         .output()
         .expect("Failed to generate client api.")
         .stdout;
