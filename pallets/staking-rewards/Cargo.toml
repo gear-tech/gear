@@ -1,12 +1,12 @@
 [package]
 name = "pallet-gear-staking-rewards"
-version = "1.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
-license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "Gear tokenomics implementation"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
