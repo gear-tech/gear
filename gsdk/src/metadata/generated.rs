@@ -2873,6 +2873,7 @@ pub mod runtime_types {
                     pub gr_reply_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_to: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_signal_code: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_signal_from: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_input: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
