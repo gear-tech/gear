@@ -21,6 +21,10 @@
 //! Alternatively, `cargo fuzz run` can be used to reproduce some corpus,
 //! but it won't give logs of [`GearCalls`] generation, which sheds some
 //! light on how `gear-wasm-gen` worked.
+//!
+//! Also that script can be used to run any bytes input, not only fuzzer's
+//! corpus.
+//!
 //! Just simply run `cargo run --release -- -p <path_to_corpus>`.
 
 use anyhow::Result;
@@ -47,7 +51,7 @@ fn main() -> Result<()> {
 
     let mut unstructured = Unstructured::new(&corpus_bytes);
     let gear_calls = GearCalls::arbitrary(&mut unstructured)?;
-    
+
     runtime_fuzzer::run(gear_calls);
 
     Ok(())
