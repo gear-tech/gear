@@ -108,7 +108,7 @@ impl Inner {
                 Future | Ready | Broadcast(_) | Retracted(_) => (),
                 InBlock(b) => {
                     hash = Some(b.extrinsic_hash());
-                    self.backtrace.clone().append(
+                    self.backtrace.append(
                         b.extrinsic_hash(),
                         BacktraceStatus::InBlock {
                             block_hash: b.block_hash(),

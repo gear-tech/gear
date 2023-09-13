@@ -19,8 +19,9 @@
 //! Backtrace support for `gsdk`
 use crate::TxStatus;
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 use sp_core::H256;
-use std::{collections::BTreeMap, time::SystemTime};
+use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
 
 /// Transaction Status for Backtrace
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,23 +76,25 @@ impl<'s> From<&'s TxStatus> for BacktraceStatus {
 /// Backtrace support for transactions
 #[derive(Clone, Debug, Default)]
 pub struct Backtrace {
-    inner: IndexMap<H256, BTreeMap<SystemTime, BacktraceStatus>>,
+    inner: Arc<Mutex<IndexMap<H256, BTreeMap<SystemTime, BacktraceStatus>>>>,
 }
 
 impl Backtrace {
     /// Append status to transaction
-    pub fn append(&mut self, tx: H256, status: impl Into<BacktraceStatus>) {
-        if let Some(map) = self.inner.get_mut(&tx) {
+    pub fn append(&self, tx: H256, status: impl Into<BacktraceStatus>) {
+        let mut inner = self.inner.lock();
+
+        if let Some(map) = inner.get_mut(&tx) {
             map.insert(SystemTime::now(), status.into());
         } else {
             let mut map: BTreeMap<SystemTime, BacktraceStatus> = Default::default();
             map.insert(SystemTime::now(), status.into());
-            self.inner.insert(tx, map);
+            inner.insert(tx, map);
         };
     }
 
     /// Get backtrace of transaction
     pub fn get(&self, tx: H256) -> Option<BTreeMap<SystemTime, BacktraceStatus>> {
-        self.inner.get(&tx).cloned()
+        self.inner.lock().get(&tx).cloned()
     }
 }
