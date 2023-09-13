@@ -500,10 +500,10 @@ impl<'a> Program<'a> {
     /// ```
     pub fn read_state_bytes_using_wasm(
         &self,
+        payload: Vec<u8>,
         fn_name: &str,
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
-        payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
@@ -511,8 +511,8 @@ impl<'a> Program<'a> {
     }
 
     /// Reads and decodes the program's state .
-    pub fn read_state<D: Decode>(&self, payload: Vec<u8>) -> Result<D> {
-        let state_bytes = self.read_state_bytes(payload)?;
+    pub fn read_state<D: Decode, E: Encode>(&self, payload: E) -> Result<D> {
+        let state_bytes = self.read_state_bytes(payload.encode())?;
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
@@ -563,14 +563,14 @@ impl<'a> Program<'a> {
     /// ```
     pub fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
+        payload: E,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
-        payload: Vec<u8>,
     ) -> Result<D> {
         let argument_bytes = argument.map(|arg| arg.encode());
         let state_bytes =
-            self.read_state_bytes_using_wasm(fn_name, wasm, argument_bytes, payload)?;
+            self.read_state_bytes_using_wasm(payload.encode(), fn_name, wasm, argument_bytes)?;
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
