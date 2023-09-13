@@ -482,19 +482,19 @@ impl<'a> Program<'a> {
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<Vec<u8>>::None, Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Option::<Vec<u8>>::None)?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(), Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!())?;
     /// // Read state bytes with one argument passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1.encode()), Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Some(ARG_1.encode()))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1), Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!(ARG_1))?;
     /// // Read state bytes with multiple arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2).encode()), Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Some((ARG_1, ARG_2).encode()))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, state_args_encoded!(ARG_1, ARG_2), Default::default())?;
+    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!(ARG_1, ARG_2))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -545,19 +545,19 @@ impl<'a> Program<'a> {
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None, Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Option::<()>::None)?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(), Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!())?;
     /// // Read state bytes with one argument passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1), Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Some(ARG_1))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1), Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!(ARG_1))?;
     /// // Read state bytes with multiple arguments passed to wasm.
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)), Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Some((ARG_1, ARG_2)))?;
     /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm("fn_name", WASM, state_args!(ARG_1, ARG_2), Default::default())?;
+    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!(ARG_1, ARG_2))?;
     /// # Ok(())
     /// # }
     /// ```
