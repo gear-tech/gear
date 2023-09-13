@@ -20,7 +20,7 @@
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
-use crate::{MemoryPagesConfig, DEFAULT_INITIAL_SIZE};
+use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
 use std::{collections::HashMap, ops::RangeInclusive};
 
