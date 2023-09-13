@@ -3744,6 +3744,7 @@ dependencies = [
  "futures-timer",
  "gear-common",
  "gear-node-testing",
+ "gear-runtime",
  "gear-runtime-primitives",
  "log",
  "pallet-balances",
@@ -3771,7 +3772,6 @@ dependencies = [
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-timestamp",
  "substrate-prometheus-endpoint",
- "vara-runtime",
 ]
 
 [[package]]
@@ -4069,7 +4069,7 @@ dependencies = [
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "substrate-test-client",
- "vara-runtime",
+ "substrate-validator-set",
 ]
 
 [[package]]
@@ -13514,7 +13514,6 @@ dependencies = [
  "pallet-scheduler",
  "pallet-session",
  "pallet-staking",
- "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",

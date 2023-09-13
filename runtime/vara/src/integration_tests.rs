@@ -176,10 +176,6 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
-        SudoConfig { key: self.root }
-            .assimilate_storage(&mut storage)
-            .unwrap();
-
         GenesisBuild::<Runtime>::assimilate_storage(
             &VestingConfig {
                 vesting: self.vested_accounts,
