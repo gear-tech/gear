@@ -61,11 +61,15 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         let previous: StorageVersion =
             Decode::decode(&mut state.as_ref()).map_err(|_| "Cannot decode version")?;
 
-        let onchain = Pallet::<T>::on_chain_storage_version();
+        if previous == 2 {
+            let onchain = Pallet::<T>::on_chain_storage_version();
 
-        assert_ne!(previous, onchain, "Must have upgraded from version 2 to 3");
+            assert_ne!(previous, onchain, "Must have upgraded from version 2 to 3");
 
-        log::info!("Storage `pallet-gear-gas` successfully migrated to V3");
+            log::info!("Storage `pallet-gear-gas` successfully migrated to V3");
+        } else {
+            log::info!("Storage `pallet-gear-gas` was already migrated to V3");
+        }
 
         Ok(())
     }
