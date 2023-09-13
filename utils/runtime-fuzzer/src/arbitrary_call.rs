@@ -191,6 +191,7 @@ fn config(
     programs: [ProgramId; GearCalls::INIT_MSGS],
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
+    let initial_pages = 2;
     let mut injection_amounts = SysCallsInjectionAmounts::all_once();
     injection_amounts.set_multiple(
         [
@@ -207,6 +208,10 @@ fn config(
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (10..=20).into());
+    params_config.add_rule(
+        ParamType::Free,
+        (initial_pages..=initial_pages + 250).into(),
+    );
 
     let existing_addresses = NonEmpty::collect(
         programs
@@ -226,6 +231,7 @@ fn config(
         existing_addresses,
         log_info,
         params_config,
+        initial_pages: initial_pages as u32,
         ..Default::default()
     }
 }

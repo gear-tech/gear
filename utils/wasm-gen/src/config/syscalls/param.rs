@@ -20,7 +20,7 @@
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
-use crate::DEFAULT_INITIAL_SIZE;
+use crate::{MemoryPagesConfig, DEFAULT_INITIAL_SIZE};
 use arbitrary::{Result, Unstructured};
 use std::{collections::HashMap, ops::RangeInclusive};
 
@@ -83,6 +83,8 @@ impl SysCallsParamsConfig {
 
 impl Default for SysCallsParamsConfig {
     fn default() -> Self {
+        let free_start = DEFAULT_INITIAL_SIZE as i64;
+        let free_end = free_start + 5;
         Self(
             [
                 (ParamType::Size, (0..=0x10000).into()),
@@ -93,7 +95,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Duration, (1..=8).into()),
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
-                (ParamType::Free, (0..=DEFAULT_INITIAL_SIZE as i64).into()),
+                (ParamType::Free, (free_start..=free_end).into()),
             ]
             .into_iter()
             .collect(),

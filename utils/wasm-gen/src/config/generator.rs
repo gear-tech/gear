@@ -20,7 +20,7 @@
 
 use crate::SysCallsConfig;
 
-pub(crate) const DEFAULT_INITIAL_SIZE: u32 = MemoryPagesConfig::MAX_VALUE / 2;
+pub(crate) const DEFAULT_INITIAL_SIZE: u32 = 16;
 
 /// Builder for [`GearWasmGeneratorConfig`].
 pub struct GearWasmGeneratorConfigBuilder(GearWasmGeneratorConfig);
