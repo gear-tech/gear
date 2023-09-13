@@ -17,17 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Runs provided from the cli corpus
-
-//! Just simply run `cargo run -- -p <path_to_corpus>`.
+//!
+//! Alternatively, `cargo fuzz run` can be used to reproduce some corpus,
+//! but it won't give logs of [`GearCalls`] generation, which sheds some
+//! light on how `gear-wasm-gen` worked.
+//! Just simply run `cargo run --release -- -p <path_to_corpus>`.
 
 use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
-use std::{
-    fs,
-    path::PathBuf,
-};
-use runtime_fuzzer::{GearCalls, self};
 use clap::Parser;
+use runtime_fuzzer::{self, GearCalls};
+use std::{fs, path::PathBuf};
 
 /// A simple tool to run corpus.
 #[derive(Debug, Parser)]
