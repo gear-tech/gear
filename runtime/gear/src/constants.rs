@@ -20,6 +20,9 @@
 pub mod currency {
     use runtime_primitives::Balance;
 
+    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
+    pub const DOLLARS: Balance = UNITS * 20; // 1 token is worth ~$0.05
+
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
 

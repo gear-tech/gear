@@ -31,7 +31,7 @@ use vara_runtime::{
     constants::currency::{DOLLARS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
     AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    StakingRewardsConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
@@ -105,8 +105,6 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 wasm_binary,
                 // Initial PoA authorities
                 vec![authority_keys_from_seed("Alice")],
-                // Sudo account
-                get_account_id_from_seed::<sr25519::Public>("Alice"),
                 // Pre-funded accounts
                 vec![
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -148,8 +146,6 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     authority_keys_from_seed("Alice"),
                     authority_keys_from_seed("Bob"),
                 ],
-                // Sudo account
-                get_account_id_from_seed::<sr25519::Public>("Alice"),
                 // Pre-funded accounts
                 vec![
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -513,9 +509,6 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                 ],
-                // Sudo account
-                // 5CtLwzLdsTZnyA3TN7FUV58FV4NZ1tUuTDM9yjwRuvt6ac1i
-                hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
                 // Pre-funded accounts
                 vec![
                     // root_key
@@ -552,7 +545,6 @@ fn testnet_genesis(
         ImOnlineId,
         AuthorityDiscoveryId,
     )>,
-    root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     bank_account: AccountId,
     _enable_println: bool,
@@ -607,10 +599,6 @@ fn testnet_genesis(
             slash_reward_fraction: Perbill::from_percent(10),
             min_nominator_bond: MIN_NOMINATOR_BOND,
             ..Default::default()
-        },
-        sudo: SudoConfig {
-            // Assign network admin rights.
-            key: Some(root_key),
         },
         im_online: ImOnlineConfig { keys: vec![] },
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },

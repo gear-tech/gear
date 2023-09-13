@@ -27,6 +27,11 @@ use codec::Encode;
 use core::convert::TryFrom;
 use frame_support::{storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use gear_node_testing::{
+    client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
+    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+};
+use gear_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
 use sc_client_api::Backend;
 use sc_transaction_pool::BasicPool;
 use sc_transaction_pool_api::{
@@ -46,11 +51,6 @@ use sp_runtime::{
     Digest, DigestItem,
 };
 use std::{sync::Arc, thread::sleep, time};
-use testing::{
-    client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
-};
-use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
 
 const SOURCE: TransactionSource = TransactionSource::External;
 
@@ -141,19 +141,29 @@ fn custom_extrinsic_is_placed_in_each_block() {
 
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
-    let mut nonce = 0_u32;
-    let extrinsics = checked_extrinsics(1, bob(), &mut nonce)
-        .iter()
-        .map(|x| {
-            sign(
-                x.clone(),
-                VERSION.spec_version,
-                VERSION.transaction_version,
-                genesis_hash,
-            )
-            .into()
-        })
-        .collect::<Vec<_>>();
+    let mut nonce = 1_u32;
+
+    // Create an extrinsic that prefunds the bank account
+    let pre_fund_bank_xt = sign(
+        CheckedExtrinsic {
+            signed: Some((alice(), signed_extra(0))),
+            function: pre_fund_bank_account_call(),
+        },
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+
+    let mut extrinsics = vec![pre_fund_bank_xt.into()];
+    extrinsics.extend(checked_extrinsics(1, bob(), &mut nonce).iter().map(|x| {
+        sign(
+            x.clone(),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )
+        .into()
+    }));
 
     block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
     block_on(
@@ -227,19 +237,29 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
 
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
-    let mut nonce = 0_u32;
-    let extrinsics = checked_extrinsics(1, bob(), &mut nonce)
-        .iter()
-        .map(|x| {
-            sign(
-                x.clone(),
-                VERSION.spec_version,
-                VERSION.transaction_version,
-                genesis_hash,
-            )
-            .into()
-        })
-        .collect::<Vec<_>>();
+    let mut nonce = 1_u32;
+
+    // Create an extrinsic that prefunds the bank account
+    let pre_fund_bank_xt = sign(
+        CheckedExtrinsic {
+            signed: Some((alice(), signed_extra(0))),
+            function: pre_fund_bank_account_call(),
+        },
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+
+    let mut extrinsics = vec![pre_fund_bank_xt.into()];
+    extrinsics.extend(checked_extrinsics(1, bob(), &mut nonce).iter().map(|x| {
+        sign(
+            x.clone(),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )
+        .into()
+    }));
 
     block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
 
@@ -336,7 +356,7 @@ fn queue_remains_intact_if_processing_fails() {
 
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
-    let mut nonce = 0_u32;
+    let mut nonce = 1_u32;
     let mut checked = checked_extrinsics(5, bob(), &mut nonce);
     // Disable queue processing in Gear pallet as the root
     checked.push(CheckedExtrinsic {

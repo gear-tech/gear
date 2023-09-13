@@ -99,8 +99,6 @@ pub use pallet_balances::Call as BalancesCall;
 #[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
-pub use pallet_sudo::Call as SudoCall;
-#[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
@@ -798,11 +796,6 @@ impl pallet_identity::Config for Runtime {
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_sudo::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type RuntimeCall = RuntimeCall;
-}
-
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -872,7 +865,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => !matches!(
                 c,
                 RuntimeCall::Balances(..)
-                    | RuntimeCall::Sudo(..)
                     | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
                     | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
             ),
@@ -1148,6 +1140,7 @@ construct_runtime!(
         ChildBounties: pallet_child_bounties = 30,
         NominationPools: pallet_nomination_pools = 31,
 
+        // NOTE (!): `pallet_sudo` used to be idx(99).
         GearProgram: pallet_gear_program = 100,
         GearMessenger: pallet_gear_messenger = 101,
         GearScheduler: pallet_gear_scheduler = 102,
@@ -1158,11 +1151,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
-        Sudo: pallet_sudo = 99,
-
         // NOTE (!): `pallet_airdrop` used to be idx(198).
-
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
     }
@@ -1212,6 +1201,7 @@ construct_runtime!(
         ChildBounties: pallet_child_bounties = 30,
         NominationPools: pallet_nomination_pools = 31,
 
+        // NOTE (!): `pallet_sudo` used to be idx(99).
         GearProgram: pallet_gear_program = 100,
         GearMessenger: pallet_gear_messenger = 101,
         GearScheduler: pallet_gear_scheduler = 102,
@@ -1221,9 +1211,6 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
-
-        // TODO: Remove in stage 3
-        Sudo: pallet_sudo = 99,
 
         // NOTE (!): `pallet_airdrop` used to be idx(198).
     }
