@@ -55,7 +55,7 @@ frame-support.workspace = true
 frame-benchmarking.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "gear-native"]
 std = [
     "runtime-primitives/std",
     "common/std",
