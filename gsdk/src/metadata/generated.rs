@@ -525,10 +525,11 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub enum GasNode<_0, _1, _2> {
+                    pub enum GasNode<_0, _1, _2, _3> {
                         #[codec(index = 0)]
                         External {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
@@ -539,12 +540,14 @@ pub mod runtime_types {
                         #[codec(index = 1)]
                         Cut {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         },
                         #[codec(index = 2)]
                         Reserved {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
@@ -553,6 +556,7 @@ pub mod runtime_types {
                         #[codec(index = 3)]
                         SpecifiedLocal {
                             parent: _1,
+                            root: _1,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
@@ -562,6 +566,7 @@ pub mod runtime_types {
                         #[codec(index = 4)]
                         UnspecifiedLocal {
                             parent: _1,
+                            root: _1,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
                         },
@@ -681,6 +686,13 @@ pub mod runtime_types {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum GasMultiplier<_0, _1> {
+                #[codec(index = 0)]
+                ValuePerGas(_0),
+                #[codec(index = 1)]
+                GasPerValue(_1),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Program<_0> {
@@ -8786,11 +8798,6 @@ pub mod runtime_types {
         }
         pub mod vara_runtime {
             use super::runtime_types;
-            pub mod extensions {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DisableValueTransfers;
-            }
             pub mod governance {
                 use super::runtime_types;
                 pub mod origins {
