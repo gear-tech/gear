@@ -561,9 +561,9 @@ impl<'a> Program<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_state_using_wasm<E: Encode, D: Decode>(
+    pub fn read_state_using_wasm<E: Encode, P: Encode, D: Decode>(
         &self,
-        payload: E,
+        payload: P,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,

@@ -27,10 +27,10 @@ fn read_state_bytes_with_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V1.to_vec(),
             state_args_encoded!(),
-            Default::default(),
         )
         .expect("Unable to read program state");
 
@@ -52,10 +52,10 @@ fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args_encoded!(&other_person),
-            Default::default(),
         )
         .expect("Unable to read program state");
 
@@ -79,10 +79,10 @@ fn read_state_bytes_with_two_args_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args_encoded!(name.clone(), surname.clone()),
-            Default::default(),
         )
         .expect("Unable to read program state");
 
@@ -100,7 +100,7 @@ fn read_state_returns_full_state() {
     let program = initialize_current_program(&system);
 
     let actual_state: Vec<Wallet> = program
-        .read_state(Default::default())
+        .read_state(Vec::<u8>::default())
         .expect("Unable to read program state");
 
     let expected_state = Wallet::test_sequence();
@@ -117,10 +117,10 @@ fn read_state_with_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V1.to_vec(),
             state_args!(),
-            Default::default(),
         )
         .expect("Unable to read program state");
 
@@ -142,10 +142,10 @@ fn read_state_with_parameterized_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args!(other_person.clone()),
-            Default::default(),
         )
         .expect("Unable to read program state");
 
@@ -168,10 +168,10 @@ fn read_state_with_two_args_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_using_wasm(
+            Vec::<u8>::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args!(name.clone(), surname.clone()),
-            Default::default(),
         )
         .expect("Unable to read program state");
 

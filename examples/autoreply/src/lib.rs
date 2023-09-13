@@ -18,6 +18,8 @@
 
 #![no_std]
 
+extern crate alloc;
+
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -31,6 +33,7 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
     use gstd::ActorId;
     use gtest::{Program, System};
 
@@ -59,7 +62,7 @@ mod tests {
 
         // Check whether the auto-reply was received
         let reply_received: bool = prog2
-            .read_state(Default::default())
+            .read_state(Vec::<u8>::default())
             .expect("Failed to read state");
         assert!(reply_received);
     }
