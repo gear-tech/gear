@@ -144,7 +144,10 @@ where
                 change: ProgramChangeKind::Paused,
             });
 
-            return <T as Config>::WeightInfo::tasks_pause_program(pages_with_data).ref_time();
+            let gas = <T as Config>::WeightInfo::tasks_pause_program(pages_with_data).ref_time();
+            log::trace!("Task gas: tasks_pause_program = {gas}");
+
+            return gas;
         };
 
         // terminate uninitialized program
@@ -196,7 +199,11 @@ where
             change: ProgramChangeKind::Terminated,
         });
 
-        <T as Config>::WeightInfo::tasks_pause_program_uninited(pages_with_data).ref_time()
+        let gas =
+            <T as Config>::WeightInfo::tasks_pause_program_uninited(pages_with_data).ref_time();
+        log::trace!("Task gas: tasks_pause_program_uninited = {gas}");
+
+        gas
     }
 
     fn remove_code(&mut self, _code_id: CodeId) -> Gas {
@@ -226,7 +233,10 @@ where
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-        <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
+        let gas = <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time();
+        log::trace!("Task gas: tasks_remove_from_mailbox = {gas}");
+
+        gas
     }
 
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
@@ -299,7 +309,10 @@ where
             Self::process_failed_init(program_id, origin, true);
         }
 
-        <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time()
+        let gas = <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time();
+        log::trace!("Task gas: tasks_remove_from_waitlist = {gas}");
+
+        gas
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) -> Gas {
@@ -316,9 +329,17 @@ where
                 QueueOf::<T>::queue(dispatch)
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-                <T as Config>::WeightInfo::tasks_wake_message().ref_time()
+                let gas = <T as Config>::WeightInfo::tasks_wake_message().ref_time();
+                log::trace!("Task gas: tasks_wake_message = {gas}");
+
+                gas
             }
-            None => <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
+            None => {
+                let gas = <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time();
+                log::trace!("Task gas: tasks_wake_message_no_wake = {gas}");
+
+                gas
+            }
         }
     }
 
@@ -334,7 +355,10 @@ where
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-        <T as Config>::WeightInfo::tasks_send_dispatch().ref_time()
+        let gas = <T as Config>::WeightInfo::tasks_send_dispatch().ref_time();
+        log::trace!("Task gas: tasks_send_dispatch = {gas}");
+
+        gas
     }
 
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas {
@@ -354,9 +378,15 @@ where
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
 
         if to_mailbox {
-            <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time()
+            let gas = <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time();
+            log::trace!("Task gas: tasks_send_user_message_to_mailbox = {gas}");
+
+            gas
         } else {
-            <T as Config>::WeightInfo::tasks_send_user_message().ref_time()
+            let gas = <T as Config>::WeightInfo::tasks_send_user_message().ref_time();
+            log::trace!("Task gas: tasks_send_user_message = {gas}");
+
+            gas
         }
     }
 
@@ -367,14 +397,19 @@ where
     ) -> Gas {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
 
-        <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
+        let gas = <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time();
+        log::trace!("Task gas: tasks_remove_gas_reservation = {gas}");
+
+        gas
     }
 
     fn remove_resume_session(&mut self, session_id: SessionId) -> Gas {
-        log::debug!("Execute task to remove resume session with session_id = {session_id}");
         ProgramStorageOf::<T>::remove_resume_session(session_id)
             .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
 
-        <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time()
+        let gas = <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time();
+        log::trace!("Task gas: tasks_remove_resume_session = {gas}");
+
+        gas
     }
 }
