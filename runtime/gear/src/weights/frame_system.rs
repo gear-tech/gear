@@ -66,7 +66,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 5_949_000 picoseconds.
         Weight::from_parts(6_153_000, 0)
             // Standard Error: 0
-            .saturating_add(Weight::from_parts(1_437, 0).saturating_mul(b.into()))
+            .saturating_add(Weight::from_parts(1_441, 0).saturating_mul(b.into()))
     }
     fn set_heap_pages() -> Weight {
         // Proof Size summary in bytes:
@@ -134,7 +134,7 @@ impl WeightInfo for () {
         // Minimum execution time: 5_949_000 picoseconds.
         Weight::from_parts(6_153_000, 0)
             // Standard Error: 0
-            .saturating_add(Weight::from_parts(1_437, 0).saturating_mul(b.into()))
+            .saturating_add(Weight::from_parts(1_441, 0).saturating_mul(b.into()))
     }
     fn set_heap_pages() -> Weight {
         // Proof Size summary in bytes:

@@ -942,6 +942,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 2_641
             .saturating_add(Weight::from_parts(153_781, 0).saturating_mul(n.into()))
     }
+    /// The range of component `r` is `[0, 20]`.
     fn gr_send_push_input(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`

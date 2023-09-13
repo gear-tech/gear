@@ -45,7 +45,7 @@ pub trait WeightInfo {
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_airdrop::WeightInfo for SubstrateWeight<T> {
     /// The range of component `q` is `[1, 256]`.
-    fn transfer(q: u32, ) -> Weight {
+    fn transfer(_q: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `103`
         //  Estimated: `6196`
@@ -71,7 +71,7 @@ impl<T: frame_system::Config> pallet_airdrop::WeightInfo for SubstrateWeight<T> 
 // For backwards compatibility and tests
 impl WeightInfo for () {
     /// The range of component `q` is `[1, 256]`.
-    fn transfer(q: u32, ) -> Weight {
+    fn transfer(_q: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `103`
         //  Estimated: `6196`
