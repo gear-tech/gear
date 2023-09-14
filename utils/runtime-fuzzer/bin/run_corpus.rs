@@ -39,7 +39,7 @@ use std::{fs, path::PathBuf};
 struct Params {
     /// Path to the file, which contains corpus.
     #[arg(short, long)]
-    pub path: PathBuf,
+    path: PathBuf,
 }
 
 fn main() -> Result<()> {
