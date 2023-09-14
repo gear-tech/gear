@@ -35,7 +35,9 @@ use std::{collections::BTreeMap, iter};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
-    Alloc,
+    Alloc {
+        allowed_values: Option<SysCallParamAllowedValues>,
+    },
     Value {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
@@ -56,7 +58,9 @@ pub(crate) fn process_sys_call_params(
             continue;
         }
         let processed_param = match param {
-            ParamType::Alloc => ProcessedSysCallParams::Alloc,
+            ParamType::Alloc => ProcessedSysCallParams::Alloc {
+                allowed_values: params_config.get_rule(&param),
+            },
             ParamType::Ptr(maybe_idx) => maybe_idx
                 .map(|_| {
                     // skipping next as we don't need the following `Size` param,
@@ -87,7 +91,7 @@ pub(crate) fn process_sys_call_params(
 /// data injection outcome ([`AddressesInjectionOutcome`]). The latter was introduced
 /// to give additional guarantees for config and generators consistency. Otherwise,
 /// if there wasn't any addresses injection outcome, which signals that there was a try to
-/// inject addresses, sys-calls invocator could falsely set `gr_send*` call's destination param
+/// inject addresses, sys-calls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
 /// to random value. For example, existing addresses could have been defined in the config, but
 /// additional data injector was disabled, before injecting addresses from the config. As a result,
 /// invocator would set un-intended by config values as messages destination. To avoid such
@@ -180,8 +184,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             );
 
             for _ in 0..amount {
-                let instructions =
-                    self.build_sys_call_invoke_instructions(invocable, call_indexes_handle)?;
+                let instructions = self.build_sys_call_invoke_instructions(
+                    invocable,
+                    invocable.into_signature(),
+                    call_indexes_handle,
+                )?;
                 invoke_instructions.push(instructions);
             }
         }
@@ -204,6 +211,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     fn build_sys_call_invoke_instructions(
         &mut self,
         invocable: InvocableSysCall,
+        signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<SysCallInvokeInstructions> {
         log::trace!(
@@ -212,42 +220,37 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let insert_error_processing = self
-            .config
-            .error_processing_config()
-            .error_should_be_processed(&invocable);
-        let (fallible, mut signature) = (invocable.is_fallible(), invocable.into_signature());
-
-        if self.is_not_send_sys_call(invocable) {
+        if self.is_sys_call_with_destination(invocable) {
             log::trace!(
-                " -- Generating build call for non-send sys-call {}",
+                " -- Generating build call for {} sys-call with destination",
                 invocable.to_str()
             );
-            return self.build_call(
-                signature,
-                fallible,
-                insert_error_processing,
-                call_indexes_handle,
+
+            self.build_call_with_destination(invocable, signature, call_indexes_handle)
+        } else {
+            log::trace!(
+                " -- Generating build call for common sys-call {}",
+                invocable.to_str()
             );
+
+            self.build_call(invocable, signature, call_indexes_handle)
         }
+    }
 
-        log::trace!(
-            " -- Generating build call for send sys-call {}",
-            invocable.to_str()
-        );
-
+    fn build_call_with_destination(
+        &mut self,
+        invocable: InvocableSysCall,
+        mut signature: SysCallSignature,
+        call_indexes_handle: CallIndexesHandle,
+    ) -> Result<Vec<Instruction>> {
         // The value for the first param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
         signature.params.remove(0);
-        let mut call_without_destination_instrs = self.build_call(
-            signature,
-            fallible,
-            insert_error_processing,
-            call_indexes_handle,
-        )?;
+        let mut call_without_destination_instrs =
+            self.build_call(invocable, signature, call_indexes_handle)?;
 
-        let res = if self.config.sending_message_destination().is_source() {
-            log::trace!(" -- Message destination is result of `gr_source`");
+        let res = if self.config.sys_call_destination().is_source() {
+            log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
                 .sys_call_imports
@@ -282,17 +285,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
-                    assert!(self
-                        .config
-                        .sending_message_destination()
-                        .is_existing_addresses());
-                    log::trace!(" -- Message destination is an existing program address");
+                    assert!(self.config.sys_call_destination().is_existing_addresses());
+                    log::trace!(" -- Sys-call destination is an existing program address");
 
                     offsets.next_offset()
                 }
                 None => {
-                    assert!(self.config.sending_message_destination().is_random());
-                    log::trace!(" -- Message destination is a random address");
+                    assert!(self.config.sys_call_destination().is_random());
+                    log::trace!(" -- Sys-call destination is a random address");
 
                     self.unstructured.arbitrary()?
                 }
@@ -307,23 +307,32 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(res)
     }
 
-    fn is_not_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
+    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
+        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
+    }
+
+    fn is_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
         use InvocableSysCall::*;
-        ![
+        [
             Loose(SysCallName::Send),
             Loose(SysCallName::SendWGas),
             Loose(SysCallName::SendInput),
             Loose(SysCallName::SendInputWGas),
             Precise(SysCallName::ReservationSend),
+            Precise(SysCallName::SendCommit),
+            Precise(SysCallName::SendCommitWGas),
         ]
         .contains(&sys_call)
     }
 
+    fn is_exit_sys_call(&self, sys_call: InvocableSysCall) -> bool {
+        matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
+    }
+
     fn build_call(
         &mut self,
+        invocable: InvocableSysCall,
         signature: SysCallSignature,
-        fallible: bool,
-        insert_error_processing: bool,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let param_setters = self.build_param_setters(&signature.params)?;
@@ -335,9 +344,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
 
+        let insert_error_processing = self
+            .config
+            .error_processing_config()
+            .error_should_be_processed(&invocable);
+
         let mut result_processing = if !insert_error_processing {
             Self::build_result_processing_ignored(signature)
-        } else if fallible {
+        } else if invocable.is_fallible() {
             Self::build_result_processing_fallible(signature, &param_setters)
         } else {
             Self::build_result_processing_infallible(signature)
@@ -364,15 +378,17 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mut setters = Vec::with_capacity(params.len());
         for processed_param in process_sys_call_params(params, self.config.params_config()) {
             match processed_param {
-                ProcessedSysCallParams::Alloc => {
-                    let pages_to_alloc = self
-                        .unstructured
-                        .int_in_range(0..=mem_size_pages.saturating_sub(1))?;
-                    let setter = ParamSetter::new_i32(pages_to_alloc as i32);
+                ProcessedSysCallParams::Alloc { allowed_values } => {
+                    let pages_to_alloc = if let Some(allowed_values) = allowed_values {
+                        allowed_values.get_i32(self.unstructured)?
+                    } else {
+                        let mem_size_pages = (mem_size_pages / 3).max(1);
+                        self.unstructured.int_in_range(0..=mem_size_pages)? as i32
+                    };
 
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");
 
-                    setters.push(setter);
+                    setters.push(ParamSetter::new_i32(pages_to_alloc));
                 }
                 ProcessedSysCallParams::Value {
                     value_type,

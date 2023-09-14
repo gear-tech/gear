@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.3.2"
+version = "0.3.4"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -23,6 +23,7 @@ members = [
     "examples/async-init",
     "examples/async-signal-entry",
     "examples/async-tester",
+    "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
     "examples/compose",
@@ -156,10 +157,10 @@ static_assertions = "1"
 subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-syn = "2.0.28"
+syn = "2.0.31"
 thiserror = "1.0.44"
 tokio = { version = "1.27.0" }
-url = "2.3.1"
+url = "2.4.1"
 wat = "1.0.71"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
@@ -394,7 +395,7 @@ demo-program-generator = { path = "examples/program-generator" }
 demo-proxy = { path = "examples/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
-demo-read-big-state = { path = "examples/read-big-state" }
+demo-read-big-state = { path = "examples/read-big-state", default-features = false }
 demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas" }
 demo-rwlock = { path = "examples/rwlock" }
@@ -436,7 +437,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.3"                                                            # utils/wasm-builder
+toml = "0.7.7"                                                            # utils/wasm-builder
 tracing = "0.1.37"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
