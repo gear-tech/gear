@@ -251,10 +251,8 @@ impl CallIndexes {
         self.inner.get(handle_idx).copied()
     }
 
-    fn custom_funcs(&self) -> Vec<usize> {
-        let mut funcs: Vec<_> = self.custom_funcs.iter().cloned().collect();
-        funcs.sort();
-        funcs
+    fn is_custom_func(&self, idx: usize) -> bool {
+        self.custom_funcs.contains(&idx)
     }
 
     fn len(&self) -> usize {

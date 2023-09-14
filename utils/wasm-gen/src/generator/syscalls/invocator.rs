@@ -542,23 +542,13 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let insert_into_funcs = self.call_indexes.custom_funcs();
-        // Keep it sorted by func_id to perform binary search on it.
-        let mut insertion_mapping: Vec<(usize, Vec<SysCallInvokeInstructions>)> = vec![];
-        for ixs in instructions {
-            let insert_into = *self.unstructured.choose(&insert_into_funcs)?;
-            let partition =
-                insertion_mapping.partition_point(|&(func_id, _)| func_id < insert_into);
+        let code_funcs = self.module.count_code_funcs();
+        let insert_into_funcs: Vec<_> = (0..code_funcs)
+            .filter(|idx| !self.call_indexes.is_custom_func(*idx))
+            .collect();
 
-            if !insertion_mapping.is_empty()
-                && partition != insertion_mapping.len()
-                && insertion_mapping[partition].0 == insert_into
-            {
-                insertion_mapping[partition].1.push(ixs);
-            } else {
-                insertion_mapping.insert(partition, (insert_into, vec![ixs]));
-            }
-        }
+        let insertion_mapping =
+            self.get_syscall_insertion_mapping(instructions, &insert_into_funcs)?;
 
         self.module.with(|mut module| {
             for (insert_into_fn, instructions) in insertion_mapping {
@@ -601,6 +591,31 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             (module, Ok(()))
         })
+    }
+
+    fn get_syscall_insertion_mapping(
+        &mut self,
+        instructions: Vec<SysCallInvokeInstructions>,
+        insert_into_funcs: &[usize],
+    ) -> Result<Vec<(usize, Vec<SysCallInvokeInstructions>)>> {
+        // Keep it sorted by func_id to perform binary search on it.
+        let mut insertion_mapping: Vec<(usize, Vec<SysCallInvokeInstructions>)> =
+            Vec::with_capacity(insert_into_funcs.len());
+        for ixs in instructions {
+            let insert_into = *self.unstructured.choose(insert_into_funcs)?;
+            let partition =
+                insertion_mapping.partition_point(|&(func_id, _)| func_id < insert_into);
+
+            if !insertion_mapping.is_empty()
+                && partition != insertion_mapping.len()
+                && insertion_mapping[partition].0 == insert_into
+            {
+                insertion_mapping[partition].1.push(ixs);
+            } else {
+                insertion_mapping.insert(partition, (insert_into, vec![ixs]));
+            }
+        }
+        Ok(insertion_mapping)
     }
 
     fn resolves_calls_indexes(&mut self) {
