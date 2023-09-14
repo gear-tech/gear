@@ -223,7 +223,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         &mut self,
         sys_call: SysCallName,
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
-        let sys_call_amount_range = self.config.injection_amounts(sys_call);
+        let sys_call_amount_range = self
+            .config
+            .injection_amounts(InvocableSysCall::Loose(sys_call));
         let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
         Ok((sys_call_amount != 0).then(|| {
             let call_indexes_handle = self.insert_sys_call_import(sys_call);

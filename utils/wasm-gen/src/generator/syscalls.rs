@@ -113,6 +113,16 @@ impl InvocableSysCall {
         }
     }
 
+    pub(crate) fn has_precise_variant(sys_call: SysCallName) -> bool {
+        matches!(
+            sys_call,
+            SysCallName::ReservationSend
+                | SysCallName::ReservationReply
+                | SysCallName::SendCommit
+                | SysCallName::SendCommitWGas
+        )
+    }
+
     // If syscall changes from fallible into infallible or vice versa in future,
     // we'll see it by analyzing code coverage stats produced by fuzzer.
     pub(crate) fn is_fallible(&self) -> bool {

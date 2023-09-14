@@ -20,36 +20,43 @@
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
+use crate::InvocableSysCall;
+
 use gear_wasm_instrument::syscalls::SysCallName;
 use std::{collections::HashMap, ops::RangeInclusive};
 
 /// Possible injection amount ranges for each sys-call.
 #[derive(Debug, Clone)]
-pub struct SysCallsInjectionAmounts(HashMap<SysCallName, RangeInclusive<u32>>);
+pub struct SysCallsInjectionAmounts(HashMap<InvocableSysCall, RangeInclusive<u32>>);
 
 impl SysCallsInjectionAmounts {
-    /// Instantiate a sys-calls amounts ranges map, where each gear sys-call is injected into wasm-module only once.
-    pub fn all_once() -> Self {
+    fn new_with_range(range: RangeInclusive<u32>) -> Self {
+        let sys_calls = SysCallName::instrumentable();
         Self(
-            SysCallName::instrumentable()
-                .into_iter()
-                .map(|name| (name, (1..=1)))
+            sys_calls
+                .iter()
+                .cloned()
+                .map(|name| (InvocableSysCall::Loose(name), range.clone()))
+                .chain(sys_calls.iter().cloned().filter_map(|name| {
+                    InvocableSysCall::has_precise_variant(name)
+                        .then_some((InvocableSysCall::Precise(name), range.clone()))
+                }))
                 .collect(),
         )
+    }
+
+    /// Instantiate a sys-calls amounts ranges map, where each gear sys-call is injected into wasm-module only once.
+    pub fn all_once() -> Self {
+        Self::new_with_range(1..=1)
     }
 
     /// Instantiate a sys-calls amounts ranges map, where no gear sys-call is ever injected into wasm-module.
     pub fn all_never() -> Self {
-        Self(
-            SysCallName::instrumentable()
-                .into_iter()
-                .map(|name| (name, (0..=0)))
-                .collect(),
-        )
+        Self::new_with_range(0..=0)
     }
 
     /// Get amount possible sys-call amount range.
-    pub fn get(&self, name: SysCallName) -> RangeInclusive<u32> {
+    pub fn get(&self, name: InvocableSysCall) -> RangeInclusive<u32> {
         self.0
             .get(&name)
             .cloned()
@@ -57,14 +64,14 @@ impl SysCallsInjectionAmounts {
     }
 
     /// Sets possible amount range for the the sys-call.
-    pub fn set(&mut self, name: SysCallName, min: u32, max: u32) {
+    pub fn set(&mut self, name: InvocableSysCall, min: u32, max: u32) {
         self.0.insert(name, min..=max);
     }
 
     ///  Same as [`SysCallsAmountRanges::set`], but sets amount ranges for multiple sys-calls.
     pub fn set_multiple(
         &mut self,
-        sys_calls_freqs: impl Iterator<Item = (SysCallName, RangeInclusive<u32>)>,
+        sys_calls_freqs: impl Iterator<Item = (InvocableSysCall, RangeInclusive<u32>)>,
     ) {
         self.0.extend(sys_calls_freqs)
     }

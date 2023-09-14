@@ -23,7 +23,8 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
+    EntryPointsSet, InvocableSysCall, StandardGearWasmConfigsBundle, SysCallName,
+    SysCallsInjectionAmounts,
 };
 use sha1::*;
 use std::{
@@ -191,11 +192,17 @@ fn config(
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    injection_amounts.set(SysCallName::Leave, 0, 0);
-    injection_amounts.set(SysCallName::Panic, 0, 0);
-    injection_amounts.set(SysCallName::OomPanic, 0, 0);
-    injection_amounts.set(SysCallName::Send, 20, 30);
-    injection_amounts.set(SysCallName::Exit, 0, 1);
+    injection_amounts.set_multiple(
+        [
+            (SysCallName::Leave, 0..=0),
+            (SysCallName::Panic, 0..=0),
+            (SysCallName::OomPanic, 0..=0),
+            (SysCallName::Send, 20..=30),
+            (SysCallName::Exit, 0..=1),
+        ]
+        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .into_iter(),
+    );
 
     let existing_addresses = NonEmpty::collect(
         programs

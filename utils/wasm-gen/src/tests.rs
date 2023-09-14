@@ -245,7 +245,11 @@ fn execute_wasm_with_syscall_injected(
     let mut unstructured = Unstructured::new(&buf);
 
     let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+    injection_amounts.set(
+        InvocableSysCall::Loose(syscall),
+        INJECTED_SYSCALLS,
+        INJECTED_SYSCALLS,
+    );
 
     let error_processing_config = if ignore_fallible_errors {
         ErrorProcessingConfig::None
