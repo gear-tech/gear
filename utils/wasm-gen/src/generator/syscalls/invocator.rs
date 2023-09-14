@@ -35,7 +35,9 @@ use std::{collections::BTreeMap, iter};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
-    Alloc,
+    Alloc {
+        allowed_values: Option<SysCallParamAllowedValues>,
+    },
     Value {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
@@ -56,7 +58,9 @@ pub(crate) fn process_sys_call_params(
             continue;
         }
         let processed_param = match param {
-            ParamType::Alloc => ProcessedSysCallParams::Alloc,
+            ParamType::Alloc => ProcessedSysCallParams::Alloc {
+                allowed_values: params_config.get_rule(&param),
+            },
             ParamType::Ptr(maybe_idx) => maybe_idx
                 .map(|_| {
                     // skipping next as we don't need the following `Size` param,
@@ -360,15 +364,17 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mut setters = Vec::with_capacity(params.len());
         for processed_param in process_sys_call_params(params, self.config.params_config()) {
             match processed_param {
-                ProcessedSysCallParams::Alloc => {
-                    let pages_to_alloc = self
-                        .unstructured
-                        .int_in_range(0..=mem_size_pages.saturating_sub(1))?;
-                    let setter = ParamSetter::new_i32(pages_to_alloc as i32);
+                ProcessedSysCallParams::Alloc { allowed_values } => {
+                    let pages_to_alloc = if let Some(allowed_values) = allowed_values {
+                        allowed_values.get_i32(self.unstructured)?
+                    } else {
+                        let mem_size_pages = (mem_size_pages / 3).max(1);
+                        self.unstructured.int_in_range(0..=mem_size_pages)? as i32
+                    };
 
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");
 
-                    setters.push(setter);
+                    setters.push(ParamSetter::new_i32(pages_to_alloc));
                 }
                 ProcessedSysCallParams::Value {
                     value_type,
