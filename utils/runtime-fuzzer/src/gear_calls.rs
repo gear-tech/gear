@@ -24,7 +24,8 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, StandardGearWasmConfigsBundle, SysCallName, SysCallsInjectionAmounts,
+    EntryPointsSet, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 
 /// Maximum payload size for the fuzzer - 512 KiB.
@@ -312,14 +313,34 @@ fn config(
     programs: &[ProgramId],
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
-    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(SysCallName::Leave, 0, 0);
-    injection_amounts.set(SysCallName::Panic, 0, 0);
-    injection_amounts.set(SysCallName::OomPanic, 0, 0);
-    injection_amounts.set(SysCallName::Send, 20, 30);
-    injection_amounts.set(SysCallName::Exit, 0, 1);
+    let initial_pages = 2;
+    let mut injection_amounts = SysCallsInjectionAmounts::all_once();
+    injection_amounts.set_multiple(
+        [
+            (SysCallName::Leave, 0..=0),
+            (SysCallName::Panic, 0..=0),
+            (SysCallName::OomPanic, 0..=0),
+            (SysCallName::Send, 20..=30),
+            (SysCallName::Exit, 0..=1),
+            (SysCallName::Alloc, 20..=30),
+            (SysCallName::Free, 20..=30),
+        ]
+        .into_iter(),
+    );
 
-    let existing_addresses = NonEmpty::collect(programs.iter().copied());
+    let mut params_config = SysCallsParamsConfig::default();
+    params_config.add_rule(ParamType::Alloc, (10..=20).into());
+    params_config.add_rule(
+        ParamType::Free,
+        (initial_pages..=initial_pages + 250).into(),
+    );
+
+    let existing_addresses = NonEmpty::collect(
+        programs
+            .iter()
+            .copied()
+            .filter(|&pid| pid != ProgramId::default()),
+    );
 
     log::trace!(
         "Messages will be sent to existing addresses {:?}",
@@ -331,7 +352,8 @@ fn config(
         injection_amounts,
         existing_addresses,
         log_info,
-
+        params_config,
+        initial_pages: initial_pages as u32,
         ..Default::default()
     }
 }
