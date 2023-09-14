@@ -23,8 +23,8 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSysCall, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionAmounts,
+    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 use sha1::*;
 use std::{
@@ -191,6 +191,7 @@ fn config(
     programs: [ProgramId; GearCalls::INIT_MSGS],
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
+    let initial_pages = 2;
     let mut injection_amounts = SysCallsInjectionAmounts::all_once();
     injection_amounts.set_multiple(
         [
@@ -199,9 +200,18 @@ fn config(
             (SysCallName::OomPanic, 0..=0),
             (SysCallName::Send, 20..=30),
             (SysCallName::Exit, 0..=1),
+            (SysCallName::Alloc, 20..=30),
+            (SysCallName::Free, 20..=30),
         ]
         .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
+    );
+
+    let mut params_config = SysCallsParamsConfig::default();
+    params_config.add_rule(ParamType::Alloc, (10..=20).into());
+    params_config.add_rule(
+        ParamType::Free,
+        (initial_pages..=initial_pages + 250).into(),
     );
 
     let existing_addresses = NonEmpty::collect(
@@ -221,6 +231,8 @@ fn config(
         injection_amounts,
         existing_addresses,
         log_info,
+        params_config,
+        initial_pages: initial_pages as u32,
         ..Default::default()
     }
 }
