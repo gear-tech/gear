@@ -23,7 +23,7 @@ use crate::{
         CallIndexes, CallIndexesHandle, DisabledSysCallsImportsGenerator, ModuleWithCallIndexes,
         SysCallsImportsGenerationProof,
     },
-    utils, EntryPointName, InvocableSysCall, MessageDestination, SysCallsConfig, WasmModule,
+    utils, EntryPointName, InvocableSysCall, SysCallDestination, SysCallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
 use gear_core::ids::ProgramId;
@@ -140,7 +140,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             ));
         }
 
-        let MessageDestination::ExistingAddresses(existing_addresses) = self.config.sending_message_destination() else {
+        let SysCallDestination::ExistingAddresses(existing_addresses) = self.config.sys_call_destination() else {
             return None;
         };
 
