@@ -511,7 +511,7 @@ impl<'a> Program<'a> {
     }
 
     /// Reads and decodes the program's state .
-    pub fn read_state<D: Decode, E: Encode>(&self, payload: E) -> Result<D> {
+    pub fn read_state<D: Decode, P: Encode>(&self, payload: P) -> Result<D> {
         let state_bytes = self.read_state_bytes(payload.encode())?;
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
