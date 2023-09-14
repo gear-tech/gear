@@ -443,8 +443,8 @@ impl ExtManager {
     /// Warning! This is a static call that doesn't change actors pages data.
     pub(crate) fn read_state_bytes(
         &mut self,
-        program_id: &ProgramId,
         payload: Vec<u8>,
+        program_id: &ProgramId,
     ) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
@@ -474,11 +474,11 @@ impl ExtManager {
 
     pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
+        payload: Vec<u8>,
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
-        payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
         let mapping_code = Code::try_new_mock_const_or_no_rules(
             wasm,
@@ -492,7 +492,7 @@ impl ExtManager {
             .0;
 
         let mut mapping_code_payload = args.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state_bytes(program_id, payload)?);
+        mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
 
         core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
             String::from(fn_name),

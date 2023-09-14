@@ -449,7 +449,7 @@ impl<'a> Program<'a> {
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .read_state_bytes(&self.id, payload)
+            .read_state_bytes(payload, &self.id)
     }
 
     /// Reads the program’s transformed state as a byte vector. The transformed
@@ -507,7 +507,7 @@ impl<'a> Program<'a> {
     ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, args, payload)
+            .read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
     }
 
     /// Reads and decodes the program's state .
