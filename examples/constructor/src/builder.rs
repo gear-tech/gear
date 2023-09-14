@@ -323,4 +323,8 @@ impl Calls {
     pub fn infinite_loop(self) -> Self {
         self.add_call(Call::Loop)
     }
+
+    pub fn write_in_loop(self, count: impl Into<Arg<u64>>) -> Self {
+        self.add_call(Call::WriteN(count.into()))
+    }
 }

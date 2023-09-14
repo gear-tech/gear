@@ -66,7 +66,11 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
+#[cfg(any(feature = "std", test))]
+use sp_api::{CallApiAt, OverlayedChanges, ProofRecorder, StateBackend, StorageTransactionCache};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
+#[cfg(any(feature = "std", test))]
+use sp_runtime::traits::HashFor;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -814,5 +818,42 @@ impl_runtime_apis_plus_common! {
         fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
             unimplemented!();
         }
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> Clone for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<sp_runtime::traits::HashFor<B>>,
+    <C::StateBackend as StateBackend<sp_runtime::traits::HashFor<B>>>::Transaction: Clone,
+{
+    fn clone(&self) -> Self {
+        unimplemented!()
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> common::RuntimeApiExt<C> for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<HashFor<B>>,
+    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+{
+    type Params = (
+        bool,
+        OverlayedChanges,
+        StorageTransactionCache<B, C::StateBackend>,
+        Option<ProofRecorder<B>>,
+    );
+
+    fn deconstruct(self) -> (&'static C, Self::Params) {
+        unimplemented!()
+    }
+
+    fn restore(_call: &C, _params: Self::Params) -> Self {
+        unimplemented!()
     }
 }
