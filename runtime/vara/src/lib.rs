@@ -19,6 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+#![allow(clippy::items_after_test_module)]
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
@@ -78,7 +79,11 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
+#[cfg(any(feature = "std", test))]
+use sp_api::{CallApiAt, OverlayedChanges, ProofRecorder, StateBackend, StorageTransactionCache};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
+#[cfg(any(feature = "std", test))]
+use sp_runtime::traits::HashFor;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
@@ -1426,6 +1431,63 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> Clone for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<HashFor<B>>,
+    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            call: <&C>::clone(&self.call),
+            commit_on_success: self.commit_on_success.clone(),
+            changes: self.changes.clone(),
+            storage_transaction_cache: self.storage_transaction_cache.clone(),
+            recorder: self.recorder.clone(),
+        }
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> common::RuntimeApiExt<C> for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<HashFor<B>>,
+    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+{
+    type Params = (
+        bool,
+        OverlayedChanges,
+        StorageTransactionCache<B, C::StateBackend>,
+        Option<ProofRecorder<B>>,
+    );
+
+    fn deconstruct(self) -> (&'static C, Self::Params) {
+        (
+            self.call,
+            (
+                *core::cell::RefCell::borrow(&self.commit_on_success),
+                core::cell::RefCell::borrow(&self.changes).clone(),
+                core::cell::RefCell::borrow(&self.storage_transaction_cache).clone(),
+                self.recorder,
+            ),
+        )
+    }
+
+    fn restore(call: &C, params: Self::Params) -> Self {
+        Self {
+            call: unsafe { std::mem::transmute(call) },
+            commit_on_success: params.0.into(),
+            changes: core::cell::RefCell::new(params.1),
+            storage_transaction_cache: core::cell::RefCell::new(params.2),
+            recorder: params.3,
         }
     }
 }

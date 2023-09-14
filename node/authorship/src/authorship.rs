@@ -17,30 +17,39 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
+use common::RuntimeApiExt;
 use futures::{
     channel::oneshot,
     future,
-    future::{Future, FutureExt},
+    future::{Either, Future, FutureExt},
     select,
 };
+use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::backend;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_api::{ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
 use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, Proposal};
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
+    generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
     Digest, Percent, SaturatedConversion,
 };
-use std::{marker::PhantomData, pin::Pin, sync::Arc, time};
+use std::{
+    marker::PhantomData,
+    ops::Deref,
+    pin::Pin,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use crate::block_builder::BlockBuilderExt;
+use crate::block_builder::BlockBuilder;
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 
@@ -53,13 +62,15 @@ use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 /// transferred to other nodes.
 pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 
-const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
+const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(20);
 
 /// [`Proposer`] factory.
 pub struct ProposerFactory<A, B, C, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     /// The client instance.
     client: Arc<C>,
+    /// The backend instance.
+    backend: Arc<B>,
     /// The transaction pool.
     transaction_pool: Arc<A>,
     /// Prometheus Link,
@@ -82,18 +93,19 @@ pub struct ProposerFactory<A, B, C, PR> {
     include_proof_in_block_size_estimation: bool,
     /// Hard limit for the gas allowed to burn in one block.
     max_gas: Option<u64>,
-    /// phantom member to pin the `Backend`/`ProofRecording` type.
-    _phantom: PhantomData<(B, PR)>,
+    /// phantom member to pin the `ProofRecording` type.
+    _phantom: PhantomData<PR>,
 }
 
 impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
     /// Create a new proposer factory.
     ///
-    /// Proof recording will be disabled when using proposers built by this instance to build
-    /// blocks.
+    /// Proof recording will be disabled when using proposers built by this instance
+    /// to build blocks.
     pub fn new(
         spawn_handle: impl SpawnNamed + 'static,
         client: Arc<C>,
+        backend: Arc<B>,
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
@@ -107,6 +119,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
             soft_deadline_percent: DEFAULT_SOFT_DEADLINE_PERCENT,
             telemetry,
             client,
+            backend,
             include_proof_in_block_size_estimation: false,
             max_gas,
             _phantom: PhantomData,
@@ -124,12 +137,14 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
     pub fn with_proof_recording(
         spawn_handle: impl SpawnNamed + 'static,
         client: Arc<C>,
+        backend: Arc<B>,
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
     ) -> Self {
         ProposerFactory {
             client,
+            backend,
             spawn_handle: Box::new(spawn_handle),
             transaction_pool,
             metrics: PrometheusMetrics::new(prometheus),
@@ -190,12 +205,13 @@ where
         + 'static,
     C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
         + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+        + GearRuntimeApi<Block>
+        + Clone,
 {
     fn init_with_now(
         &mut self,
         parent_header: &<Block as BlockT>::Header,
-        now: Box<dyn Fn() -> time::Instant + Send + Sync>,
+        now: Box<dyn Fn() -> Instant + Send + Sync>,
     ) -> Proposer<B, Block, C, A, PR> {
         let parent_hash = parent_header.hash();
 
@@ -207,6 +223,7 @@ where
         let proposer = Proposer::<_, _, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
+            backend: self.backend.clone(),
             parent_hash,
             parent_number: *parent_header.number(),
             transaction_pool: self.transaction_pool.clone(),
@@ -237,7 +254,9 @@ where
         + 'static,
     C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
         + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+        + GearRuntimeApi<Block>
+        + Clone
+        + RuntimeApiExt<C>,
     PR: ProofRecording,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
@@ -245,9 +264,7 @@ where
     type Error = sp_blockchain::Error;
 
     fn init(&mut self, parent_header: &<Block as BlockT>::Header) -> Self::CreateProposer {
-        future::ready(Ok(
-            self.init_with_now(parent_header, Box::new(time::Instant::now))
-        ))
+        future::ready(Ok(self.init_with_now(parent_header, Box::new(Instant::now))))
     }
 }
 
@@ -255,17 +272,18 @@ where
 pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     client: Arc<C>,
+    backend: Arc<B>,
     parent_hash: Block::Hash,
     parent_number: <<Block as BlockT>::Header as HeaderT>::Number,
     transaction_pool: Arc<A>,
-    now: Box<dyn Fn() -> time::Instant + Send + Sync>,
+    now: Box<dyn Fn() -> Instant + Send + Sync>,
     metrics: PrometheusMetrics,
     default_block_size_limit: usize,
     include_proof_in_block_size_estimation: bool,
     soft_deadline_percent: Percent,
     telemetry: Option<TelemetryHandle>,
     max_gas: Option<u64>,
-    _phantom: PhantomData<(B, PR)>,
+    _phantom: PhantomData<PR>,
 }
 
 impl<A, B, Block, C, PR> sp_consensus::Proposer<Block> for Proposer<B, Block, C, A, PR>
@@ -281,7 +299,9 @@ where
         + 'static,
     C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
         + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+        + GearRuntimeApi<Block>
+        + Clone
+        + RuntimeApiExt<C>,
     PR: ProofRecording,
 {
     type Transaction = backend::TransactionFor<B, Block>;
@@ -299,7 +319,7 @@ where
         self,
         inherent_data: InherentData,
         inherent_digests: Digest,
-        max_duration: time::Duration,
+        max_duration: Duration,
         block_size_limit: Option<usize>,
     ) -> Self::Proposal {
         let (tx, rx) = oneshot::channel();
@@ -327,7 +347,7 @@ where
 /// If the block is full we will attempt to push at most
 /// this number of transactions before quitting for real.
 /// It allows us to increase block utilization.
-const MAX_SKIPPED_TRANSACTIONS: usize = 8;
+const MAX_SKIPPED_TRANSACTIONS: usize = 5;
 
 impl<A, B, Block, C, PR> Proposer<B, Block, C, A, PR>
 where
@@ -342,28 +362,36 @@ where
         + 'static,
     C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
         + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+        + GearRuntimeApi<Block>
+        + Clone
+        + RuntimeApiExt<C>,
     PR: ProofRecording,
 {
     async fn propose_with(
         self,
         inherent_data: InherentData,
         inherent_digests: Digest,
-        deadline: time::Instant,
+        deadline: Instant,
         block_size_limit: Option<usize>,
     ) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
     {
-        let propose_with_start = time::Instant::now();
-        let mut block_builder = BlockBuilderExt::new(
-            self.client
-                .new_block_at(self.parent_hash, inherent_digests, PR::ENABLED)?,
-            self.client.runtime_api(),
-            self.parent_hash,
-        );
+        let propose_with_start = Instant::now();
+        let parent_hash = self.parent_hash;
+        let parent_number = self
+            .client
+            .expect_block_number_from_id(&BlockId::Hash(parent_hash))?;
+        let mut block_builder = BlockBuilder::new(
+            self.client.as_ref(),
+            parent_hash,
+            parent_number,
+            PR::ENABLED.into(),
+            inherent_digests.clone(),
+            self.backend.as_ref(),
+        )?;
 
-        let create_inherents_start = time::Instant::now();
+        let create_inherents_start = Instant::now();
         let inherents = block_builder.create_inherents(inherent_data)?;
-        let create_inherents_end = time::Instant::now();
+        let create_inherents_end = Instant::now();
 
         self.metrics.report(|metrics| {
             metrics.create_inherents_time.observe(
@@ -400,8 +428,8 @@ where
         let left = deadline.saturating_duration_since(now);
         let left_micros: u64 = left.as_micros().saturated_into();
         let soft_deadline =
-            now + time::Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
-        let block_timer = time::Instant::now();
+            now + Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
+        let block_timer = Instant::now();
         let mut skipped = 0;
         let mut unqueue_invalid = Vec::new();
 
@@ -412,7 +440,7 @@ where
         let mut pending_iterator = select! {
             res = t1 => res,
             _ = t2 => {
-                log::warn!(target: "gear::authorship",
+                warn!(target: "gear::authorship",
                     "Timeout fired waiting for transaction pool at block #{}. \
                     Proceeding with production.",
                     self.parent_number,
@@ -520,25 +548,87 @@ where
 
         self.transaction_pool.remove_invalid(&unqueue_invalid);
 
-        // Pushing a custom extrinsic that must run at the end of a block
-        let custom_extrinsic = block_builder.create_terminal_extrinsic(self.max_gas)?;
+        // Attempt to apply pseudo-inherent on top of the current overlay in a separate thread.
+        // In case the timeout is hit, we will proceed without it.
+        let client = self.client.clone();
+        let backend = self.backend.clone();
+        let pseudo_inherent = block_builder.create_terminal_extrinsic(self.max_gas)?;
+        let (extrinsics, api, version, _, _, estimated_header_size) =
+            block_builder.clone().deconstruct();
+        // We need the overlay changes and transaction storage cache to send to a new thread.
+        // The cloned `RuntimaApi` object can't be sent to a new thread directly so we have to
+        // break it down into parts (that are `Send`) and then reconstruct it in the new thread.
+        // If changes applied successfully, the updated extrinsics and api parts will be sent back
+        // to update the original block builder and finalize the block.
+        let (_, api_params) = api.deref().clone().deconstruct();
 
-        debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
-        match block_builder.push(custom_extrinsic) {
-            Ok(()) => {
-                debug!(target: "gear::authorship", "⚙️  ... pushed to the block");
+        let update_block = async move {
+            let (tx, rx) = oneshot::channel();
+            let spawn_handle = self.spawn_handle.clone();
+
+            spawn_handle.spawn_blocking(
+                "block-builder-push",
+                None,
+                Box::pin(async move {
+                    debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
+                    let mut block_builder = BlockBuilder::<'_, Block, C, B>::from_parts(
+                        extrinsics,
+                        ApiRef::from(C::Api::restore(client.as_ref(), api_params)),
+                        version,
+                        parent_hash,
+                        backend.as_ref(),
+                        estimated_header_size);
+                    let outcome = block_builder.push(pseudo_inherent).map(|_| {
+                        let (extrinsics, api, _, _, _, _) =
+                            block_builder.deconstruct();
+                        let (_, api_params) = api.deref().clone().deconstruct();
+                        (extrinsics, api_params)
+                    });
+                    if tx.send(outcome).is_err() {
+                        debug!(
+                            target: "gear::authorship",
+                            "🔒 Send failure: the receiver must have already closed the channel.");
+                    };
+                }),
+            );
+
+            rx.await?
+        }.boxed();
+        match futures::future::select(
+            update_block,
+            // TODO: consider adding some tolerance here like `deadline` + 20% or something.
+            // We know we have almost 0.5s for block finalization while `on_finalize` hooks
+            // for the pallets in our Runtime take almost no weight.
+            Delay::new(deadline.saturating_duration_since((self.now)())),
+        )
+        .await
+        {
+            Either::Left((res, _)) => {
+                match res {
+                    Ok((extrinsics, api_params)) => {
+                        debug!(target: "gear::authorship", "⚙️  ... pushed to the block");
+                        let mut api = C::Api::restore(self.client.as_ref(), api_params);
+                        block_builder.set_api(&mut api);
+                        block_builder.set_extrinsics(extrinsics);
+                    }
+                    Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
+                        warn!(target: "gear::authorship", "⚠️  Dropping terminal extrinsic from an overweight block.");
+                    }
+                    Err(e) => {
+                        error!(target: "gear::authorship",
+                            "❗️ Terminal extrinsic returned an error: {}. Dropping.",
+                            e
+                        );
+                    }
+                };
             }
-            Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-                warn!(target: "gear::authorship", "⚠️  Dropping terminal extrinsic from an overweight block.")
-            }
-            Err(e) => {
-                error!(target: "gear::authorship",
-                    "❗️ Terminal extrinsic returned an error: {}. Dropping.",
-                    e
+            Either::Right(_) => {
+                error!(
+                    target: "gear::authorship",
+                    "⌛️ Pseudo-inherent is taking too long and will not be included in the block."
                 );
             }
-        }
-
+        };
         let (block, storage_changes, proof) = block_builder.build()?.into_inner();
 
         self.metrics.report(|metrics| {
@@ -553,18 +643,19 @@ where
         });
 
         info!(
-			"🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; extrinsics ({}): [{}]]",
-			block.header().number(),
-			block_timer.elapsed().as_millis(),
-			block.header().hash(),
-			block.header().parent_hash(),
-			block.extrinsics().len(),
-			block.extrinsics()
-				.iter()
-				.map(|xt| BlakeTwo256::hash_of(xt).to_string())
-				.collect::<Vec<_>>()
-				.join(", ")
-		);
+            target: "gear::authorship",
+            "🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; extrinsics ({}): [{}]]",
+            block.header().number(),
+            block_timer.elapsed().as_millis(),
+            block.header().hash(),
+            block.header().parent_hash(),
+            block.extrinsics().len(),
+            block.extrinsics()
+                .iter()
+                .map(|xt| BlakeTwo256::hash_of(xt).to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
         telemetry!(
             self.telemetry;
             CONSENSUS_INFO;
@@ -576,7 +667,7 @@ where
         let proof =
             PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
 
-        let propose_with_end = time::Instant::now();
+        let propose_with_end = Instant::now();
         self.metrics.report(|metrics| {
             metrics.create_block_proposal_time.observe(
                 propose_with_end
