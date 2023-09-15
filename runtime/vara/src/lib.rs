@@ -313,8 +313,8 @@ impl pallet_scheduler::Config for Runtime {
 
 parameter_types! {
     pub const PreimageMaxSize: u32 = 4096 * 1024;
-    pub const PreimageBaseDeposit: Balance = DOLLARS;
-    pub const PreimageByteDeposit: Balance = CENTS;
+    pub const PreimageBaseDeposit: Balance = ECONOMIC_UNITS;
+    pub const PreimageByteDeposit: Balance = ECONOMIC_CENTIUNITS;
 }
 
 impl pallet_preimage::Config for Runtime {
@@ -451,9 +451,9 @@ parameter_types! {
     pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
     // signed config
-    pub const SignedRewardBase: Balance = DOLLARS;
-    pub const SignedDepositBase: Balance = DOLLARS;
-    pub const SignedDepositByte: Balance = CENTS;
+    pub const SignedRewardBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
 
     pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
@@ -679,13 +679,13 @@ impl pallet_offences::Config for Runtime {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: Balance = DOLLARS;
+    pub const ProposalBondMinimum: Balance = ECONOMIC_UNITS;
     pub const SpendPeriod: BlockNumber = DAYS;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TipCountdown: BlockNumber = DAYS;
     pub const TipFindersFee: Percent = Percent::from_percent(20);
-    pub const TipReportDepositBase: Balance = DOLLARS;
-    pub const DataDepositPerByte: Balance = CENTS;
+    pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
+    pub const DataDepositPerByte: Balance = ECONOMIC_CENTIUNITS;
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
     pub const MaximumReasonLength: u32 = 300;
     pub const MaxApprovals: u32 = 100;
@@ -712,11 +712,11 @@ impl pallet_treasury::Config for Runtime {
 
 parameter_types! {
     pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-    pub const BountyValueMinimum: Balance = 5 * DOLLARS;
-    pub const BountyDepositBase: Balance = DOLLARS;
+    pub const BountyValueMinimum: Balance = 5 * ECONOMIC_UNITS;
+    pub const BountyDepositBase: Balance = ECONOMIC_UNITS;
     pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
-    pub const CuratorDepositMin: Balance = DOLLARS;
-    pub const CuratorDepositMax: Balance = 100 * DOLLARS;
+    pub const CuratorDepositMin: Balance = ECONOMIC_UNITS;
+    pub const CuratorDepositMax: Balance = 100 * ECONOMIC_UNITS;
     pub const BountyDepositPayoutDelay: BlockNumber = DAYS;
     pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
 }
@@ -737,7 +737,7 @@ impl pallet_bounties::Config for Runtime {
 }
 
 parameter_types! {
-    pub const ChildBountyValueMinimum: Balance = DOLLARS;
+    pub const ChildBountyValueMinimum: Balance = ECONOMIC_UNITS;
 }
 
 impl pallet_child_bounties::Config for Runtime {
@@ -775,9 +775,9 @@ impl pallet_authority_discovery::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-    pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+    pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
+    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS;        // 66 bytes on-chain
+    pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
     pub const MaxRegistrars: u32 = 20;
@@ -1094,7 +1094,7 @@ where
 }
 
 parameter_types! {
-    pub const MinVestedTransfer: Balance = 100 * CENTS;
+    pub const MinVestedTransfer: Balance = 100 * ECONOMIC_CENTIUNITS;
     pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
         WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
