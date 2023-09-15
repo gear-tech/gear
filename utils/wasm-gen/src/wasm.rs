@@ -18,7 +18,7 @@
 
 use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Arbitrary, Result, Unstructured};
-use core::mem;
+use core::{mem, ops::Deref};
 use gear_core::pages::WASM_PAGE_SIZE;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -164,6 +164,14 @@ impl WasmModule {
             parity_wasm::deserialize_buffer(wasm_smith_module.to_bytes().as_ref())
                 .expect("internal error: wasm smith generated non-deserializable module"),
         )
+    }
+}
+
+impl Deref for WasmModule {
+    type Target = Module;
+
+    fn deref(&self) -> &Module {
+        &self.0
     }
 }
 

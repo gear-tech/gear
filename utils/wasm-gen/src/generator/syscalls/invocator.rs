@@ -175,25 +175,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let mut invoke_instructions = vec![];
-        for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
-            log::trace!(
-                "Inserting the {} sys_call {} times",
-                invocable.to_str(),
-                amount
-            );
-
-            for _ in 0..amount {
-                let instructions = self.build_sys_call_invoke_instructions(
-                    invocable,
-                    invocable.into_signature(),
-                    call_indexes_handle,
-                )?;
-                invoke_instructions.push(instructions);
-            }
-        }
-
-        self.insert_sys_call_instructions(invoke_instructions)?;
+        self.insert_sys_calls()?;
 
         log::trace!(
             "Random data after inserting all sys-calls invocations - {}",
@@ -533,10 +515,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         ]
     }
 
-    fn insert_sys_call_instructions(
-        &mut self,
-        instructions: Vec<SysCallInvokeInstructions>,
-    ) -> Result<()> {
+    fn insert_sys_calls(&mut self) -> Result<()> {
         log::trace!(
             "Random data before inserting sys-calls invoke instructions - {}",
             self.unstructured.len()
@@ -547,61 +526,44 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .filter(|idx| !self.call_indexes.is_custom_func(*idx))
             .collect();
 
+        let syscalls_to_insert = self
+            .sys_call_imports
+            .clone()
+            .into_iter()
+            .map(|(syscall, (amount, _))| {
+                iter::repeat(syscall)
+                    .take(amount as usize)
+                    .collect::<Vec<_>>()
+            })
+            .flatten();
+
         let insertion_mapping =
-            self.get_syscall_insertion_mapping(instructions, &insert_into_funcs)?;
+            self.get_syscall_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
 
-        self.module.with(|mut module| {
-            for (insert_into_fn, instructions) in insertion_mapping {
-                let code = module
-                    .code_section_mut()
-                    .expect("has at least one function by config")
-                    .bodies_mut()[insert_into_fn]
-                    .code_mut()
-                    .elements_mut();
+        for (insert_into_fn, syscalls) in insertion_mapping {
+            self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
+        }
 
-                // The end of insertion range is second-to-last index, as the last
-                // index is defined for `Instruction::End` of the function body.
-                // But if there's only one instruction in the function, then `0`
-                // index is used as an insertion point.
-                let last = if code.len() > 1 { code.len() - 2 } else { 0 };
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions - {}",
+            self.unstructured.len()
+        );
 
-                let mut insertion_positions = vec![];
-                for ixs in instructions {
-                    let pos = match self.unstructured.int_in_range(0..=last) {
-                        Ok(pos) => pos,
-                        Err(err) => {
-                            return (module, Err(err));
-                        }
-                    };
-                    insertion_positions.push((pos, ixs));
-                }
-                // Sort in descending order.
-                insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
-
-                for (pos, ixs) in insertion_positions {
-                    log::trace!(" -- Inserting into position {pos}");
-                    code.splice(pos..pos, ixs);
-                }
-            }
-
-            log::trace!(
-                "Random data after inserting sys-calls invoke instructions - {}",
-                self.unstructured.len()
-            );
-
-            (module, Ok(()))
-        })
+        Ok(())
     }
 
-    fn get_syscall_insertion_mapping(
+    fn get_syscall_insertion_mapping<I>(
         &mut self,
-        instructions: Vec<SysCallInvokeInstructions>,
+        syscalls: I,
         insert_into_funcs: &[usize],
-    ) -> Result<Vec<(usize, Vec<SysCallInvokeInstructions>)>> {
+    ) -> Result<Vec<(usize, Vec<InvocableSysCall>)>>
+    where
+        I: Iterator<Item = InvocableSysCall>,
+    {
         // Keep it sorted by func_id to perform binary search on it.
-        let mut insertion_mapping: Vec<(usize, Vec<SysCallInvokeInstructions>)> =
+        let mut insertion_mapping: Vec<(usize, Vec<InvocableSysCall>)> =
             Vec::with_capacity(insert_into_funcs.len());
-        for ixs in instructions {
+        for syscall in syscalls {
             let insert_into = *self.unstructured.choose(insert_into_funcs)?;
             let partition =
                 insertion_mapping.partition_point(|&(func_id, _)| func_id < insert_into);
@@ -610,12 +572,82 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 && partition != insertion_mapping.len()
                 && insertion_mapping[partition].0 == insert_into
             {
-                insertion_mapping[partition].1.push(ixs);
+                insertion_mapping[partition].1.push(syscall);
             } else {
-                insertion_mapping.insert(partition, (insert_into, vec![ixs]));
+                insertion_mapping.insert(partition, (insert_into, vec![syscall]));
             }
         }
         Ok(insertion_mapping)
+    }
+
+    fn insert_sys_calls_into_fn(
+        &mut self,
+        insert_into_fn: usize,
+        syscalls: Vec<InvocableSysCall>,
+    ) -> Result<()> {
+        log::trace!(
+            "Random data before inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        let fn_code_len = self
+            .module
+            .code_section()
+            .expect("has at least one function by config")
+            .bodies()[insert_into_fn]
+            .code()
+            .elements()
+            .len();
+
+        // The end of insertion range is second-to-last index, as the last
+        // index is defined for `Instruction::End` of the function body.
+        // But if there's only one instruction in the function, then `0`
+        // index is used as an insertion point.
+        let last = if fn_code_len > 1 { fn_code_len - 2 } else { 0 };
+
+        let mut insertion_positions = syscalls
+            .into_iter()
+            .map(|syscall| Ok((self.unstructured.int_in_range(0..=last)?, syscall)))
+            .collect::<Result<Vec<_>>>()?;
+
+        // Sort in descending order.
+        insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        for (pos, syscall) in insertion_positions {
+            let call_indexes_handle = self
+                .sys_call_imports
+                .get(&syscall)
+                .expect("Syscall presented in sys_call_imports")
+                .1;
+            let instructions = self.build_sys_call_invoke_instructions(
+                syscall,
+                syscall.into_signature(),
+                call_indexes_handle,
+            )?;
+
+            log::trace!(
+                " -- Inserting syscall {} into function {insert_into_fn} at position {pos}",
+                syscall.to_str()
+            );
+
+            self.module.with(|mut module| {
+                let code = module
+                    .code_section_mut()
+                    .expect("has at least one function by config")
+                    .bodies_mut()[insert_into_fn]
+                    .code_mut()
+                    .elements_mut();
+                code.splice(pos..pos, instructions);
+                (module, ())
+            });
+        }
+
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        Ok(())
     }
 
     fn resolves_calls_indexes(&mut self) {
