@@ -214,10 +214,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                     name = InvocableSysCall::Precise(sys_call).to_str()
                 );
 
-                if let Err(err) = generate_method(self, sys_call) {
-                    match err {
-                        PreciseSysCallError::Arbitrary(err) => return Err(err),
-                    }
+                if let Err(PreciseSysCallError::Arbitrary(err)) = generate_method(self, sys_call) {
+                    return Err(err);
                 }
             }
         }
