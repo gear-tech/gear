@@ -4134,6 +4134,8 @@ dependencies = [
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
+ "pallet-gear-staking-rewards",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-multisig",
@@ -4286,6 +4288,8 @@ dependencies = [
  "log",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
+ "pallet-gear-staking-rewards-rpc",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment",
@@ -7662,6 +7666,25 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-gear-staking-rewards-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-gear-staking-rewards-rpc-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "pallet-gear-staking-rewards",
+ "sp-api",
 ]
 
 [[package]]
@@ -13501,6 +13524,7 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-gear-staking-rewards",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-identity",

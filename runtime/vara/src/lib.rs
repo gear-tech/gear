@@ -1382,4 +1382,10 @@ impl_runtime_apis_plus_common! {
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
         }
     }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            StakingRewards::inflation_info()
+        }
+    }
 }
