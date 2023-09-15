@@ -66,7 +66,7 @@ jobs:
         run: ./scripts/gear.sh init cargo
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
+        run: ./scripts/gear.sh build gear -F gear-cli/dev --locked --release
 
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked --release
@@ -96,7 +96,7 @@ jobs:
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
-          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
+          cargo build -p gear-cli --release --features=dev,runtime-benchmarks,runtime-benchmarks-checkers
           # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
           # check that read_big_state benchmarks works
