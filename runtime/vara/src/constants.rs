@@ -21,9 +21,10 @@ pub mod currency {
     use runtime_primitives::Balance;
 
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
-    pub const DOLLARS: Balance = UNITS * 50; // Theoretical cost ~$0.02
-    pub const CENTS: Balance = DOLLARS / 100; // 500_000_000_000
-    pub const MILLICENTS: Balance = CENTS / 1_000; // 500_000_000
+
+    /// Base economic unit, 50 Vara.
+    pub const ECONOMIC_UNITS: Balance = UNITS * 50;
+    pub const ECONOMIC_CENTIUNITS: Balance = ECONOMIC_UNITS / 100;
 
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 10 * UNITS; // 10 Vara
@@ -34,7 +35,7 @@ pub mod currency {
     /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
         // TODO: review numbers (#2650)
-        items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+        items as Balance * 15 * ECONOMIC_CENTIUNITS + (bytes as Balance) * 6 * ECONOMIC_CENTIUNITS
     }
 }
 

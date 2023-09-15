@@ -28,7 +28,7 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::{DOLLARS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
+    constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
     AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
     StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
@@ -617,8 +617,8 @@ fn testnet_genesis(
         transaction_payment: Default::default(),
         treasury: Default::default(),
         nomination_pools: NominationPoolsConfig {
-            min_create_bond: 10 * DOLLARS,
-            min_join_bond: DOLLARS,
+            min_create_bond: 10 * ECONOMIC_UNITS,
+            min_join_bond: ECONOMIC_UNITS,
             ..Default::default()
         },
         vesting: VestingConfig { vesting: vec![] },
