@@ -15263,7 +15263,7 @@ fn test_gas_info_of_terminated_program() {
         let handle_dead = Calls::builder().panic("Called after being terminated!");
         let (_, pid_dead) = utils::submit_constructor_with_args(
             USER_1,
-            b"salt1".to_vec(),
+            b"salt1",
             Scheme::predefined(init_dead, handle_dead, Calls::default()),
             0,
         );
@@ -15272,7 +15272,7 @@ fn test_gas_info_of_terminated_program() {
         let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
         let (_, proxy_pid) = utils::submit_constructor_with_args(
             USER_1,
-            b"salt2".to_vec(),
+            b"salt2",
             Scheme::predefined(Calls::default(), handle_proxy, Calls::default()),
             0,
         );
