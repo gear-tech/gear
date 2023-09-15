@@ -197,13 +197,26 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
     /// Generates precise sys-calls and handles errors if any occurred during generation.
     fn generate_precise_sys_calls(&mut self) -> Result<()> {
-        for result in [
-            self.generate_send_from_reservation(),
-            self.generate_reply_from_reservation(),
-            self.generate_send_commit(),
-            self.generate_send_commit_with_gas(),
-        ] {
-            if let Err(err) = result {
+        use SysCallName::*;
+
+        #[allow(clippy::type_complexity)]
+        let sys_calls: [(
+            SysCallName,
+            fn(&mut Self, SysCallName) -> Result<(), PreciseSysCallError>,
+        ); 4] = [
+            (ReservationSend, Self::generate_send_from_reservation),
+            (ReservationReply, Self::generate_reply_from_reservation),
+            (SendCommit, Self::generate_send_commit),
+            (SendCommitWGas, Self::generate_send_commit_with_gas),
+        ];
+
+        for (sys_call, generate_method) in sys_calls {
+            log::trace!(
+                "Constructing {name} sys-call...",
+                name = InvocableSysCall::Precise(sys_call).to_str()
+            );
+
+            if let Err(err) = generate_method(self, sys_call) {
                 match err {
                     PreciseSysCallError::RequiredImports(err) => log::trace!("{err}"),
                     PreciseSysCallError::Arbitrary(err) => return Err(err),
@@ -329,13 +342,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         log::trace!(
             "Built proper call to {precise_sys_call_name}",
-            precise_sys_call_name = InvocableSysCall::Precise(sys_call).to_str()
+            precise_sys_call_name = invocable_sys_call.to_str()
         );
 
         let call_indexes_handle = self.call_indexes.len();
         self.call_indexes.add_func(func_idx.signature as usize);
 
-        // TODO: make separate config for precise sys-calls (#3122)
         self.sys_calls_imports
             .insert(invocable_sys_call, (1, call_indexes_handle));
     }
@@ -357,15 +369,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
-    fn generate_send_from_reservation(&mut self) -> Result<(), PreciseSysCallError> {
-        const SYS_CALL: SysCallName = SysCallName::ReservationSend;
-        log::trace!(
-            "Constructing {name} sys-call...",
-            name = InvocableSysCall::Precise(SYS_CALL).to_str()
-        );
-
+    fn generate_send_from_reservation(
+        &mut self,
+        sys_call: SysCallName,
+    ) -> Result<(), PreciseSysCallError> {
         let [reserve_gas_idx, reservation_send_idx] =
-            self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_pid_value_ptr = self.reserve_memory();
@@ -445,21 +454,18 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
 
-        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions);
 
         Ok(())
     }
 
     /// Generates a function which calls "properly" the `gr_reservation_reply`.
-    fn generate_reply_from_reservation(&mut self) -> Result<(), PreciseSysCallError> {
-        const SYS_CALL: SysCallName = SysCallName::ReservationReply;
-        log::trace!(
-            "Constructing {name} sys-call...",
-            name = InvocableSysCall::Precise(SYS_CALL).to_str()
-        );
-
+    fn generate_reply_from_reservation(
+        &mut self,
+        sys_call: SysCallName,
+    ) -> Result<(), PreciseSysCallError> {
         let [reserve_gas_idx, reservation_reply_idx] =
-            self.invocable_sys_calls_indexes(&[SysCallName::ReserveGas, SYS_CALL])?;
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_value_ptr = self.reserve_memory();
@@ -520,25 +526,15 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
 
-        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions);
 
         Ok(())
     }
 
     /// Generates a function which calls "properly" the `gr_send_commit`.
-    fn generate_send_commit(&mut self) -> Result<(), PreciseSysCallError> {
-        const SYS_CALL: SysCallName = SysCallName::SendCommit;
-        log::trace!(
-            "Constructing {name} sys-call...",
-            name = InvocableSysCall::Precise(SYS_CALL).to_str()
-        );
-
+    fn generate_send_commit(&mut self, sys_call: SysCallName) -> Result<(), PreciseSysCallError> {
         let [send_init_idx, send_push_idx, send_commit_idx] =
-            self.invocable_sys_calls_indexes(&[
-                SysCallName::SendInit,
-                SysCallName::SendPush,
-                SYS_CALL,
-            ])?;
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
@@ -622,26 +618,18 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         let func_instructions = Instructions::new(elements);
 
-        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions);
 
         Ok(())
     }
 
     /// Generates a function which calls "properly" the `gr_send_commit_wgas`.
-    fn generate_send_commit_with_gas(&mut self) -> Result<(), PreciseSysCallError> {
-        const SYS_CALL: SysCallName = SysCallName::SendCommitWGas;
-        log::trace!(
-            "Constructing {name} sys-call...",
-            name = InvocableSysCall::Precise(SYS_CALL).to_str()
-        );
-
-        let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] = self
-            .invocable_sys_calls_indexes(&[
-                SysCallName::Size,
-                SysCallName::SendInit,
-                SysCallName::SendPushInput,
-                SYS_CALL,
-            ])?;
+    fn generate_send_commit_with_gas(
+        &mut self,
+        sys_call: SysCallName,
+    ) -> Result<(), PreciseSysCallError> {
+        let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] =
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
@@ -732,7 +720,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         let func_instructions = Instructions::new(elements);
 
-        self.generate_proper_sys_call_invocation(SYS_CALL, func_instructions);
+        self.generate_proper_sys_call_invocation(sys_call, func_instructions);
 
         Ok(())
     }
