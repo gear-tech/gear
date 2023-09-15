@@ -255,7 +255,7 @@ try-runtime = [
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
+dev = ["pallet-gear-debug", "pallet-gear-program/dev"]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
 	"pallet-gear-payment/lazy-pages",

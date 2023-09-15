@@ -91,6 +91,7 @@ pub fn authority_keys_from_seed(
     )
 }
 
+#[cfg(feature = "dev")]
 pub fn development_config() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 

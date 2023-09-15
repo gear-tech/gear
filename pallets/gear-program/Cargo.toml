@@ -55,4 +55,4 @@ std = [
 	"primitive-types/std",
 ]
 try-runtime = ["frame-support/try-runtime"]
-debug-mode = []
+dev = []

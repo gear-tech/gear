@@ -86,10 +86,10 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = [
 	"service/runtime-benchmarks-checkers",
 ]
-debug-mode = [
-	"service/debug-mode",
-	"gear-runtime?/debug-mode",
-	"vara-runtime?/debug-mode",
+dev = [
+	"service/dev",
+	"gear-runtime?/dev",
+	"vara-runtime?/dev",
 ]
 try-runtime = [
 	"service/try-runtime",
