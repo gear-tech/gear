@@ -52,6 +52,8 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
+            #[cfg(not(feature = "dev"))]
+            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
             #[cfg(all(feature = "gear-native", feature = "dev"))]
             "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
             #[cfg(all(feature = "vara-native", feature = "dev"))]
