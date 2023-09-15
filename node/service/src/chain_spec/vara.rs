@@ -27,11 +27,13 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
+#[cfg(feature = "dev")]
+use vara_runtime::SudoConfig;
 use vara_runtime::{
     constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
     AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    StakingRewardsConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
@@ -558,6 +560,9 @@ fn testnet_genesis(
     bank_account: AccountId,
     _enable_println: bool,
 ) -> GenesisConfig {
+    #[cfg(not(feature = "dev"))]
+    let _ = root_key;
+
     const ENDOWMENT: u128 = 1_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
@@ -609,6 +614,7 @@ fn testnet_genesis(
             min_nominator_bond: MIN_NOMINATOR_BOND,
             ..Default::default()
         },
+        #[cfg(feature = "dev")]
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
