@@ -58,3 +58,4 @@ testing = {workspace = true, features = ["vara-native"] }
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
 demo-mul-by-const.workspace = true
 env_logger.workspace = true
+service = { workspace = true, features = ["dev", "vara-native"] }

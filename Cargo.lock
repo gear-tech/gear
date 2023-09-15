@@ -3745,6 +3745,7 @@ dependencies = [
  "gear-common",
  "gear-node-testing",
  "gear-runtime-primitives",
+ "gear-service",
  "log",
  "pallet-balances",
  "pallet-gear",
