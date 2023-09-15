@@ -3,6 +3,9 @@ name = "gear-cli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -78,10 +81,10 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = [
 	"service/runtime-benchmarks-checkers",
 ]
-debug-mode = [
-	"service/debug-mode",
-	"gear-runtime?/debug-mode",
-	"vara-runtime?/debug-mode",
+dev = [
+	"service/dev",
+	"gear-runtime?/dev",
+	"vara-runtime?/dev",
 ]
 try-runtime = [
 	"service/try-runtime",

@@ -46,11 +46,11 @@ examples-proc: wasm-proc-release
 
 .PHONY: node
 node:
-	@ ./scripts/gear.sh build node
+	@ ./scripts/gear.sh build node -F dev
 
 .PHONY: node-release
 node-release:
-	@ ./scripts/gear.sh build node --release
+	@ ./scripts/gear.sh build node -F dev --release
 
 .PHONY: vara
 vara:

@@ -1,12 +1,12 @@
 [package]
 name = "gear-runtime"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
+build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -176,4 +176,4 @@ try-runtime = [
 	"validator-set/try-runtime",
 	"runtime-common/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
+dev = ["pallet-gear-debug", "pallet-gear-program/dev"]

@@ -1,12 +1,12 @@
 [package]
 name = "vara-runtime"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
+build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -49,7 +49,7 @@ pallet-referenda.workspace = true
 pallet-scheduler.workspace = true
 pallet-session = { workspace = true, features = [ "historical" ] }
 pallet-staking.workspace = true
-pallet-sudo.workspace = true
+pallet-sudo = { workspace = true, optional = true }
 pallet-timestamp.workspace = true
 pallet-transaction-payment.workspace = true
 pallet-treasury.workspace = true
@@ -98,7 +98,6 @@ pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
-pallet-airdrop.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -158,7 +157,7 @@ std = [
 	"pallet-session/std",
 	"pallet-scheduler/std",
 	"pallet-staking/std",
-	"pallet-sudo/std",
+	"pallet-sudo?/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
@@ -185,7 +184,6 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
-	"pallet-airdrop/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -200,7 +198,6 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-airdrop/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-conviction-voting/runtime-benchmarks",
@@ -248,15 +245,18 @@ try-runtime = [
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
-	"pallet-sudo/try-runtime",
+	"pallet-sudo?/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-whitelist/try-runtime",
-	"pallet-airdrop/try-runtime",
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
+dev = [
+	"pallet-gear-debug",
+	"pallet-gear-program/dev",
+	"pallet-sudo",
+]
