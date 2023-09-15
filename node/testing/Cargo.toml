@@ -72,5 +72,5 @@ std = [
     "gear-runtime?/std",
     "vara-runtime?/std",
 ]
-gear-native = ["gear-runtime"]
-vara-native = ["vara-runtime"]
+gear-native = ["gear-runtime/dev"]
+vara-native = ["vara-runtime/dev"]

@@ -55,6 +55,6 @@ pallet-balances  = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
 testing = {workspace = true, features = ["vara-native"] }
-vara-runtime  = { workspace = true, features = ["std"] }
+vara-runtime  = { workspace = true, features = ["std", "dev"] }
 demo-mul-by-const.workspace = true
 env_logger.workspace = true
