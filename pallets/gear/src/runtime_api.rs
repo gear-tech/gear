@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::queue::QueueStep;
+use crate::queue::{ActorResult, QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
+use core_processor::common::PrechargedDispatch;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage};
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -126,11 +127,25 @@ where
                 break;
             };
 
-            let actor_id = queued_dispatch.destination();
+            //let actor = ext_manager
+            //    .get_actor(actor_id)
+            //    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-            let actor = ext_manager
-                .get_actor(actor_id)
-                .ok_or_else(|| b"Program not found in the storage".to_vec())?;
+            let actor_id = queued_dispatch.destination();
+            let dispatch_id = queued_dispatch.id();
+            let dispatch_reply = queued_dispatch.reply_details().is_some();
+
+            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
+                actor_id.into_origin(),
+            ));
+
+            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
+                // At this point gas counters should be changed accordingly so fetch the program data.
+                match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
+                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
+                    ActorResult::Continue => Err(precharged_dispatch),
+                }
+            };
 
             let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
@@ -148,8 +163,8 @@ where
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch: queued_dispatch,
-                balance: actor.balance,
-                get_actor_data: |dispatch| Ok((dispatch, actor.executable_data)),
+                balance: balance.unique_saturated_into(),
+                get_actor_data,
             };
             let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
