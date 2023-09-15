@@ -27,7 +27,7 @@ use arbitrary::Result;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::{
-    Config as GearCallsConfig, GearCalls, MailboxProvider, SendMessageGenerator,
+    Config as GearCallsConfig, GearCalls, MailboxProvider, RepeatedGenerator, SendMessageGenerator,
     SendReplyGenerator, UploadProgramGenerator,
 };
 use gear_core::ids::MessageId;
@@ -86,7 +86,7 @@ pub fn min_unstructured_input_size() -> usize {
 
 fn calls_config(test_input_id: String) -> GearCallsConfig {
     GearCallsConfig::new(vec![
-        (
+        RepeatedGenerator::new(
             10,
             Box::new(UploadProgramGenerator {
                 gas: default_gas_limit(),
@@ -94,7 +94,7 @@ fn calls_config(test_input_id: String) -> GearCallsConfig {
                 test_input_id,
             }),
         ),
-        (
+        RepeatedGenerator::new(
             15,
             Box::new(SendMessageGenerator {
                 gas: default_gas_limit(),
@@ -102,7 +102,7 @@ fn calls_config(test_input_id: String) -> GearCallsConfig {
                 prepaid: false,
             }),
         ),
-        (
+        RepeatedGenerator::new(
             1,
             Box::new(SendReplyGenerator {
                 mailbox_provider: Box::from(MailboxProviderImpl {
