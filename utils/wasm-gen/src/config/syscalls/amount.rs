@@ -30,6 +30,17 @@ use std::{collections::HashMap, ops::RangeInclusive};
 pub struct SysCallsInjectionAmounts(HashMap<InvocableSysCall, RangeInclusive<u32>>);
 
 impl SysCallsInjectionAmounts {
+    /// Instantiate a sys-calls amounts ranges map, where each gear sys-call is injected into wasm-module only once.
+    pub fn all_once() -> Self {
+        Self::new_with_range(1..=1)
+    }
+
+    /// Instantiate a sys-calls amounts ranges map, where no gear sys-call is ever injected into wasm-module.
+    pub fn all_never() -> Self {
+        Self::new_with_range(0..=0)
+    }
+
+    /// Instantiate a sys-calls amounts ranges map with given range.
     fn new_with_range(range: RangeInclusive<u32>) -> Self {
         let sys_calls = SysCallName::instrumentable();
         Self(
@@ -43,16 +54,6 @@ impl SysCallsInjectionAmounts {
                 }))
                 .collect(),
         )
-    }
-
-    /// Instantiate a sys-calls amounts ranges map, where each gear sys-call is injected into wasm-module only once.
-    pub fn all_once() -> Self {
-        Self::new_with_range(1..=1)
-    }
-
-    /// Instantiate a sys-calls amounts ranges map, where no gear sys-call is ever injected into wasm-module.
-    pub fn all_never() -> Self {
-        Self::new_with_range(0..=0)
     }
 
     /// Get amount possible sys-call amount range.
