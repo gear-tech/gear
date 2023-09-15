@@ -98,7 +98,7 @@ pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 #[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
-#[cfg(any(feature = "std", test))]
+#[cfg(all(feature = "dev", any(feature = "std", test)))]
 pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -798,6 +798,7 @@ impl pallet_identity::Config for Runtime {
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
+#[cfg(feature = "dev")]
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -869,13 +870,23 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
     fn filter(&self, c: &RuntimeCall) -> bool {
         match self {
             ProxyType::Any => true,
-            ProxyType::NonTransfer => !matches!(
-                c,
-                RuntimeCall::Balances(..)
-                    | RuntimeCall::Sudo(..)
-                    | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                    | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-            ),
+            ProxyType::NonTransfer => {
+                #[cfg(feature = "dev")]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Sudo(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+                #[cfg(not(feature = "dev"))]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+            }
             ProxyType::Governance => matches!(
                 c,
                 RuntimeCall::Treasury(..)
@@ -1158,7 +1169,6 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
 
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1222,9 +1232,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
-        Sudo: pallet_sudo = 99,
-
+        // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
     }
 );
