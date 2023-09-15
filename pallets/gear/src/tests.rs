@@ -15287,6 +15287,6 @@ fn test_gas_info_of_terminated_program() {
             true,
             true,
         )
-        .expect("failed getting gas info"); // panics here as `pid_dead` is terminated and rpc call wasn't able to get code.
+        .expect("failed getting gas info");
     })
 }
