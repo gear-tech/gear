@@ -191,7 +191,7 @@ test-release: test-gear-release
 
 .PHONY: test-doc
 test-doc:
-	@ ./scripts/gear.sh test doc
+	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
 test-gear: #\
