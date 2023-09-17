@@ -1903,6 +1903,7 @@ dependencies = [
 name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-wasm-builder",
  "gstd",
  "hex",
@@ -2314,6 +2315,7 @@ version = "0.1.0"
 dependencies = [
  "demo-waiter",
  "futures",
+ "gcore",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
