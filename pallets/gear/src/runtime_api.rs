@@ -23,6 +23,10 @@ use core::convert::TryFrom;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
+// Multiplier 6 was experimentally found as median value for performance,
+// security and abilities for calculations on-chain.
+pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
@@ -114,7 +118,9 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        let _ = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
+        let _ = Self::update_gas_allowance(
+            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
+        );
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -326,7 +332,9 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
+        let gas_allowance = Self::update_gas_allowance(
+            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
+        );
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
@@ -366,7 +374,9 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
+        let gas_allowance = Self::update_gas_allowance(
+            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
+        );
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
@@ -405,7 +415,9 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
+        let gas_allowance = Self::update_gas_allowance(
+            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
+        );
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),

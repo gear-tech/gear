@@ -796,7 +796,7 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                     allow_skip_zero_replies,
-                    Some(gas_allowance),
+                    None,
                 );
                 GasAllowanceOf::<T>::put(gas_allowance);
                 if queue_processing {

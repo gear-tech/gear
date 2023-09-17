@@ -232,7 +232,7 @@ fn read_big_state() {
 
             assert_succeed(mid);
             let state =
-                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
+                Gear::read_state_impl(pid, Default::default(), None).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -2002,8 +2002,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res =
-            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
+        let res = Gear::read_state_impl(program_id, Default::default(), None)
+            .expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
@@ -2044,6 +2044,7 @@ fn read_state_using_wasm_works() {
             func1,
             META_WASM_V1.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
 
@@ -2069,6 +2070,7 @@ fn read_state_using_wasm_works() {
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
+            None,
         )
         .expect("Failed to read state");
 
@@ -2089,6 +2091,7 @@ fn read_state_bn_and_timestamp_works() {
             "block_number",
             META_WASM_V3.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
         let res = u32::decode(&mut res.as_ref()).unwrap();
@@ -2102,6 +2105,7 @@ fn read_state_bn_and_timestamp_works() {
             Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2164,6 +2168,7 @@ fn wasm_metadata_generation_works() {
             "metadata",
             META_WASM_V1.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
 
@@ -2181,6 +2186,7 @@ fn wasm_metadata_generation_works() {
             Default::default(),
             "metadata",
             META_WASM_V2.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2234,7 +2240,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "inexistent",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Empty function
@@ -2243,7 +2250,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "empty",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Greed function
@@ -2252,7 +2260,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "loop",
             meta_wasm,
-            None
+            None,
+            None,
         )
         .is_err());
     });
@@ -6334,15 +6343,15 @@ fn state_request() {
         run_to_next_block(None);
 
         for (key, value) in data {
-            let ret =
-                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            let ret = Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode(), None)
+                .unwrap();
             assert_eq!(
                 Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
                 value
             );
         }
 
-        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode(), None).unwrap();
         let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
         let expected: BTreeMap<u32, u32> = data.into_iter().collect();
         assert_eq!(ret, expected);
