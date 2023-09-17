@@ -86,7 +86,7 @@ pub struct GasInfo {
 pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
 
 /// Gear gas node.
-pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
+pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64, u128>;
 
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;

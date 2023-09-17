@@ -60,9 +60,8 @@ pub use runtime_common::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
-    AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
-    VALUE_PER_GAS,
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -90,7 +89,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
@@ -125,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 330,
+    spec_version: 1000,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -456,17 +455,18 @@ parameter_types! {
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
@@ -495,7 +495,7 @@ impl pallet_gear::Config for Runtime {
     type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
@@ -600,7 +600,7 @@ where
 //
 // While updating the indexes, please update the indexes in `gsdk/src/metadata/mod.rs`
 // as well, example: https://github.com/gear-tech/gear/pull/2370/commits/a82cb5ba365cf47aef2c42a285a1793a86e711c1
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -631,12 +631,12 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 106,
         GearBank: pallet_gear_bank = 107,
 
-        // Only available with "debug-mode" feature on
+        // Only available with "dev" feature on
         GearDebug: pallet_gear_debug = 199,
     }
 );
 
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -704,9 +704,9 @@ pub type Executive = frame_executive::Executive<
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 type DebugInfo = GearDebug;
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 type DebugInfo = ();
 
 #[cfg(feature = "runtime-benchmarks")]

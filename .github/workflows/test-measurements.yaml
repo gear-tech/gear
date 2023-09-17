@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 720
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -42,7 +42,7 @@ jobs:
           tar -xf /cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks,lazy-pages
+        run: ./scripts/gear.sh build gear --release --locked --features=dev,runtime-benchmarks,lazy-pages
 
       - name: "Collect: Gear workspace tests"
         run: |
