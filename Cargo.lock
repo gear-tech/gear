@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "derive_more",
 ]
@@ -4301,7 +4301,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4311,7 +4311,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "environmental",
  "gear-sandbox-env",
@@ -4416,7 +4416,7 @@ dependencies = [
 
 [[package]]
 name = "gear-utils"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "env_logger",
  "gear-core",
