@@ -1,9 +1,9 @@
 [workspace.package]
-version = "0.3.4"
+version = "1.0.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
-homepage = "https://www.gear-tech.io"
+homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [workspace]
@@ -221,21 +221,20 @@ gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
-pallet-airdrop = { path = "pallets/airdrop", default-features = false }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
-pallet-gear-payment = { version = "0.1.0", path = "pallets/payment", default-features = false }
+pallet-gear-payment = { path = "pallets/payment", default-features = false }
 pallet-gear-program = { path = "pallets/gear-program", default-features = false }
 pallet-gear-rpc = { path = "pallets/gear/rpc" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api", default-features = false }
+pallet-gear-rpc-runtime-api = { path = "pallets/gear/rpc/runtime-api", default-features = false }
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
-pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
-pallet-gear-voucher = { version = "1.0.0", path = "pallets/gear-voucher", default-features = false }
-pallet-gear-bank = { version = "1.0.0", path = "pallets/gear-bank", default-features = false }
+pallet-gear-staking-rewards = { path = "pallets/staking-rewards", default-features = false }
+pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
-runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
+runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }

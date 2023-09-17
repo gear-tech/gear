@@ -1,12 +1,12 @@
 [package]
 name = "pallet-gear"
-version = "2.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
-license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -32,7 +32,7 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
-pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
+pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true

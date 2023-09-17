@@ -1,12 +1,11 @@
 [package]
 name = "gear-node-testing"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
-description = "Gear Node"
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -26,6 +25,7 @@ pallet-gear-rpc-runtime-api.workspace = true
 gear-runtime = { workspace = true, optional = true }
 vara-runtime = { workspace = true, optional = true }
 gear-runtime-interface.workspace = true
+service = { workspace = true, features = ["dev"] }
 
 # Substrate Client
 sc-block-builder.workspace = true
@@ -73,5 +73,5 @@ std = [
     "gear-runtime?/std",
     "vara-runtime?/std",
 ]
-gear-native = ["gear-runtime"]
-vara-native = ["vara-runtime"]
+gear-native = ["gear-runtime/dev", "service/gear-native"]
+vara-native = ["vara-runtime/dev", "service/vara-native"]
