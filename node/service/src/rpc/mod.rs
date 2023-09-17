@@ -153,7 +153,9 @@ where
         finality_provider,
     } = grandpa;
 
-    let GearDeps { allowance_multiplier } = gear;
+    let GearDeps {
+        allowance_multiplier,
+    } = gear;
 
     let chain_name = chain_spec.name().to_string();
     let genesis_hash = client

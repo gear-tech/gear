@@ -199,7 +199,7 @@ where
         min_limit: Option<u64>,
     ) -> RpcResult<GasInfo> {
         let api_version = self.get_api_version(at_hash)?;
-        
+
         self.run_with_api_copy(|api| {
             if api_version < 2 {
                 #[allow(deprecated)]
@@ -274,7 +274,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            None)?;
+            None,
+        )?;
 
         self.calculate_gas_info(
             at_hash,
@@ -283,7 +284,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            Some(min_limit))
+            Some(min_limit),
+        )
     }
 
     fn get_init_upload_gas_spent(
@@ -304,7 +306,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            None)?;
+            None,
+        )?;
 
         self.calculate_gas_info(
             at_hash,
@@ -313,7 +316,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            Some(min_limit))
+            Some(min_limit),
+        )
     }
 
     fn get_handle_gas_spent(
@@ -369,7 +373,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            None)?;
+            None,
+        )?;
 
         self.calculate_gas_info(
             at_hash,
@@ -381,7 +386,8 @@ where
             payload.to_vec(),
             value,
             allow_other_panics,
-            Some(min_limit))
+            Some(min_limit),
+        )
     }
 
     fn read_state(

@@ -159,7 +159,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					initial_gas: Option<u64>,
 					gas_allowance: Option<u64>,
 				) -> Result<pallet_gear::GasInfo, Vec<u8>> {
-					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas,gas_allowance)
+					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas, gas_allowance)
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
@@ -180,7 +180,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					argument: Option<Vec<u8>>,
 					gas_allowance: Option<u64>,
 				) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state_using_wasm(program_id, payload, fn_name, wasm, argument,gas_allowance)
+					Gear::read_state_using_wasm(program_id, payload, fn_name, wasm, argument, gas_allowance)
 				}
 
 				fn read_metahash(program_id: H256, gas_allowance: Option<u64>,) -> Result<H256, Vec<u8>> {
