@@ -227,57 +227,36 @@ where
                 ))
             })?;
 
-        if api_version < 2 {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                )
-            })?;
+        let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                )
+                if api_version < 2 {
+                    #[allow(deprecated)]
+                    api.calculate_gas_info_before_version_2(
+                        at_hash,
+                        source,
+                        HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                    )
+                } else {
+                    api.calculate_gas_info(
+                        at_hash,
+                        source,
+                        HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                        Some(self.allowance_multiplier),
+                    )
+                }
             })
-        } else {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                    Some(self.allowance_multiplier),
-                )
-            })?;
-            self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                    Some(self.allowance_multiplier),
-                )
-            })
-        }
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(None)?;
+        calculate_gas_info(Some(min_limit))
     }
 
     fn get_init_upload_gas_spent(
@@ -304,57 +283,36 @@ where
                 ))
             })?;
 
-        if api_version < 2 {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Init(code.to_vec()),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                )
-            })?;
+        let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Init(code.to_vec()),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                )
+                if api_version < 2 {
+                    #[allow(deprecated)]
+                    api.calculate_gas_info_before_version_2(
+                        at_hash,
+                        source,
+                        HandleKind::Init(code.to_vec()),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                    )
+                } else {
+                    api.calculate_gas_info(
+                        at_hash,
+                        source,
+                        HandleKind::Init(code.to_vec()),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                        Some(self.allowance_multiplier),
+                    )
+                }
             })
-        } else {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Init(code.to_vec()),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                    Some(self.allowance_multiplier),
-                )
-            })?;
-            self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Init(code.to_vec()),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                    Some(self.allowance_multiplier),
-                )
-            })
-        }
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(None)?;
+        calculate_gas_info(Some(min_limit))
     }
 
     fn get_handle_gas_spent(
@@ -381,57 +339,36 @@ where
                 ))
             })?;
 
-        if api_version < 2 {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Handle(ProgramId::from_origin(dest)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                )
-            })?;
+        let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Handle(ProgramId::from_origin(dest)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                )
+                if api_version < 2 {
+                    #[allow(deprecated)]
+                    api.calculate_gas_info_before_version_2(
+                        at_hash,
+                        source,
+                        HandleKind::Handle(ProgramId::from_origin(dest)),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                    )
+                } else {
+                    api.calculate_gas_info(
+                        at_hash,
+                        source,
+                        HandleKind::Handle(ProgramId::from_origin(dest)),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                        Some(self.allowance_multiplier),
+                    )
+                }
             })
-        } else {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Handle(ProgramId::from_origin(dest)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                    Some(self.allowance_multiplier),
-                )
-            })?;
-            self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Handle(ProgramId::from_origin(dest)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                    Some(self.allowance_multiplier),
-                )
-            })
-        }
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(None)?;
+        calculate_gas_info(Some(min_limit))
     }
 
     fn get_reply_gas_spent(
@@ -458,69 +395,42 @@ where
                 ))
             })?;
 
-        if api_version < 2 {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Reply(
-                        MessageId::from_origin(message_id),
-                        ReplyCode::Success(SuccessReplyReason::Manual),
-                    ),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                )
-            })?;
+        let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
-                #[allow(deprecated)]
-                api.calculate_gas_info_before_version_2(
-                    at_hash,
-                    source,
-                    HandleKind::Reply(
-                        MessageId::from_origin(message_id),
-                        ReplyCode::Success(SuccessReplyReason::Manual),
-                    ),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                )
+                if api_version < 2 {
+                    #[allow(deprecated)]
+                    api.calculate_gas_info_before_version_2(
+                        at_hash,
+                        source,
+                        HandleKind::Reply(
+                            MessageId::from_origin(message_id),
+                            ReplyCode::Success(SuccessReplyReason::Manual),
+                        ),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                    )
+                } else {
+                    api.calculate_gas_info(
+                        at_hash,
+                        source,
+                        HandleKind::Reply(
+                            MessageId::from_origin(message_id),
+                            ReplyCode::Success(SuccessReplyReason::Manual),
+                        ),
+                        payload.to_vec(),
+                        value,
+                        allow_other_panics,
+                        min_limit,
+                        Some(self.allowance_multiplier),
+                    )
+                }
             })
-        } else {
-            let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Reply(
-                        MessageId::from_origin(message_id),
-                        ReplyCode::Success(SuccessReplyReason::Manual),
-                    ),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    None,
-                    Some(self.allowance_multiplier),
-                )
-            })?;
-            self.run_with_api_copy(|api| {
-                api.calculate_gas_info(
-                    at_hash,
-                    source,
-                    HandleKind::Reply(
-                        MessageId::from_origin(message_id),
-                        ReplyCode::Success(SuccessReplyReason::Manual),
-                    ),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    Some(min_limit),
-                    Some(self.allowance_multiplier),
-                )
-            })
-        }
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(None)?;
+        calculate_gas_info(Some(min_limit))
     }
 
     fn read_state(
@@ -608,7 +518,12 @@ where
                 .into_iter()
                 .map(|(program_id, payload)| {
                     self.run_with_api_copy(|api| {
-                        api.read_state(at_hash, program_id, payload.0, Some(self.allowance_multiplier))
+                        api.read_state(
+                            at_hash,
+                            program_id,
+                            payload.0,
+                            Some(self.allowance_multiplier),
+                        )
                     })
                     .map(Bytes)
                 })
