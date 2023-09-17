@@ -68,8 +68,8 @@ pub struct GrandpaDeps<B> {
 
 /// Extra dependencies for GEAR.
 pub struct GearDeps {
-    /// gas allowance limit.
-    pub gas_allowance: u64,
+    /// gas allowance block limit multiplier.
+    pub allowance_multiplier: u64,
 }
 
 /// Full client dependencies.
@@ -153,7 +153,7 @@ where
         finality_provider,
     } = grandpa;
 
-    let GearDeps { gas_allowance } = gear;
+    let GearDeps { allowance_multiplier } = gear;
 
     let chain_name = chain_spec.name().to_string();
     let genesis_hash = client
@@ -201,7 +201,7 @@ where
     io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
     io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
 
-    io.merge(Gear::new(client.clone(), gas_allowance).into_rpc())?;
+    io.merge(Gear::new(client.clone(), allowance_multiplier).into_rpc())?;
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client).into_rpc())?;
 

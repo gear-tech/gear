@@ -33,9 +33,11 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
-    fn update_gas_allowance(gas_allowance: u64) {
+    fn update_gas_allowance(multiplier: u64) -> u64 {
+        let gas_allowance = multiplier.saturating_mul(BlockGasLimitOf::<T>::get());
         GasAllowanceOf::<T>::put(gas_allowance);
         QueueProcessingOf::<T>::allow();
+        gas_allowance
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -47,10 +49,8 @@ where
         value: u128,
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
-        gas_allowance: Option<u64>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<GasInfo, Vec<u8>> {
-        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
-
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
@@ -114,7 +114,7 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        Self::update_gas_allowance(gas_allowance);
+        let _ = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -280,7 +280,7 @@ where
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
-        gas_allowance: Option<u64>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
@@ -289,8 +289,6 @@ where
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }
-
-        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
 
         let schedule = T::Schedule::get();
 
@@ -320,7 +318,7 @@ where
         payload.append(&mut Self::read_state_impl(
             program_id,
             payload_arg,
-            Some(gas_allowance),
+            allowance_multiplier,
         )?);
 
         let block_info = BlockInfo {
@@ -328,7 +326,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        Self::update_gas_allowance(gas_allowance);
+        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
@@ -345,7 +343,7 @@ where
     pub(crate) fn read_state_impl(
         program_id: ProgramId,
         payload: Vec<u8>,
-        gas_allowance: Option<u64>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
         {
@@ -356,8 +354,6 @@ where
         }
 
         log::debug!("Reading state of {program_id:?}");
-
-        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
 
         let CodeWithMemoryData {
             instrumented_code,
@@ -370,7 +366,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        Self::update_gas_allowance(gas_allowance);
+        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
@@ -386,7 +382,7 @@ where
 
     pub(crate) fn read_metahash_impl(
         program_id: ProgramId,
-        gas_allowance: Option<u64>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
         {
@@ -397,8 +393,6 @@ where
         }
 
         log::debug!("Reading metahash of {program_id:?}");
-
-        let gas_allowance = gas_allowance.unwrap_or(BlockGasLimitOf::<T>::get());
 
         let CodeWithMemoryData {
             instrumented_code,
@@ -411,7 +405,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        Self::update_gas_allowance(gas_allowance);
+        let gas_allowance = Self::update_gas_allowance(allowance_multiplier.unwrap_or(1));
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
