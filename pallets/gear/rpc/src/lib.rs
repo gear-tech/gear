@@ -173,6 +173,20 @@ where
 
         runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
+
+    fn get_api_version(&self, at_hash: <Block as BlockT>::Hash) -> Result<u32, CallError> {
+        self.client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })
+    }
 }
 
 /// Error type of this RPC api.
@@ -214,18 +228,7 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
@@ -270,18 +273,7 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
@@ -326,18 +318,7 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
@@ -382,18 +363,7 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         let calculate_gas_info = |min_limit: Option<u64>| {
             self.run_with_api_copy(|api| {
@@ -441,18 +411,7 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         if api_version < 2 {
             self.run_with_api_copy(|api| {
@@ -489,18 +448,7 @@ where
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         if api_version < 2 {
             batch_id_payload
@@ -542,18 +490,7 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         if api_version < 2 {
             self.run_with_api_copy(|api| {
@@ -603,18 +540,7 @@ where
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         if api_version < 2 {
             batch_id_payload
@@ -662,18 +588,7 @@ where
     ) -> RpcResult<H256> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let api_version = self
-            .client
-            .runtime_api()
-            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
-            .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
-                    8000,
-                    "Gear runtime api wasn't found in the runtime",
-                    None::<String>,
-                ))
-            })?;
+        let api_version = self.get_api_version(at_hash)?;
 
         if api_version < 2 {
             #[allow(deprecated)]
