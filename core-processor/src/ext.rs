@@ -30,8 +30,6 @@ use gear_backend_common::{
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
-#[cfg(any(feature = "mock", test))]
-use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -112,6 +110,8 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{ContextSettings, IncomingDispatch};
+
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
