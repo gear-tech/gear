@@ -98,13 +98,13 @@ pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 #[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
-#[cfg(any(feature = "std", test))]
+#[cfg(all(feature = "dev", any(feature = "std", test)))]
 pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
@@ -142,7 +142,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 360,
+    spec_version: 1000,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -313,8 +313,8 @@ impl pallet_scheduler::Config for Runtime {
 
 parameter_types! {
     pub const PreimageMaxSize: u32 = 4096 * 1024;
-    pub const PreimageBaseDeposit: Balance = DOLLARS;
-    pub const PreimageByteDeposit: Balance = CENTS;
+    pub const PreimageBaseDeposit: Balance = ECONOMIC_UNITS;
+    pub const PreimageByteDeposit: Balance = ECONOMIC_CENTIUNITS;
 }
 
 impl pallet_preimage::Config for Runtime {
@@ -451,9 +451,9 @@ parameter_types! {
     pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
     // signed config
-    pub const SignedRewardBase: Balance = DOLLARS;
-    pub const SignedDepositBase: Balance = DOLLARS;
-    pub const SignedDepositByte: Balance = CENTS;
+    pub const SignedRewardBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
 
     pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
@@ -679,13 +679,13 @@ impl pallet_offences::Config for Runtime {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: Balance = DOLLARS;
+    pub const ProposalBondMinimum: Balance = ECONOMIC_UNITS;
     pub const SpendPeriod: BlockNumber = DAYS;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TipCountdown: BlockNumber = DAYS;
     pub const TipFindersFee: Percent = Percent::from_percent(20);
-    pub const TipReportDepositBase: Balance = DOLLARS;
-    pub const DataDepositPerByte: Balance = CENTS;
+    pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
+    pub const DataDepositPerByte: Balance = ECONOMIC_CENTIUNITS;
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
     pub const MaximumReasonLength: u32 = 300;
     pub const MaxApprovals: u32 = 100;
@@ -712,11 +712,11 @@ impl pallet_treasury::Config for Runtime {
 
 parameter_types! {
     pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-    pub const BountyValueMinimum: Balance = 5 * DOLLARS;
-    pub const BountyDepositBase: Balance = DOLLARS;
+    pub const BountyValueMinimum: Balance = 5 * ECONOMIC_UNITS;
+    pub const BountyDepositBase: Balance = ECONOMIC_UNITS;
     pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
-    pub const CuratorDepositMin: Balance = DOLLARS;
-    pub const CuratorDepositMax: Balance = 100 * DOLLARS;
+    pub const CuratorDepositMin: Balance = ECONOMIC_UNITS;
+    pub const CuratorDepositMax: Balance = 100 * ECONOMIC_UNITS;
     pub const BountyDepositPayoutDelay: BlockNumber = DAYS;
     pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
 }
@@ -737,7 +737,7 @@ impl pallet_bounties::Config for Runtime {
 }
 
 parameter_types! {
-    pub const ChildBountyValueMinimum: Balance = DOLLARS;
+    pub const ChildBountyValueMinimum: Balance = ECONOMIC_UNITS;
 }
 
 impl pallet_child_bounties::Config for Runtime {
@@ -775,9 +775,9 @@ impl pallet_authority_discovery::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-    pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+    pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
+    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS;        // 66 bytes on-chain
+    pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
     pub const MaxRegistrars: u32 = 20;
@@ -798,6 +798,7 @@ impl pallet_identity::Config for Runtime {
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
+#[cfg(feature = "dev")]
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -869,13 +870,23 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
     fn filter(&self, c: &RuntimeCall) -> bool {
         match self {
             ProxyType::Any => true,
-            ProxyType::NonTransfer => !matches!(
-                c,
-                RuntimeCall::Balances(..)
-                    | RuntimeCall::Sudo(..)
-                    | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                    | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-            ),
+            ProxyType::NonTransfer => {
+                #[cfg(feature = "dev")]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Sudo(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+                #[cfg(not(feature = "dev"))]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+            }
             ProxyType::Governance => matches!(
                 c,
                 RuntimeCall::Treasury(..)
@@ -988,7 +999,7 @@ impl pallet_gear::Config for Runtime {
     type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
@@ -1013,12 +1024,6 @@ impl pallet_gear_gas::Config for Runtime {
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
     type CurrentBlockNumber = Gear;
-}
-
-impl pallet_airdrop::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = weights::pallet_airdrop::SubstrateWeight<Runtime>;
-    type VestingSchedule = Vesting;
 }
 
 pub struct ExtraFeeFilter;
@@ -1094,7 +1099,7 @@ where
 }
 
 parameter_types! {
-    pub const MinVestedTransfer: Balance = 100 * CENTS;
+    pub const MinVestedTransfer: Balance = 100 * ECONOMIC_CENTIUNITS;
     pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
         WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
@@ -1110,7 +1115,7 @@ impl pallet_vesting::Config for Runtime {
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1164,18 +1169,16 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
 
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
 
-        // Only available with "debug-mode" feature on
+        // Only available with "dev" feature on
         GearDebug: pallet_gear_debug = 199,
     }
 );
 
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1229,11 +1232,8 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
-        Sudo: pallet_sudo = 99,
-
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_sudo` used to be idx(99).
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
     }
 );
 
@@ -1277,9 +1277,9 @@ mod tests;
 #[cfg(test)]
 mod integration_tests;
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 type DebugInfo = GearDebug;
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 type DebugInfo = ();
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1295,7 +1295,6 @@ mod benches {
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
         // Gear pallets
-        [pallet_airdrop, Airdrop]
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
     );

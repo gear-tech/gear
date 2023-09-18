@@ -1000,73 +1000,6 @@ pub mod runtime_types {
                 }
             }
         }
-        pub mod pallet_airdrop {
-            use super::runtime_types;
-            pub mod pallet {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
-                pub enum Call {
-                    #[codec(index = 0)]
-                    #[doc = "Transfer tokens from pre-funded `source` to `dest` account."]
-                    #[doc = ""]
-                    #[doc = "The origin must be the root."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `source`: the pre-funded account (i.e. root),"]
-                    #[doc = "- `dest`: the beneficiary account,"]
-                    #[doc = "- `amount`: the amount of tokens to be minted."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `TokensDeposited{ dest, amount }`"]
-                    transfer {
-                        source: ::subxt::utils::AccountId32,
-                        dest: ::subxt::utils::AccountId32,
-                        amount: ::core::primitive::u128,
-                    },
-                    #[codec(index = 1)]
-                    #[doc = "Remove vesting for `source` account and transfer tokens to `dest` account."]
-                    #[doc = ""]
-                    #[doc = "The origin must be the root."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `source`: the account with vesting running,"]
-                    #[doc = "- `dest`: the beneficiary account,"]
-                    #[doc = "- `schedule_index`: the index of `VestingInfo` for source account."]
-                    #[doc = "- `amount`: the amount to be unlocked and transferred from `VestingInfo`."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `VestingScheduleRemoved{ who, schedule_index }`"]
-                    transfer_vested {
-                        source: ::subxt::utils::AccountId32,
-                        dest: ::subxt::utils::AccountId32,
-                        schedule_index: ::core::primitive::u32,
-                        amount: ::core::option::Option<::core::primitive::u128>,
-                    },
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Error for the airdrop pallet."]
-                pub enum Error {
-                    #[codec(index = 0)]
-                    #[doc = "Amount to being transferred is bigger than vested."]
-                    AmountBigger,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
-                pub enum Event {
-                    #[codec(index = 0)]
-                    TokensDeposited {
-                        account: ::subxt::utils::AccountId32,
-                        amount: ::core::primitive::u128,
-                    },
-                    #[codec(index = 1)]
-                    VestingScheduleRemoved {
-                        who: ::subxt::utils::AccountId32,
-                        schedule_index: ::core::primitive::u32,
-                    },
-                }
-            }
-        }
         pub mod pallet_babe {
             use super::runtime_types;
             pub mod pallet {
@@ -9113,8 +9046,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Call),
-                #[codec(index = 198)]
-                Airdrop(runtime_types::pallet_airdrop::pallet::Call),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
@@ -9182,8 +9113,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
-                #[codec(index = 198)]
-                Airdrop(runtime_types::pallet_airdrop::pallet::Event),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
@@ -9203,20 +9132,6 @@ pub mod calls {
         const PALLET: &'static str;
         #[doc = r" returns call name."]
         fn call_name(&self) -> &'static str;
-    }
-    #[doc = "Calls of pallet `Airdrop`."]
-    pub enum AirdropCall {
-        Transfer,
-        TransferVested,
-    }
-    impl CallInfo for AirdropCall {
-        const PALLET: &'static str = "Airdrop";
-        fn call_name(&self) -> &'static str {
-            match self {
-                Self::Transfer => "transfer",
-                Self::TransferVested => "transfer_vested",
-            }
-        }
     }
     #[doc = "Calls of pallet `Babe`."]
     pub enum BabeCall {
@@ -11061,15 +10976,6 @@ pub mod impls {
                     )?,
                 ));
             }
-            if pallet_name == "Airdrop" {
-                return Ok(Event::Airdrop(
-                    crate::metadata::airdrop::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
             if pallet_name == "GearDebug" {
                 return Ok(Event::GearDebug(
                     crate::metadata::gear_debug::Event::decode_with_metadata(
@@ -11178,9 +11084,6 @@ pub mod exports {
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;
-    }
-    pub mod airdrop {
-        pub use super::runtime_types::pallet_airdrop::pallet::Event;
     }
     pub mod gear_debug {
         pub use super::runtime_types::pallet_gear_debug::pallet::Event;

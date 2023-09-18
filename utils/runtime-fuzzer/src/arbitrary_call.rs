@@ -203,6 +203,7 @@ fn config(
             (SysCallName::Alloc, 20..=30),
             (SysCallName::Free, 20..=30),
         ]
+        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
     );
 

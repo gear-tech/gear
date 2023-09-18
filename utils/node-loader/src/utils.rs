@@ -224,6 +224,7 @@ pub fn get_wasm_gen_config(
             (SysCallName::Alloc, 5..=10),
             (SysCallName::Free, 5..=10),
         ]
+        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
     );
 
