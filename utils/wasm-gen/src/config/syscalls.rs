@@ -57,7 +57,7 @@ impl SysCallsConfigBuilder {
     /// Set whether `gr_send*` and `gr_exit` sys-calls must use `gr_source` result for sys-call destination.
     pub fn with_source_msg_dest(mut self) -> Self {
         self.0.sys_call_destination = SysCallDestination::Source;
-        self.enable_sys_call(SysCallName::Source);
+        self.enable_sys_call(InvocableSysCall::Loose(SysCallName::Source));
 
         self
     }
@@ -81,7 +81,7 @@ impl SysCallsConfigBuilder {
     /// Choosing gear export to log data is done from best `init` to worse `handle`.
     pub fn with_log_info(mut self, log: String) -> Self {
         self.0.log_info = Some(log);
-        self.enable_sys_call(SysCallName::Debug);
+        self.enable_sys_call(InvocableSysCall::Loose(SysCallName::Debug));
 
         self
     }
@@ -93,7 +93,7 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    fn enable_sys_call(&mut self, name: SysCallName) {
+    fn enable_sys_call(&mut self, name: InvocableSysCall) {
         let range = self.0.injection_amounts.get(name);
 
         let range_start = *range.start();
@@ -145,7 +145,7 @@ pub struct SysCallsConfig {
 
 impl SysCallsConfig {
     /// Get possible number of times (range) the sys-call can be injected in the wasm.
-    pub fn injection_amounts(&self, name: SysCallName) -> RangeInclusive<u32> {
+    pub fn injection_amounts(&self, name: InvocableSysCall) -> RangeInclusive<u32> {
         self.injection_amounts.get(name)
     }
 

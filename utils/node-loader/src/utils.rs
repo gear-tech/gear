@@ -7,7 +7,7 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
@@ -224,6 +224,7 @@ pub fn get_wasm_gen_config(
             (SysCallName::Alloc, 5..=10),
             (SysCallName::Free, 5..=10),
         ]
+        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
     );
 
