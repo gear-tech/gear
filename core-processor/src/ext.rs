@@ -173,7 +173,7 @@ pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
-    /// Convert externalities into [`ExtInfo`].
+    /// Convert externalities into info.
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     /// Protect and save storage keys for pages which has no data

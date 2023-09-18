@@ -262,7 +262,7 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
-/// Error returned from closure argument in [`Runtime::run_fallible`].
+/// Error returned from closure argument in [`runtime::CallerWrap::run_fallible`].
 #[derive(Debug, Clone)]
 pub enum RunFallibleError {
     UndefinedTerminationReason(UndefinedTerminationReason),
