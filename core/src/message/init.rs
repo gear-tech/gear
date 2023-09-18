@@ -49,7 +49,7 @@ impl InitMessage {
     pub fn from_packet(id: MessageId, packet: InitPacket) -> Self {
         Self {
             id,
-            destination: packet.destination(),
+            destination: packet.program_id,
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -139,9 +139,9 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         let program_id = if let Some(id) = message_id {
-            ProgramId::generate_with_id(code_id, salt.inner(), id)
+            ProgramId::generate_from_program(code_id, salt.inner(), id)
         } else {
-            ProgramId::generate(code_id, salt.inner())
+            ProgramId::generate_from_user(code_id, salt.inner())
         };
         Self {
             program_id,
@@ -163,9 +163,9 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         let program_id = if let Some(id) = message_id {
-            ProgramId::generate_with_id(code_id, salt.inner(), id)
+            ProgramId::generate_from_program(code_id, salt.inner(), id)
         } else {
-            ProgramId::generate(code_id, salt.inner())
+            ProgramId::generate_from_user(code_id, salt.inner())
         };
         Self {
             program_id,

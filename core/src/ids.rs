@@ -204,7 +204,7 @@ impl ProgramId {
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
     /// Generate ProgramId from given CodeId and salt
-    pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
+    pub fn generate_from_user(code_id: CodeId, salt: &[u8]) -> Self {
         const SALT: &[u8] = b"program_from_user";
 
         let argument = [SALT, code_id.as_ref(), salt].concat();
@@ -212,7 +212,7 @@ impl ProgramId {
     }
 
     /// Generate ProgramId from given CodeId, MessageId and salt
-    pub fn generate_with_id(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
+    pub fn generate_from_program(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
         const SALT: &[u8] = b"program_from_wasm";
 
         let argument = [SALT, message_id.as_ref(), code_id.as_ref(), salt].concat();
@@ -237,7 +237,7 @@ fn formatting_test() {
     use alloc::format;
 
     let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate(code_id, &[2, 1, 0]);
+    let id = ProgramId::generate_from_user(code_id, &[2, 1, 0]);
 
     // `Debug`/`Display`.
     assert_eq!(

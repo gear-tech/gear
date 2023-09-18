@@ -177,10 +177,13 @@ mod tests {
 
         // Send `handle` msg to create a duplicate
         let res = factory.send_bytes(10001, payload.encode());
+
+        let child_id_expected =
+            calculate_program_id(CHILD_CODE_HASH.into(), &salt, Some(res.sent_message_id()));
+
         assert!(!res.main_failed());
-        // Init message, which is not processed. Error reply for that init is generated.
-        // Dispatch message is processed, no error replies, because message is sent to
-        // the original program.
+        assert!(sys.is_active_program(child_id_expected));
+
         assert_eq!(res.total_processed(), 3 + 1 + 1); // +1 for the original message, initiated by user +1 for auto generated replies
     }
 

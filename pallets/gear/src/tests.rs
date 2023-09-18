@@ -1228,7 +1228,8 @@ fn delayed_user_replacement() {
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let future_program_address =
+            ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
@@ -6148,7 +6149,7 @@ fn test_pausing_programs_works() {
             false,
         ));
 
-        let child_program_id = ProgramId::generate_with_id(
+        let child_program_id = ProgramId::generate_from_program(
             child_code_hash.into(),
             DEFAULT_SALT,
             get_last_message_id(),
@@ -7117,6 +7118,97 @@ fn pay_program_rent_extrinsic_works() {
             balance_before - extrinsic_fee - Gear::rent_fee_for(paid_blocks),
             Balances::free_balance(USER_1)
         );
+    });
+}
+
+#[test]
+fn test_create_program_duplicate() {
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = generate_code_hash(&child_code);
+
+        // Submit the code
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            child_code.clone(),
+        ));
+
+        // Creating factory
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            20_000_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        // User creates a program
+        assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
+        run_to_block(3, None);
+
+        // Program creates identical program
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            factory_id,
+            CreateProgram::Custom(vec![(
+                child_code_hash,
+                DEFAULT_SALT.to_vec(),
+                2_000_000_000
+            )])
+            .encode(),
+            20_000_000_000,
+            0,
+            false,
+        ));
+        run_to_block(4, None);
+
+        assert_total_dequeued(3 + 3 + 1); // +3 from extrinsics (2 upload_program, 1 send_message) +1 for auto generated reply
+        assert_init_success(3); // (3 upload_program)
+
+        System::reset_events();
+        MailboxOf::<Test>::clear();
+
+        // Create a new program from program
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
+                .encode(),
+            20_000_000_000,
+            0,
+            false,
+        ));
+        run_to_block(5, None);
+
+        // Create an identical program from program
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
+                .encode(),
+            20_000_000_000,
+            0,
+            false,
+        ));
+        run_to_block(6, None);
+
+        assert_total_dequeued(5 + 2 + 3); // +2 from extrinsics (send_message) +3 for auto generated replies
+        assert_init_success(2); // Both uploads succeed due to unique program id generation
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            child_code,
+            b"salt1".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
     });
 }
 
@@ -9691,7 +9783,8 @@ fn program_generator_works() {
 
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
-        let expected_child_id = ProgramId::generate_with_id(code_id, &expected_salt, message_id);
+        let expected_child_id =
+            ProgramId::generate_from_program(code_id, &expected_salt, message_id);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -14489,7 +14582,7 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
-        ProgramId::generate(CodeId::generate(code), salt)
+        ProgramId::generate_from_user(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
