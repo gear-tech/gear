@@ -27,7 +27,7 @@ fn read_state_bytes_with_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
-            Vec::<u8>::default(),
+            Default::default(),
             FUNC_NAME,
             META_WASM_V1.to_vec(),
             state_args_encoded!(),
@@ -52,7 +52,7 @@ fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
-            Vec::<u8>::default(),
+            Default::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args_encoded!(&other_person),
@@ -79,7 +79,7 @@ fn read_state_bytes_with_two_args_wasm_func_returns_transformed_state() {
 
     let actual_state = program
         .read_state_bytes_using_wasm(
-            Vec::<u8>::default(),
+            Default::default(),
             FUNC_NAME,
             META_WASM_V2.to_vec(),
             state_args_encoded!(name.clone(), surname.clone()),
