@@ -3656,6 +3656,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gmeta",
  "gsdk",
  "hex",
@@ -3671,6 +3672,7 @@ dependencies = [
  "schnorrkel",
  "serde",
  "serde_json",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "thiserror",
  "tokio",
  "which",
@@ -3931,6 +3933,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "paste",
+ "proptest",
  "scale-info",
  "static_assertions",
  "wabt",
@@ -3957,9 +3960,9 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "gear-lazy-pages-common",
  "gear-wasm-instrument",
  "log",
- "proptest",
  "scale-info",
  "static_assertions",
 ]
@@ -4427,6 +4430,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4761,6 +4765,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
@@ -4769,6 +4774,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
 ]
 
 [[package]]

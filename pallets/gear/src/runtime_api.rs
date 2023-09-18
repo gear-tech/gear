@@ -30,7 +30,6 @@ pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
-    pub program_pages: Option<BTreeMap<GearPage, PageBuf>>,
 }
 
 impl<T: Config> Pallet<T>
@@ -46,6 +45,8 @@ where
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
     ) -> Result<GasInfo, Vec<u8>> {
+        Self::enable_lazy_pages();
+
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
@@ -102,8 +103,6 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
-        let lazy_pages_enabled = Self::enable_lazy_pages();
-
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
@@ -144,7 +143,6 @@ where
 
             let step = QueueStep {
                 block_config: &block_config,
-                lazy_pages_enabled,
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch: queued_dispatch,
@@ -250,24 +248,11 @@ where
         let instrumented_code = T::CodeStorage::get_code(code_id)
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
-        #[cfg(not(feature = "lazy-pages"))]
-        let program_pages = Some(
-            ProgramStorageOf::<T>::get_program_data_for_pages(
-                program_id,
-                program.pages_with_data.iter(),
-            )
-            .map_err(|e| format!("Get program pages data error: {e:?}"))?,
-        );
-
-        #[cfg(feature = "lazy-pages")]
-        let program_pages = None;
-
         let allocations = program.allocations;
 
         Ok(CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         })
     }
 
@@ -278,13 +263,7 @@ where
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-        }
+        Self::enable_lazy_pages();
 
         let schedule = T::Schedule::get();
 
@@ -322,7 +301,6 @@ where
             instrumented_code,
             None,
             None,
-            None,
             payload,
             BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
             block_info,
@@ -333,20 +311,13 @@ where
         program_id: ProgramId,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-        }
+        Self::enable_lazy_pages();
 
         log::debug!("Reading state of {program_id:?}");
 
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -357,7 +328,6 @@ where
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
-            program_pages,
             Some(allocations),
             Some(program_id),
             payload,
@@ -367,20 +337,13 @@ where
     }
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
-        #[cfg(feature = "lazy-pages")]
-        {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-        }
+        Self::enable_lazy_pages();
 
         log::debug!("Reading metahash of {program_id:?}");
 
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
-            program_pages,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -391,7 +354,6 @@ where
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
-            program_pages,
             Some(allocations),
             Some(program_id),
             Default::default(),
