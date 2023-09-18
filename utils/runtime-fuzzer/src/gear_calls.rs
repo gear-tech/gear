@@ -35,7 +35,7 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 
@@ -409,6 +409,7 @@ fn config(
             (SysCallName::Alloc, 20..=30),
             (SysCallName::Free, 20..=30),
         ]
+        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
     );
 

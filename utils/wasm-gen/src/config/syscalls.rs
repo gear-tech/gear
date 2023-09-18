@@ -42,7 +42,6 @@ impl SysCallsConfigBuilder {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
             sys_call_destination: SysCallDestination::default(),
-            sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
         })
@@ -65,15 +64,12 @@ impl SysCallsConfigBuilder {
 
     /// Set whether `gr_send*` and `gr_exit` sys-calls must use some address from `addresses` collection
     /// as a sys-call destination.
-    /// Set whether `gr_send*` and `gr_exit` sys-calls must use some address from `addresses` collection
-    /// as a sys-call destination.
     pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
             hash: pid.into(),
             value: 0,
         }))
         .expect("collected from non empty");
-        self.0.sys_call_destination = SysCallDestination::ExistingAddresses(addresses);
         self.0.sys_call_destination = SysCallDestination::ExistingAddresses(addresses);
 
         self
@@ -143,7 +139,6 @@ pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
     sys_call_destination: SysCallDestination,
-    sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
 }
@@ -155,11 +150,7 @@ impl SysCallsConfig {
     }
 
     /// Get defined sys-call destination for `gr_send*` and `gr_exit` sys-calls.
-    /// Get defined sys-call destination for `gr_send*` and `gr_exit` sys-calls.
     ///
-    /// For more info, read [`SysCallDestination`].
-    pub fn sys_call_destination(&self) -> &SysCallDestination {
-        &self.sys_call_destination
     /// For more info, read [`SysCallDestination`].
     pub fn sys_call_destination(&self) -> &SysCallDestination {
         &self.sys_call_destination
@@ -184,15 +175,12 @@ impl SysCallsConfig {
 }
 
 /// Sys-call destination choice.
-/// Sys-call destination choice.
 ///
-/// `gr_send*` and `gr_exit` sys-calls generated from this crate can be sent
 /// `gr_send*` and `gr_exit` sys-calls generated from this crate can be sent
 /// to different destination in accordance to the config.
 /// It's either to the message source, to some existing known address,
 /// or to some random, most probably non-existing, address.
 #[derive(Debug, Clone, Default)]
-pub enum SysCallDestination {
 pub enum SysCallDestination {
     Source,
     ExistingAddresses(NonEmpty<HashWithValue>),
@@ -202,24 +190,17 @@ pub enum SysCallDestination {
 
 impl SysCallDestination {
     /// Check whether sys-call destination is a result of `gr_source`.
-impl SysCallDestination {
-    /// Check whether sys-call destination is a result of `gr_source`.
     pub fn is_source(&self) -> bool {
-        matches!(&self, SysCallDestination::Source)
         matches!(&self, SysCallDestination::Source)
     }
 
-    /// Check whether sys-call destination is defined randomly.
     /// Check whether sys-call destination is defined randomly.
     pub fn is_random(&self) -> bool {
         matches!(&self, SysCallDestination::Random)
-        matches!(&self, SysCallDestination::Random)
     }
 
     /// Check whether sys-call destination is defined from a collection of existing addresses.
-    /// Check whether sys-call destination is defined from a collection of existing addresses.
     pub fn is_existing_addresses(&self) -> bool {
-        matches!(&self, SysCallDestination::ExistingAddresses(_))
         matches!(&self, SysCallDestination::ExistingAddresses(_))
     }
 }
