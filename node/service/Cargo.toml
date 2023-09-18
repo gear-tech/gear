@@ -1,12 +1,11 @@
 [package]
 name = "gear-service"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
-description = "Gear Node"
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -124,9 +123,9 @@ runtime-benchmarks-checkers = [
 	"gear-runtime?/runtime-benchmarks-checkers",
 	"vara-runtime?/runtime-benchmarks-checkers",
 ]
-debug-mode = [
-	"gear-runtime?/debug-mode",
-	"vara-runtime?/debug-mode",
+dev = [
+	"gear-runtime?/dev",
+	"vara-runtime?/dev",
 ]
 try-runtime = [
 	"gear-runtime?/try-runtime",
