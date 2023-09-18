@@ -180,7 +180,7 @@ impl ExtrinsicGenerator {
         }
     }
 
-    pub(crate) fn unstructured_size_hint(&self) -> usize {
+    pub(crate) const fn unstructured_size_hint(&self) -> usize {
         match self {
             Self::UploadProgram(g) => g.unstructured_size_hint(),
             Self::SendMessage(g) => g.unstructured_size_hint(),
@@ -241,7 +241,7 @@ impl UploadProgramGenerator {
         ))
     }
 
-    fn unstructured_size_hint(&self) -> usize {
+    const fn unstructured_size_hint(&self) -> usize {
         // 1024 KiB for payload and salt and 50 KiB for code.
         1080 * 1024
     }
@@ -281,7 +281,7 @@ impl SendMessageGenerator {
         ))
     }
 
-    fn unstructured_size_hint(&self) -> usize {
+    const fn unstructured_size_hint(&self) -> usize {
         // 512 KiB for payload.
         520 * 1024
     }
@@ -328,7 +328,7 @@ impl SendReplyGenerator {
         })
     }
 
-    fn unstructured_size_hint(&self) -> usize {
+    const fn unstructured_size_hint(&self) -> usize {
         // 512 KiB for payload.
         520 * 1024
     }
@@ -353,7 +353,7 @@ impl ClaimValueGenerator {
         Ok(message_id.map(|msg_id| ClaimValueArgs(msg_id).into()))
     }
 
-    fn unstructured_size_hint(&self) -> usize {
+    const fn unstructured_size_hint(&self) -> usize {
         // 32 bytes for message id.
         100
     }
