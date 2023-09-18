@@ -170,7 +170,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, _, import_queue, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -178,7 +178,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, _, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                 Ok((cmd.run(client, config.database), task_manager))
             })
         }
@@ -186,7 +186,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, _, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                 Ok((cmd.run(client, config.chain_spec), task_manager))
             })
         }
@@ -194,7 +194,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, _, import_queue, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -206,7 +206,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, backend, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                 let aux_revert = Box::new(|client, backend, blocks| {
                     service::revert_backend(client, backend, blocks, config)
                         .map_err(|err| sc_cli::Error::Application(err.into()))
@@ -252,7 +252,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Block(cmd) => {
                         let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
 
                         unwrap_client!(client, cmd.run(client.clone()))
                     }
@@ -264,7 +264,7 @@ pub fn run() -> sc_cli::Result<()> {
                     #[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
                         let (client, backend, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                         let db = backend.expose_db();
                         let storage = backend.expose_storage();
 
@@ -276,7 +276,7 @@ pub fn run() -> sc_cli::Result<()> {
                         })?;
 
                         let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                         let ext_builder = RemarkBuilder::new(client.clone());
 
                         unwrap_client!(
@@ -295,7 +295,7 @@ pub fn run() -> sc_cli::Result<()> {
                             sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
                         let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_gas_allowance_multiplier)?;
+                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
                         // Register the *Remark* and *TKA* builders.
                         let ext_factory = ExtrinsicFactory(vec![
                             Box::new(RemarkBuilder::new(client.clone())),
@@ -390,7 +390,7 @@ pub fn run() -> sc_cli::Result<()> {
                     config,
                     cli.no_hardware_benchmarks,
                     cli.run.max_gas,
-                    cli.run.rpc_gas_allowance_multiplier,
+                    cli.run.rpc_calculations_multiplier,
                 )
                 .map_err(sc_cli::Error::Service)
             })
