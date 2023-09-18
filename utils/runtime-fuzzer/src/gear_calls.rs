@@ -247,9 +247,9 @@ impl UploadProgramGenerator {
     }
 }
 
-impl Into<ExtrinsicGenerator> for UploadProgramGenerator {
-    fn into(self) -> ExtrinsicGenerator {
-        ExtrinsicGenerator::UploadProgram(self)
+impl From<UploadProgramGenerator> for ExtrinsicGenerator {
+    fn from(g: UploadProgramGenerator) -> ExtrinsicGenerator {
+        ExtrinsicGenerator::UploadProgram(g)
     }
 }
 
@@ -287,9 +287,9 @@ impl SendMessageGenerator {
     }
 }
 
-impl Into<ExtrinsicGenerator> for SendMessageGenerator {
-    fn into(self) -> ExtrinsicGenerator {
-        ExtrinsicGenerator::SendMessage(self)
+impl From<SendMessageGenerator> for ExtrinsicGenerator {
+    fn from(g: SendMessageGenerator) -> ExtrinsicGenerator {
+        ExtrinsicGenerator::SendMessage(g)
     }
 }
 
@@ -334,9 +334,9 @@ impl SendReplyGenerator {
     }
 }
 
-impl Into<ExtrinsicGenerator> for SendReplyGenerator {
-    fn into(self) -> ExtrinsicGenerator {
-        ExtrinsicGenerator::SendReply(self)
+impl From<SendReplyGenerator> for ExtrinsicGenerator {
+    fn from(g: SendReplyGenerator) -> ExtrinsicGenerator {
+        ExtrinsicGenerator::SendReply(g)
     }
 }
 
@@ -359,9 +359,9 @@ impl ClaimValueGenerator {
     }
 }
 
-impl Into<ExtrinsicGenerator> for ClaimValueGenerator {
-    fn into(self) -> ExtrinsicGenerator {
-        ExtrinsicGenerator::ClaimValue(self)
+impl From<ClaimValueGenerator> for ExtrinsicGenerator {
+    fn from(g: ClaimValueGenerator) -> ExtrinsicGenerator {
+        ExtrinsicGenerator::ClaimValue(g)
     }
 }
 
