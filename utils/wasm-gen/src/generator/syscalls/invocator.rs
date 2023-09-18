@@ -31,7 +31,10 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName, SysCallSignature},
 };
-use std::{collections::BTreeMap, iter};
+use std::{
+    collections::{hash_map::Entry, BTreeMap, HashMap},
+    iter,
+};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -526,16 +529,15 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .filter(|idx| !self.call_indexes.is_custom_func(*idx))
             .collect();
 
-        let syscalls_to_insert = self
-            .sys_call_imports
-            .clone()
-            .into_iter()
-            .map(|(syscall, (amount, _))| {
-                iter::repeat(syscall)
-                    .take(amount as usize)
-                    .collect::<Vec<_>>()
-            })
-            .flatten();
+        let syscalls_to_insert =
+            self.sys_call_imports
+                .clone()
+                .into_iter()
+                .flat_map(|(syscall, (amount, _))| {
+                    iter::repeat(syscall)
+                        .take(amount as usize)
+                        .collect::<Vec<_>>()
+                });
 
         let insertion_mapping =
             self.get_syscall_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
@@ -552,6 +554,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(())
     }
 
+    /// Distributes provided syscalls among provided function ids.
+    ///
+    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`
+    /// as a vector to avoid indeterminance that may be caused by `HashMap` usage.
     fn get_syscall_insertion_mapping<I>(
         &mut self,
         syscalls: I,
@@ -560,23 +566,24 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     where
         I: Iterator<Item = InvocableSysCall>,
     {
-        // Keep it sorted by func_id to perform binary search on it.
-        let mut insertion_mapping: Vec<(usize, Vec<InvocableSysCall>)> =
-            Vec::with_capacity(insert_into_funcs.len());
+        let mut insertion_mapping: HashMap<usize, Vec<InvocableSysCall>> = HashMap::new();
         for syscall in syscalls {
             let insert_into = *self.unstructured.choose(insert_into_funcs)?;
-            let partition =
-                insertion_mapping.partition_point(|&(func_id, _)| func_id < insert_into);
 
-            if !insertion_mapping.is_empty()
-                && partition != insertion_mapping.len()
-                && insertion_mapping[partition].0 == insert_into
-            {
-                insertion_mapping[partition].1.push(syscall);
-            } else {
-                insertion_mapping.insert(partition, (insert_into, vec![syscall]));
+            match insertion_mapping.entry(insert_into) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(syscall);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![syscall]);
+                }
             }
         }
+
+        let mut insertion_mapping: Vec<_> = insertion_mapping.into_iter().collect();
+        // Sort it to avoid indeterminance appeared because of HashMap usage.
+        insertion_mapping.sort_by(|a, b| a.0.cmp(&b.0));
+
         Ok(insertion_mapping)
     }
 
@@ -610,15 +617,17 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .map(|syscall| Ok((self.unstructured.int_in_range(0..=last)?, syscall)))
             .collect::<Result<Vec<_>>>()?;
 
-        // Sort in descending order.
+        // Sort in descending order. It's needed to guarantee that no syscall
+        // invocation instructions will intersect with each other as we start
+        // inserting syscalls from the last index.
         insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
 
         for (pos, syscall) in insertion_positions {
             let call_indexes_handle = self
                 .sys_call_imports
                 .get(&syscall)
-                .expect("Syscall presented in sys_call_imports")
-                .1;
+                .map(|(_, call_indexes_handle)| *call_indexes_handle)
+                .expect("Syscall presented in sys_call_imports");
             let instructions = self.build_sys_call_invoke_instructions(
                 syscall,
                 syscall.into_signature(),
