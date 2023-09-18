@@ -150,6 +150,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let alice: [u8; 32] = *alice_account_id().as_ref();
 
     let salt = vec![];
+
     let pid = ProgramId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
 

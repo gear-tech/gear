@@ -18,17 +18,25 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{TerminationReason, TrapExplanation};
+use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExplanation};
+use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::Code,
     memory::Memory,
-    message::{IncomingMessage, ReplyPacket},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        ReplyPacket,
+    },
     pages::WASM_PAGE_SIZE,
 };
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{Instruction, Module},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    },
+    rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -231,12 +239,6 @@ fn execute_wasm_with_syscall_injected(
     params_config: SysCallsParamsConfig,
     initial_memory_write: Option<MemoryWrite>,
 ) -> TerminationReason {
-    use gear_backend_common::{BackendReport, Environment};
-    use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
-    use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
-
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
 
@@ -245,7 +247,11 @@ fn execute_wasm_with_syscall_injected(
     let mut unstructured = Unstructured::new(&buf);
 
     let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+    injection_amounts.set(
+        InvocableSysCall::Loose(syscall),
+        INJECTED_SYSCALLS,
+        INJECTED_SYSCALLS,
+    );
 
     let error_processing_config = if ignore_fallible_errors {
         ErrorProcessingConfig::None
@@ -338,10 +344,10 @@ proptest! {
             ..Default::default()
         };
 
-        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
         assert!(code_res.is_ok());
     }
 

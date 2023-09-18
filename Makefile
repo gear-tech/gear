@@ -46,11 +46,11 @@ examples-proc: wasm-proc-release
 
 .PHONY: node
 node:
-	@ ./scripts/gear.sh build node
+	@ ./scripts/gear.sh build node -F dev
 
 .PHONY: node-release
 node-release:
-	@ ./scripts/gear.sh build node --release
+	@ ./scripts/gear.sh build node -F dev --release
 
 .PHONY: vara
 vara:
@@ -191,7 +191,7 @@ test-release: test-gear-release
 
 .PHONY: test-doc
 test-doc:
-	@ ./scripts/gear.sh test doc
+	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
 test-gear: #\
@@ -255,14 +255,6 @@ doc:
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
-
-.PHONY: fuzz
-fuzz:
-	@ ./scripts/gear.sh test fuzz $(target)
-
-.PHONY: fuzz-vara #TODO 2434 test it works
-fuzz-vara:
-	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
 
 .PHONY: kill-gear
 kill:

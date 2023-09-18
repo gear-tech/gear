@@ -159,7 +159,7 @@ fn debug_mode_works() {
         )
         .expect("Failed to submit program");
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -528,7 +528,7 @@ fn check_not_allocated_pages() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -756,7 +756,7 @@ fn check_changed_pages_in_storage() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -886,7 +886,7 @@ fn check_gear_stack_end() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);

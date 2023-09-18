@@ -94,7 +94,6 @@ macro_rules! export_module_error {
 // pallets that don't have `Error` type.
 //
 // - pallet_transaction_payment
-// - pallet_airdrop
 //
 // pallets that share the same `errors::RankedCollective`
 //

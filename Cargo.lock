@@ -454,7 +454,7 @@ checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -465,7 +465,7 @@ checksum = "bc00ceb34980c03614e35a3a4e218276a0a824e911d07651cd0d858a51e8c0f0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1108,7 +1108,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1651,7 +1651,7 @@ checksum = "83fdaf97f4804dcebfa5862639bc9ce4121e82140bec2a987ac5140294865b5b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1678,7 +1678,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scratch",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1695,7 +1695,7 @@ checksum = "50c49547d73ba8dcfd4ad7325d64c6d5391ff4224d498fc39a6f3f49825a530d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1743,7 +1743,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1765,7 +1765,7 @@ checksum = "836a9bbc7ad63342d6d6e7b815ccab164bc77a2d95d84bc3117a8c0d5c98e2d5"
 dependencies = [
  "darling_core 0.20.3",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -1852,6 +1852,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-autoreply"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
@@ -1893,6 +1903,7 @@ dependencies = [
 name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-wasm-builder",
  "gstd",
  "hex",
@@ -2304,6 +2315,7 @@ version = "0.1.0"
 dependencies = [
  "demo-waiter",
  "futures",
+ "gcore",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
@@ -2412,7 +2424,7 @@ checksum = "53e0efad4403bfc52dc201159c4b842a246a14b98c64b55dfd0f2d89729dfeb8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -2558,7 +2570,7 @@ checksum = "487585f4d0c6655fe74905e2504d8ad6908e4db67f744eb140876906c2f3175d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -2815,7 +2827,7 @@ checksum = "eecf8589574ce9b895052fa12d69af7a233f99e6107f5cb8dd1044f2a17bfdcb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -2856,7 +2868,7 @@ checksum = "5e9a1f9f7d83e59740248a6e14ecf93929ade55027844dfcea78beafccc15745"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -2877,7 +2889,7 @@ dependencies = [
  "darling 0.20.3",
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -3560,7 +3572,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -3621,14 +3633,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -3667,7 +3679,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3711,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3724,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "demo-mul-by-const",
  "env_logger",
@@ -3735,6 +3747,7 @@ dependencies = [
  "gear-common",
  "gear-node-testing",
  "gear-runtime-primitives",
+ "gear-service",
  "log",
  "pallet-balances",
  "pallet-gear",
@@ -3766,16 +3779,16 @@ dependencies = [
 
 [[package]]
 name = "gear-backend-codegen"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
 name = "gear-backend-common"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "actor-system-error",
  "blake2-rfc",
@@ -3834,7 +3847,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "clap 4.4.2",
  "frame-benchmarking",
@@ -3868,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3896,15 +3909,15 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
 name = "gear-core"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -3926,7 +3939,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3935,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "actor-system-error",
  "derive_more",
@@ -3953,7 +3966,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -3993,7 +4006,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4025,7 +4038,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4036,6 +4049,7 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-primitives",
+ "gear-service",
  "log",
  "pallet-gear-rpc-runtime-api",
  "parity-scale-codec",
@@ -4093,7 +4107,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -4122,6 +4136,8 @@ dependencies = [
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
+ "pallet-gear-staking-rewards",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-multisig",
@@ -4153,7 +4169,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4179,7 +4195,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "byteorder",
  "derive_more",
@@ -4201,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4248,12 +4264,13 @@ dependencies = [
  "thiserror",
  "wasmer",
  "wasmer-cache",
+ "wasmer-types",
  "wasmi 0.13.2",
 ]
 
 [[package]]
 name = "gear-service"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -4273,6 +4290,8 @@ dependencies = [
  "log",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
+ "pallet-gear-staking-rewards-rpc",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment",
@@ -4332,7 +4351,7 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "cc",
 ]
@@ -4391,7 +4410,7 @@ dependencies = [
  "pwasm-utils",
  "regex",
  "thiserror",
- "toml 0.7.6",
+ "toml 0.7.7",
  "wabt",
  "wasm-opt",
  "wasmi 0.14.0",
@@ -4416,6 +4435,7 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "static_assertions",
+ "thiserror",
  "wasm-smith",
  "wasmparser-nostd 0.100.1",
  "wasmprinter",
@@ -4424,7 +4444,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-backend-common",
@@ -4594,7 +4614,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4608,7 +4628,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4616,7 +4636,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -4632,7 +4652,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -4678,21 +4698,21 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "subxt-codegen",
  "subxt-metadata",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
 name = "gsdk-codegen"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
 name = "gstd"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "bs58",
  "futures",
@@ -4715,13 +4735,13 @@ dependencies = [
  "gstd",
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
  "trybuild",
 ]
 
 [[package]]
 name = "gsys"
-version = "0.3.2"
+version = "1.0.0"
 
 [[package]]
 name = "gtest"
@@ -6962,7 +6982,7 @@ checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -7104,37 +7124,6 @@ checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
 dependencies = [
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "pallet-airdrop"
-version = "1.0.0"
-dependencies = [
- "env_logger",
- "frame-benchmarking",
- "frame-support",
- "frame-support-test",
- "frame-system",
- "gear-common",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-bank",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-gear-scheduler",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-vesting",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
- "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
 ]
 
 [[package]]
@@ -7318,7 +7307,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "blake2-rfc",
  "demo-async",
@@ -7434,7 +7423,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-debug"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "demo-vec",
  "env_logger",
@@ -7471,7 +7460,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7524,7 +7513,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7558,16 +7547,16 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
 name = "pallet-gear-program"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -7592,7 +7581,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -7608,7 +7597,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -7679,6 +7668,25 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-std 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-gear-staking-rewards-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
+]
+
+[[package]]
+name = "pallet-gear-staking-rewards-rpc-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "pallet-gear-staking-rewards",
+ "sp-api",
 ]
 
 [[package]]
@@ -8327,7 +8335,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -8368,7 +8376,7 @@ checksum = "4359fd9c9171ec6e8c62926d6faaf553a8dc3f64e1507e76da7911b4f6a04405"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -9036,7 +9044,7 @@ checksum = "7f7473c2cfcf90008193dd0e3e16599455cb601a9fce322b5bb55de799664925"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -9064,14 +9072,14 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.9.3"
+version = "1.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81bc1d4caf89fac26a70747fe603c130093b53c773888797a6329091246d651a"
+checksum = "12de2eff854e5fa4b1295edd650e227e9d8fb0c9e90b12e7f36d6a6811791a29"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.3.6",
- "regex-syntax 0.7.4",
+ "regex-automata 0.3.7",
+ "regex-syntax 0.7.5",
 ]
 
 [[package]]
@@ -9085,13 +9093,13 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fed1ceff11a1dddaee50c9dc8e4938bd106e9d89ae372f192311e7da498e3b69"
+checksum = "49530408a136e16e5b486e883fbb6ba058e8e4e8ae6621a77b048b314336e629"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.7.4",
+ "regex-syntax 0.7.5",
 ]
 
 [[package]]
@@ -9102,9 +9110,9 @@ checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
-version = "0.7.4"
+version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
+checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
 name = "region"
@@ -9338,6 +9346,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-bank",
  "parity-scale-codec",
  "proptest",
  "rand 0.8.5",
@@ -10938,7 +10947,7 @@ checksum = "4eca7ac642d82aa35b60049a6eccb4be6be75e599bd2e9adb5f875a737654af2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -10960,7 +10969,7 @@ checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -12588,7 +12597,7 @@ dependencies = [
  "quote",
  "scale-info",
  "subxt-metadata",
- "syn 2.0.29",
+ "syn 2.0.31",
  "thiserror",
  "tokio",
 ]
@@ -12601,7 +12610,7 @@ dependencies = [
  "darling 0.20.3",
  "proc-macro-error",
  "subxt-codegen",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -12629,9 +12638,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.29"
+version = "2.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c324c494eba9d92503e6f1ef2e6df781e78f6a7705a0202d9801b198807d518a"
+checksum = "718fa2415bcb8d8bd775917a1bf12a7931b6dfa890753378538118181e0cb398"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12767,7 +12776,7 @@ checksum = "6bb623b56e39ab7dcd4b1b98bb6c8f8d907ed255b18de254088016b27a8ee19b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -12915,7 +12924,7 @@ checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -12977,9 +12986,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c17e963a819c331dcacd7ab957d80bc2b9a9c1e71c804826d2f283dd65306542"
+checksum = "de0a3ab2091e52d7299a39d098e200114a972df0a7724add02a273aa9aada592"
 dependencies = [
  "serde",
  "serde_spanned",
@@ -12998,9 +13007,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.19.14"
+version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8123f27e969974a3dfba720fdb560be359f57b44302d280ba72e76a74480e8a"
+checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.0.0",
  "serde",
@@ -13082,7 +13091,7 @@ checksum = "5f4f31f56159e98206da9efd823404b79b6ef3143b4a7ab76e67b1751b25a4ab"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -13447,9 +13456,9 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
 name = "url"
-version = "2.4.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50bff7831e19200a85b17131d085c25d7811bc4e186efdaf54bbd132994a88cb"
+checksum = "143b538f18257fac9cad154828a57c6bf5157e1aa604d4816b5995bf6de87ae5"
 dependencies = [
  "form_urlencoded",
  "idna 0.4.0",
@@ -13479,7 +13488,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "const-str",
  "env_logger",
@@ -13498,7 +13507,6 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
- "pallet-airdrop",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -13518,6 +13526,7 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-gear-staking-rewards",
+ "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-identity",
@@ -13687,7 +13696,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
  "wasm-bindgen-shared",
 ]
 
@@ -13721,7 +13730,7 @@ checksum = "54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -15201,7 +15210,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.29",
+ "syn 2.0.31",
 ]
 
 [[package]]

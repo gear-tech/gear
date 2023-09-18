@@ -53,12 +53,15 @@ mod consts {
     pub const EVE: AccountId = 4;
 
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
+
+    pub const VALUE_PER_GAS: Balance = 25;
 }
 
 pub use consts::*;
 
 parameter_types! {
     pub const BankAddress: AccountId = BANK_ADDRESS;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: u64 = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
@@ -131,6 +134,7 @@ impl pallet_balances::Config for Test {
 impl pallet_gear_bank::Config for Test {
     type Currency = Balances;
     type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 pub fn new_test_ext() -> TestExternalities {
