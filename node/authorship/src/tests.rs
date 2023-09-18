@@ -23,7 +23,8 @@
 
 use crate::authorship::*;
 
-use codec::Encode;
+use codec::{Encode, Decode};
+use common::Program;
 use core::convert::TryFrom;
 use frame_support::{storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
@@ -51,6 +52,7 @@ use testing::{
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
 use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
+use runtime_primitives::BlockNumber;
 
 const SOURCE: TransactionSource = TransactionSource::External;
 
@@ -630,6 +632,35 @@ fn block_max_gas_works() {
 
     // 2 out of 5 messages have been processed, 3 remain in the queue
     assert_eq!(queue_len, 3);
+
+    let programs_prefix = storage_prefix(
+        pallet_gear_program::Pallet::<Runtime>::name().as_bytes(),
+        "ProgramStorage".as_bytes(),
+    );
+    let mut iter_args = IterArgs::default();
+    iter_args.prefix = Some(&programs_prefix);
+
+    // The fact that 2 init messages out of 5 have been processed means
+    // that there should be 2 inited programs.
+    let inited_count = state
+        .pairs(iter_args)
+        .unwrap()
+        .fold(0u32, |count, pair| {
+            let value = match pair {
+                Ok((_key, value)) => {
+                    value
+                },
+                _ => return count,
+            };
+
+            match Program::<BlockNumber>::decode(&mut &value[..]) {
+                Ok(p) if p.is_initialized() => {
+                    count + 1
+                }
+                _ => count,
+            }
+        });
+    assert_eq!(inited_count, 2);
 }
 
 #[test]
