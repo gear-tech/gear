@@ -23,7 +23,7 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
 use sha1::*;
