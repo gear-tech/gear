@@ -3917,7 +3917,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend-codegen"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",

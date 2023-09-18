@@ -28,7 +28,8 @@ use gear_core::{
     },
     pages::WASM_PAGE_SIZE,
 };
-use gear_core_backend::{env::BackendReport, TerminationReason, TrapExplanation};
+use gear_core_backend::{env::BackendReport, Environment, TerminationReason, TrapExplanation};
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{

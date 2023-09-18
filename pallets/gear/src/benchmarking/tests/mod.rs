@@ -36,8 +36,7 @@ use crate::{
     HandleKind,
 };
 use common::benchmarking;
-use gear_backend_common::TrapExplanation;
-
+use gear_core_backend::TrapExplanation;
 use gear_wasm_instrument::parity_wasm::elements::Instruction;
 
 pub fn check_stack_overflow<T>()
@@ -71,22 +70,18 @@ where
     )
     .unwrap();
 
-    core_processor::process::<ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-    )
-    .unwrap()
-    .into_iter()
-    .find_map(|note| match note {
-        JournalNote::MessageDispatched { outcome, .. } => Some(outcome),
-        _ => None,
-    })
-    .map(|outcome| match outcome {
-        DispatchOutcome::InitFailure { reason, .. } => {
-            assert_eq!(reason, TrapExplanation::Unknown.to_string());
-        }
-        _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
-    })
-    .unwrap();
+    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap()
+        .into_iter()
+        .find_map(|note| match note {
+            JournalNote::MessageDispatched { outcome, .. } => Some(outcome),
+            _ => None,
+        })
+        .map(|outcome| match outcome {
+            DispatchOutcome::InitFailure { reason, .. } => {
+                assert_eq!(reason, TrapExplanation::Unknown.to_string());
+            }
+            _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
+        })
+        .unwrap();
 }

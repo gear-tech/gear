@@ -24,8 +24,6 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-#[cfg(any(feature = "mock", test))]
-use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
