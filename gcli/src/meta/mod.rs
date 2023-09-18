@@ -23,7 +23,7 @@ mod tests;
 
 use crate::result::{Error, Result};
 use core_processor::configs::BlockInfo;
-use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
+use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -108,7 +108,7 @@ impl Meta {
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
         core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+            gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
             String,
         >(
             method.into(),
@@ -125,15 +125,12 @@ impl Meta {
 
     /// Decode metawasm from wasm binary.
     pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
-        let code = InstrumentedCodeAndId::from(CodeAndId::new(Code::new_raw(
+        let code = Code::try_new_mock_const_or_no_rules(
             wasm.to_vec(),
-            1,
-            None,
             true,
-            false,
-        )?))
-        .into_parts()
-        .0;
+            TryNewCodeConfig::new_no_exports_check(),
+        )?;
+        let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
 
         Ok(Self::Wasm(MetawasmData::decode(
             &mut Self::execute(code, "metadata")?.as_ref(),

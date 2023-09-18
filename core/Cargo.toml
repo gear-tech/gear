@@ -36,6 +36,4 @@ env_logger.workspace = true
 [features]
 default = []
 strict = []
-std = [
-  "serde/std"
-]
+std = ["serde/std"]

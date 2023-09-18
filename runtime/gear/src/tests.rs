@@ -32,8 +32,8 @@ fn instruction_weights_heuristics_test() {
         _phantom: core::marker::PhantomData,
 
         i64const: 150,
-        i64load: 7_000,
-        i32load: 7_000,
+        i64load: 11_575,
+        i32load: 8_000,
         i64store: 29_000,
         i32store: 20_000,
         select: 7_100,
@@ -138,14 +138,14 @@ fn page_costs_heuristic_test() {
     let expected_pages_costs = PageCosts {
         lazy_pages_signal_read: 28_000_000.into(),
         lazy_pages_signal_write: 33_000_000.into(),
-        lazy_pages_signal_write_after_read: 8_624_904.into(),
+        lazy_pages_signal_write_after_read: 9_500_000.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
         lazy_pages_host_func_write_after_read: 9_245_597.into(),
-        load_page_data: 8_700_000.into(),
+        load_page_data: 9_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 276_000.into(),
+        mem_grow: 906_170.into(),
         parachain_load_heuristic: 0.into(),
     };
 
@@ -156,7 +156,7 @@ fn page_costs_heuristic_test() {
         host_func_read: 29_000_000.into(),
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
-        load_page_storage_data: 8_700_000.into(),
+        load_page_storage_data: 9_700_000.into(),
     };
 
     check_pages_weights(

@@ -1,12 +1,12 @@
 [package]
 name = "vara-runtime"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
+build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -49,7 +49,7 @@ pallet-referenda.workspace = true
 pallet-scheduler.workspace = true
 pallet-session = { workspace = true, features = [ "historical" ] }
 pallet-staking.workspace = true
-pallet-sudo.workspace = true
+pallet-sudo = { workspace = true, optional = true }
 pallet-timestamp.workspace = true
 pallet-transaction-payment.workspace = true
 pallet-treasury.workspace = true
@@ -90,14 +90,15 @@ pallet-gear-scheduler.workspace = true
 pallet-gear-messenger.workspace = true
 pallet-gear-program.workspace = true
 pallet-gear.workspace = true
+pallet-gear-bank.workspace = true
 pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
 pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
-pallet-airdrop.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -136,12 +137,14 @@ std = [
 	"pallet-election-provider-multi-phase/std",
 	"pallet-gear-gas/std",
 	"pallet-gear/std",
+	"pallet-gear-bank/std",
 	"pallet-gear-debug?/std",
 	"pallet-gear-messenger/std",
 	"pallet-gear-payment/std",
 	"pallet-gear-program/std",
 	"pallet-gear-staking-rewards/std",
 	"pallet-gear-rpc-runtime-api/std",
+	"pallet-gear-staking-rewards-rpc-runtime-api/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -156,7 +159,7 @@ std = [
 	"pallet-session/std",
 	"pallet-scheduler/std",
 	"pallet-staking/std",
-	"pallet-sudo/std",
+	"pallet-sudo?/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
@@ -183,7 +186,6 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
-	"pallet-airdrop/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -198,7 +200,6 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-airdrop/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-conviction-voting/runtime-benchmarks",
@@ -219,6 +220,7 @@ try-runtime = [
 	"pallet-gear-program/try-runtime",
 	"pallet-gear-staking-rewards/try-runtime",
 	"pallet-gear-gas/try-runtime",
+	"pallet-gear-bank/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
 	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
@@ -245,17 +247,21 @@ try-runtime = [
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
-	"pallet-sudo/try-runtime",
+	"pallet-sudo?/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-whitelist/try-runtime",
-	"pallet-airdrop/try-runtime",
 	"pallet-bags-list/try-runtime",
+	"runtime-common/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
+dev = [
+	"pallet-gear-debug",
+	"pallet-gear-program/dev",
+	"pallet-sudo",
+]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
 	"pallet-gear-payment/lazy-pages",

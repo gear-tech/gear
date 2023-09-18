@@ -20,7 +20,7 @@ use super::*;
 use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use gear_core::pages::WasmPage;
+use gear_core::{code::TryNewCodeConfig, pages::WasmPage};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -49,8 +49,9 @@ where
         let account = <T::AccountId as Origin>::from_origin(source);
 
         let balance = CurrencyOf::<T>::free_balance(&account);
-        let max_balance: BalanceOf<T> =
-            T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
+        let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
+            .gas_to_value(initial_gas)
+            + value.unique_saturated_into();
         CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
         let who = frame_support::dispatch::RawOrigin::Signed(account);
@@ -272,6 +273,7 @@ where
 
     pub(crate) fn read_state_using_wasm_impl(
         program_id: ProgramId,
+        payload: Vec<u8>,
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
@@ -290,11 +292,10 @@ where
             return Err("Wasm too big".into());
         }
 
-        let code = Code::new_raw_with_rules(
+        let code = Code::try_new_mock_with_rules(
             wasm,
-            schedule.instruction_weights.version,
-            false,
             |module| schedule.rules(module),
+            TryNewCodeConfig::new_no_exports_check(),
         )
         .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
@@ -307,8 +308,9 @@ where
 
         let instrumented_code = code_and_id.into_parts().0;
 
+        let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id, Default::default())?);
+        payload.append(&mut Self::read_state_impl(program_id, payload_arg)?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),

@@ -134,9 +134,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// Database migration module.
-pub mod migrations;
-
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
@@ -309,7 +306,7 @@ pub mod pallet {
 
     // Private storage for queue's elements.
     #[pallet::storage]
-    pub(crate) type Dispatches<T> =
+    pub type Dispatches<T> =
         CountedStorageMap<_, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
 
     // Public wrap of the queue's elements.
@@ -334,7 +331,7 @@ pub mod pallet {
 
     // Private storage for mailbox elements.
     #[pallet::storage]
-    pub(crate) type Mailbox<T: Config> = StorageDoubleMap<
+    pub type Mailbox<T: Config> = StorageDoubleMap<
         _,
         Identity,
         T::AccountId,
@@ -388,7 +385,7 @@ pub mod pallet {
 
     // Private storage for waitlist elements.
     #[pallet::storage]
-    pub(crate) type Waitlist<T: Config> = StorageDoubleMap<
+    pub type Waitlist<T: Config> = StorageDoubleMap<
         _,
         Identity,
         ProgramId,
@@ -411,7 +408,7 @@ pub mod pallet {
 
     // Private storage for dispatch stash elements.
     #[pallet::storage]
-    pub(crate) type DispatchStash<T: Config> =
+    pub type DispatchStash<T: Config> =
         StorageMap<_, Identity, MessageId, (StoredDispatch, Interval<T::BlockNumber>)>;
 
     // Public wrap of the dispatch stash elements.

@@ -15,29 +15,37 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![no_std]
 
-use gstd::{ActorId, Vec};
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
+use alloc::vec::Vec;
+use gcore::BlockCount;
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
+type ActorId = [u8; 32];
+
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     include! {"./code.rs"}
 }
 
+#[cfg(feature = "std")]
 pub fn system_reserve() -> u64 {
     gstd::Config::system_reserve()
 }
 
 // Re-exports for testing
+#[cfg(feature = "std")]
 pub fn default_wait_up_to_duration() -> u32 {
     gstd::Config::wait_up_to()
 }
@@ -60,11 +68,13 @@ pub enum LockContinuation {
     Nothing,
     SleepFor(u32),
     MoveToStatic,
+    Wait,
+    Forget,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub enum MxLockContinuation {
-    // Here will be Lock
+    Lock,
     General(LockContinuation),
 }
 
@@ -92,14 +102,14 @@ pub enum RwLockContinuation {
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
-    SendFor(ActorId, u32),
-    SendUpTo(ActorId, u32),
-    SendUpToWait(ActorId, u32),
-    SendAndWaitFor(u32, ActorId),
+    SendFor(ActorId, BlockCount),
+    SendUpTo(ActorId, BlockCount),
+    SendUpToWait(ActorId, BlockCount),
+    SendAndWaitFor(BlockCount, ActorId),
     ReplyAndWait(WaitSubcommand),
-    SleepFor(Vec<u32>, SleepForWaitType),
+    SleepFor(Vec<BlockCount>, SleepForWaitType),
     WakeUp([u8; 32]),
-    MxLock(MxLockContinuation),
+    MxLock(BlockCount, MxLockContinuation),
     MxLockStaticAccess(LockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
     RwLockStaticAccess(RwLockType, LockStaticAccessSubcommand),

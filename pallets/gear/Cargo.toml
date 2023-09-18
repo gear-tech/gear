@@ -1,12 +1,12 @@
 [package]
 name = "pallet-gear"
-version = "2.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
-license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -25,16 +25,17 @@ static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
+gear-runtime-interface = { workspace = true }
 gear-lazy-pages-common = { workspace = true, optional = true }
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
 gear-backend-sandbox.workspace = true
-gear-backend-wasmi = { workspace = true, optional = true }
-pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
+pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
+pallet-gear-bank.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -57,7 +58,13 @@ rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
+demo-read-big-state = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
+demo-reserve-gas = { workspace = true, optional = true }
+demo-delayed-sender = { workspace = true, optional = true }
+demo-constructor = { workspace = true, optional = true }
+demo-waiter = { workspace = true, optional = true }
+demo-init-wait = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -91,7 +98,7 @@ demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -114,7 +121,6 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
 [features]
@@ -131,8 +137,6 @@ std = [
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
 	"gear-backend-sandbox/std",
-	"gear-backend-wasmi/std",
-	"gear-core/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -146,13 +150,21 @@ std = [
 	"pallet-gear-scheduler/std",
 	"pallet-gear-program/std",
 	"pallet-gear-voucher/std",
+	"pallet-gear-bank/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
 	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
+	"demo-read-big-state?/std",
 	"demo-proxy?/std",
+	"demo-reserve-gas?/std",
+	"demo-delayed-sender?/std",
+	"demo-constructor?/std",
+	"demo-waiter?/std",
+	"demo-init-wait?/std",
+	"gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -167,8 +179,14 @@ runtime-benchmarks = [
 	"rand",
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
+	"demo-read-big-state/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
 	"gsys",
+	"demo-reserve-gas/wasm-wrapper",
+	"demo-delayed-sender/wasm-wrapper",
+	"demo-constructor/wasm-wrapper",
+	"demo-waiter/wasm-wrapper",
+	"demo-init-wait/wasm-wrapper",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

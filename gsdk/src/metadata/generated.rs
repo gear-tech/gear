@@ -525,10 +525,11 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub enum GasNode<_0, _1, _2> {
+                    pub enum GasNode<_0, _1, _2, _3> {
                         #[codec(index = 0)]
                         External {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
@@ -539,12 +540,14 @@ pub mod runtime_types {
                         #[codec(index = 1)]
                         Cut {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         },
                         #[codec(index = 2)]
                         Reserved {
                             id: _0,
+                            multiplier: runtime_types::gear_common::GasMultiplier<_3, _2>,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
@@ -553,6 +556,7 @@ pub mod runtime_types {
                         #[codec(index = 3)]
                         SpecifiedLocal {
                             parent: _1,
+                            root: _1,
                             value: _2,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
@@ -562,6 +566,7 @@ pub mod runtime_types {
                         #[codec(index = 4)]
                         UnspecifiedLocal {
                             parent: _1,
+                            root: _1,
                             lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                             system_reserve: _2,
                         },
@@ -681,6 +686,13 @@ pub mod runtime_types {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum GasMultiplier<_0, _1> {
+                #[codec(index = 0)]
+                ValuePerGas(_0),
+                #[codec(index = 1)]
+                GasPerValue(_1),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum Program<_0> {
@@ -985,73 +997,6 @@ pub mod runtime_types {
                     Manual,
                     #[codec(index = 255)]
                     Unsupported,
-                }
-            }
-        }
-        pub mod pallet_airdrop {
-            use super::runtime_types;
-            pub mod pallet {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
-                pub enum Call {
-                    #[codec(index = 0)]
-                    #[doc = "Transfer tokens from pre-funded `source` to `dest` account."]
-                    #[doc = ""]
-                    #[doc = "The origin must be the root."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `source`: the pre-funded account (i.e. root),"]
-                    #[doc = "- `dest`: the beneficiary account,"]
-                    #[doc = "- `amount`: the amount of tokens to be minted."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `TokensDeposited{ dest, amount }`"]
-                    transfer {
-                        source: ::subxt::utils::AccountId32,
-                        dest: ::subxt::utils::AccountId32,
-                        amount: ::core::primitive::u128,
-                    },
-                    #[codec(index = 1)]
-                    #[doc = "Remove vesting for `source` account and transfer tokens to `dest` account."]
-                    #[doc = ""]
-                    #[doc = "The origin must be the root."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `source`: the account with vesting running,"]
-                    #[doc = "- `dest`: the beneficiary account,"]
-                    #[doc = "- `schedule_index`: the index of `VestingInfo` for source account."]
-                    #[doc = "- `amount`: the amount to be unlocked and transferred from `VestingInfo`."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `VestingScheduleRemoved{ who, schedule_index }`"]
-                    transfer_vested {
-                        source: ::subxt::utils::AccountId32,
-                        dest: ::subxt::utils::AccountId32,
-                        schedule_index: ::core::primitive::u32,
-                        amount: ::core::option::Option<::core::primitive::u128>,
-                    },
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Error for the airdrop pallet."]
-                pub enum Error {
-                    #[codec(index = 0)]
-                    #[doc = "Amount to being transferred is bigger than vested."]
-                    AmountBigger,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
-                pub enum Event {
-                    #[codec(index = 0)]
-                    TokensDeposited {
-                        account: ::subxt::utils::AccountId32,
-                        amount: ::core::primitive::u128,
-                    },
-                    #[codec(index = 1)]
-                    VestingScheduleRemoved {
-                        who: ::subxt::utils::AccountId32,
-                        schedule_index: ::core::primitive::u32,
-                    },
                 }
             }
         }
@@ -2700,20 +2645,23 @@ pub mod runtime_types {
                     #[doc = "Value doesn't cover ExistentialDeposit."]
                     ValueLessThanMinimal,
                     #[codec(index = 11)]
-                    #[doc = "Messages storage corrupted."]
-                    MessagesStorageCorrupted,
-                    #[codec(index = 12)]
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
-                    #[codec(index = 13)]
+                    #[codec(index = 12)]
                     #[doc = "Block count doesn't cover MinimalResumePeriod."]
                     ResumePeriodLessThanMinimal,
-                    #[codec(index = 14)]
+                    #[codec(index = 13)]
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
-                    #[codec(index = 15)]
-                    #[doc = "Voucher can't be redemmed"]
+                    #[codec(index = 14)]
+                    #[doc = "Voucher can't be redeemed"]
                     FailureRedeemingVoucher,
+                    #[codec(index = 15)]
+                    #[doc = "Gear::run() already included in current block."]
+                    GearRunAlreadyInBlock,
+                    #[codec(index = 16)]
+                    #[doc = "The program rent logic is disabled."]
+                    ProgramRentDisabled,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -2799,7 +2747,7 @@ pub mod runtime_types {
                     },
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
-                    QueueProcessingReverted,
+                    QueueNotProcessed,
                     #[codec(index = 9)]
                     #[doc = "Program resume session has been started."]
                     ProgramResumeSessionStarted {
@@ -3021,6 +2969,38 @@ pub mod runtime_types {
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
                         runtime_types::sp_weights::weight_v2::Weight,
+                }
+            }
+        }
+        pub mod pallet_gear_bank {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BankAccount<_0> {
+                    pub gas: _0,
+                    pub value: _0,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Insufficient user balance."]
+                    InsufficientBalance,
+                    #[codec(index = 1)]
+                    #[doc = "Insufficient user's bank account gas balance."]
+                    InsufficientGasBalance,
+                    #[codec(index = 2)]
+                    #[doc = "Insufficient user's bank account gas balance."]
+                    InsufficientValueBalance,
+                    #[codec(index = 3)]
+                    #[doc = "Insufficient bank account balance."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    InsufficientBankBalance,
+                    #[codec(index = 4)]
+                    #[doc = "Deposit of funds that will not keep bank account alive."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    InsufficientDeposit,
                 }
             }
         }
@@ -8751,11 +8731,6 @@ pub mod runtime_types {
         }
         pub mod vara_runtime {
             use super::runtime_types;
-            pub mod extensions {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DisableValueTransfers;
-            }
             pub mod governance {
                 use super::runtime_types;
                 pub mod origins {
@@ -9071,8 +9046,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Call),
-                #[codec(index = 198)]
-                Airdrop(runtime_types::pallet_airdrop::pallet::Call),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
@@ -9140,8 +9113,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
-                #[codec(index = 198)]
-                Airdrop(runtime_types::pallet_airdrop::pallet::Event),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
@@ -9161,20 +9132,6 @@ pub mod calls {
         const PALLET: &'static str;
         #[doc = r" returns call name."]
         fn call_name(&self) -> &'static str;
-    }
-    #[doc = "Calls of pallet `Airdrop`."]
-    pub enum AirdropCall {
-        Transfer,
-        TransferVested,
-    }
-    impl CallInfo for AirdropCall {
-        const PALLET: &'static str = "Airdrop";
-        fn call_name(&self) -> &'static str {
-            match self {
-                Self::Transfer => "transfer",
-                Self::TransferVested => "transfer_vested",
-            }
-        }
     }
     #[doc = "Calls of pallet `Babe`."]
     pub enum BabeCall {
@@ -10138,7 +10095,7 @@ pub mod storage {
     pub enum GearStorage {
         ExecuteInherent,
         BlockNumber,
-        LastGearBlockNumber,
+        GearRunInBlock,
     }
     impl StorageInfo for GearStorage {
         const PALLET: &'static str = "Gear";
@@ -10146,7 +10103,21 @@ pub mod storage {
             match self {
                 Self::ExecuteInherent => "ExecuteInherent",
                 Self::BlockNumber => "BlockNumber",
-                Self::LastGearBlockNumber => "LastGearBlockNumber",
+                Self::GearRunInBlock => "GearRunInBlock",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearBank`."]
+    pub enum GearBankStorage {
+        Bank,
+        UnusedValue,
+    }
+    impl StorageInfo for GearBankStorage {
+        const PALLET: &'static str = "GearBank";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Bank => "Bank",
+                Self::UnusedValue => "UnusedValue",
             }
         }
     }
@@ -11005,15 +10976,6 @@ pub mod impls {
                     )?,
                 ));
             }
-            if pallet_name == "Airdrop" {
-                return Ok(Event::Airdrop(
-                    crate::metadata::airdrop::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
             if pallet_name == "GearDebug" {
                 return Ok(Event::GearDebug(
                     crate::metadata::gear_debug::Event::decode_with_metadata(
@@ -11122,9 +11084,6 @@ pub mod exports {
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;
-    }
-    pub mod airdrop {
-        pub use super::runtime_types::pallet_airdrop::pallet::Event;
     }
     pub mod gear_debug {
         pub use super::runtime_types::pallet_gear_debug::pallet::Event;

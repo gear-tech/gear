@@ -131,12 +131,13 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
+pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
     /// A root node for each gas tree.
     ///
     /// Usually created when a new gas-ful logic started (i.e., message sent).
     External {
         id: ExternalId,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
@@ -151,6 +152,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// (not node's parent, not node's child).
     Cut {
         id: ExternalId,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
     },
@@ -160,6 +162,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such node types are detached from initial tree and may act the a root of new tree.
     Reserved {
         id: ExternalId,
+        multiplier: GasMultiplier<Funds, Balance>,
         value: Balance,
         lock: NodeLock<Balance>,
         refs: ChildrenRefs,
@@ -176,6 +179,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// from which that one was created.
     SpecifiedLocal {
         parent: Id,
+        root: Id,
         value: Balance,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
@@ -189,6 +193,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such nodes don't have children references.
     UnspecifiedLocal {
         parent: Id,
+        root: Id,
         lock: NodeLock<Balance>,
         system_reserve: Balance,
     },
@@ -203,13 +208,35 @@ pub struct ChildrenRefs {
     unspec_refs: u32,
 }
 
-impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy>
-    GasNode<ExternalId, Id, Balance>
+impl<
+        ExternalId: Clone,
+        Id: Clone + Copy,
+        Balance: Default + Zero + Clone + Copy + sp_runtime::traits::Saturating,
+        Funds: Clone,
+    > GasNode<ExternalId, Id, Balance, Funds>
+{
+    /// Returns total gas value inside GasNode.
+    pub fn total_value(&self) -> Balance {
+        self.value()
+            .unwrap_or_default()
+            .saturating_add(self.lock().total_locked())
+            .saturating_add(self.system_reserve().unwrap_or_default())
+    }
+}
+
+impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy, Funds: Clone>
+    GasNode<ExternalId, Id, Balance, Funds>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
-    pub fn new(id: ExternalId, value: Balance, deposit: bool) -> Self {
+    pub fn new(
+        id: ExternalId,
+        multiplier: GasMultiplier<Funds, Balance>,
+        value: Balance,
+        deposit: bool,
+    ) -> Self {
         Self::External {
             id,
+            multiplier,
             value,
             lock: Zero::zero(),
             system_reserve: Zero::zero(),
@@ -386,6 +413,24 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
             | Self::SpecifiedLocal { refs, .. }
             | Self::Reserved { refs, .. } => refs.unspec_refs,
             _ => 0,
+        }
+    }
+
+    /// Returns id of the root node.
+    pub fn root_id(&self) -> Option<Id> {
+        match self {
+            Self::SpecifiedLocal { root, .. } | Self::UnspecifiedLocal { root, .. } => Some(*root),
+            Self::External { .. } | Self::Cut { .. } | Self::Reserved { .. } => None,
+        }
+    }
+
+    /// Returns external origin and funds multiplier of the node if contains that data inside.
+    pub fn external_data(&self) -> Option<(ExternalId, GasMultiplier<Funds, Balance>)> {
+        match self {
+            Self::External { id, multiplier, .. }
+            | Self::Cut { id, multiplier, .. }
+            | Self::Reserved { id, multiplier, .. } => Some((id.clone(), multiplier.clone())),
+            Self::SpecifiedLocal { .. } | Self::UnspecifiedLocal { .. } => None,
         }
     }
 

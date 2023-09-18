@@ -1,12 +1,12 @@
 [package]
 name = "gear-runtime"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
+build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -62,6 +62,7 @@ runtime-common.workspace = true
 pallet-gear-scheduler.workspace = true
 pallet-gear-messenger.workspace = true
 pallet-gear-program.workspace = true
+pallet-gear-bank.workspace = true
 pallet-gear.workspace = true
 pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
@@ -69,6 +70,8 @@ pallet-gear-payment.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
+pallet-gear-staking-rewards.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -94,6 +97,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-gear-program/std",
 	"pallet-gear-scheduler/std",
+	"pallet-gear-bank/std",
 	"pallet-gear/std",
 	"pallet-gear-debug?/std",
 	"pallet-gear-gas/std",
@@ -124,6 +128,8 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"pallet-gear-staking-rewards-rpc-runtime-api/std",
+	"pallet-gear-staking-rewards/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -156,6 +162,7 @@ try-runtime = [
 	"pallet-gear-payment/try-runtime",
 	"pallet-gear-program/try-runtime",
 	"pallet-gear-gas/try-runtime",
+	"pallet-gear-bank/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
 	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
@@ -171,8 +178,9 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-utility/try-runtime",
 	"validator-set/try-runtime",
+	"runtime-common/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
+dev = ["pallet-gear-debug", "pallet-gear-program/dev"]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
 	"pallet-gear-payment/lazy-pages",

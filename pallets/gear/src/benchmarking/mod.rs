@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod tasks;
 mod utils;
 use syscalls::Benches;
 
@@ -57,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
-    ResumeMinimalPeriodOf, Schedule,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
+    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -68,8 +69,9 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
+    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
+    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
 };
 use core_processor::{
@@ -80,7 +82,7 @@ use core_processor::{
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
     codec::Encode,
-    traits::{Currency, Get, Hooks, ReservableCurrency},
+    traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
@@ -241,6 +243,31 @@ where
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
+fn get_last_session_id<T: Config>() -> Option<SessionId> {
+    find_latest_event::<T, _, _>(|event| match event {
+        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
+        _ => None,
+    })
+}
+
+pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
+where
+    T: Config,
+    F: Fn(Event<T>) -> Option<R>,
+{
+    SystemPallet::<T>::events()
+        .into_iter()
+        .rev()
+        .filter_map(|event_record| {
+            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+            let event: Result<Event<T>, _> = event.try_into();
+
+            event.ok()
+        })
+        .find_map(mapping_filter)
+}
+
+#[track_caller]
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -261,14 +288,6 @@ where
     )
     .expect("failed to start resume session");
 
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    let session_id = match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
-        _ => unreachable!(),
-    };
-
     let memory_pages = {
         let mut pages = Vec::with_capacity(c as usize);
         for i in 0..c {
@@ -278,7 +297,7 @@ where
         pages
     };
 
-    (session_id, memory_pages)
+    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -317,8 +336,8 @@ where
         module: WasmModule<T>,
         data: Vec<u8>,
     ) -> Result<Program<T>, &'static str> {
-        let value = <T as pallet::Config>::Currency::minimum_balance();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let value = CurrencyOf::<T>::minimum_balance();
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
         let addr = ProgramId::generate(module.hash, &salt).into_origin();
 
@@ -361,8 +380,14 @@ benchmarks! {
     }
 
     #[extra]
+    read_big_state {
+        syscalls_integrity::read_big_state::<T>();
+    } : {}
+
+    #[extra]
     check_all {
         syscalls_integrity::main_test::<T>();
+        tests::check_stack_overflow::<T>();
         #[cfg(feature = "lazy-pages")]
         {
             tests::lazy_pages::lazy_pages_charging::<T>();
@@ -370,6 +395,11 @@ benchmarks! {
             tests::lazy_pages::lazy_pages_gas_exceed::<T>();
         }
     } : {}
+
+    #[extra]
+    check_stack_overflow {
+        tests::check_stack_overflow::<T>();
+    }: {}
 
     #[extra]
     check_lazy_pages_all {
@@ -445,16 +475,18 @@ benchmarks! {
 
     claim_value {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
+        GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -475,8 +507,8 @@ benchmarks! {
 
     pay_program_rent {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -496,7 +528,7 @@ benchmarks! {
 
     resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -521,7 +553,7 @@ benchmarks! {
     resume_session_push {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -557,7 +589,7 @@ benchmarks! {
     resume_session_commit {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -603,9 +635,9 @@ benchmarks! {
     // `c`: Size of the code in kilobytes.
     upload_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
@@ -629,9 +661,9 @@ benchmarks! {
         Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
 
         let salt = vec![42u8; s as usize];
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
@@ -656,9 +688,9 @@ benchmarks! {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
         let salt = vec![42u8; s as usize];
-        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
-        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
@@ -671,8 +703,8 @@ benchmarks! {
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
@@ -688,17 +720,19 @@ benchmarks! {
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
+        GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -721,7 +755,7 @@ benchmarks! {
         let q in 1 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
@@ -736,7 +770,7 @@ benchmarks! {
         let q in 0 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
@@ -753,7 +787,7 @@ benchmarks! {
     reinstrument_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
-        let code = Code::new_raw(code, 1, None, false, true).unwrap();
+        let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
@@ -2724,6 +2758,89 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
+    }
+
+    tasks_remove_resume_session {
+        let session_id = tasks::remove_resume_session::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_resume_session(session_id);
+    }
+
+    tasks_remove_gas_reservation {
+        let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_gas_reservation(program_id, reservation_id);
+    }
+
+    tasks_send_user_message_to_mailbox {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, true);
+    }
+
+    tasks_send_user_message {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, false);
+    }
+
+    tasks_send_dispatch {
+        let message_id = tasks::send_dispatch::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_dispatch(message_id);
+    }
+
+    tasks_wake_message {
+        let (program_id, message_id) = tasks::wake_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(program_id, message_id);
+    }
+
+    tasks_wake_message_no_wake {
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(Default::default(), Default::default());
+    }
+
+    tasks_remove_from_waitlist {
+        let (program_id, message_id) = tasks::remove_from_waitlist::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_waitlist(program_id, message_id);
+    }
+
+    tasks_remove_from_mailbox {
+        let (user, message_id) = tasks::remove_from_mailbox::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+    }
+
+    tasks_pause_program {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_uninited {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

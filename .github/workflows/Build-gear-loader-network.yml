@@ -9,12 +9,12 @@ env:
 
 jobs:
   build-gear-loader:
-    runs-on: [self-hosted, epyc-4, k8s-runner]
+    runs-on: [kuberunner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -45,7 +45,7 @@ jobs:
     needs: build-gear-loader
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download artifact
         uses: actions/download-artifact@v3
