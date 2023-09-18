@@ -68,7 +68,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate(CodeId::generate(WASM_BINARY), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
