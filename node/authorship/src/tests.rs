@@ -55,7 +55,7 @@ use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DUR
 use runtime_primitives::BlockNumber;
 
 const SOURCE: TransactionSource = TransactionSource::External;
-const DEFAULT_GAS_LIMIT: u64 = 550_000_000;
+const DEFAULT_GAS_LIMIT: u64 = 865_000_000;
 
 fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
 where
