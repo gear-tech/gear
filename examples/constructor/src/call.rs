@@ -44,7 +44,7 @@ pub enum Call {
     Loop,
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::*;
     use crate::DATA;

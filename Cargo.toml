@@ -1,9 +1,9 @@
 [workspace.package]
-version = "0.3.4"
+version = "1.0.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
-homepage = "https://www.gear-tech.io"
+homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [workspace]
@@ -221,21 +221,20 @@ gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
-pallet-airdrop = { path = "pallets/airdrop", default-features = false }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
-pallet-gear-payment = { version = "0.1.0", path = "pallets/payment", default-features = false }
+pallet-gear-payment = { path = "pallets/payment", default-features = false }
 pallet-gear-program = { path = "pallets/gear-program", default-features = false }
 pallet-gear-rpc = { path = "pallets/gear/rpc" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api", default-features = false }
+pallet-gear-rpc-runtime-api = { path = "pallets/gear/rpc/runtime-api", default-features = false }
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
-pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
-pallet-gear-voucher = { version = "1.0.0", path = "pallets/gear-voucher", default-features = false }
-pallet-gear-bank = { version = "1.0.0", path = "pallets/gear-bank", default-features = false }
+pallet-gear-staking-rewards = { path = "pallets/staking-rewards", default-features = false }
+pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
-runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
+runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
@@ -372,7 +371,7 @@ demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
 demo-custom = { path = "examples/custom" }
 demo-compose = { path = "examples/compose" }
-demo-constructor = { path = "examples/constructor" }
+demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
@@ -380,7 +379,7 @@ demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
-demo-init-wait = { path = "examples/init-wait" }
+demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
 demo-messager = { path = "examples/messager" }
 demo-meta-io = { path = "examples/new-meta/io" }
@@ -397,7 +396,7 @@ demo-proxy-relay = { path = "examples/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
 demo-read-big-state = { path = "examples/read-big-state", default-features = false }
 demo-reservation-manager = { path = "examples/reservation-manager" }
-demo-reserve-gas = { path = "examples/reserve-gas" }
+demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
@@ -405,7 +404,7 @@ demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
 demo-wait = { path = "examples/wait" }
-demo-waiter = { path = "examples/waiter" }
+demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
