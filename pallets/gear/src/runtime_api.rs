@@ -127,10 +127,6 @@ where
                 break;
             };
 
-            //let actor = ext_manager
-            //    .get_actor(actor_id)
-            //    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
-
             let actor_id = queued_dispatch.destination();
             let dispatch_id = queued_dispatch.id();
             let dispatch_reply = queued_dispatch.reply_details().is_some();
