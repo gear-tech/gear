@@ -70,6 +70,8 @@ pallet-gear-payment.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
+pallet-gear-staking-rewards.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -126,6 +128,8 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"pallet-gear-staking-rewards-rpc-runtime-api/std",
+	"pallet-gear-staking-rewards/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
