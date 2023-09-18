@@ -23,11 +23,12 @@
 
 use crate::authorship::*;
 
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use common::Program;
 use core::convert::TryFrom;
 use frame_support::{storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use runtime_primitives::BlockNumber;
 use sc_client_api::Backend;
 use sc_transaction_pool::BasicPool;
 use sc_transaction_pool_api::{
@@ -52,7 +53,6 @@ use testing::{
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
 use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
-use runtime_primitives::BlockNumber;
 
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 865_000_000;
@@ -80,11 +80,7 @@ fn pre_digest(slot: u64, authority_index: u32) -> Digest {
     }
 }
 
-fn checked_extrinsics(
-    n: u32,
-    signer: AccountId,
-    nonce: &mut u32,
-) -> Vec<CheckedExtrinsic> {
+fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<CheckedExtrinsic> {
     use demo_mul_by_const::WASM_BINARY;
     use std::fmt::Write;
 
@@ -628,10 +624,7 @@ fn block_max_gas_works() {
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
 
-    let queue_len = state
-        .keys(queue_entry_args)
-        .unwrap()
-        .count();
+    let queue_len = state.keys(queue_entry_args).unwrap().count();
 
     // 2 out of 5 messages have been processed, 3 remain in the queue
     assert_eq!(queue_len, 3);
@@ -645,24 +638,17 @@ fn block_max_gas_works() {
 
     // The fact that 2 init messages out of 5 have been processed means
     // that there should be 2 inited programs.
-    let inited_count = state
-        .pairs(iter_args)
-        .unwrap()
-        .fold(0u32, |count, pair| {
-            let value = match pair {
-                Ok((_key, value)) => {
-                    value
-                },
-                _ => return count,
-            };
+    let inited_count = state.pairs(iter_args).unwrap().fold(0u32, |count, pair| {
+        let value = match pair {
+            Ok((_key, value)) => value,
+            _ => return count,
+        };
 
-            match Program::<BlockNumber>::decode(&mut &value[..]) {
-                Ok(p) if p.is_initialized() => {
-                    count + 1
-                }
-                _ => count,
-            }
-        });
+        match Program::<BlockNumber>::decode(&mut &value[..]) {
+            Ok(p) if p.is_initialized() => count + 1,
+            _ => count,
+        }
+    });
     assert_eq!(inited_count, 2);
 }
 
