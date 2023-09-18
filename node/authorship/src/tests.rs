@@ -55,6 +55,7 @@ use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DUR
 use runtime_primitives::BlockNumber;
 
 const SOURCE: TransactionSource = TransactionSource::External;
+const DEFAULT_GAS_LIMIT: u64 = 550_000_000;
 
 fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
 where
@@ -79,7 +80,11 @@ fn pre_digest(slot: u64, authority_index: u32) -> Digest {
     }
 }
 
-fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<CheckedExtrinsic> {
+fn checked_extrinsics(
+    n: u32,
+    signer: AccountId,
+    nonce: &mut u32,
+) -> Vec<CheckedExtrinsic> {
     use demo_mul_by_const::WASM_BINARY;
     use std::fmt::Write;
 
@@ -93,7 +98,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
                     code: WASM_BINARY.to_vec(),
                     salt: salt.as_bytes().to_vec(),
                     init_payload: (i as u64).encode(),
-                    gas_limit: 500_000_000,
+                    gas_limit: DEFAULT_GAS_LIMIT,
                     value: 0,
                 }),
             };
@@ -515,8 +520,8 @@ fn block_max_gas_works() {
 
     init_logger();
 
-    const INIT_MSG_GAS_LIMIT: u64 = 500_000_000;
-    const MAX_GAS: u64 = 2 * INIT_MSG_GAS_LIMIT + 25_000_100; // Enough to fit 2 messages
+    // Enough to fit 2 messages
+    const MAX_GAS: u64 = 2 * DEFAULT_GAS_LIMIT + 25_000_100;
 
     let client_builder = TestClientBuilder::new()
         .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
@@ -623,12 +628,10 @@ fn block_max_gas_works() {
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
 
-    let mut queue_len = 0_u32;
-
-    state
+    let queue_len = state
         .keys(queue_entry_args)
         .unwrap()
-        .for_each(|_k| queue_len += 1);
+        .count();
 
     // 2 out of 5 messages have been processed, 3 remain in the queue
     assert_eq!(queue_len, 3);
