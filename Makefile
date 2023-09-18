@@ -175,11 +175,11 @@ purge-chain-release:
 
 .PHONY: purge-dev-chain
 purge-dev-chain:
-	@ ./scripts/gear.sh run purge-dev-chain
+	@ ./scripts/gear.sh run purge-dev-chain -F dev
 
 .PHONY: purge-dev-chain-release
 purge-dev-chain-release:
-	@ ./scripts/gear.sh run purge-dev-chain --release
+	@ ./scripts/gear.sh run purge-dev-chain --release -F dev
 
 # Test section
 .PHONY: test # \
