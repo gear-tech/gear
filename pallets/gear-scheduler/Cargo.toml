@@ -60,7 +60,6 @@ std = [
 	"primitive-types/std",
 	"sp-io/std",
 	"sp-runtime/std",
-    "core-processor/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
