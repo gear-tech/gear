@@ -13470,6 +13470,20 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
         );
+
+        // ok result when we use custom multiplier
+        let gas_info_result = Gear::calculate_gas_info_impl(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            BlockGasLimitOf::<Test>::get(),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            false,
+            Some(64),
+        );
+
+        assert!(gas_info_result.is_ok());
     });
 }
 
