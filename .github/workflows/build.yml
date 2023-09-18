@@ -158,7 +158,7 @@ jobs:
 
       - name: "Build: Production binaries"
         if: github.event_name == 'push'
-        run: cargo build -p gear-cli -F cli --profile production
+        run: cargo build -p gear-cli -F dev,cli --profile production
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
