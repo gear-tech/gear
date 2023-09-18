@@ -37,11 +37,9 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
-    fn update_gas_allowance(multiplier: u64) -> u64 {
-        let gas_allowance = multiplier.saturating_mul(BlockGasLimitOf::<T>::get());
+    fn update_gas_allowance(gas_allowance: u64) {
         GasAllowanceOf::<T>::put(gas_allowance);
         QueueProcessingOf::<T>::allow();
-        gas_allowance
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -119,9 +117,11 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        let _ = Self::update_gas_allowance(
-            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
-        );
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -332,9 +332,11 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(
-            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
-        );
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
@@ -374,9 +376,11 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(
-            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
-        );
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
@@ -415,9 +419,11 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        let gas_allowance = Self::update_gas_allowance(
-            allowance_multiplier.unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT),
-        );
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
 
         core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
