@@ -22,19 +22,17 @@ mod gear_calls;
 mod runtime;
 #[cfg(test)]
 mod tests;
+mod utils;
 
 use arbitrary::Result;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_calls::{
-    Config as GearCallsConfig, GearCalls, MailboxProvider, RepeatedGenerator, SendMessageGenerator,
-    SendReplyGenerator, UploadProgramGenerator,
-};
-use gear_core::ids::MessageId;
+use gear_calls::GearCalls;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 use sha1::*;
+use utils::default_generator_set;
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(data: &[u8]) -> Result<()> {
@@ -49,8 +47,8 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     let test_input_id = get_sha1_string(data);
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
-    let config = calls_config(test_input_id);
-    let gear_calls = GearCalls::new(data, config)?;
+    let generators = default_generator_set(test_input_id);
+    let gear_calls = GearCalls::new(data, generators)?;
 
     let sender = runtime::account(runtime::alice());
     let mut test_ext = new_test_ext();
@@ -77,53 +75,6 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     })?;
 
     Ok(test_ext)
-}
-
-pub fn min_unstructured_input_size() -> usize {
-    let config = calls_config("".to_string());
-    config.unstructured_size_hint()
-}
-
-fn calls_config(test_input_id: String) -> GearCallsConfig {
-    GearCallsConfig::new(vec![
-        RepeatedGenerator::new(
-            10,
-            Box::new(UploadProgramGenerator {
-                gas: default_gas_limit(),
-                value: 0,
-                test_input_id,
-            }),
-        ),
-        RepeatedGenerator::new(
-            15,
-            Box::new(SendMessageGenerator {
-                gas: default_gas_limit(),
-                value: 0,
-                prepaid: false,
-            }),
-        ),
-        RepeatedGenerator::new(
-            1,
-            Box::new(SendReplyGenerator {
-                mailbox_provider: Box::from(MailboxProviderImpl {
-                    account_id: runtime::account(runtime::alice()),
-                }),
-                gas: default_gas_limit(),
-                value: 0,
-                prepaid: false,
-            }),
-        ),
-    ])
-}
-
-struct MailboxProviderImpl {
-    account_id: AccountId,
-}
-
-impl MailboxProvider for MailboxProviderImpl {
-    fn fetch_messages(&self) -> Vec<MessageId> {
-        get_mailbox_messages(&self.account_id)
-    }
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {

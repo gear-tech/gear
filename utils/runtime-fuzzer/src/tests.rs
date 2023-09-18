@@ -24,7 +24,7 @@ const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
 
 #[test]
 fn proptest_input_validity() {
-    assert!(MIN_GEAR_CALLS_BYTES >= crate::min_unstructured_input_size());
+    assert!(MIN_GEAR_CALLS_BYTES >= crate::utils::min_unstructured_input_size());
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 
