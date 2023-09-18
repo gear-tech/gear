@@ -193,6 +193,147 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         })
     }
 
+    fn insert_sys_calls(&mut self) -> Result<()> {
+        log::trace!(
+            "Random data before inserting sys-calls invoke instructions - {}",
+            self.unstructured.len()
+        );
+
+        let code_funcs = self.module.count_code_funcs();
+        let insert_into_funcs: Vec<_> = (0..code_funcs)
+            .filter(|idx| !self.call_indexes.is_custom_func(*idx))
+            .collect();
+
+        let syscalls_to_insert =
+            self.sys_call_imports
+                .clone()
+                .into_iter()
+                .flat_map(|(syscall, (amount, _))| {
+                    iter::repeat(syscall)
+                        .take(amount as usize)
+                        .collect::<Vec<_>>()
+                });
+
+        let insertion_mapping =
+            self.get_syscall_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
+
+        for (insert_into_fn, syscalls) in insertion_mapping {
+            self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
+        }
+
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions - {}",
+            self.unstructured.len()
+        );
+
+        Ok(())
+    }
+
+    /// Distributes provided syscalls among provided function ids.
+    ///
+    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`
+    /// as a vector to avoid indeterminance that may be caused by `HashMap` usage.
+    fn get_syscall_insertion_mapping<I>(
+        &mut self,
+        syscalls: I,
+        insert_into_funcs: &[usize],
+    ) -> Result<Vec<(usize, Vec<InvocableSysCall>)>>
+    where
+        I: Iterator<Item = InvocableSysCall>,
+    {
+        let mut insertion_mapping: HashMap<usize, Vec<InvocableSysCall>> = HashMap::new();
+        for syscall in syscalls {
+            let insert_into = *self.unstructured.choose(insert_into_funcs)?;
+
+            match insertion_mapping.entry(insert_into) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(syscall);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![syscall]);
+                }
+            }
+        }
+
+        let mut insertion_mapping: Vec<_> = insertion_mapping.into_iter().collect();
+        // Sort it to avoid indeterminance appeared because of HashMap usage.
+        insertion_mapping.sort_by(|a, b| a.0.cmp(&b.0));
+
+        Ok(insertion_mapping)
+    }
+
+    fn insert_sys_calls_into_fn(
+        &mut self,
+        insert_into_fn: usize,
+        syscalls: Vec<InvocableSysCall>,
+    ) -> Result<()> {
+        log::trace!(
+            "Random data before inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        let fn_code_len = self
+            .module
+            .code_section()
+            .expect("has at least one function by config")
+            .bodies()[insert_into_fn]
+            .code()
+            .elements()
+            .len();
+
+        // The end of insertion range is second-to-last index, as the last
+        // index is defined for `Instruction::End` of the function body.
+        // But if there's only one instruction in the function, then `0`
+        // index is used as an insertion point.
+        let last = if fn_code_len > 1 { fn_code_len - 2 } else { 0 };
+
+        let mut insertion_positions = syscalls
+            .into_iter()
+            .map(|syscall| Ok((self.unstructured.int_in_range(0..=last)?, syscall)))
+            .collect::<Result<Vec<_>>>()?;
+
+        // Sort in descending order. It's needed to guarantee that no syscall
+        // invocation instructions will intersect with each other as we start
+        // inserting syscalls from the last index.
+        insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        for (pos, syscall) in insertion_positions {
+            let call_indexes_handle = self
+                .sys_call_imports
+                .get(&syscall)
+                .map(|(_, call_indexes_handle)| *call_indexes_handle)
+                .expect("Syscall presented in sys_call_imports");
+            let instructions = self.build_sys_call_invoke_instructions(
+                syscall,
+                syscall.into_signature(),
+                call_indexes_handle,
+            )?;
+
+            log::trace!(
+                " -- Inserting syscall {} into function {insert_into_fn} at position {pos}",
+                syscall.to_str()
+            );
+
+            self.module.with(|mut module| {
+                let code = module
+                    .code_section_mut()
+                    .expect("has at least one function by config")
+                    .bodies_mut()[insert_into_fn]
+                    .code_mut()
+                    .elements_mut();
+                code.splice(pos..pos, instructions);
+                (module, ())
+            });
+        }
+
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        Ok(())
+    }
+
     fn build_sys_call_invoke_instructions(
         &mut self,
         invocable: InvocableSysCall,
@@ -516,147 +657,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             Instruction::Unreachable,
             Instruction::End,
         ]
-    }
-
-    fn insert_sys_calls(&mut self) -> Result<()> {
-        log::trace!(
-            "Random data before inserting sys-calls invoke instructions - {}",
-            self.unstructured.len()
-        );
-
-        let code_funcs = self.module.count_code_funcs();
-        let insert_into_funcs: Vec<_> = (0..code_funcs)
-            .filter(|idx| !self.call_indexes.is_custom_func(*idx))
-            .collect();
-
-        let syscalls_to_insert =
-            self.sys_call_imports
-                .clone()
-                .into_iter()
-                .flat_map(|(syscall, (amount, _))| {
-                    iter::repeat(syscall)
-                        .take(amount as usize)
-                        .collect::<Vec<_>>()
-                });
-
-        let insertion_mapping =
-            self.get_syscall_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
-
-        for (insert_into_fn, syscalls) in insertion_mapping {
-            self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
-        }
-
-        log::trace!(
-            "Random data after inserting sys-calls invoke instructions - {}",
-            self.unstructured.len()
-        );
-
-        Ok(())
-    }
-
-    /// Distributes provided syscalls among provided function ids.
-    ///
-    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`
-    /// as a vector to avoid indeterminance that may be caused by `HashMap` usage.
-    fn get_syscall_insertion_mapping<I>(
-        &mut self,
-        syscalls: I,
-        insert_into_funcs: &[usize],
-    ) -> Result<Vec<(usize, Vec<InvocableSysCall>)>>
-    where
-        I: Iterator<Item = InvocableSysCall>,
-    {
-        let mut insertion_mapping: HashMap<usize, Vec<InvocableSysCall>> = HashMap::new();
-        for syscall in syscalls {
-            let insert_into = *self.unstructured.choose(insert_into_funcs)?;
-
-            match insertion_mapping.entry(insert_into) {
-                Entry::Occupied(mut entry) => {
-                    entry.get_mut().push(syscall);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(vec![syscall]);
-                }
-            }
-        }
-
-        let mut insertion_mapping: Vec<_> = insertion_mapping.into_iter().collect();
-        // Sort it to avoid indeterminance appeared because of HashMap usage.
-        insertion_mapping.sort_by(|a, b| a.0.cmp(&b.0));
-
-        Ok(insertion_mapping)
-    }
-
-    fn insert_sys_calls_into_fn(
-        &mut self,
-        insert_into_fn: usize,
-        syscalls: Vec<InvocableSysCall>,
-    ) -> Result<()> {
-        log::trace!(
-            "Random data before inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
-            self.unstructured.len()
-        );
-
-        let fn_code_len = self
-            .module
-            .code_section()
-            .expect("has at least one function by config")
-            .bodies()[insert_into_fn]
-            .code()
-            .elements()
-            .len();
-
-        // The end of insertion range is second-to-last index, as the last
-        // index is defined for `Instruction::End` of the function body.
-        // But if there's only one instruction in the function, then `0`
-        // index is used as an insertion point.
-        let last = if fn_code_len > 1 { fn_code_len - 2 } else { 0 };
-
-        let mut insertion_positions = syscalls
-            .into_iter()
-            .map(|syscall| Ok((self.unstructured.int_in_range(0..=last)?, syscall)))
-            .collect::<Result<Vec<_>>>()?;
-
-        // Sort in descending order. It's needed to guarantee that no syscall
-        // invocation instructions will intersect with each other as we start
-        // inserting syscalls from the last index.
-        insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
-
-        for (pos, syscall) in insertion_positions {
-            let call_indexes_handle = self
-                .sys_call_imports
-                .get(&syscall)
-                .map(|(_, call_indexes_handle)| *call_indexes_handle)
-                .expect("Syscall presented in sys_call_imports");
-            let instructions = self.build_sys_call_invoke_instructions(
-                syscall,
-                syscall.into_signature(),
-                call_indexes_handle,
-            )?;
-
-            log::trace!(
-                " -- Inserting syscall {} into function {insert_into_fn} at position {pos}",
-                syscall.to_str()
-            );
-
-            self.module.with(|mut module| {
-                let code = module
-                    .code_section_mut()
-                    .expect("has at least one function by config")
-                    .bodies_mut()[insert_into_fn]
-                    .code_mut()
-                    .elements_mut();
-                code.splice(pos..pos, instructions);
-                (module, ())
-            });
-        }
-
-        log::trace!(
-            "Random data after inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
-            self.unstructured.len()
-        );
-
-        Ok(())
     }
 
     fn resolves_calls_indexes(&mut self) {
