@@ -18,5 +18,6 @@ gtest.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-std = []
+wasm-wrapper = []
+std = ["wasm-wrapper", "parity-scale-codec/std"]
 default = ["std"]

@@ -24,9 +24,6 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(feature = "lazy-pages")]
-mod ext;
-
 mod internal;
 mod queue;
 mod runtime_api;
@@ -58,6 +55,7 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
+    Ext,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -74,6 +72,7 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
+use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -85,15 +84,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use gear_lazy_pages_common as lazy_pages;
-
-#[cfg(feature = "lazy-pages")]
-use ext::LazyPagesExt as Ext;
-
-#[cfg(not(feature = "lazy-pages"))]
-use core_processor::Ext;
 
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
@@ -934,7 +924,6 @@ pub mod pallet {
                 ..=current_bn.saturated_into())
                 .map(|block| block.saturated_into::<BlockNumberFor<T>>());
             for bn in missing_blocks {
-                // Tasks drain iterator.
                 let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
 
                 // Checking gas allowance.
@@ -948,28 +937,61 @@ pub mod pallet {
                 }
 
                 // Iterating over tasks, scheduled on `bn`.
+                let mut last_task = None;
                 for task in tasks {
-                    log::debug!("Processing task: {:?}", task);
-
                     // Decreasing gas allowance due to DB deletion.
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
-                    // Processing task.
-                    //
-                    // NOTE: Gas allowance decrease should be implemented
-                    // inside `TaskHandler` trait and/or inside other
-                    // generic types, which interact with storage.
-                    task.process_with(ext_manager);
+                    // gas required to process task.
+                    let max_task_gas = manager::get_maximum_task_gas::<T>(&task);
+                    log::debug!("Processing task: {task:?}, max gas = {max_task_gas}");
 
                     // Checking gas allowance.
                     //
-                    // Making sure we have gas to remove next task
-                    // or update the first block of incomplete tasks.
-                    if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(bn);
-                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
+                    // Making sure we have gas to process the current task
+                    // and update the first block of incomplete tasks.
+                    if GasAllowanceOf::<T>::get().saturating_sub(max_task_gas)
+                        <= DbWeightOf::<T>::get().writes(1).ref_time()
+                    {
+                        // Since the task is not processed write DB cost should be refunded.
+                        // In the same time gas allowance should be charged for read DB cost.
+                        GasAllowanceOf::<T>::put(
+                            GasAllowanceOf::<T>::get()
+                                .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time())
+                                .saturating_sub(DbWeightOf::<T>::get().reads(1).ref_time()),
+                        );
+
+                        last_task = Some(task);
+                        log::debug!("Not enough gas to process task at: {bn:?}");
+
                         break;
                     }
+
+                    // Processing task and update allowance of gas.
+                    let task_gas = task.process_with(ext_manager);
+                    GasAllowanceOf::<T>::decrease(task_gas);
+
+                    // Check that there is enough gas allowance to query next task and update the first block of incomplete tasks.
+                    if GasAllowanceOf::<T>::get()
+                        <= DbWeightOf::<T>::get().reads_writes(1, 1).ref_time()
+                    {
+                        stopped_at = Some(bn);
+                        log::debug!("Stopping processing tasks at (read next): {stopped_at:?}");
+                        break;
+                    }
+                }
+
+                if let Some(task) = last_task {
+                    stopped_at = Some(bn);
+
+                    // since there is the overlay mechanism we don't need to subtract write cost
+                    // from gas allowance on task insertion.
+                    GasAllowanceOf::<T>::put(
+                        GasAllowanceOf::<T>::get()
+                            .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time()),
+                    );
+                    TaskPoolOf::<T>::add(bn, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
 
                 // Stopping iteration over blocks if no resources left.
@@ -991,46 +1013,11 @@ pub mod pallet {
             }
         }
 
-        pub(crate) fn enable_lazy_pages() -> bool {
-            #[cfg(feature = "lazy-pages")]
-            {
-                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
-                }
-                true
+        pub(crate) fn enable_lazy_pages() {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
-
-            #[cfg(not(feature = "lazy-pages"))]
-            {
-                false
-            }
-        }
-
-        pub(crate) fn get_and_track_memory_pages(
-            manager: &mut ExtManager<T>,
-            program_id: ProgramId,
-            pages_with_data: &BTreeSet<GearPage>,
-            lazy_pages_enabled: bool,
-        ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            let pages = if lazy_pages_enabled {
-                Default::default()
-            } else {
-                match ProgramStorageOf::<T>::get_program_data_for_pages(
-                    program_id,
-                    pages_with_data.iter(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        log::error!("Cannot get data for program pages: {err:?}");
-                        return None;
-                    }
-                }
-            };
-
-            manager.insert_program_id_loaded_pages(program_id);
-
-            Some(pages)
         }
 
         pub(crate) fn block_config() -> BlockConfig {

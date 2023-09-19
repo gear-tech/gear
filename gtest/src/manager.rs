@@ -19,7 +19,7 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    Result, System, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
@@ -45,9 +45,12 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+use sp_io::TestExternalities;
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
+    rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -117,13 +120,7 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(
-        &self,
-    ) -> Option<(
-        ExecutableActorData,
-        CoreProgram,
-        BTreeMap<GearPage, PageBuf>,
-    )> {
+    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
         let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
@@ -161,7 +158,6 @@ impl TestActor {
                 gas_reservation_map,
             },
             program,
-            pages_data,
         ))
     }
 }
@@ -218,6 +214,8 @@ pub(crate) struct ExtManager {
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, u64>,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
+
+    pub(crate) externalities: Rc<RefCell<TestExternalities>>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -325,6 +323,29 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn with_externalities<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let externalities = self.externalities.clone();
+        let mut externalities = externalities.borrow_mut();
+        externalities.execute_with(|| f(self))
+    }
+
+    fn update_storage_pages(program_id: ProgramId, memory_pages: &BTreeMap<GearPage, PageBuf>) {
+        // write pages into storage so lazy-pages can access them
+        for (page, buf) in memory_pages {
+            let page_no: u32 = (*page).into();
+            let prefix = [
+                System::PAGE_STORAGE_PREFIX.as_slice(),
+                program_id.into_bytes().as_slice(),
+                page_no.to_le_bytes().as_slice(),
+            ]
+            .concat();
+            sp_io::storage::set(&prefix, buf);
+        }
+    }
+
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
         if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
@@ -362,7 +383,7 @@ impl ExtManager {
 
     pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.validate_dispatch(&dispatch);
-        self.run_dispatch(dispatch)
+        self.with_externalities(|this| this.run_dispatch(dispatch))
     }
 
     #[track_caller]
@@ -409,14 +430,8 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, program, memory_pages)) = actor.get_executable_actor_data() {
-                self.process_normal(
-                    balance,
-                    data,
-                    program.code().clone(),
-                    memory_pages,
-                    dispatch,
-                );
+            } else if let Some((data, program)) = actor.get_executable_actor_data() {
+                self.process_normal(balance, data, program.code().clone(), dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -441,20 +456,23 @@ impl ExtManager {
 
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn read_state_bytes(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
+    pub(crate) fn read_state_bytes(
+        &mut self,
+        payload: Vec<u8>,
+        program_id: &ProgramId,
+    ) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
+        if let Some((_, program)) = actor.get_executable_actor_data() {
             core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
                 String::from("state"),
                 program.code().clone(),
-                Some(memory_pages),
                 Some(program.allocations().clone()),
                 Some(*program_id),
-                Default::default(),
+                payload,
                 u64::MAX,
                 self.block_info,
             )
@@ -470,6 +488,7 @@ impl ExtManager {
 
     pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
+        payload: Vec<u8>,
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
@@ -487,12 +506,11 @@ impl ExtManager {
             .0;
 
         let mut mapping_code_payload = args.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
+        mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
 
         core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
             String::from(fn_name),
             mapping_code,
-            None,
             None,
             None,
             mapping_code_payload,
@@ -592,9 +610,11 @@ impl ExtManager {
         };
 
         match program {
-            Program::Genuine { pages_data, .. } => *pages_data = memory_pages,
+            Program::Genuine { pages_data, .. } => *pages_data = memory_pages.clone(),
             Program::Mock(_) => panic!("Can't read memory of mock program"),
         }
+
+        self.with_externalities(|_this| Self::update_storage_pages(*program_id, &memory_pages))
     }
 
     #[track_caller]
@@ -775,14 +795,13 @@ impl ExtManager {
         balance: u128,
         data: ExecutableActorData,
         code: InstrumentedCode,
-        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
+        self.process_dispatch(balance, Some((data, code)), dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
-        self.process_dispatch(balance, None, Default::default(), dispatch);
+        self.process_dispatch(balance, None, dispatch);
     }
 
     #[track_caller]
@@ -790,7 +809,6 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: Option<(ExecutableActorData, InstrumentedCode)>,
-        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -868,7 +886,6 @@ impl ExtManager {
             &block_config,
             (context, code, balance).into(),
             self.random_data.clone(),
-            memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
@@ -1001,6 +1018,8 @@ impl JournalHandler for ExtManager {
             .expect("Can't find existing program");
 
         if let Some(actor_pages_data) = actor.get_pages_data_mut() {
+            Self::update_storage_pages(program_id, &pages_data);
+
             actor_pages_data.append(&mut pages_data);
         } else {
             unreachable!("No pages data found for program")

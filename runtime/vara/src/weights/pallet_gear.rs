@@ -215,6 +215,17 @@ pub trait WeightInfo {
     fn instr_i32rotl(r: u32, ) -> Weight;
     fn instr_i64rotr(r: u32, ) -> Weight;
     fn instr_i32rotr(r: u32, ) -> Weight;
+    fn tasks_remove_resume_session() -> Weight;
+    fn tasks_remove_gas_reservation() -> Weight;
+    fn tasks_send_user_message_to_mailbox() -> Weight;
+    fn tasks_send_user_message() -> Weight;
+    fn tasks_send_dispatch() -> Weight;
+    fn tasks_wake_message() -> Weight;
+    fn tasks_wake_message_no_wake() -> Weight;
+    fn tasks_remove_from_waitlist() -> Weight;
+    fn tasks_remove_from_mailbox() -> Weight;
+    fn tasks_pause_program(c: u32, ) -> Weight;
+    fn tasks_pause_program_uninited(c: u32, ) -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2062,6 +2073,116 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 5_851
             .saturating_add(Weight::from_parts(639_333, 0).saturating_mul(r.into()))
     }
+    fn tasks_remove_resume_session() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `352`
+        //  Estimated: `4169`
+        // Minimum execution time: 6_081_000 picoseconds.
+        Weight::from_parts(6_314_000, 4169)
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+    }
+    fn tasks_remove_gas_reservation() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1107`
+        //  Estimated: `24053`
+        // Minimum execution time: 61_245_000 picoseconds.
+        Weight::from_parts(64_310_000, 24053)
+            .saturating_add(T::DbWeight::get().reads(7_u64))
+            .saturating_add(T::DbWeight::get().writes(6_u64))
+    }
+    fn tasks_send_user_message_to_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `888`
+        //  Estimated: `22158`
+        // Minimum execution time: 47_184_000 picoseconds.
+        Weight::from_parts(48_335_000, 22158)
+            .saturating_add(T::DbWeight::get().reads(6_u64))
+            .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    fn tasks_send_user_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1010`
+        //  Estimated: `34619`
+        // Minimum execution time: 75_767_000 picoseconds.
+        Weight::from_parts(77_229_000, 34619)
+            .saturating_add(T::DbWeight::get().reads(11_u64))
+            .saturating_add(T::DbWeight::get().writes(10_u64))
+    }
+    fn tasks_send_dispatch() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `695`
+        //  Estimated: `20509`
+        // Minimum execution time: 31_513_000 picoseconds.
+        Weight::from_parts(33_232_000, 20509)
+            .saturating_add(T::DbWeight::get().reads(7_u64))
+            .saturating_add(T::DbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `976`
+        //  Estimated: `26636`
+        // Minimum execution time: 48_739_000 picoseconds.
+        Weight::from_parts(49_963_000, 26636)
+            .saturating_add(T::DbWeight::get().reads(8_u64))
+            .saturating_add(T::DbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message_no_wake() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `80`
+        //  Estimated: `3545`
+        // Minimum execution time: 3_513_000 picoseconds.
+        Weight::from_parts(3_670_000, 3545)
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+    }
+    fn tasks_remove_from_waitlist() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1626`
+        //  Estimated: `58232`
+        // Minimum execution time: 109_582_000 picoseconds.
+        Weight::from_parts(112_343_000, 58232)
+            .saturating_add(T::DbWeight::get().reads(16_u64))
+            .saturating_add(T::DbWeight::get().writes(13_u64))
+    }
+    fn tasks_remove_from_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1332`
+        //  Estimated: `46962`
+        // Minimum execution time: 90_789_000 picoseconds.
+        Weight::from_parts(93_329_000, 46962)
+            .saturating_add(T::DbWeight::get().reads(14_u64))
+            .saturating_add(T::DbWeight::get().writes(13_u64))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn tasks_pause_program(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `2303 + c * (16400 ±0)`
+        //  Estimated: `19878 + c * (84480 ±0)`
+        // Minimum execution time: 31_262_000 picoseconds.
+        Weight::from_parts(31_610_000, 19878)
+            // Standard Error: 69_131
+            .saturating_add(Weight::from_parts(39_928_419, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(4_u64))
+            .saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn tasks_pause_program_uninited(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `3129 + c * (42 ±0)`
+        //  Estimated: `60575 + c * (2947 ±0)`
+        // Minimum execution time: 91_223_000 picoseconds.
+        Weight::from_parts(98_002_861, 60575)
+            // Standard Error: 2_086
+            .saturating_add(Weight::from_parts(1_092_801, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(13_u64))
+            .saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(T::DbWeight::get().writes(9_u64))
+            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 2947).saturating_mul(c.into()))
+    }
 }
 
 // For backwards compatibility and tests
@@ -3902,5 +4023,115 @@ impl WeightInfo for () {
         Weight::from_parts(206_699, 0)
             // Standard Error: 5_851
             .saturating_add(Weight::from_parts(639_333, 0).saturating_mul(r.into()))
+    }
+    fn tasks_remove_resume_session() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `352`
+        //  Estimated: `4169`
+        // Minimum execution time: 6_081_000 picoseconds.
+        Weight::from_parts(6_314_000, 4169)
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+    }
+    fn tasks_remove_gas_reservation() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1107`
+        //  Estimated: `24053`
+        // Minimum execution time: 61_245_000 picoseconds.
+        Weight::from_parts(64_310_000, 24053)
+            .saturating_add(RocksDbWeight::get().reads(7_u64))
+            .saturating_add(RocksDbWeight::get().writes(6_u64))
+    }
+    fn tasks_send_user_message_to_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `888`
+        //  Estimated: `22158`
+        // Minimum execution time: 47_184_000 picoseconds.
+        Weight::from_parts(48_335_000, 22158)
+            .saturating_add(RocksDbWeight::get().reads(6_u64))
+            .saturating_add(RocksDbWeight::get().writes(5_u64))
+    }
+    fn tasks_send_user_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1010`
+        //  Estimated: `34619`
+        // Minimum execution time: 75_767_000 picoseconds.
+        Weight::from_parts(77_229_000, 34619)
+            .saturating_add(RocksDbWeight::get().reads(11_u64))
+            .saturating_add(RocksDbWeight::get().writes(10_u64))
+    }
+    fn tasks_send_dispatch() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `695`
+        //  Estimated: `20509`
+        // Minimum execution time: 31_513_000 picoseconds.
+        Weight::from_parts(33_232_000, 20509)
+            .saturating_add(RocksDbWeight::get().reads(7_u64))
+            .saturating_add(RocksDbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `976`
+        //  Estimated: `26636`
+        // Minimum execution time: 48_739_000 picoseconds.
+        Weight::from_parts(49_963_000, 26636)
+            .saturating_add(RocksDbWeight::get().reads(8_u64))
+            .saturating_add(RocksDbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message_no_wake() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `80`
+        //  Estimated: `3545`
+        // Minimum execution time: 3_513_000 picoseconds.
+        Weight::from_parts(3_670_000, 3545)
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
+    }
+    fn tasks_remove_from_waitlist() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1626`
+        //  Estimated: `58232`
+        // Minimum execution time: 109_582_000 picoseconds.
+        Weight::from_parts(112_343_000, 58232)
+            .saturating_add(RocksDbWeight::get().reads(16_u64))
+            .saturating_add(RocksDbWeight::get().writes(13_u64))
+    }
+    fn tasks_remove_from_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1332`
+        //  Estimated: `46962`
+        // Minimum execution time: 90_789_000 picoseconds.
+        Weight::from_parts(93_329_000, 46962)
+            .saturating_add(RocksDbWeight::get().reads(14_u64))
+            .saturating_add(RocksDbWeight::get().writes(13_u64))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn tasks_pause_program(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `2303 + c * (16400 ±0)`
+        //  Estimated: `19878 + c * (84480 ±0)`
+        // Minimum execution time: 31_262_000 picoseconds.
+        Weight::from_parts(31_610_000, 19878)
+            // Standard Error: 69_131
+            .saturating_add(Weight::from_parts(39_928_419, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(4_u64))
+            .saturating_add(RocksDbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn tasks_pause_program_uninited(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `3129 + c * (42 ±0)`
+        //  Estimated: `60575 + c * (2947 ±0)`
+        // Minimum execution time: 91_223_000 picoseconds.
+        Weight::from_parts(98_002_861, 60575)
+            // Standard Error: 2_086
+            .saturating_add(Weight::from_parts(1_092_801, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(13_u64))
+            .saturating_add(RocksDbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(RocksDbWeight::get().writes(9_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 2947).saturating_mul(c.into()))
     }
 }
