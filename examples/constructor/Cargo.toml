@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gcore.workspace = true
 gstd.workspace = true
 hex.workspace = true
 parity-scale-codec.workspace = true
@@ -17,5 +18,6 @@ gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-std = []
+wasm-wrapper = []
+std = ["wasm-wrapper"]
 default = ["std"]

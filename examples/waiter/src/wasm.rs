@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,33 +40,37 @@ async fn main() {
     match cmd {
         Command::Wait(subcommand) => process_wait_subcommand(subcommand),
         Command::SendFor(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0, 0)
+            msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
                 .exactly(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendUpTo(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0, 0)
+            msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendUpToWait(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0, 0)
+            msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
 
             // after waking, wait again.
-            msg::send_bytes_for_reply(to, [], 0, 0)
+            msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendAndWaitFor(duration, to) => {
-            msg::send(to, b"ping", 0);
+            msg::send(to.into(), b"ping", 0).expect("send message failed");
             exec::wait_for(duration);
         }
         Command::ReplyAndWait(subcommand) => {
@@ -89,7 +93,6 @@ async fn main() {
                 SleepForWaitType::Any => {
                     future::select_all(sleep_futures).await;
                 }
-                _ => unreachable!(),
             }
             msg::send(
                 msg::source(),
@@ -195,9 +198,7 @@ async fn process_lock_continuation<G>(
     match continuation {
         LockContinuation::Nothing => {}
         LockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
-        LockContinuation::MoveToStatic => unsafe {
-            *static_lock_guard = Some(lock_guard);
-        },
+        LockContinuation::MoveToStatic => *static_lock_guard = Some(lock_guard),
         LockContinuation::Wait => exec::wait(),
         LockContinuation::Forget => {
             gstd::mem::forget(lock_guard);

@@ -1,0 +1,19 @@
+[package]
+name = "pallet-gear-staking-rewards-rpc"
+version = "1.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[dependencies]
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+
+# Substrate packages
+sp-api.workspace = true
+sp-blockchain.workspace = true
+sp-runtime.workspace = true
+
+# Local packages
+pallet-gear-staking-rewards-rpc-runtime-api.workspace = true

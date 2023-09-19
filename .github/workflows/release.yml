@@ -17,7 +17,7 @@ jobs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Update config
@@ -49,45 +49,66 @@ jobs:
     needs: prepare
     runs-on: [kuberunner]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: "Actions: Checkout"
+        uses: actions/checkout@v4
 
-      - name: Set cargo path
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      - name: "Environment: Cargo path"
+        run: >
+          echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: Install build deps
+      - name: "Install: Build dependencies"
         run: |
           sudo apt update -y
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
 
-      - name: Build wasm-proc
+      - name: "Environment: Export versions"
+        run: |
+          export GEAR_SPEC="$(cat runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
+          export VARA_SPEC="$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
+
+      - name: "Artifact: Make `artifact` directory"
+        run: >
+          mkdir -p artifact
+
+      - name: "Build: `wasm-proc`"
         run: |
           cargo build -p wasm-proc --release
           cp -vf target/release/wasm-proc ./
 
-      - name: Build binaries
+      - name: "Build: Production `gear-cli`"
         run: >
           cargo build -p gear-cli --profile production
 
-      - name: Test runtimes
+      - name: "Test: Production runtimes"
         run: |
           ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/gear_runtime.wasm
           ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
 
-      - name: Prepare artifacts
+      - name: "Artifact: Production binaries"
         run: |
-          mkdir -p artifact
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          cp target/production/gear artifact/
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm "artifact/gear_v$GEAR_SPEC.wasm"
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_v$VARA_SPEC.wasm"
+          cp target/production/gear artifact/gear
           strip artifact/gear || true
+
+      - name: "Build: Development `gear-cli`"
+        run: >
+          cargo build -p gear-cli --profile production -F dev
+
+      - name: "Test: Development runtimes"
+        run: |
+          ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/gear_runtime.wasm
+          ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
+
+      - name: "Artifact: Development binaries"
+        run: |
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm "artifact/dev_gear_v$GEAR_SPEC.wasm"
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/dev_vara_v$VARA_SPEC.wasm"
+          cp target/production/gear artifact/dev-gear
+          strip artifact/dev-gear || true
 
       - name: Publish
         uses: softprops/action-gh-release@v1

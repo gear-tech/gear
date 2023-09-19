@@ -58,7 +58,7 @@ done
 if [ "$skip_build" != true ]
 then
   echo "[+] Compiling Gear benchmarks..."
-  cargo build --profile=production --locked --features=runtime-benchmarks
+  cargo build --profile=production --locked --features=dev,runtime-benchmarks
 fi
 
 # The executable to use.

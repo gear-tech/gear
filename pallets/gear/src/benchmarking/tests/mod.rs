@@ -23,8 +23,70 @@
 
 use super::*;
 
+pub mod lazy_pages;
 pub mod syscalls_integrity;
 mod utils;
 
-#[cfg(feature = "lazy-pages")]
-pub mod lazy_pages;
+use crate::{
+    alloc::string::ToString,
+    benchmarking::{
+        code::{body, WasmModule},
+        utils as common_utils,
+    },
+    HandleKind,
+};
+use common::benchmarking;
+use gear_backend_common::TrapExplanation;
+
+use gear_wasm_instrument::parity_wasm::elements::Instruction;
+
+pub fn check_stack_overflow<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let instrs = vec![
+        Instruction::I64Const(10),
+        Instruction::GetGlobal(0),
+        Instruction::I64Add,
+        Instruction::SetGlobal(0),
+        Instruction::Call(0),
+    ];
+
+    let module: WasmModule<T> = ModuleDefinition {
+        memory: Some(ImportedMemory::max::<T>()),
+        init_body: Some(body::from_instructions(instrs)),
+        stack_end: Some(0.into()),
+        num_globals: 1,
+        ..Default::default()
+    }
+    .into();
+
+    let source = benchmarking::account("instantiator", 0, 0);
+    let exec = common_utils::prepare_exec::<T>(
+        source,
+        HandleKind::Init(module.code),
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+
+    core_processor::process::<ExecutionEnvironment>(
+        &exec.block_config,
+        exec.context,
+        exec.random_data,
+    )
+    .unwrap()
+    .into_iter()
+    .find_map(|note| match note {
+        JournalNote::MessageDispatched { outcome, .. } => Some(outcome),
+        _ => None,
+    })
+    .map(|outcome| match outcome {
+        DispatchOutcome::InitFailure { reason, .. } => {
+            assert_eq!(reason, TrapExplanation::Unknown.to_string());
+        }
+        _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
+    })
+    .unwrap();
+}

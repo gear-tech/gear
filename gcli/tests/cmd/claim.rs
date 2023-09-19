@@ -23,7 +23,7 @@ use crate::common::{
 };
 use gsdk::Api;
 
-const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
+const REWARD_PER_BLOCK: u128 = 75_000; // 3_000 gas * 25 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {

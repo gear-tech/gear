@@ -19,7 +19,7 @@ cd utils/runtime-fuzzer
 # Fuzzer expects a minimal input size of 25 MiB. Without providing a corpus of the same or larger
 # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.
 mkdir -p fuzz/corpus/main
-dd if=/dev/urandom of=fuzz/corpus/main/check-fuzzer-bytes bs=1 count=27000000
+dd if=/dev/urandom of=fuzz/corpus/main/fuzzer-seed-corpus bs=1 count=27000000
 
 # Run fuzzer for at least 20 minutes and then press Ctrl-C to stop fuzzing.
 # You can also remove RUST_LOG to avoid printing tons of logs on terminal.
@@ -70,7 +70,7 @@ There are two ways to view coverage:
   ```bash
   # generate `lcov.info` file with coverage
   HOST_TARGET=$(rustc -Vv | grep "host: " | sed "s/^host: \(.*\)$/\1/")
-  cargo cov -- export target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
+  cargo cov -- export target/$HOST_TARGET/coverage/$HOST_TARGET/release/main \
       --format=lcov \
       --instr-profile=fuzz/coverage/main/coverage.profdata \
       --ignore-filename-regex=/rustc/ \
