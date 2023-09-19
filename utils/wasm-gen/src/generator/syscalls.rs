@@ -61,7 +61,7 @@ pub enum InvocableSysCall {
 }
 
 impl InvocableSysCall {
-    fn to_str(self) -> &'static str {
+    pub(crate) fn to_str(self) -> &'static str {
         match self {
             InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
             InvocableSysCall::Precise(sys_call) => match sys_call {

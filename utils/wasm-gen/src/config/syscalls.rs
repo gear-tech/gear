@@ -33,6 +33,7 @@ pub use param::*;
 use crate::InvocableSysCall;
 
 /// Builder for [`SysCallsConfig`].
+#[derive(Debug, Clone)]
 pub struct SysCallsConfigBuilder(SysCallsConfig);
 
 impl SysCallsConfigBuilder {
