@@ -12,11 +12,11 @@
 
 # Steps and repeats for main benchmark.
 BENCHMARK_STEPS=50
-BENCHMARK_REPEAT=1
+BENCHMARK_REPEAT=20
 
 # Steps and repeats for benchmarking so called "one-time extrinsics", which may be called only once and require a different benchmarking approach with more repeats.
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
-BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=10
+BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 
 # List of one-time extrinsics to benchmark. This is only used for pallet_gear.
 ONE_TIME_EXTRINSICS=(
@@ -158,7 +158,6 @@ for PALLET in "${PALLETS[@]}"; do
     EXTRINSICS=("*")
   fi
 
-  FOLDER="$(echo "${PALLET#*_}" | tr '_' '-')";
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
@@ -182,7 +181,8 @@ for PALLET in "${PALLETS[@]}"; do
   fi
   
   if [ "$PALLET" == "pallet_gear" ]
-  then 
+  then
+    echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     OUTPUT=$(
       # Run the same benchmark again but for ONE_TIME_EXTRINSICS, joined by comma, and with 2000 repeats
         $GEAR benchmark pallet \
