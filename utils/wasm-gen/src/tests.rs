@@ -268,8 +268,6 @@ fn precise_syscalls_works() {
             SysCallsConfigBuilder::new(injection_amounts)
                 .with_params_config(SysCallsParamsConfig::default())
                 .with_source_msg_dest()
-                .set_error_processing_config(ErrorProcessingConfig::All)
-                .with_log_info("init".into())
                 .build(),
             None,
             INITIAL_PAGES,
@@ -277,11 +275,10 @@ fn precise_syscalls_works() {
 
         assert_eq!(
             termination_reason,
-            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown)),
+            TerminationReason::Actor(ActorTerminationReason::Success),
             "syscall: {}",
             syscall.to_str()
         );
-        break;
     }
 }
 
@@ -344,7 +341,6 @@ fn execute_wasm_with_custom_configs(
 
     let code =
         generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
-    std::fs::write("/mnt/tmpfs/out.wasm", &code).unwrap();
     let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
         .expect("Failed to create Code");
 

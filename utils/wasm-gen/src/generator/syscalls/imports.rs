@@ -562,7 +562,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         ];
 
         let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
-        dbg!(number_of_pushes);
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
