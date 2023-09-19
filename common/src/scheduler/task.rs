@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::paused_program_storage::SessionId;
+use crate::{paused_program_storage::SessionId, Gas};
 use frame_support::{
     codec::{self, Decode, Encode, MaxEncodedLen},
     scale_info::{self, TypeInfo},
@@ -85,7 +85,7 @@ pub enum ScheduledTask<AccountId> {
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
-    pub fn process_with(self, handler: &mut impl TaskHandler<AccountId>) {
+    pub fn process_with(self, handler: &mut impl TaskHandler<AccountId>) -> Gas {
         use ScheduledTask::*;
 
         match self {
@@ -117,32 +117,36 @@ pub trait TaskHandler<AccountId> {
     // Rent charging section.
     // -----
     /// Pause program action.
-    fn pause_program(&mut self, program_id: ProgramId);
+    fn pause_program(&mut self, program_id: ProgramId) -> Gas;
     /// Remove code action.
-    fn remove_code(&mut self, code_id: CodeId);
+    fn remove_code(&mut self, code_id: CodeId) -> Gas;
     /// Remove from mailbox action.
-    fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId);
+    fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId) -> Gas;
     /// Remove from waitlist action.
-    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId);
+    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
     /// Remove paused program action.
-    fn remove_paused_program(&mut self, program_id: ProgramId);
+    fn remove_paused_program(&mut self, program_id: ProgramId) -> Gas;
 
     // Time chained section.
     // -----
     /// Wake message action.
-    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId);
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
 
     // Send delayed message to program action.
-    fn send_dispatch(&mut self, stashed_message_id: MessageId);
+    fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas;
 
     // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool);
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
 
     /// Remove gas reservation action.
-    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
+    fn remove_gas_reservation(
+        &mut self,
+        program_id: ProgramId,
+        reservation_id: ReservationId,
+    ) -> Gas;
 
     /// Remove data created by resume program session.
-    fn remove_resume_session(&mut self, session_id: SessionId);
+    fn remove_resume_session(&mut self, session_id: SessionId) -> Gas;
 }
 
 #[test]

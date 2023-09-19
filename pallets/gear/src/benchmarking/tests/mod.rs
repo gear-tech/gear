@@ -23,7 +23,6 @@
 
 use super::*;
 
-#[cfg(feature = "lazy-pages")]
 pub mod lazy_pages;
 pub mod syscalls_integrity;
 mod utils;
@@ -76,7 +75,6 @@ where
         &exec.block_config,
         exec.context,
         exec.random_data,
-        exec.memory_pages,
     )
     .unwrap()
     .into_iter()

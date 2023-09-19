@@ -70,7 +70,7 @@ There are two ways to view coverage:
   ```bash
   # generate `lcov.info` file with coverage
   HOST_TARGET=$(rustc -Vv | grep "host: " | sed "s/^host: \(.*\)$/\1/")
-  cargo cov -- export target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
+  cargo cov -- export target/$HOST_TARGET/coverage/$HOST_TARGET/release/main \
       --format=lcov \
       --instr-profile=fuzz/coverage/main/coverage.profdata \
       --ignore-filename-regex=/rustc/ \

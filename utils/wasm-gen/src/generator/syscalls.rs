@@ -113,6 +113,44 @@ impl InvocableSysCall {
         }
     }
 
+    /// Checks whether given sys-call has the precise variant.
+    pub(crate) fn has_precise_variant(sys_call: SysCallName) -> bool {
+        Self::required_imports_for_sys_call(sys_call).is_some()
+    }
+
+    /// Returns the required imports to build precise sys-call.
+    fn required_imports_for_sys_call(sys_call: SysCallName) -> Option<&'static [SysCallName]> {
+        // NOTE: the last sys-call must be pattern itself
+        Some(match sys_call {
+            SysCallName::ReservationSend => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationSend]
+            }
+            SysCallName::ReservationReply => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationReply]
+            }
+            SysCallName::SendCommit => &[
+                SysCallName::SendInit,
+                SysCallName::SendPush,
+                SysCallName::SendCommit,
+            ],
+            SysCallName::SendCommitWGas => &[
+                SysCallName::Size,
+                SysCallName::SendInit,
+                SysCallName::SendPushInput,
+                SysCallName::SendCommitWGas,
+            ],
+            _ => return None,
+        })
+    }
+
+    /// Returns the required imports to build precise sys-call, but of a fixed size.
+    fn required_imports<const N: usize>(sys_call: SysCallName) -> &'static [SysCallName; N] {
+        Self::required_imports_for_sys_call(sys_call)
+            .expect("failed to find required imports for sys-call")
+            .try_into()
+            .expect("failed to convert slice")
+    }
+
     // If syscall changes from fallible into infallible or vice versa in future,
     // we'll see it by analyzing code coverage stats produced by fuzzer.
     pub(crate) fn is_fallible(&self) -> bool {

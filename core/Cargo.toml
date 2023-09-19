@@ -29,6 +29,7 @@ byteorder.workspace = true
 [dev-dependencies]
 wabt.workspace = true
 env_logger.workspace = true
+proptest.workspace = true
 
 [features]
 strict = []

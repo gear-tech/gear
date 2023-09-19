@@ -27,16 +27,14 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{
     BackendExternalities, BackendSyscallError, Environment, SystemReservationContext,
 };
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
-    memory::PageBuf,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
-    pages::GearPage,
     reservation::GasReservationState,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
@@ -46,7 +44,6 @@ pub fn process<E>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
@@ -97,7 +94,6 @@ where
         gas_allowance_counter: execution_context.gas_allowance_counter,
         gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
-        pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
 
