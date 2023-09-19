@@ -46,19 +46,19 @@ examples-proc: wasm-proc-release
 
 .PHONY: node
 node:
-	@ ./scripts/gear.sh build node
+	@ ./scripts/gear.sh build node -F dev
 
 .PHONY: node-release
 node-release:
-	@ ./scripts/gear.sh build node --release
+	@ ./scripts/gear.sh build node -F dev --release
 
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native
 
 .PHONY: gear-replay
 gear-replay:
@@ -175,11 +175,11 @@ purge-chain-release:
 
 .PHONY: purge-dev-chain
 purge-dev-chain:
-	@ ./scripts/gear.sh run purge-dev-chain
+	@ ./scripts/gear.sh run purge-dev-chain -F dev
 
 .PHONY: purge-dev-chain-release
 purge-dev-chain-release:
-	@ ./scripts/gear.sh run purge-dev-chain --release
+	@ ./scripts/gear.sh run purge-dev-chain --release -F dev
 
 # Test section
 .PHONY: test # \
@@ -191,19 +191,19 @@ test-release: test-gear-release
 
 .PHONY: test-doc
 test-doc:
-	@ ./scripts/gear.sh test doc
+	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
 test-gear: #\
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk
 
 .PHONY: test-gear-release
 test-gear-release: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk
 
 .PHONY: test-gsdk
 test-gsdk: node-release

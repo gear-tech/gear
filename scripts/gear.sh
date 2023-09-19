@@ -309,7 +309,7 @@ case "$COMMAND" in
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
         syscalls_integrity_test "$@"; ;;
 
-      doc)
+      docs)
         header "Testing examples in docs"
         doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 

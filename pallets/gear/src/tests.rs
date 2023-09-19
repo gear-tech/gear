@@ -2989,7 +2989,6 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -3231,7 +3230,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
@@ -4170,16 +4168,12 @@ fn claim_value_works() {
 
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
-        let charged_for_page_load = if cfg!(feature = "lazy-pages") {
-            gas_price(
-                <Test as Config>::Schedule::get()
-                    .memory_weights
-                    .load_page_data
-                    .ref_time(),
-            )
-        } else {
-            0
-        };
+        let charged_for_page_load = gas_price(
+            <Test as Config>::Schedule::get()
+                .memory_weights
+                .load_page_data
+                .ref_time(),
+        );
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =
@@ -5118,7 +5112,7 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
 
         let duration = 10;
-        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        let payload = Command::SendAndWaitFor(duration, USER_1.into_origin().into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5189,7 +5183,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_for.
         let duration = 5;
-        let payload = Command::SendFor(USER_1.into(), duration).encode();
+        let payload = Command::SendFor(USER_1.into_origin().into(), duration).encode();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -5209,7 +5203,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_up_to.
         let duration = 10;
-        let payload = Command::SendUpTo(USER_1.into(), duration).encode();
+        let payload = Command::SendUpTo(USER_1.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5228,7 +5222,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait no_more, wake, wait no_more again.
         let duration = 10;
-        let payload = Command::SendUpToWait(USER_2.into(), duration).encode();
+        let payload = Command::SendUpToWait(USER_2.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -8809,6 +8803,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
 #[test]
 fn execution_over_blocks() {
+    const MAX_BLOCK: u64 = 10_000_000_000;
+
     init_logger();
 
     let assert_last_message = |src: [u8; 32], count: u128| {
@@ -8849,7 +8845,7 @@ fn execution_over_blocks() {
         ));
         let in_one_block = get_last_program_id();
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         // estimate start cost
         let pkg = Package::new(times, src);
@@ -8870,7 +8866,7 @@ fn execution_over_blocks() {
         use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
         // We suppose that gas limit is less than gas allowance
-        let block_gas_limit = BlockGasLimitOf::<Test>::get() - 10000;
+        let block_gas_limit = MAX_BLOCK - 10_000;
 
         // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::upload_program(
@@ -8887,30 +8883,31 @@ fn execution_over_blocks() {
 
         let src = [0; 32];
 
+        let expected = 64;
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(128, src).encode(),
+            Package::new(expected, src).encode(),
             block_gas_limit,
             0,
             false,
         ));
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
-        assert_last_message([0; 32], 128);
+        assert_last_message([0; 32], expected);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(17_384, src).encode(),
+            Package::new(1_024, src).encode(),
             block_gas_limit,
             0,
             false,
         ));
 
         let message_id = get_last_message_id();
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         assert_failed(
             message_id,
@@ -8921,7 +8918,7 @@ fn execution_over_blocks() {
     new_test_ext().execute_with(|| {
         use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
-        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+        let block_gas_limit = MAX_BLOCK;
 
         let (_, calc_threshold) = estimate_gas_per_calc();
 
@@ -8931,26 +8928,26 @@ fn execution_over_blocks() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             calc_threshold.encode(),
-            10_000_000_000,
+            9_000_000_000,
             0,
         ));
         let over_blocks = get_last_program_id();
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 16_384);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 512);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             over_blocks,
             Method::Start { src, id, expected }.encode(),
-            10_000_000_000,
+            9_000_000_000,
             0,
             false,
         ));
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         let mut count = 0;
         loop {
@@ -8970,7 +8967,7 @@ fn execution_over_blocks() {
             ));
 
             count += 1;
-            run_to_next_block(None);
+            run_to_next_block(Some(MAX_BLOCK));
         }
 
         assert!(count > 1);
@@ -14317,6 +14314,45 @@ fn gear_block_number_math_adds_up() {
         run_to_block(150, None);
         assert_eq!(System::block_number(), 150);
         assert_eq!(Gear::block_number(), 130);
+    })
+}
+
+#[test]
+fn test_gas_info_of_terminated_program() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Dies in init
+        let init_dead = Calls::builder().panic("Die in init");
+        let handle_dead = Calls::builder().panic("Called after being terminated!");
+        let (_, pid_dead) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt1",
+            Scheme::predefined(init_dead, handle_dead, Calls::default()),
+            0,
+        );
+
+        // Sends in handle message do dead program
+        let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
+        let (_, proxy_pid) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt2",
+            Scheme::predefined(Calls::default(), handle_proxy, Calls::default()),
+            0,
+        );
+
+        run_to_next_block(None);
+
+        let _gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(proxy_pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
     })
 }
 

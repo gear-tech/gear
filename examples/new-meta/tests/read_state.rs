@@ -114,8 +114,8 @@ fn read_state_with_wasm_func_returns_transformed_state() {
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "first_wallet";
     assert!(META_EXPORTS_V1.contains(&FUNC_NAME));
-
-    let actual_state = program
+  
+    let actual_state: Option<Wallet> = program
         .read_state_using_wasm(
             Vec::<u8>::default(),
             FUNC_NAME,
@@ -140,7 +140,7 @@ fn read_state_with_parameterized_wasm_func_returns_transformed_state() {
         name: "OtherName".into(),
     };
 
-    let actual_state = program
+    let actual_state: Option<Wallet> = program
         .read_state_using_wasm(
             Vec::<u8>::default(),
             FUNC_NAME,
@@ -166,7 +166,7 @@ fn read_state_with_two_args_wasm_func_returns_transformed_state() {
     let name = "OtherName".to_string();
     let surname = "OtherSurname".to_string();
 
-    let actual_state = program
+    let actual_state: Option<Wallet> = program
         .read_state_using_wasm(
             Vec::<u8>::default(),
             FUNC_NAME,

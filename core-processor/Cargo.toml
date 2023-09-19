@@ -15,6 +15,7 @@ gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common.workspace = true
 gear-wasm-instrument.workspace = true
+gear-lazy-pages-common.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
@@ -23,10 +24,11 @@ static_assertions.workspace = true
 actor-system-error.workspace = true
 
 [dev-dependencies]
-proptest.workspace = true
 env_logger.workspace = true
 enum-iterator.workspace = true
 
 [features]
+default = ["std"]
+std = ["gear-lazy-pages-common/std"]
 strict = []
 mock = []
