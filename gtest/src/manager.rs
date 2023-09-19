@@ -458,7 +458,11 @@ impl ExtManager {
 
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn read_state_bytes(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
+    pub(crate) fn read_state_bytes(
+        &mut self,
+        payload: Vec<u8>,
+        program_id: &ProgramId,
+    ) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
@@ -470,7 +474,7 @@ impl ExtManager {
                 program.code().clone(),
                 Some(program.allocations().clone()),
                 Some((*program_id, program.memory_infix())),
-                Default::default(),
+                payload,
                 u64::MAX,
                 self.block_info,
             )
@@ -486,6 +490,7 @@ impl ExtManager {
 
     pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
+        payload: Vec<u8>,
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
@@ -503,7 +508,7 @@ impl ExtManager {
             .0;
 
         let mut mapping_code_payload = args.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
+        mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
 
         core_processor::informational::execute_for_reply::<SandboxEnvironment<Ext, _>, _>(
             String::from(fn_name),

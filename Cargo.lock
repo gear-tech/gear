@@ -3754,6 +3754,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-messenger",
+ "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-sudo",
  "pallet-timestamp",
