@@ -37,12 +37,46 @@ use scale_info::{
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
+/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
+impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
+where
+    [T]: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        let p1 = hex::encode(&self.0[..e1]);
+        let p2 = hex::encode(&self.0[s2..]);
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+        if f.alternate() {
+            write!(f, "LimitedVec(0x{p1}{sep}{p2})")
+        } else {
+            write!(f, "0x{p1}{sep}{p2}")
+        }
+    }
+}
+
 impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
 where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.inner()))
+        core::fmt::Display::fmt(self, f)
     }
 }
 
@@ -170,6 +204,8 @@ mod test {
 
     const N: usize = 1000;
     type TestBuffer = LimitedVec<u8, RuntimeBufferSizeError, N>;
+    const M: usize = 64;
+    type SmallTestBuffer = LimitedVec<u8, RuntimeBufferSizeError, M>;
 
     #[test]
     fn test_try_from() {
@@ -233,5 +269,54 @@ mod test {
 
         assert_eq!(&z.into_vec(), &[0, 2, 3, 42, 1, 2, 3]);
         assert_eq!(TestBuffer::max_len(), N);
+    }
+
+    #[test]
+    fn formatting_test() {
+        use alloc::format;
+
+        let buffer = SmallTestBuffer::try_from(b"abcdefghijklmnopqrstuvwxyz012345".to_vec())
+            .expect("String is 64 bytes");
+
+        // `Debug`/`Display`.
+        assert_eq!(
+            format!("{buffer:+?}"),
+            "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
+        );
+        // `Debug`/`Display` with default precision.
+        assert_eq!(
+            format!("{buffer:?}"),
+            "0x6162636465666768..797a303132333435"
+        );
+        // `Debug`/`Display` with precision 0.
+        assert_eq!(format!("{buffer:.0?}"), "0x..");
+        // `Debug`/`Display` with precision 1.
+        assert_eq!(format!("{buffer:.1?}"), "0x61..35");
+        // `Debug`/`Display` with precision 2.
+        assert_eq!(format!("{buffer:.2?}"), "0x6162..3435");
+        // `Debug`/`Display` with precision 4.
+        assert_eq!(format!("{buffer:.4?}"), "0x61626364..32333435");
+        // `Debug`/`Display` with precision 15.
+        assert_eq!(
+            format!("{buffer:.15?}"),
+            "0x6162636465666768696a6b6c6d6e6f..72737475767778797a303132333435"
+        );
+        // `Debug`/`Display` with precision 30.
+        assert_eq!(
+            format!("{buffer:.30?}"),
+            "0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
+        );
+        // Alternate formatter with default precision.
+        assert_eq!(
+            format!("{buffer:#}"),
+            "LimitedVec(0x6162636465666768..797a303132333435)"
+        );
+        // Alternate formatter with max precision.
+        assert_eq!(
+            format!("{buffer:+#}"),
+            "LimitedVec(0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435)"
+        );
+        // Alternate formatter with precision 2.
+        assert_eq!(format!("{buffer:#.2}"), "LimitedVec(0x6162..3435)");
     }
 }

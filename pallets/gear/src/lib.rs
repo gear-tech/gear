@@ -24,9 +24,6 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(feature = "lazy-pages")]
-mod ext;
-
 mod internal;
 mod queue;
 mod runtime_api;
@@ -51,13 +48,14 @@ pub use weights::WeightInfo;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
+    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
     PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
+    Ext,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -73,8 +71,8 @@ use gear_core::{
     memory::PageBuf,
     message::*,
     pages::{GearPage, WasmPage},
-    program::MemoryInfix,
 };
+use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -86,15 +84,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use gear_lazy_pages_common as lazy_pages;
-
-#[cfg(feature = "lazy-pages")]
-use ext::LazyPagesExt as Ext;
-
-#[cfg(not(feature = "lazy-pages"))]
-use core_processor::Ext;
 
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
@@ -190,9 +179,6 @@ pub mod pallet {
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
-        /// Gas to Currency converter
-        type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
-
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
@@ -250,6 +236,7 @@ pub mod pallet {
             ExternalOrigin = Self::AccountId,
             NodeId = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
+            Funds = BalanceOf<Self>,
             Error = DispatchError,
         >;
 
@@ -266,7 +253,7 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        /// Type that allows to check calller's eligibility for using voucher for payment.
+        /// Type that allows to check caller's eligibility for using voucher for payment.
         type Voucher: PaymentVoucher<
             Self::AccountId,
             ProgramId,
@@ -476,7 +463,7 @@ pub mod pallet {
         ResumePeriodLessThanMinimal,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Voucher can't be redemmed
+        /// Voucher can't be redeemed
         FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
@@ -567,7 +554,8 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Submit program for benchmarks which does not check the code.
+        /// Upload program to the chain without stack limit injection and
+        /// does not make some checks for code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -577,22 +565,22 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            use gear_core::code::TryNewCodeConfig;
+
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let module =
-                gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                    log::debug!("Module failed to load: {:?}", e);
-                    Error::<T>::ProgramConstructionFailed
-                })?;
-
-            let code = Code::new_raw(
+            let code = Code::try_new_mock_const_or_no_rules(
                 code,
-                schedule.instruction_weights.version,
-                Some(module),
                 true,
-                true,
+                TryNewCodeConfig {
+                    // actual version to avoid re-instrumentation
+                    version: T::Schedule::get().instruction_weights.version,
+                    // some benchmarks have data in user stack memory
+                    check_and_canonize_stack_end: false,
+                    // without stack end canonization, program has mutable globals.
+                    check_mut_global_exports: false,
+                    ..Default::default()
+                },
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -622,7 +610,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             let origin = who.clone().into_origin();
@@ -674,24 +662,16 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Submit code for benchmarks which does not check nor instrument the code.
+        /// Upload code to the chain without gas and stack limit injection.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            let code = Code::new_raw(
-                code,
-                schedule.instruction_weights.version,
-                None,
-                false,
-                true,
-            )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructionFailed
-            })?;
+            let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {e:?}");
+                    Error::<T>::ProgramConstructionFailed
+                })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -944,7 +924,6 @@ pub mod pallet {
                 ..=current_bn.saturated_into())
                 .map(|block| block.saturated_into::<BlockNumberFor<T>>());
             for bn in missing_blocks {
-                // Tasks drain iterator.
                 let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
 
                 // Checking gas allowance.
@@ -958,28 +937,61 @@ pub mod pallet {
                 }
 
                 // Iterating over tasks, scheduled on `bn`.
+                let mut last_task = None;
                 for task in tasks {
-                    log::debug!("Processing task: {:?}", task);
-
                     // Decreasing gas allowance due to DB deletion.
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
-                    // Processing task.
-                    //
-                    // NOTE: Gas allowance decrease should be implemented
-                    // inside `TaskHandler` trait and/or inside other
-                    // generic types, which interact with storage.
-                    task.process_with(ext_manager);
+                    // gas required to process task.
+                    let max_task_gas = manager::get_maximum_task_gas::<T>(&task);
+                    log::debug!("Processing task: {task:?}, max gas = {max_task_gas}");
 
                     // Checking gas allowance.
                     //
-                    // Making sure we have gas to remove next task
-                    // or update the first block of incomplete tasks.
-                    if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(bn);
-                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
+                    // Making sure we have gas to process the current task
+                    // and update the first block of incomplete tasks.
+                    if GasAllowanceOf::<T>::get().saturating_sub(max_task_gas)
+                        <= DbWeightOf::<T>::get().writes(1).ref_time()
+                    {
+                        // Since the task is not processed write DB cost should be refunded.
+                        // In the same time gas allowance should be charged for read DB cost.
+                        GasAllowanceOf::<T>::put(
+                            GasAllowanceOf::<T>::get()
+                                .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time())
+                                .saturating_sub(DbWeightOf::<T>::get().reads(1).ref_time()),
+                        );
+
+                        last_task = Some(task);
+                        log::debug!("Not enough gas to process task at: {bn:?}");
+
                         break;
                     }
+
+                    // Processing task and update allowance of gas.
+                    let task_gas = task.process_with(ext_manager);
+                    GasAllowanceOf::<T>::decrease(task_gas);
+
+                    // Check that there is enough gas allowance to query next task and update the first block of incomplete tasks.
+                    if GasAllowanceOf::<T>::get()
+                        <= DbWeightOf::<T>::get().reads_writes(1, 1).ref_time()
+                    {
+                        stopped_at = Some(bn);
+                        log::debug!("Stopping processing tasks at (read next): {stopped_at:?}");
+                        break;
+                    }
+                }
+
+                if let Some(task) = last_task {
+                    stopped_at = Some(bn);
+
+                    // since there is the overlay mechanism we don't need to subtract write cost
+                    // from gas allowance on task insertion.
+                    GasAllowanceOf::<T>::put(
+                        GasAllowanceOf::<T>::get()
+                            .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time()),
+                    );
+                    TaskPoolOf::<T>::add(bn, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
 
                 // Stopping iteration over blocks if no resources left.
@@ -1001,48 +1013,11 @@ pub mod pallet {
             }
         }
 
-        pub(crate) fn enable_lazy_pages() -> bool {
-            #[cfg(feature = "lazy-pages")]
-            {
-                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
-                }
-                true
+        pub(crate) fn enable_lazy_pages() {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
-
-            #[cfg(not(feature = "lazy-pages"))]
-            {
-                false
-            }
-        }
-
-        pub(crate) fn get_and_track_memory_pages(
-            manager: &mut ExtManager<T>,
-            program_id: ProgramId,
-            memory_infix: MemoryInfix,
-            pages_with_data: &BTreeSet<GearPage>,
-            lazy_pages_enabled: bool,
-        ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            let pages = if lazy_pages_enabled {
-                Default::default()
-            } else {
-                match ProgramStorageOf::<T>::get_program_data_for_pages(
-                    program_id,
-                    memory_infix,
-                    pages_with_data.iter(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        log::error!("Cannot get data for program pages: {err:?}");
-                        return None;
-                    }
-                }
-            };
-
-            manager.insert_program_id_loaded_pages(program_id);
-
-            Some(pages)
         }
 
         pub(crate) fn block_config() -> BlockConfig {
@@ -1217,7 +1192,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit)?;
             GearBank::<T>::deposit_value(&who, value)?;
 
             Ok(packet)
@@ -1528,7 +1503,7 @@ pub mod pallet {
                     // If no such voucher exists, the call is invalidated.
                     let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
 
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                         log::debug!(
                             "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
                         );
@@ -1538,7 +1513,7 @@ pub mod pallet {
                     voucher_id
                 } else {
                     // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas::<T::GasPrice>(&who, gas_limit)?;
+                    GearBank::<T>::deposit_gas(&who, gas_limit)?;
 
                     who.clone()
                 };
@@ -1652,7 +1627,7 @@ pub mod pallet {
                 // If no such voucher exists, the call is invalidated.
                 let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
 
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&voucher_id, gas_limit).map_err(|e| {
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
                     log::debug!(
                         "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
                     );
@@ -1662,7 +1637,7 @@ pub mod pallet {
                 voucher_id
             } else {
                 // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas::<T::GasPrice>(&origin, gas_limit)?;
+                GearBank::<T>::deposit_gas(&origin, gas_limit)?;
 
                 origin.clone()
             };

@@ -72,7 +72,7 @@ impl Program {
     }
 
     /// Reference to raw binary code of this program.
-    pub fn raw_code(&self) -> &[u8] {
+    pub fn code_bytes(&self) -> &[u8] {
         self.code.code()
     }
 

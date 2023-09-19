@@ -67,14 +67,11 @@ pub(crate) const NOM_1_CONTROLLER: AccountId = 41;
 pub(crate) const ROOT: AccountId = 101;
 
 pub(crate) const INITIAL_TOTAL_TOKEN_SUPPLY: u128 = 1_000_000 * UNITS;
-pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * MILLICENTS; // 10
+pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS / 100_000; // 10
 pub(crate) const VALIDATOR_STAKE: u128 = 100 * UNITS; // 10
 pub(crate) const ENDOWMENT: u128 = 100 * UNITS;
 
 pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
-pub(crate) const DOLLARS: u128 = UNITS; // 1 to 1
-pub(crate) const CENTS: u128 = DOLLARS / 100; // 1_000
-pub(crate) const MILLICENTS: u128 = CENTS / 1_000; // 1
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
 pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
@@ -394,7 +391,7 @@ impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: u128 = DOLLARS;
+    pub const ProposalBondMinimum: u128 = UNITS;
     pub const SpendPeriod: u32 = 100;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");

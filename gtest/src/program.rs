@@ -447,7 +447,9 @@ impl<'a> Program<'a> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().read_state_bytes(&self.id)
+        self.manager
+            .borrow_mut()
+            .with_externalities(|this| this.read_state_bytes(&self.id))
     }
 
     /// Reads the program’s transformed state as a byte vector. The transformed
@@ -502,9 +504,9 @@ impl<'a> Program<'a> {
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, args)
+        self.manager.borrow_mut().with_externalities(|this| {
+            this.read_state_bytes_using_wasm(&self.id, fn_name, wasm, args)
+        })
     }
 
     /// Reads and decodes the program's state .

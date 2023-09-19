@@ -18,17 +18,26 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{TerminationReason, TrapExplanation};
+use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExplanation};
+use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::Code,
+    ids::{CodeId, ProgramId},
     memory::Memory,
-    message::{IncomingMessage, ReplyPacket},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        ReplyPacket,
+    },
     pages::WASM_PAGE_SIZE,
 };
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{Instruction, Module},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    },
+    rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -231,21 +240,25 @@ fn execute_wasm_with_syscall_injected(
     params_config: SysCallsParamsConfig,
     initial_memory_write: Option<MemoryWrite>,
 ) -> TerminationReason {
-    use gear_backend_common::{BackendReport, Environment};
-    use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
-    use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
-
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
+
+    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_syscall_inject";
+
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        PROGRAM_STORAGE_PREFIX
+    ));
 
     // We create Unstructured from zeroes here as we just need any
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
 
     let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+    injection_amounts.set(
+        InvocableSysCall::Loose(syscall),
+        INJECTED_SYSCALLS,
+        INJECTED_SYSCALLS,
+    );
 
     let error_processing_config = if ignore_fallible_errors {
         ErrorProcessingConfig::None
@@ -289,10 +302,14 @@ fn execute_wasm_with_syscall_injected(
     // Imitate that reply was already sent.
     let _ = message_context.reply_commit(ReplyPacket::auto(), None);
 
+    let code_id = CodeId::generate(code.original_code());
+    let program_id = ProgramId::generate(code_id, b"");
+
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
+        program_id,
         ..ProcessorContext::new_mock()
     };
 
@@ -307,7 +324,16 @@ fn execute_wasm_with_syscall_injected(
     .expect("Failed to create environment");
 
     let report = env
-        .execute(|mem, _, _| -> Result<(), u32> {
+        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+            gear_core_processor::Ext::lazy_pages_init_for_program(
+                mem,
+                program_id,
+                Default::default(),
+                Some(mem.size()),
+                globals_config,
+                Default::default(),
+            );
+
             if let Some(mem_write) = initial_memory_write {
                 return mem
                     .write(mem_write.offset, &mem_write.content)
@@ -338,10 +364,10 @@ proptest! {
             ..Default::default()
         };
 
-        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
         assert!(code_res.is_ok());
     }
 

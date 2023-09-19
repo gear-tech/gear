@@ -15,6 +15,8 @@ DOCKER_EXIT_CODE=''
 # ALERTING PARAMS
 GROUP_ID='***'
 BOT_TOKEN='***'
+#HTTP
+URL='***'
 
 # Function to check container was stopped manually
 function _check_stop_manually {
@@ -67,18 +69,27 @@ function start_container_post {
      	-c "cargo install cargo-binutils && \
 		rustup component add llvm-tools-preview && \
 		rustup component add --toolchain nightly llvm-tools-preview && \
-		cargo fuzz coverage --release --sanitizer=none main /corpus/main && \
+		cargo fuzz coverage --release --sanitizer=none main /corpus/main -- \
+        -rss_limit_mb=8192 -max_len=35000000 -len_control=0 && \
 		cargo cov -- show target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
         --format=text \
         --show-line-counts \
         --Xdemangler=rustfilt \
         --ignore-filename-regex=/rustc/ \
         --ignore-filename-regex=.cargo/  \
-        --instr-profile=fuzz/coverage/main/coverage.profdata > /corpus/main/gear$1.txt 2>&1"
+        --instr-profile=fuzz/coverage/main/coverage.profdata > /corpus/main/coverage_$1.txt 2>&1 && \
+        cargo cov -- export target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
+        --format=lcov \
+        --instr-profile=fuzz/coverage/main/coverage.profdata \
+        --ignore-filename-regex=/rustc/ \
+        --ignore-filename-regex=.cargo/ > /corpus/main/lcov_$1.info"
     # Wait for the container to stop
     docker wait ${CONTAINER_NAME_GEAR}
-    mv ${CORPUS_DIR}/gear$1.txt ${ARCHIVE_PATH}
+    mv ${CORPUS_DIR}/coverage_$1.txt ${ARCHIVE_PATH}
+    mv ${CORPUS_DIR}/lcov_$1.txt ${ARCHIVE_PATH}
+    # Clear folder with corpus
     rm -rf $WORK_DIR/corpus/*
+    # Generate new first seed
     dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=27000000
 }
 
@@ -109,7 +120,7 @@ function alert_tg {
 Please check logs.
 
 <b>Archive link:</b>
-<a href='http://ec2-3-101-133-141.us-west-1.compute.amazonaws.com/$1'>Link</a>"
+<a href='$URL/$1'>Link</a>"
 
     echo "$WORK_DIR"
     curl -s \
@@ -120,6 +131,19 @@ Please check logs.
         -F document=@$WORK_DIR/node-fuzzer.log \
         'https://api.telegram.org/bot'$BOT_TOKEN'/sendDocument'
     rm node-fuzzer.log
+}
+
+function info_alert_tg {
+    COV_NUM=$(find $ARCHIVE_PATH -name "gear*" -type f -mmin -720 | wc -l)
+    if [[ $COV_NUM -gt 0 ]]; then
+    text_message="❕<b>Node Fuzzer Info</b>❕
+<b>Info:</b> For last 12 hours <b>$COV_NUM</b> coverages was created.
+<b>Link:</b> <a href='$URL/'>Link</a>
+<b>Disc Free Space:</b> $(df -h | grep root | awk '{print $4}')"
+    curl -s \
+        --data "text=$text_message" --data "chat_id=$GROUP_ID" \
+        'https://api.telegram.org/bot'$BOT_TOKEN'/sendMessage?parse_mode=HTML'
+    fi
 }
 
 function archive_logs {
@@ -145,7 +169,7 @@ function start {
         echo "########## $(date) ###########" 
         echo "Start container: ${CONTAINER_NAME}"
         start_container
-	DATE=$(date +%Y-%m-%d_%H-%M-%S)
+        DATE=$(date +%Y-%m-%d_%H-%M-%S)
         _check_container_runtime
         if ! _check_stop_manually; then
             echo "start archive"
@@ -174,9 +198,14 @@ function stop {
     docker rmi ${IMAGE}
 }
 
+function info {
+    info_alert_tg
+}
+
 case "$1" in 
     start)   start;;
     stop)    stop;;
+    info)    info;;
     *) echo "usage: $0 start_app|stop_app" >&2
        exit 1
        ;;

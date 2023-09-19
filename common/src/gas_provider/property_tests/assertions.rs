@@ -175,7 +175,7 @@ pub(super) fn assert_root_children_removed(
 ) {
     let root_node = root_node.into();
     let is_child = |id: GasNodeId<_, _>| {
-        let (_, origin_id) = Gas::get_origin_node(id).unwrap();
+        let origin_id = Gas::get_origin_key(id).unwrap();
         origin_id == root_node
     };
 

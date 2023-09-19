@@ -20,7 +20,9 @@ test_usage() {
     gcli           run gcli package tests
     pallet         run pallet-gear tests
     client         run client tests via gclient
-    fuzz           run fuzzer with a fuzz target
+    fuzz           run fuzzer
+                   The scripts accepts a path to corpus dir as a first param,
+                   and a "wlogs" flag to enable logs while fuzzing.
     fuzz-repr      run fuzzer reproduction test
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
     docs           run doc tests
@@ -85,9 +87,14 @@ run_fuzzer() {
   # Navigate to fuzzer dir
   cd $ROOT_DIR/utils/runtime-fuzzer
 
+  if [ "$3" = "wlogs" ]; then
+    LOG_TARGETS="debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace"
+  else
+    LOG_TARGETS="off"
+  fi
+
   # Run fuzzer
-  RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
-  cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
 }
 
 test_fuzzer_reproduction() {

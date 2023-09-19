@@ -25,13 +25,11 @@ use common::{
     ActiveProgram, CodeStorage, Origin as _, PausedProgramStorage, ProgramStorage,
 };
 use frame_support::{assert_err, assert_ok};
-#[cfg(feature = "lazy-pages")]
-use gear_core::pages::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{
@@ -159,7 +157,7 @@ fn debug_mode_works() {
         )
         .expect("Failed to submit program");
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -393,7 +391,6 @@ fn get_last_snapshot() -> DebugData {
     }
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_not_allocated_pages() {
     // Currently we has no mechanism to restrict not allocated pages access during wasm execution
@@ -528,7 +525,7 @@ fn check_not_allocated_pages() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -595,7 +592,6 @@ fn check_not_allocated_pages() {
     })
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_changed_pages_in_storage() {
     // This test checks that only pages, which has been write accessed,
@@ -756,7 +752,7 @@ fn check_changed_pages_in_storage() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -886,7 +882,7 @@ fn check_gear_stack_end() {
             0_u128,
         ));
 
-        // Enable debug-mode
+        // Enable debug mode.
         DebugMode::<Test>::put(true);
 
         run_to_block(2, None);
@@ -902,12 +898,6 @@ fn check_gear_stack_end() {
 
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
-
-        #[cfg(feature = "lazy-pages")]
-        log::debug!("LAZY-PAGES IS ON");
-
-        #[cfg(not(feature = "lazy-pages"))]
-        log::debug!("LAZY-PAGES IS OFF");
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
