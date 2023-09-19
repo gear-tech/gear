@@ -178,7 +178,7 @@ where
         self.client
             .runtime_api()
             .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| map_err(e, "Failed to get gear runtime api version"))?
+            .map_err(|e| into_call_err(e, "Failed to get gear runtime api version"))?
             .ok_or_else(|| {
                 CallError::Custom(ErrorObject::owned(
                     8000,
@@ -245,7 +245,7 @@ impl From<Error> for i64 {
     }
 }
 
-fn map_err(error: impl ToString, desc: &'static str) -> CallError {
+fn into_call_err(error: impl ToString, desc: &'static str) -> CallError {
     CallError::Custom(ErrorObject::owned(8000, desc, Some(error.to_string())))
 }
 
