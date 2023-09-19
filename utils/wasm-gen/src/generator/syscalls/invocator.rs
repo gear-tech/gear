@@ -272,14 +272,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let fn_code_len = self
-            .module
-            .code_section()
-            .expect("has at least one function by config")
-            .bodies()[insert_into_fn]
-            .code()
-            .elements()
-            .len();
+        let fn_code_len = self.module.count_func_instructions(insert_into_fn);
 
         // The end of insertion range is second-to-last index, as the last
         // index is defined for `Instruction::End` of the function body.

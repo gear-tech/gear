@@ -18,7 +18,7 @@
 
 use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Arbitrary, Result, Unstructured};
-use core::{mem, ops::Deref};
+use core::mem;
 use gear_core::pages::WASM_PAGE_SIZE;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -75,6 +75,17 @@ impl WasmModule {
             .function_section()
             .map(|fsec| fsec.entries().len())
             .expect("minimal possible is 1 by config")
+    }
+
+    /// Counts amount of instructions in the provided function.
+    pub fn count_func_instructions(&self, func_id: usize) -> usize {
+        self.0
+            .code_section()
+            .expect("has at least one function by config")
+            .bodies()[func_id]
+            .code()
+            .elements()
+            .len()
     }
 
     /// Returns an option with a value of initial memory size,
@@ -164,14 +175,6 @@ impl WasmModule {
             parity_wasm::deserialize_buffer(wasm_smith_module.to_bytes().as_ref())
                 .expect("internal error: wasm smith generated non-deserializable module"),
         )
-    }
-}
-
-impl Deref for WasmModule {
-    type Target = Module;
-
-    fn deref(&self) -> &Module {
-        &self.0
     }
 }
 
