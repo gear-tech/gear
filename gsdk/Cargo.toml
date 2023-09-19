@@ -15,7 +15,7 @@ anyhow.workspace = true
 base64.workspace = true
 futures-util.workspace = true
 futures.workspace = true
-gear-core.workspace = true
+gear-core = { workspace = true, features = [ "std" ] }
 gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }

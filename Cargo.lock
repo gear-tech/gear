@@ -3936,6 +3936,7 @@ dependencies = [
  "paste",
  "proptest",
  "scale-info",
+ "serde",
  "static_assertions",
  "wabt",
  "wasmparser-nostd 0.100.1",
