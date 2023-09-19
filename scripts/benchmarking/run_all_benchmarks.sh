@@ -10,6 +10,32 @@
 #
 # Should be run from the root of the repo.
 
+# Steps and repeats for main benchmark.
+BENCHMARK_STEPS=50
+BENCHMARK_REPEAT=1
+
+# Steps and repeats for benchmarking so called "one-time extrinsics", which may be called only once and require a different benchmarking approach with more repeats.
+BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
+BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=10
+
+# List of one-time extrinsics to benchmark. This is only used for pallet_gear.
+ONE_TIME_EXTRINSICS=(
+  "gr_reply"
+  "gr_reply_wgas"
+  "gr_reply_commit"
+  "gr_reply_commit_wgas"
+  "gr_reply_input"
+  "gr_reply_input_wgas"
+  "gr_reservation_reply"
+  "gr_reservation_reply_commit"
+  "gr_reservation_reply_commit"
+  "gr_exit"
+  "gr_leave"
+  "gr_wait"
+  "gr_wait_for"
+  "gr_wait_up_to"
+)
+
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
     b)
@@ -110,26 +136,72 @@ for PALLET in "${PALLETS[@]}"; do
     unset start_pallet
   fi
 
+
+  # Get all the extrinsics for the pallet if the pallet is "pallet_gear"
+  if [ "$PALLET" == "pallet_gear" ]
+  then
+    EXTRINSICS=$($GEAR benchmark pallet --list \
+      --chain=$chain_spec \
+      --pallet="$PALLET" |\
+      tail -n+2 |\
+      cut -d',' -f2 |\
+      sort |\
+      uniq
+    )
+
+    # Array of extrinsics to exclude from the benchmark.
+    ONE_TIME_EXTRINSICS=("gr_reply" "gr_reply_wgas" "gr_reply_commit" "gr_reply_commit_wgas" "gr_reply_input" "gr_reply_input_wgas" "gr_reservation_reply" "gr_reservation_reply_commit" "gr_reservation_reply_commit" "gr_exit" "gr_leave" "gr_wait" "gr_wait_for" "gr_wait_up_to")
+
+    # Filter out the excluded extrinsics by concatenating the arrays and discarding duplicates.
+    EXTRINSICS=($({ printf '%s\n' "${EXTRINSICS[@]}" "${ONE_TIME_EXTRINSICS[@]}"; } | sort | uniq -u))
+  else
+    EXTRINSICS=("*")
+  fi
+
   FOLDER="$(echo "${PALLET#*_}" | tr '_' '-')";
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
     $GEAR benchmark pallet \
-    --chain=$chain_spec \
-    --steps=50 \
-    --repeat=20 \
+    --chain="$chain_spec" \
+    --steps=$BENCHMARK_STEPS \
+    --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
-    --extrinsic="*" \
+    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --execution=wasm \
     --wasm-execution=compiled \
     --heap-pages=4096 \
     --output="$WEIGHT_FILE" \
     --template=.maintain/frame-weight-template.hbs 2>&1
   )
+
   if [ $? -ne 0 ]; then
     echo "$OUTPUT" >> "$ERR_FILE"
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  fi
+  
+  if [ "$PALLET" == "pallet_gear" ]
+  then 
+    OUTPUT=$(
+      # Run the same benchmark again but for ONE_TIME_EXTRINSICS, joined by comma, and with 2000 repeats
+        $GEAR benchmark pallet \
+        --chain="$chain_spec" \
+        --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
+        --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
+        --pallet="$PALLET" \
+        --extrinsic="$(IFS=, ; echo "${ONE_TIME_EXTRINSICS[*]}")" \
+        --execution=wasm \
+        --wasm-execution=compiled \
+        --heap-pages=4096 \
+        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
+        --template=.maintain/frame-weight-template.hbs 2>&1
+    )
+
+    if [ $? -ne 0 ]; then
+      echo "$OUTPUT" >> "$ERR_FILE"
+      echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+    fi
   fi
 done
 
@@ -161,6 +233,9 @@ if [ ! -z "$storage_folder" ]; then
 else
   unset storage_folder
 fi
+
+# Merge pallet_gear weights.
+./scripts/benchmarking/merge_outputs.sh
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then
