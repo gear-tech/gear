@@ -182,6 +182,7 @@ fn error_processing_works_for_fallible_syscalls() {
     // We create Unstructured from zeroes here as we just need any
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
+    let mut unstructured2 = Unstructured::new(&buf);
 
     let fallible_syscalls = SysCallName::instrumentable()
         .into_iter()
@@ -220,7 +221,7 @@ fn error_processing_works_for_fallible_syscalls() {
 
         // Assert that syscall results will be ignored.
         let termination_reason = execute_wasm_with_custom_configs(
-            &mut unstructured,
+            &mut unstructured2,
             sys_calls_config_builder.build(),
             initial_memory_write.clone(),
             INITIAL_PAGES,
