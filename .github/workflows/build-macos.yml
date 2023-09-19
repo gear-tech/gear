@@ -43,9 +43,7 @@ jobs:
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Build: Node"
-        run: >-
-          cargo build
-          -p gear-cli --features=lazy-pages
+        run: cargo build -p gear-cli
 
       - name: "Test: Lazy pages"
         run: >-
@@ -53,4 +51,3 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --features=lazy-pages
