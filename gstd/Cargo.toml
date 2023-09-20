@@ -24,3 +24,6 @@ static_assertions.workspace = true
 default = ["panic-handler"]
 panic-handler = []
 debug = ["galloc/debug", "gcore/debug"]
+
+# Feature to enable deep debugging for tests.
+log = ["gcore/debug"]

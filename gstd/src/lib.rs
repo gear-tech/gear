@@ -156,6 +156,8 @@ pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;
 
+pub(crate) use macros::log::log;
+
 use core::mem::size_of;
 use static_assertions::const_assert;
 

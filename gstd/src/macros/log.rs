@@ -16,6 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod bail;
-mod debug;
-pub(crate) mod log;
+/// Debug macro call for tests.
+#[cfg(feature = "log")]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        $crate::ext::debug(&$crate::format!("[`gstd` LOG] {}", &$crate::format!($($arg)*))).unwrap()
+    };
+}
+
+#[cfg(not(feature = "log"))]
+#[allow(missing_docs)]
+macro_rules! log {
+    ($($arg:tt)*) => {{}};
+}
+
+pub(crate) use log;
