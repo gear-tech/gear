@@ -293,6 +293,9 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
     // In case of locked mutex and an `.await`, function `poll` checks if the
     // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // TODO: expand logging here.
+        crate::log!("mutex_poll()");
+
         let current_msg_id = msg::id();
         let current_block = exec::block_height();
         let locked_by = self.mutex.locked_by_mut();

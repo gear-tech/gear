@@ -356,6 +356,9 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
     type Output = RwLockReadGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // TODO: expand logging here.
+        crate::log!("read_lock_poll()");
+
         let readers = &self.lock.readers;
         let readers_count = readers.get().saturating_add(1);
 
@@ -384,6 +387,9 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // TODO: expand logging here.
+        crate::log!("write_lock_poll()");
+
         let current_msg_id = msg::id();
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && self.lock.readers.get() == 0 {

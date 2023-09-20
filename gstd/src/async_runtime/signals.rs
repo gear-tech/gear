@@ -51,10 +51,18 @@ impl WakeSignals {
     }
 
     pub fn register_signal(&mut self, waiting_reply_to: MessageId) {
+        crate::log!("register_signal({waiting_reply_to:.2?})");
+
+        let message_id = crate::msg::id();
+
+        crate::log!(
+            "register_signal({waiting_reply_to:.2?}): inserting signal for {message_id:.2?}"
+        );
+
         self.signals.insert(
             waiting_reply_to,
             WakeSignal {
-                message_id: crate::msg::id(),
+                message_id,
                 payload: None,
                 waker: None,
             },
@@ -62,41 +70,88 @@ impl WakeSignals {
     }
 
     pub fn record_reply(&mut self) {
-        if let Some(signal) = self
-            .signals
-            .get_mut(&crate::msg::reply_to().expect("Shouldn't be called with incorrect context"))
-        {
-            signal.payload = Some((
-                crate::msg::load_bytes().expect("Failed to load bytes"),
-                crate::msg::reply_code().expect("Shouldn't be called with incorrect context"),
-            ));
+        let reply_to = crate::msg::reply_to().expect("Shouldn't be called with incorrect context");
 
-            if let Some(waker) = &signal.waker {
-                waker.wake_by_ref();
-            }
+        crate::log!("record_reply({reply_to:.2?})");
 
-            crate::exec::wake(signal.message_id).expect("Failed to wake the message")
+        let Some(signal) = self.signals.get_mut(&reply_to) else {
+            crate::log!("record_reply({reply_to:.2?}): signal is NOT FOUND");
+            return;
+        };
+
+        crate::log!("record_reply({reply_to:.2?}): signal is FOUND");
+
+        crate::log!("record_reply({reply_to:.2?}): querying data");
+
+        let payload = crate::msg::load_bytes().expect("Failed to load bytes");
+        let reply_code =
+            crate::msg::reply_code().expect("Shouldn't be called with incorrect context");
+
+        crate::log!("record_reply({reply_to:.2?}): setting data to signal");
+
+        signal.payload = Some((payload, reply_code));
+
+        crate::log!("record_reply({reply_to:.2?}): trying to touch waker");
+
+        if let Some(waker) = &signal.waker {
+            crate::log!("record_reply({reply_to:.2?}): waker is FOUND");
+            crate::log!("record_reply({reply_to:.2?}): waking waker by ref");
+
+            waker.wake_by_ref();
         } else {
-            crate::debug!("A message has received a reply though it wasn't to receive one, or a processed message has received a reply");
+            crate::log!("record_reply({reply_to:.2?}): waker is NOT FOUND");
         }
+
+        crate::log!(
+            "record_reply({reply_to:.2?}): waking signal message {:.2?}",
+            signal.message_id
+        );
+
+        crate::exec::wake(signal.message_id).expect("Failed to wake the message")
     }
 
     pub fn waits_for(&self, reply_to: MessageId) -> bool {
-        self.signals.contains_key(&reply_to)
+        crate::log!("waits_for({reply_to:.2?})");
+
+        let res = self.signals.contains_key(&reply_to);
+
+        crate::log!("waits_for({reply_to:.2?}): {res}");
+
+        res
     }
 
     pub fn poll(&mut self, reply_to: MessageId, cx: &mut Context<'_>) -> ReplyPoll {
+        crate::log!("signals_poll({reply_to:.2?})");
+
+        crate::log!("signals_poll({reply_to:.2?}): removing signal");
+
         match self.signals.remove(&reply_to) {
-            None => ReplyPoll::None,
+            None => {
+                crate::log!("signals_poll({reply_to:.2?}): signal is NOT FOUND");
+
+                ReplyPoll::None
+            }
             Some(mut signal @ WakeSignal { payload: None, .. }) => {
+                crate::log!("signals_poll({reply_to:.2?}): signal is FOUND but PENDING");
+
+                crate::log!("signals_poll({reply_to:.2?}): updating waker");
+
                 signal.waker = Some(cx.waker().clone());
+
+                crate::log!("signals_poll({reply_to:.2?}): inserting signal");
+
                 self.signals.insert(reply_to, signal);
+
                 ReplyPoll::Pending
             }
             Some(WakeSignal {
                 payload: Some(payload),
                 ..
-            }) => ReplyPoll::Some(payload),
+            }) => {
+                crate::log!("signals_poll({reply_to:.2?}): signal is FOUND and READY");
+
+                ReplyPoll::Some(payload)
+            }
         }
     }
 }

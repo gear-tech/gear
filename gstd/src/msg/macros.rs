@@ -45,10 +45,30 @@ macro_rules! impl_futures {
             /// Postpone handling for a maximum amount of blocks that could be paid, that
             /// doesn't exceed a given duration.
             pub fn up_to(self, duration: Option<u32>) -> Result<Self> {
+                let duration = if let Some(duration) = duration {
+                    crate::log!(
+                        "up_to({:.2?}): creating lock for up to {} blocks",
+                        self.waiting_reply_to,
+                        crate::util::u32_with_sep(duration),
+                    );
+
+                    duration
+                } else {
+                    let duration = Config::wait_up_to();
+
+                    crate::log!(
+                        "up_to({:.2?}): creating lock for up to DEFAULT {} blocks",
+                        self.waiting_reply_to,
+                        crate::util::u32_with_sep(duration),
+                    );
+
+                    duration
+                };
+
                 async_runtime::locks().lock(
                     crate::msg::id(),
                     self.waiting_reply_to,
-                    Lock::up_to(duration.unwrap_or(Config::wait_up_to()))?,
+                    Lock::up_to(duration)?,
                 );
 
                 Ok(self)
@@ -56,10 +76,30 @@ macro_rules! impl_futures {
 
             /// Postpone handling for a given specific amount of blocks.
             pub fn exactly(self, duration: Option<u32>) -> Result<Self> {
+                let duration = if let Some(duration) = duration {
+                    crate::log!(
+                        "up_to({:.2?}): creating lock for {} blocks",
+                        self.waiting_reply_to,
+                        crate::util::u32_with_sep(duration),
+                    );
+
+                    duration
+                } else {
+                    let duration = Config::wait_for();
+
+                    crate::log!(
+                        "up_to({:.2?}): creating lock for DEFAULT {} blocks",
+                        self.waiting_reply_to,
+                        crate::util::u32_with_sep(duration),
+                    );
+
+                    duration
+                };
+
                 async_runtime::locks().lock(
                     crate::msg::id(),
                     self.waiting_reply_to,
-                    Lock::exactly(duration.unwrap_or(Config::wait_for()))?,
+                    Lock::exactly(duration)?,
                 );
 
                 Ok(self)

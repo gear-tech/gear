@@ -66,28 +66,56 @@ where
     F: Future<Output = ()> + 'static,
 {
     let msg_id = crate::msg::id();
-    let task = super::futures().entry(msg_id).or_insert_with(|| {
-        let system_reserve_amount = crate::Config::system_reserve();
-        crate::exec::system_reserve_gas(system_reserve_amount)
-            .expect("Failed to reserve gas for system signal");
-        Task::new(future)
-    });
+
+    crate::log!("message_loop({msg_id:.2?})");
+
+    let task = super::futures()
+        .entry(msg_id)
+        .and_modify(|_| crate::log!("message_loop({msg_id:.2?}): future is FOUND"))
+        .or_insert_with(|| {
+            crate::log!("message_loop({msg_id:.2?}): future is CREATED");
+
+            let system_reserve_amount = crate::Config::system_reserve();
+
+            crate::log!(
+                "message_loop({msg_id:.2?}): creating system reservation with {} gas",
+                crate::util::u64_with_sep(system_reserve_amount)
+            );
+
+            crate::exec::system_reserve_gas(system_reserve_amount)
+                .expect("Failed to reserve gas for system signal");
+
+            Task::new(future)
+        });
+
+    crate::log!("message_loop({msg_id:.2?}): checking futures lock exceed");
 
     if task.lock_exceeded {
+        crate::log!("message_loop({msg_id:.2?}): futures lock exceeded, panicking...");
+
         // Futures and locks for the message will be cleaned up by
         // the async_runtime::handle_signal function
-        panic!(
-            "Message 0x{} has exceeded lock ownership time",
-            hex::encode(msg_id)
-        );
+        panic!("Message {msg_id:.2?} has exceeded lock ownership time");
+    } else {
+        crate::log!("message_loop({msg_id:.2?}): futures lock is not exceeded");
     }
 
     let mut cx = Context::from_waker(&task.waker);
 
+    crate::log!("message_loop({msg_id:.2?}): polling future");
+
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
+        crate::log!("message_loop({msg_id:.2?}): future is READY");
+
+        crate::log!("message_loop({msg_id:.2?}): removing future");
         super::futures().remove(&msg_id);
+
+        crate::log!("message_loop({msg_id:.2?}): removing message entry");
         super::locks().remove_message_entry(msg_id);
     } else {
+        crate::log!("message_loop({msg_id:.2?}): future is PENDING");
+
+        crate::log!("message_loop({msg_id:.2?}): waiting lock");
         super::locks().wait(msg_id);
     }
 }

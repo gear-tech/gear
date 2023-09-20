@@ -23,17 +23,17 @@ use crate::{
     exec, Config, MessageId,
 };
 use core::cmp::Ordering;
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 
 /// Type of wait locks.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LockType {
     WaitFor(u32),
     WaitUpTo(u32),
 }
 
 /// Wait lock
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lock {
     /// The start block number of this lock.
     pub at: u32,
@@ -67,7 +67,7 @@ impl Lock {
     }
 
     /// Call wait functions by the lock type.
-    pub fn wait(&self) {
+    pub fn wait(&self) -> ! {
         if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
             if blocks == 0 {
                 unreachable!(
@@ -133,7 +133,7 @@ impl Default for LockType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LockContext {
     ReplyTo(MessageId),
     Sleep(u32),
@@ -146,16 +146,23 @@ pub struct LocksMap(HashMap<MessageId, BTreeMap<LockContext, Lock>>);
 impl LocksMap {
     /// Trigger waiting for the message.
     pub fn wait(&mut self, message_id: MessageId) {
-        let map = self.0.entry(message_id).or_insert_with(Default::default);
-        if map.is_empty() {
-            // If there is no `waiting_reply_to` id specified, use
-            // the message id as the key of the message lock.
-            //
-            // (this key should be `waiting_reply_to` in general )
-            //
-            // # TODO: refactor it better (#1737)
-            map.insert(LockContext::ReplyTo(message_id), Default::default());
-        }
+        crate::log!("wait({message_id:.2?})");
+
+        let map = self
+            .0
+            .entry(message_id)
+            .and_modify(|_| crate::log!("wait({message_id:.2?}): entry is FOUND"))
+            .or_insert_with(|| {
+                crate::log!("wait({message_id:.2?}): entry is CREATED");
+
+                // If there is no `waiting_reply_to` id specified, use
+                // the message id as the key of the message lock.
+                //
+                // (this key should be `waiting_reply_to` in general)
+                //
+                // # TODO: refactor it better (#1737)
+                [(LockContext::ReplyTo(message_id), Default::default())].into()
+            });
 
         // For `deadline <= now`, we are checking them in `crate::msg::async::poll`.
         //
@@ -164,51 +171,152 @@ impl LocksMap {
         //
         // Locks with `deadline <= now`, they will be removed in the following polling.
         let now = exec::block_height();
-        map.iter()
-            .filter_map(|(_, lock)| (lock.deadline() > now).then_some(lock))
+
+        crate::log!(
+            "wait({message_id:.2?}): current block is {}",
+            crate::util::u32_with_sep(now)
+        );
+
+        crate::log!("wait({message_id:.2?}): looking for appropriate lock to be waited");
+
+        if let Some(lock) = map
+            .iter()
+            .filter_map(|(_, lock)| {
+                if lock.deadline() > now {
+                    crate::log!("wait({message_id:.2?}): lookup... accepting {lock:.2?}");
+
+                    Some(lock)
+                } else {
+                    crate::log!("wait({message_id:.2?}): lookup... filtering out {lock:.2?}");
+
+                    None
+                }
+            })
             .min_by(|lock1, lock2| lock1.cmp(lock2))
-            .expect("Cannot find lock to be waited")
-            .wait();
+        {
+            crate::log!("wait({message_id:.2?}): waiting closest {lock:.2?}");
+
+            lock.wait();
+        } else {
+            crate::log!("wait({message_id:.2?}): couldn't find appropriate lock, panicking...");
+
+            panic!("Couldn't find lock to be waited");
+        }
     }
 
     /// Lock message.
     pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.insert(LockContext::ReplyTo(waiting_reply_to), lock);
+        crate::log!("lock({message_id:.2?}, {waiting_reply_to:.2?}, {lock:.2?})");
+
+        let lock_context = LockContext::ReplyTo(waiting_reply_to);
+
+        self.0.entry(message_id)
+            .and_modify(|locks| {
+                crate::log!("lock({message_id:.2?}, {waiting_reply_to:.2?}, {lock:.2?}): entry is FOUND");
+
+                crate::log!("lock({message_id:.2?}, {waiting_reply_to:.2?}, {lock:.2?}): inserting lock");
+
+                locks.insert(lock_context, lock);
+            }).or_insert_with(|| {
+            crate::log!("lock({message_id:.2?}, {waiting_reply_to:.2?}, {lock:.2?}): entry is CREATED with lock");
+
+            [(lock_context, lock)].into()
+        });
     }
 
     /// Remove message lock.
     pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&LockContext::ReplyTo(waiting_reply_to));
+        crate::log!("remove({message_id:.2?}, {waiting_reply_to:.2?})");
+
+        match self.0.entry(message_id) {
+            Entry::Occupied(entry) => {
+                crate::log!("remove({message_id:.2?}, {waiting_reply_to:.2?}): entry is FOUND");
+
+                crate::log!("remove({message_id:.2?}, {waiting_reply_to:.2?}): removing lock");
+
+                entry
+                    .into_mut()
+                    .remove(&LockContext::ReplyTo(waiting_reply_to));
+            }
+            Entry::Vacant(_) => {
+                crate::log!("remove({message_id:.2?}, {waiting_reply_to:.2?}): entry is NOT FOUND")
+            }
+        }
     }
 
     /// Inserts a lock for putting a message into sleep.
     pub fn insert_sleep(&mut self, message_id: MessageId, until_block: u32) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        let current_block = exec::block_height();
-        if current_block < until_block {
-            locks.insert(
-                LockContext::Sleep(until_block),
-                Lock::exactly(until_block - current_block)
-                    .expect("Never fails with block count > 0"),
-            );
+        crate::log!("insert_sleep({message_id:.2?}, {until_block})");
+
+        let now = exec::block_height();
+
+        crate::log!(
+            "insert_sleep({message_id:.2?}, {until_block}): current block is {}",
+            crate::util::u32_with_sep(now)
+        );
+
+        let lock_context = LockContext::Sleep(until_block);
+
+        if now < until_block {
+            crate::log!("insert_sleep({message_id:.2?}, {until_block}): now < until_block, need to insert lock");
+
+            let lock = Lock::exactly(until_block - now).expect("Never fails with block count > 0");
+
+            self.0.entry(message_id).and_modify(|locks| {
+                crate::log!("insert_sleep({message_id:.2?}, {until_block}): entry is FOUND");
+
+                crate::log!("insert_sleep({message_id:.2?}, {until_block}): inserting {lock:.2?}");
+
+                locks.insert(lock_context, lock);
+            }).or_insert_with(|| {
+                crate::log!("insert_sleep({message_id:.2?}, {until_block}): entry is CREATED with {lock:.2?}");
+
+                [(lock_context, lock)].into()
+            });
         } else {
-            locks.remove(&LockContext::Sleep(until_block));
+            crate::log!("insert_sleep({message_id:.2?}, {until_block}): now >= until_block, need to remove lock");
+
+            match self.0.entry(message_id) {
+                Entry::Occupied(entry) => {
+                    crate::log!("insert_sleep({message_id:.2?}, {until_block}): entry is FOUND");
+
+                    crate::log!("insert_sleep({message_id:.2?}, {until_block}): removing lock");
+
+                    entry.into_mut().remove(&lock_context);
+                }
+                Entry::Vacant(_) => {
+                    crate::log!("insert_sleep({message_id:.2?}, {until_block}): entry is NOT FOUND")
+                }
+            }
         }
     }
 
     /// Removes a sleep lock.
     pub fn remove_sleep(&mut self, message_id: MessageId, until_block: u32) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&LockContext::Sleep(until_block));
+        crate::log!("remove_sleep({message_id:.2?}, {until_block})");
+
+        match self.0.entry(message_id) {
+            Entry::Occupied(entry) => {
+                crate::log!("remove_sleep({message_id:.2?}, {until_block}): entry is FOUND");
+
+                crate::log!("remove_sleep({message_id:.2?}, {until_block}): removing lock");
+
+                entry.into_mut().remove(&LockContext::Sleep(until_block));
+            }
+            Entry::Vacant(_) => {
+                crate::log!("remove_sleep({message_id:.2?}, {until_block}): entry is NOT FOUND");
+            }
+        }
     }
 
+    // We're removing locks for the message to keep contract's state clean.
+    //
+    // The locks for the message may not exist but this is ok, because not all
+    // contracts use locks. We'll still try to remove them.
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
-        // We're removing locks for the message to keep contract's state clean.
-        //
-        // The locks for the message may not exist but this is ok, because not all
-        // contracts use locks. We'll still try to remove them.
+        crate::log!("remove_message_entry({message_id:.2?})");
+
+        crate::log!("remove_message_entry({message_id:.2?}): removing entry");
 
         self.0.remove(&message_id);
     }
@@ -219,10 +327,31 @@ impl LocksMap {
         message_id: MessageId,
         waiting_reply_to: MessageId,
     ) -> Option<(u32, u32)> {
-        self.0.get(&message_id).and_then(|locks| {
-            locks
-                .get(&LockContext::ReplyTo(waiting_reply_to))
-                .and_then(|l| l.timeout())
-        })
+        crate::log!("is_timeout({message_id:.2?}, {waiting_reply_to:.2?})");
+
+        let Some(locks) = self.0.get(&message_id) else {
+            crate::log!("is_timeout({message_id:.2?}, {waiting_reply_to:.2?}): locks for message are NOT FOUND");
+
+            return None;
+        };
+
+        let Some(lock) = locks.get(&LockContext::ReplyTo(waiting_reply_to)) else {
+            crate::log!("is_timeout({message_id:.2?}, {waiting_reply_to:.2?}): entry in locks for message is NOT FOUND");
+
+            return None;
+        };
+
+        if let Some((expected, now)) = lock.timeout() {
+            crate::log!("is_timeout({message_id:.2?}, {waiting_reply_to:.2?}): lock is TIMED OUT since {}, current is {}",
+            crate::util::u32_with_sep(expected), crate::util::u32_with_sep(now));
+
+            Some((expected, now))
+        } else {
+            crate::log!(
+                "is_timeout({message_id:.2?}, {waiting_reply_to:.2?}): lock is NOT TIMED OUT"
+            );
+
+            None
+        }
     }
 }

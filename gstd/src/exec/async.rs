@@ -54,13 +54,31 @@ impl Future for MessageSleepFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let current_block_number = exec::block_height();
+        crate::log!("sleep_poll()");
 
-        if current_block_number < self.till_block_number {
+        let now = exec::block_height();
+
+        crate::log!(
+            "sleep_poll(): current block is {}, expiration block is {}",
+            crate::util::u32_with_sep(now),
+            crate::util::u32_with_sep(self.till_block_number),
+        );
+
+        if now < self.till_block_number {
+            crate::log!("sleep_poll(): now < till_block_number, inserting sleep");
+
             async_runtime::locks().insert_sleep(self.msg_id, self.till_block_number);
+
+            crate::log!("sleep_poll(): future is PENDING");
+
             Poll::Pending
         } else {
+            crate::log!("sleep_poll(): now < till_block_number, removing sleep");
+
             async_runtime::locks().remove_sleep(self.msg_id, self.till_block_number);
+
+            crate::log!("sleep_poll(): future is READY");
+
             Poll::Ready(())
         }
     }

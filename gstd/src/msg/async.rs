@@ -36,15 +36,25 @@ fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<R
 where
     F: Fn(Vec<u8>) -> Result<R>,
 {
+    crate::log!("message_poll({waiting_reply_to:.2?})");
+
     let msg_id = crate::msg::id();
+
+    crate::log!("message_poll({waiting_reply_to:.2?}): checking lock for timeout");
 
     // check if message is timed out.
     if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
+        crate::log!("message_poll({waiting_reply_to:.2?}): removing lock as timed out");
+
         // Remove lock after timeout.
         async_runtime::locks().remove(msg_id, waiting_reply_to);
 
+        crate::log!("message_poll({waiting_reply_to:.2?}): future is READY but TIMED OUT (error)");
+
         return Poll::Ready(Err(Error::Timeout(expected, now)));
     }
+
+    crate::log!("message_poll({waiting_reply_to:.2?}): polling signal");
 
     match signals().poll(waiting_reply_to, cx) {
         ReplyPoll::None => panic!(
@@ -52,12 +62,20 @@ where
         ),
         ReplyPoll::Pending => Poll::Pending,
         ReplyPoll::Some((actual_reply, reply_code)) => {
+            crate::log!("message_poll({waiting_reply_to:.2?}): removing lock as succeeded");
+
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
+            crate::log!("message_poll({waiting_reply_to:.2?}): checking reply code of the reply");
+
             if !reply_code.is_success() {
+                crate::log!("message_poll({waiting_reply_to:.2?}): future is READY but ERROR RECEIVED (error)");
+
                 return Poll::Ready(Err(Error::ReplyCode(reply_code)));
             }
+
+            crate::log!("message_poll({waiting_reply_to:.2?}): future is READY and SUCCEEDED");
 
             Poll::Ready(f(actual_reply))
         }

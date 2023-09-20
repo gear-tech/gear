@@ -58,6 +58,12 @@ pub fn handle_signal() {
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
+
+    crate::log!("handle_signal({msg_id:.2?})");
+
+    crate::log!("handle_signal({msg_id:.2?}): removing future");
     futures().remove(&msg_id);
+
+    crate::log!("handle_signal({msg_id:.2?}): removing message entry");
     locks().remove_message_entry(msg_id);
 }
