@@ -43,7 +43,7 @@ jobs:
         run: ./scripts/gear.sh clippy examples --all-targets --locked
 
       - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test doc
+        run: ./scripts/gear.sh test docs
 
       - name: "Test: Changes in gsdk generated code"
         run: |
