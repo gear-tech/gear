@@ -18,15 +18,14 @@
 
 //! Utility functions.
 
+use crate::prelude::{
+    mem::{transmute, MaybeUninit},
+    Box, String, Vec,
+};
 pub use scale_info::MetaType;
 use scale_info::{
     scale::{Encode, Output},
     PortableRegistry, Registry,
-};
-
-use crate::prelude::{
-    mem::{transmute, MaybeUninit},
-    Box, String, Vec,
 };
 
 /// An auxiliary function that reduces gas consumption during payload encoding.
@@ -89,4 +88,23 @@ pub fn to_leak_ptr(bytes: impl Into<Vec<u8>>) -> *mut [i32; 2] {
     let ptr = Box::into_raw(Box::new([bytes.as_ptr() as _, bytes.len() as _]));
     core::mem::forget(bytes);
     ptr
+}
+
+#[cfg(feature = "log")]
+pub(crate) fn u32_with_sep(num: u32) -> String {
+    u64_with_sep(num.into())
+}
+
+#[cfg(feature = "log")]
+pub(crate) fn u64_with_sep(num: u64) -> String {
+    use crate::prelude::ToString;
+
+    num.to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(core::str::from_utf8)
+        .collect::<Result<Vec<&str>, _>>()
+        .unwrap()
+        .join(",")
 }
