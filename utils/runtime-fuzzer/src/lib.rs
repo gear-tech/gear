@@ -28,6 +28,7 @@ use arbitrary::Result;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
+use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
@@ -47,10 +48,12 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     let test_input_id = get_sha1_string(data);
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
-    let generators = default_generator_set(test_input_id);
-    let gear_calls = GearCalls::new(data, generators)?;
-
     let sender = runtime::account(runtime::alice());
+    let sender_prog_id = ProgramId::from(<AccountId as AsRef<[u8; 32]>>::as_ref(&sender).clone());
+
+    let generators = default_generator_set(test_input_id);
+    let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
+
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {
         // Increase maximum balance of the `sender`.

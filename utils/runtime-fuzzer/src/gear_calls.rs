@@ -57,17 +57,7 @@ pub(crate) trait MailboxProvider {
 /// This struct shouldn't be used directly, as it should be updated and read
 /// only by the `GearCalls`.
 pub(crate) struct TempData {
-    uploaded_programs: Vec<ProgramId>,
-}
-
-impl TempData {
-    // Implement it here to protect `TempData` from instantiation by the external
-    // code.
-    fn default() -> TempData {
-        TempData {
-            uploaded_programs: vec![],
-        }
-    }
+    existing_addresses: Vec<ProgramId>,
 }
 
 /// The struct for generating gear extrinsics.
@@ -87,14 +77,20 @@ pub(crate) struct GearCalls<'a> {
 }
 
 impl<'a> GearCalls<'a> {
-    pub(crate) fn new(data: &'a [u8], generators: ExtrinsicGeneratorSet) -> Result<GearCalls<'a>> {
+    pub(crate) fn new(
+        data: &'a [u8],
+        generators: ExtrinsicGeneratorSet,
+        existing_users: Vec<ProgramId>,
+    ) -> Result<GearCalls<'a>> {
         if data.len() < generators.unstructured_size_hint() {
             return Err(Error::NotEnoughData);
         }
 
         Ok(GearCalls {
             unstructured: Unstructured::new(data),
-            intermediate_data: TempData::default(),
+            intermediate_data: TempData {
+                existing_addresses: existing_users,
+            },
             current_generator: 0,
             current_extrinsic: 0,
             generators: generators.0,
@@ -209,7 +205,7 @@ impl UploadProgramGenerator {
         let code = gear_wasm_gen::generate_gear_program_code(
             unstructured,
             config(
-                &intermediate_data.uploaded_programs,
+                &intermediate_data.existing_addresses,
                 Some(format!(
                     "Generated program from corpus - {}",
                     &self.test_input_id
@@ -234,7 +230,7 @@ impl UploadProgramGenerator {
 
         log::trace!("Generated code for program id - {program_id}");
 
-        intermediate_data.uploaded_programs.push(program_id);
+        intermediate_data.existing_addresses.push(program_id);
 
         Ok(Some(
             UploadProgramArgs((code, salt, payload, self.gas, self.value)).into(),
@@ -267,7 +263,7 @@ impl SendMessageGenerator {
         unstructured: &mut Unstructured,
     ) -> Result<Option<GearCall>> {
         let program_id = unstructured
-            .choose(&intermediate_data.uploaded_programs)
+            .choose(&intermediate_data.existing_addresses)
             .copied()?;
         let payload = arbitrary_payload(unstructured)?;
         log::trace!(
