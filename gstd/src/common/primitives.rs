@@ -182,9 +182,7 @@ impl TryFrom<&[u8]> for ActorId {
 /// via the `MessageId` struct. The message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
 /// Also, each send and reply functions return a message identifier.
-#[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
-)]
+#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
 #[codec(crate = scale)]
 pub struct MessageId([u8; 32]);
 
@@ -233,6 +231,39 @@ impl From<MessageId> for [u8; 32] {
 impl From<H256> for MessageId {
     fn from(h256: H256) -> Self {
         MessageId(h256.to_fixed_bytes())
+    }
+}
+
+impl core::fmt::Display for MessageId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        }
+
+        let p1 = hex::encode(&self.0[..e1]);
+        let p2 = hex::encode(&self.0[s2..]);
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+        if f.alternate() {
+            write!(f, "MessageId(0x{p1}{sep}{p2})")
+        } else {
+            write!(f, "0x{p1}{sep}{p2}")
+        }
+    }
+}
+
+impl core::fmt::Debug for MessageId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, f)
     }
 }
 
