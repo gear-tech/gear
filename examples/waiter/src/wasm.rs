@@ -44,29 +44,33 @@ async fn main() {
                 .expect("send message failed")
                 .exactly(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendUpTo(to, duration) => {
             msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendUpToWait(to, duration) => {
             msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Failed to send message");
 
             // after waking, wait again.
             msg::send_bytes_for_reply(to.into(), [], 0, 0)
                 .expect("send message failed")
-                .await;
+                .await
+                .expect("Failed to send message");
         }
         Command::SendAndWaitFor(duration, to) => {
-            msg::send(to.into(), b"ping", 0);
+            msg::send(to.into(), b"ping", 0).expect("send message failed");
             exec::wait_for(duration);
         }
         Command::ReplyAndWait(subcommand) => {
@@ -89,7 +93,6 @@ async fn main() {
                 SleepForWaitType::Any => {
                     future::select_all(sleep_futures).await;
                 }
-                _ => unreachable!(),
             }
             msg::send(
                 msg::source(),
@@ -195,9 +198,7 @@ async fn process_lock_continuation<G>(
     match continuation {
         LockContinuation::Nothing => {}
         LockContinuation::SleepFor(duration) => exec::sleep_for(duration).await,
-        LockContinuation::MoveToStatic => unsafe {
-            *static_lock_guard = Some(lock_guard);
-        },
+        LockContinuation::MoveToStatic => *static_lock_guard = Some(lock_guard),
         LockContinuation::Wait => exec::wait(),
         LockContinuation::Forget => {
             gstd::mem::forget(lock_guard);
