@@ -192,7 +192,7 @@ fn error_processing_works_for_fallible_syscalls() {
         });
 
     for syscall in fallible_syscalls {
-        // Prepare sys-calls config for test case.
+        // Prepare sys-calls config & context settings for test case.
         let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(syscall);
 
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
@@ -200,6 +200,8 @@ fn error_processing_works_for_fallible_syscalls() {
 
         let sys_calls_config_builder =
             SysCallsConfigBuilder::new(injection_amounts).with_params_config(params_config);
+
+        let context_settings = ContextSettings::new(0, 0, 0, 0, 0, 0);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -210,6 +212,8 @@ fn error_processing_works_for_fallible_syscalls() {
                 .build(),
             initial_memory_write.clone(),
             INITIAL_PAGES,
+            context_settings,
+            true,
         );
 
         assert_eq!(
@@ -225,6 +229,8 @@ fn error_processing_works_for_fallible_syscalls() {
             sys_calls_config_builder.build(),
             initial_memory_write.clone(),
             INITIAL_PAGES,
+            context_settings,
+            true,
         );
 
         assert_eq!(
@@ -257,20 +263,27 @@ fn precise_syscalls_works() {
         });
 
     for syscall in precise_syscalls {
-        dbg!(syscall);
-
+        // Prepare sys-calls config & context settings for test case.
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
         injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+        let mut param_config = SysCallsParamsConfig::default();
+        param_config.add_rule(ParamType::Gas, (0..=0).into());
+
+        let context_settings = ContextSettings::new(0, 0, 0, 0, 0, 1024);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
             SysCallsConfigBuilder::new(injection_amounts)
-                .with_params_config(SysCallsParamsConfig::default())
+                .with_params_config(param_config)
                 .with_source_msg_dest()
+                .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             None,
             INITIAL_PAGES,
+            context_settings,
+            false,
         );
 
         assert_eq!(
@@ -314,6 +327,8 @@ fn execute_wasm_with_custom_configs(
     sys_calls_config: SysCallsConfig,
     initial_memory_write: Option<MemoryWrite>,
     initial_pages: u16,
+    context_settings: ContextSettings,
+    imitate_reply: bool,
 ) -> TerminationReason {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
 
@@ -344,16 +359,18 @@ fn execute_wasm_with_custom_configs(
     let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
         .expect("Failed to create Code");
 
-    let mut message_context = MessageContext::new(
-        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
-        Default::default(),
-        ContextSettings::new(0, 0, 0, 0, 0, 1024),
-    );
-    // Imitate that reply was already sent.
-    let _ = message_context.reply_commit(ReplyPacket::auto(), None);
-
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate(code_id, b"");
+
+    let mut message_context = MessageContext::new(
+        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
+        program_id,
+        context_settings,
+    );
+
+    if imitate_reply {
+        let _ = message_context.reply_commit(ReplyPacket::auto(), None);
+    }
 
     let processor_context = ProcessorContext {
         message_context,
