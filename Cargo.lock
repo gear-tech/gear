@@ -4427,6 +4427,7 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "env_logger",
  "gear-backend-common",
  "gear-backend-sandbox",
  "gear-core",

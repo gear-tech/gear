@@ -179,6 +179,8 @@ fn error_processing_works_for_fallible_syscalls() {
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
 
+    let _ = env_logger::builder().is_test(true).try_init();
+
     // We create Unstructured from zeroes here as we just need any
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
@@ -248,6 +250,8 @@ fn precise_syscalls_works() {
 
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 1;
+
+    let _ = env_logger::builder().is_test(true).try_init();
 
     // Pin a specific seed for this test.
     let mut rng = SmallRng::seed_from_u64(1234);
