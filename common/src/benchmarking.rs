@@ -150,7 +150,7 @@ pub fn set_program<
         .collect();
     let pages_with_data = persistent_pages_data.keys().copied().collect();
 
-    let memory_infix = Default::default();
+    let memory_infix = 1;
     let program = ActiveProgram {
         allocations,
         pages_with_data,

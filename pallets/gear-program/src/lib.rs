@@ -133,6 +133,8 @@ use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
+pub mod migrations;
+
 #[cfg(test)]
 mod mock;
 
@@ -163,7 +165,7 @@ pub mod pallet {
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -301,7 +303,7 @@ pub mod pallet {
 
     common::wrap_storage_triple_map!(
         storage: MemoryPageStorage2,
-        name: MemoryPageStorageWrap2,
+        name: MemoryPageStorageWrap,
         key1: ProgramId,
         key2: MemoryInfix,
         key3: GearPage,
@@ -370,7 +372,7 @@ pub mod pallet {
         type AccountId = T::AccountId;
 
         type ProgramMap = ProgramStorageWrap<T>;
-        type MemoryPageMap = MemoryPageStorageWrap2<T>;
+        type MemoryPageMap = MemoryPageStorageWrap<T>;
         type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
