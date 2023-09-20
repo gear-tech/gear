@@ -85,6 +85,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_instructions,
             min_funcs,
             max_funcs,
+            unreachable_enabled,
         } = selectable_params;
 
         let ArbitraryParams {
@@ -173,6 +174,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             table_max_size_required,
             memory_grow_enabled,
             call_indirect_enabled,
+            unreachable_instruction_enabled: unreachable_enabled,
         })
     }
 }
@@ -354,6 +356,9 @@ pub struct SelectableParams {
     /// Maximum amount of functions `wasm-gen` will insert
     /// into generated wasm.
     pub max_funcs: usize,
+    /// Flag signalizing whether `unreachable` instruction
+    /// must be used or not.
+    pub unreachable_enabled: bool,
 }
 
 impl Default for SelectableParams {
@@ -366,6 +371,7 @@ impl Default for SelectableParams {
             max_instructions: 100_000,
             min_funcs: 15,
             max_funcs: 30,
+            unreachable_enabled: true,
         }
     }
 }
