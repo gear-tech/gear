@@ -24,7 +24,7 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Buid: Init"
+      - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
       - name: "Build: Node"
