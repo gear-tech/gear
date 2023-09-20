@@ -347,7 +347,7 @@ fn execute_wasm_with_custom_configs(
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
         Default::default(),
-        ContextSettings::new(0, 0, 0, 0, 0, 0),
+        ContextSettings::new(0, 0, 0, 0, 0, 1024),
     );
     // Imitate that reply was already sent.
     let _ = message_context.reply_commit(ReplyPacket::auto(), None);
