@@ -21,7 +21,8 @@ use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
 use syn::{
     fold::Fold, parse::Parse, parse_quote, punctuated::Punctuated, Block, Expr, ExprCall, ExprPath,
-    FnArg, ItemFn, Meta, Pat, PatType, Path, Signature, Token,
+    FnArg, GenericArgument, ItemFn, Meta, Pat, PatType, Path, PathArguments, ReturnType, Signature,
+    Token, Type,
 };
 
 /// Host function builder.
@@ -69,6 +70,8 @@ impl HostFn {
     fn build_inputs(&self) -> Vec<FnArg> {
         let mut inputs = self.item.sig.inputs.iter().cloned().collect::<Vec<_>>();
 
+        inputs.insert(1, parse_quote!(gas: u64));
+
         if matches!(self.meta.call_type, CallType::Fallible) {
             inputs.push(parse_quote!(err_mid_ptr: u32));
         }
@@ -100,7 +103,20 @@ impl HostFn {
     fn build_sig(&self) -> Signature {
         let name = self.item.sig.ident.clone();
         let inputs = self.build_inputs();
-        let output = self.item.sig.output.clone().into_token_stream();
+
+        let mut output = self.item.sig.output.clone();
+        if let ReturnType::Type(_rarrow, ty) = &mut output {
+            if let Type::Path(type_path) = ty.as_mut() {
+                let segment = type_path.path.segments.first_mut().unwrap();
+                if let PathArguments::AngleBracketed(generic_args) = &mut segment.arguments {
+                    let generic_arg = generic_args.args.first_mut().unwrap();
+                    if let GenericArgument::Type(ty) = generic_arg {
+                        *ty = parse_quote! { (u64, #ty) };
+                    }
+                }
+            }
+        }
+        let output = output.clone().into_token_stream();
 
         parse_quote! {
             fn #name(#(#inputs),*) #output
