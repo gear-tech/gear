@@ -151,9 +151,21 @@ impl LocksMap {
         let map = self
             .0
             .entry(message_id)
-            .and_modify(|_| crate::log!("wait({message_id:.2?}): entry is FOUND"))
+            .and_modify(|locks| {
+                crate::log!("wait({message_id:.2?}): entry is FOUND");
+
+                if locks.is_empty() {
+                    let lock = Default::default();
+
+                    crate::log!("wait({message_id:.2?}): inserting DEFAULT {lock:2?}");
+
+                    locks.insert(LockContext::ReplyTo(message_id), lock);
+                }
+            })
             .or_insert_with(|| {
-                crate::log!("wait({message_id:.2?}): entry is CREATED");
+                let lock = Default::default();
+
+                crate::log!("wait({message_id:.2?}): entry is CREATED with DEFAULT {lock:.2?}");
 
                 // If there is no `waiting_reply_to` id specified, use
                 // the message id as the key of the message lock.
@@ -161,7 +173,7 @@ impl LocksMap {
                 // (this key should be `waiting_reply_to` in general)
                 //
                 // # TODO: refactor it better (#1737)
-                [(LockContext::ReplyTo(message_id), Default::default())].into()
+                [(LockContext::ReplyTo(message_id), lock)].into()
             });
 
         // For `deadline <= now`, we are checking them in `crate::msg::async::poll`.
