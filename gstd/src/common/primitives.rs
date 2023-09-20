@@ -59,7 +59,6 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 #[derive(
     Clone,
     Copy,
-    Debug,
     Default,
     Hash,
     Ord,
@@ -172,6 +171,39 @@ impl TryFrom<&[u8]> for ActorId {
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
+    }
+}
+
+impl core::fmt::Display for ActorId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        }
+
+        let p1 = hex::encode(&self.0[..e1]);
+        let p2 = hex::encode(&self.0[s2..]);
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+        if f.alternate() {
+            write!(f, "ActorId(0x{p1}{sep}{p2})")
+        } else {
+            write!(f, "0x{p1}{sep}{p2}")
+        }
+    }
+}
+
+impl core::fmt::Debug for ActorId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, f)
     }
 }
 
