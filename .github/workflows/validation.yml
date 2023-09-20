@@ -1,4 +1,4 @@
-name: Validator Validation
+name: Live check on Vara Network Validator machine
 
 on:
   pull_request:
