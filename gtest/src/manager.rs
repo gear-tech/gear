@@ -39,7 +39,7 @@ use gear_core::{
         StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    program::Program as CoreProgram,
+    program::{MemoryInfix, Program as CoreProgram},
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -100,12 +100,21 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+    fn get_pages_data_mut(&mut self) -> Option<(MemoryInfix, &mut BTreeMap<GearPage, PageBuf>)> {
         match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
-                Some(pages_data)
-            }
+            TestActor::Initialized(Program::Genuine {
+                pages_data,
+                program,
+                ..
+            })
+            | TestActor::Uninitialized(
+                _,
+                Some(Program::Genuine {
+                    pages_data,
+                    program,
+                    ..
+                }),
+            ) => Some((program.memory_infix(), pages_data)),
             _ => None,
         }
     }
@@ -333,14 +342,18 @@ impl ExtManager {
         externalities.execute_with(|| f(self))
     }
 
-    fn update_storage_pages(program_id: ProgramId, memory_pages: &BTreeMap<GearPage, PageBuf>) {
+    fn update_storage_pages(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        memory_pages: &BTreeMap<GearPage, PageBuf>,
+    ) {
         // write pages into storage so lazy-pages can access them
         for (page, buf) in memory_pages {
             let page_no: u32 = (*page).into();
             let prefix = [
                 System::PAGE_STORAGE_PREFIX.as_slice(),
                 program_id.into_bytes().as_slice(),
-                0u32.to_le_bytes().as_slice(),
+                memory_infix.to_le_bytes().as_slice(),
                 page_no.to_le_bytes().as_slice(),
             ]
             .concat();
@@ -611,12 +624,22 @@ impl ExtManager {
             TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
         };
 
-        match program {
-            Program::Genuine { pages_data, .. } => *pages_data = memory_pages.clone(),
-            Program::Mock(_) => panic!("Can't read memory of mock program"),
-        }
+        let memory_infix = match program {
+            Program::Genuine {
+                pages_data,
+                program,
+                ..
+            } => {
+                *pages_data = memory_pages.clone();
 
-        self.with_externalities(|_this| Self::update_storage_pages(*program_id, &memory_pages))
+                program.memory_infix()
+            }
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        };
+
+        self.with_externalities(|_this| {
+            Self::update_storage_pages(*program_id, memory_infix, &memory_pages)
+        })
     }
 
     #[track_caller]
@@ -1019,8 +1042,8 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Some(actor_pages_data) = actor.get_pages_data_mut() {
-            Self::update_storage_pages(program_id, &pages_data);
+        if let Some((memory_infix, actor_pages_data)) = actor.get_pages_data_mut() {
+            Self::update_storage_pages(program_id, memory_infix, &pages_data);
 
             actor_pages_data.append(&mut pages_data);
         } else {
