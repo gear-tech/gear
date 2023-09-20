@@ -83,7 +83,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn default_wait_lock_timeout() {
     use demo_async_tester::{Kind, WASM_BINARY};
 
