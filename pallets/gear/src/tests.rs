@@ -120,15 +120,18 @@ fn default_wait_lock_timeout() {
 
         run_to_block(expiration_block, None);
 
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "ran into error-reply: {:?}",
+                GstdError::Timeout(expiration_block, expiration_block)
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                format!(
-                    "ran into error-reply: {:?}",
-                    GstdError::Timeout(expiration_block, expiration_block)
-                )
-                .into(),
-            )),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
