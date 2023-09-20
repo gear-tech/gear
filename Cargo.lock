@@ -13751,7 +13751,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 [[package]]
 name = "wasm-encoder"
 version = "0.16.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "leb128",
 ]
@@ -13838,7 +13838,7 @@ dependencies = [
 [[package]]
 name = "wasm-smith"
 version = "0.11.4"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "arbitrary",
  "flagset",
@@ -14220,7 +14220,7 @@ checksum = "718ed7c55c2add6548cca3ddd6383d738cd73b892df400e96b9aa876f0141d7a"
 [[package]]
 name = "wasmparser"
 version = "0.90.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "indexmap 1.9.3",
 ]
