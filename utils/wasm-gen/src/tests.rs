@@ -176,9 +176,6 @@ fn injecting_addresses_works() {
 fn error_processing_works_for_fallible_syscalls() {
     use gear_backend_common::ActorTerminationReason;
 
-    const INITIAL_PAGES: u16 = 1;
-    const INJECTED_SYSCALLS: u32 = 8;
-
     let _ = env_logger::builder().is_test(true).try_init();
 
     // We create Unstructured from zeroes here as we just need any
@@ -197,13 +194,13 @@ fn error_processing_works_for_fallible_syscalls() {
         // Prepare sys-calls config & context settings for test case.
         let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(syscall);
 
+        const INJECTED_SYSCALLS: u32 = 8;
+
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
         injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let sys_calls_config_builder =
             SysCallsConfigBuilder::new(injection_amounts).with_params_config(params_config);
-
-        let context_settings = ContextSettings::new(0, 0, 0, 0, 0, 0);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -213,8 +210,7 @@ fn error_processing_works_for_fallible_syscalls() {
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             initial_memory_write.clone(),
-            INITIAL_PAGES,
-            context_settings,
+            0,
             true,
         );
 
@@ -230,8 +226,7 @@ fn error_processing_works_for_fallible_syscalls() {
             &mut unstructured2,
             sys_calls_config_builder.build(),
             initial_memory_write.clone(),
-            INITIAL_PAGES,
-            context_settings,
+            0,
             true,
         );
 
@@ -247,9 +242,6 @@ fn error_processing_works_for_fallible_syscalls() {
 #[test]
 fn precise_syscalls_works() {
     use gear_backend_common::ActorTerminationReason;
-
-    const INITIAL_PAGES: u16 = 1;
-    const INJECTED_SYSCALLS: u32 = 1;
 
     let _ = env_logger::builder().is_test(true).try_init();
 
@@ -268,13 +260,13 @@ fn precise_syscalls_works() {
 
     for syscall in precise_syscalls {
         // Prepare sys-calls config & context settings for test case.
+        const INJECTED_SYSCALLS: u32 = 1;
+
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
         injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let mut param_config = SysCallsParamsConfig::default();
         param_config.add_rule(ParamType::Gas, (0..=0).into());
-
-        let context_settings = ContextSettings::new(0, 0, 0, 0, 0, 1024);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -285,8 +277,7 @@ fn precise_syscalls_works() {
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             None,
-            INITIAL_PAGES,
-            context_settings,
+            1024,
             false,
         );
 
@@ -330,11 +321,11 @@ fn execute_wasm_with_custom_configs(
     unstructured: &mut Unstructured,
     sys_calls_config: SysCallsConfig,
     initial_memory_write: Option<MemoryWrite>,
-    initial_pages: u16,
-    context_settings: ContextSettings,
+    outgoing_limit: u32,
     imitate_reply: bool,
 ) -> TerminationReason {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
+    const INITIAL_PAGES: u16 = 1;
 
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
         PROGRAM_STORAGE_PREFIX
@@ -343,7 +334,7 @@ fn execute_wasm_with_custom_configs(
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
             .with_memory_config(MemoryPagesConfig {
-                initial_size: initial_pages as u32,
+                initial_size: INITIAL_PAGES as u32,
                 ..MemoryPagesConfig::default()
             })
             .with_sys_calls_config(sys_calls_config)
@@ -369,7 +360,7 @@ fn execute_wasm_with_custom_configs(
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
         program_id,
-        context_settings,
+        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
     );
 
     if imitate_reply {
@@ -378,7 +369,7 @@ fn execute_wasm_with_custom_configs(
 
     let processor_context = ProcessorContext {
         message_context,
-        max_pages: initial_pages.into(),
+        max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
         program_id,
         ..ProcessorContext::new_mock()
@@ -390,7 +381,7 @@ fn execute_wasm_with_custom_configs(
         code.code(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
-        initial_pages.into(),
+        INITIAL_PAGES.into(),
     )
     .expect("Failed to create environment");
 
