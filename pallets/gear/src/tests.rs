@@ -9291,11 +9291,7 @@ fn mx_lock_ownership_exceedance() {
 
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    format!(
-                        "Message 0x{} has exceeded lock ownership time",
-                        hex::encode(command_msg_id)
-                    )
-                    .into(),
+                    format!("Message {command_msg_id:.2?} has exceeded lock ownership time").into(),
                 ))
             };
 
