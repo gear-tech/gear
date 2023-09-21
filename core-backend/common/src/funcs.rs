@@ -314,22 +314,6 @@ where
             .map_err(Into::into)
     }
 
-    #[host(cost = RuntimeCosts::PerformanceMultiplier)]
-    pub fn performance_multiplier(
-        ctx: &mut R,
-        gas: u64,
-        performance_multiplier_ptr: u32,
-    ) -> Result<(u64, ()), R::Error> {
-        let performance_multiplier = ctx.ext_mut().performance_multiplier()?;
-
-        let write_performance_multiplier = ctx.register_write_as(performance_multiplier_ptr);
-        ctx.write_as(
-            write_performance_multiplier,
-            performance_multiplier.to_le_bytes(),
-        )
-        .map_err(Into::into)
-    }
-
     #[host(cost = RuntimeCosts::Random)]
     pub fn random(
         ctx: &mut R,

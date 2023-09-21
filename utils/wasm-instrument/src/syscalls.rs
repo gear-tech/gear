@@ -76,7 +76,6 @@ pub enum SysCallName {
     // Execution environmental data
     BlockHeight,
     BlockTimestamp,
-    PerformanceMultiplier,
     GasAvailable,
     ValueAvailable,
 
@@ -111,7 +110,6 @@ impl SysCallName {
             SysCallName::Alloc => "alloc",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
-            SysCallName::PerformanceMultiplier => "gr_performance_multiplier",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
             SysCallName::ReplyDeposit => "gr_reply_deposit",
@@ -247,7 +245,6 @@ impl SysCallName {
             Self::OomPanic => SysCallSignature::gr([]),
             Self::BlockHeight => SysCallSignature::gr([Ptr(None)]),
             Self::BlockTimestamp => SysCallSignature::gr([Ptr(None)]),
-            Self::PerformanceMultiplier => SysCallSignature::gr([Ptr(None)]),
             Self::Exit => SysCallSignature::gr([Ptr(None)]),
             Self::GasAvailable => SysCallSignature::gr([Ptr(None)]),
             Self::PayProgramRent => SysCallSignature::gr([Ptr(None), Ptr(None)]),

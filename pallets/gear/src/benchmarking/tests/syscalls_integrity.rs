@@ -78,7 +78,6 @@ where
             SysCallName::Value => check_gr_value::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
-            SysCallName::PerformanceMultiplier => check_gr_performance_multiplier::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
@@ -779,20 +778,6 @@ where
         .expect("failed to put timestamp");
 
         let mp = vec![Kind::BlockTimestamp(block_timestamp)].encode().into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    })
-}
-
-fn check_gr_performance_multiplier<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let cm = T::PerformanceMultiplier::get();
-
-        let mp = vec![Kind::PerformanceMultiplier(cm)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

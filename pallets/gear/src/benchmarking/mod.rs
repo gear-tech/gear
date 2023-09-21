@@ -961,17 +961,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_performance_multiplier {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::PerformanceMultiplier, r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     gr_random {
         let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;

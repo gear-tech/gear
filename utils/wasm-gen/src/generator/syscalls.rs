@@ -99,7 +99,6 @@ impl InvocableSysCall {
 
         match underlying_syscall {
             SysCallName::BlockHeight
-            | SysCallName::PerformanceMultiplier
             | SysCallName::BlockTimestamp
             | SysCallName::Debug
             | SysCallName::Panic

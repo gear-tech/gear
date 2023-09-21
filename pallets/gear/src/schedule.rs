@@ -862,7 +862,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_read_per_byte: self.gr_read_per_byte.ref_time(),
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
-            gr_performance_multiplier: self.gr_performance_multiplier.ref_time(),
             gr_random: self.gr_random.ref_time(),
             gr_reply_deposit: self.gr_reply_deposit.ref_time(),
             gr_send: self.gr_send.ref_time(),

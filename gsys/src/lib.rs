@@ -343,12 +343,6 @@ extern "C" {
     /// - `timestamp`: `mut ptr` for `u64`.
     pub fn gr_block_timestamp(timestamp: *mut BlockTimestamp);
 
-    /// Infallible `gr_performance_multiplier` syscall.
-    ///
-    /// Arguments type:
-    /// - `multiplier`: `mut ptr` for `u32`.
-    pub fn gr_performance_multiplier(multiplier: *mut u32);
-
     /// Fallible `gr_create_program_wgas` send syscall.
     ///
     /// Arguments type:
