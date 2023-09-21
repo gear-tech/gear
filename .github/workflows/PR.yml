@@ -54,6 +54,7 @@ jobs:
 
   check:
     needs: status
+    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
