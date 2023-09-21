@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, ProgramStorage, MemoryPageStorage2};
+use crate::{Config, MemoryPageStorage2, Pallet, ProgramStorage};
 use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
@@ -48,17 +48,18 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
             "Can only upgrade from version 2"
         );
 
-        let count = v2::ProgramStorage::<T>::iter()
-            .fold(0u64, |count, (program_id, program)| {
-                match program {
-                    v2::Program::Terminated(_) | v2::Program::Exited(_) => {
-                        assert!(v2::MemoryPageStorage::<T>::iter_key_prefix(program_id).next().is_none());
-                    }
-                    v2::Program::Active(_) => (),
+        let count = v2::ProgramStorage::<T>::iter().fold(0u64, |count, (program_id, program)| {
+            match program {
+                v2::Program::Terminated(_) | v2::Program::Exited(_) => {
+                    assert!(v2::MemoryPageStorage::<T>::iter_key_prefix(program_id)
+                        .next()
+                        .is_none());
                 }
+                v2::Program::Active(_) => (),
+            }
 
-                count + 1
-            });
+            count + 1
+        });
 
         Ok(count.encode())
     }
@@ -81,10 +82,15 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
 
                     Some(match program {
                         v2::Program::Active(p) => {
-                            for (page, data) in v2::MemoryPageStorage::<T>::drain_prefix(program_id) {
-                                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                            for (page, data) in v2::MemoryPageStorage::<T>::drain_prefix(program_id)
+                            {
+                                weight =
+                                    weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-                                MemoryPageStorage2::<T>::insert((program_id, MEMORY_INFIX, page), data);
+                                MemoryPageStorage2::<T>::insert(
+                                    (program_id, MEMORY_INFIX, page),
+                                    data,
+                                );
                             }
 
                             Program::Active(common::ActiveProgram {
@@ -129,7 +135,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 assert_eq!(p.memory_infix, MEMORY_INFIX);
 
                 for page in p.pages_with_data.iter() {
-                    assert!(MemoryPageStorage2::<T>::contains_key((k, p.memory_infix, page)));
+                    assert!(MemoryPageStorage2::<T>::contains_key((
+                        k,
+                        p.memory_infix,
+                        page
+                    )));
                 }
             }
 
@@ -151,19 +161,22 @@ mod v2 {
     use common::ProgramState;
     use frame_support::{
         codec::{self, Decode, Encode},
-        scale_info::{self, TypeInfo}, traits::{StorageInstance, PalletInfo}, storage::types::{StorageMap, StorageDoubleMap},
+        scale_info::{self, TypeInfo},
+        storage::types::{StorageDoubleMap, StorageMap},
+        traits::{PalletInfo, StorageInstance},
         Identity,
     };
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::ProgramId,
+        memory::PageBuf,
         message::DispatchKind,
         pages::{GearPage, WasmPage},
-        reservation::GasReservationMap, memory::PageBuf,
+        reservation::GasReservationMap,
     };
     use primitive_types::H256;
     use sp_runtime::traits::Saturating;
-    use sp_std::{collections::btree_set::BTreeSet, prelude::*, marker::PhantomData};
+    use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
     #[codec(crate = codec)]
@@ -199,7 +212,8 @@ mod v2 {
         }
     }
 
-    pub type MemoryPageStorage<T> = StorageDoubleMap<MemoryPagesPrefix<T>, Identity, ProgramId, Identity, GearPage, PageBuf>;
+    pub type MemoryPageStorage<T> =
+        StorageDoubleMap<MemoryPagesPrefix<T>, Identity, ProgramId, Identity, GearPage, PageBuf>;
 
     pub struct ProgramStoragePrefix<T>(PhantomData<T>);
 
@@ -212,7 +226,8 @@ mod v2 {
         }
     }
 
-    pub type ProgramStorage<T> = StorageMap<ProgramStoragePrefix<T>, Identity, ProgramId, Program<BlockNumberFor<T>>>;
+    pub type ProgramStorage<T> =
+        StorageMap<ProgramStoragePrefix<T>, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 }
 
 #[cfg(test)]
@@ -222,7 +237,7 @@ mod test {
     use crate::mock::*;
     use common::ProgramState;
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::{ids::ProgramId, pages::GearPage, memory::PageBuf};
+    use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
 
     #[test]
     fn migration_to_v3_works() {
@@ -237,7 +252,7 @@ mod test {
                 page[0] = 1;
 
                 page
-            },);
+            });
             let program = v2::Program::<BlockNumberFor<Test>>::Active(v2::ActiveProgram {
                 allocations: Default::default(),
                 pages_with_data: [page].into(),
