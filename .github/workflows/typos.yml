@@ -14,7 +14,6 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
     steps:
       - uses: actions/checkout@v4
       - name: typos-action
