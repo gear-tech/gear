@@ -19,42 +19,14 @@
 //! Requires node to be built in release mode
 
 use gear_core::ids::{CodeId, ProgramId};
-use gsdk::{
-    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
-    testing::Node,
-    Api, Error, Result,
-};
+use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr};
 use subxt::{config::Header, error::RpcError, Error as SubxtError};
+use utils::{alice_account_id, dev_node, node_uri};
 
-fn dev_node() -> Node {
-    // Use release build because of performance reasons.
-    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
-
-    #[cfg(not(feature = "vara-testing"))]
-    let args = vec!["--tmp", "--dev"];
-    #[cfg(feature = "vara-testing")]
-    let args = vec![
-        "--tmp",
-        "--chain=vara-dev",
-        "--alice",
-        "--validator",
-        "--reserved-only",
-    ];
-
-    Node::try_from_path(bin_path, args)
-        .expect("Failed to start node: Maybe it isn't built with --release flag?")
-}
-
-fn node_uri(node: &Node) -> String {
-    format!("ws://{}", &node.address())
-}
-
-fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap()
-}
+mod utils;
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
