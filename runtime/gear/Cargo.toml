@@ -181,8 +181,3 @@ try-runtime = [
 	"runtime-common/try-runtime",
 ]
 dev = ["pallet-gear-debug", "pallet-gear-program/dev"]
-lazy-pages = [
-	"pallet-gear/lazy-pages",
-	"pallet-gear-payment/lazy-pages",
-	"pallet-gear-debug?/lazy-pages",
-]

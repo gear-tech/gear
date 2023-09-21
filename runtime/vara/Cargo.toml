@@ -262,8 +262,3 @@ dev = [
 	"pallet-gear-program/dev",
 	"pallet-sudo",
 ]
-lazy-pages = [
-	"pallet-gear/lazy-pages",
-	"pallet-gear-payment/lazy-pages",
-	"pallet-gear-debug?/lazy-pages",
-]

@@ -333,6 +333,8 @@ where
 
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
+                log::trace!("{:?} has been write accessed, update it in storage", page);
+
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
             }

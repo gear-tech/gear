@@ -26,7 +26,7 @@ static_assertions.workspace = true
 # Internal deps
 common.workspace = true
 gear-runtime-interface = { workspace = true }
-gear-lazy-pages-common = { workspace = true, optional = true }
+gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
@@ -136,7 +136,9 @@ std = [
 	"frame-system/std",
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
+	"core-processor/std",
 	"gear-backend-sandbox/std",
+	"gear-lazy-pages-common/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -154,7 +156,6 @@ std = [
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
-	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-read-big-state?/std",
@@ -190,5 +191,4 @@ runtime-benchmarks = [
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
-lazy-pages = ["gear-lazy-pages-common"]
 fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]
