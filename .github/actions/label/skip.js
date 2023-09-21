@@ -4,7 +4,7 @@
 
 const SKIP_CI = "[skip-ci]";
 const { TITLE, HEAD_SHA } = process.env;
-const CHECKS = ["linux", "win-cross"]
+const CHECKS = ["check", "build"]
 const [owner, repo] = ["gear-tech", "gear"];
 
 module.exports = async ({ github, core }) => {
@@ -16,7 +16,7 @@ module.exports = async ({ github, core }) => {
     const { data: res } = await github.rest.checks.create({
       owner,
       repo,
-      name: `build / ${check}`,
+      name: `${check} / linux`,
       head_sha: HEAD_SHA,
       status: "completed",
       conclusion: "success",
