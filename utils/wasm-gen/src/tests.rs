@@ -347,6 +347,7 @@ fn execute_wasm_with_custom_configs(
             max_instructions: 0,
             min_funcs: 1,
             max_funcs: 1,
+            unreachable_enabled: true,
         },
     );
 
