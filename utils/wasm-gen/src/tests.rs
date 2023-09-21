@@ -178,7 +178,7 @@ fn error_processing_works_for_fallible_syscalls() {
 
     let _ = env_logger::builder().is_test(true).try_init();
 
-    // We create Unstructured from zeroes here as we just need any
+    // We create Unstructured from zeroes here as we just need any.
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
