@@ -1,12 +1,11 @@
 [package]
 name = "pallet-gear-debug"
-version = "2.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
-description = "Gear main pallet"
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -46,7 +45,7 @@ pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
-pallet-gear-program = { workspace = true, features = ["debug-mode", "std"] }
+pallet-gear-program = { workspace = true, features = ["dev", "std"] }
 gear-wasm-instrument.workspace = true
 demo-vec.workspace = true
 test-syscalls.workspace = true
@@ -76,5 +75,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 ]
-lazy-pages = ["pallet-gear/lazy-pages"]
 try-runtime = ["frame-support/try-runtime"]

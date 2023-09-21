@@ -16,6 +16,7 @@ gear-utils.workspace = true
 gear-core.workspace = true
 wasmparser.workspace = true
 static_assertions.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
@@ -25,4 +26,5 @@ proptest.workspace = true
 
 gear-backend-sandbox = { workspace = true, features = ["std"] }
 gear-backend-common = { workspace = true, features = ["mock"] }
-gear-core-processor = { workspace = true, features = ["mock"] }
+gear-core-processor = { workspace = true, features = ["std", "mock"] }
+gear-lazy-pages-common = { workspace = true, features = ["std"] }

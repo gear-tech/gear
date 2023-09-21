@@ -3,10 +3,15 @@ name: Benchmarks
 on:
   workflow_dispatch:
     inputs:
-      create_pr:
-        description: Whether to create a pull request after the benchmarks are completed
-        required: false
-        type: boolean
+      change-type:
+        description: How should changes be made after the benchmarks are completed?
+        required: true
+        default: ignore
+        type: choice
+        options:
+          - ignore
+          - commit
+          - pull_request
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,11 +20,14 @@ env:
 jobs:
   benchmarks:
     runs-on: bench
+    permissions:
+      contents: write
+      pull-requests: write
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
@@ -65,11 +73,18 @@ jobs:
         run: |
           echo "::notice::You can download the artifacts and use script \`./scripts/unpack-weights.sh\` to apply the changes to your branch"
 
-      - name: Create Pull Request
-        if: ${{ inputs.create_pr }}
+      - name: Create commit
+        if: ${{ inputs.change-type == 'commit' }}
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: >-
+            chore(runtime): update weights
+          file_pattern: "pallets/gear/src/ runtime/gear/src/weights/ runtime/vara/src/weights/"
+
+      - name: Create pull Request
+        if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GH_TOKEN_FOR_PR }}
           add-paths: |
             pallets/gear/src/
             runtime/gear/src/weights/
@@ -78,7 +93,7 @@ jobs:
           branch: weights/patch
           branch-suffix: short-commit-hash
           title: >-
-            chore: update weights
+            chore(runtime): update weights
           body: |
             `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
             **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`

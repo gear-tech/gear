@@ -66,6 +66,9 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
             InvocableSysCall::Precise(sys_call) => match sys_call {
                 SysCallName::ReservationSend => "precise_gr_reservation_send",
+                SysCallName::ReservationReply => "precise_gr_reservation_reply",
+                SysCallName::SendCommit => "precise_gr_send_commit",
+                SysCallName::SendCommitWGas => "precise_gr_send_commit_wgas",
                 _ => unimplemented!(),
             },
         }
@@ -84,9 +87,68 @@ impl InvocableSysCall {
                     ParamType::Duration,     // Duration of the reservation
                     ParamType::Ptr(None),    // Address of error returned
                 ]),
+                SysCallName::ReservationReply => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of value
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Gas,          // Amount of gas to reserve
+                    ParamType::Duration,     // Duration of the reservation
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommit => SysCallSignature::gr([
+                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(Some(2)), // Pointer to payload
+                    ParamType::Size,         // Size of the payload
+                    ParamType::Delay,        // Number of blocks to delay the sending for
+                    ParamType::Ptr(None),    // Address of error returned
+                ]),
+                SysCallName::SendCommitWGas => SysCallSignature::gr([
+                    ParamType::Ptr(None), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Delay,     // Number of blocks to delay the sending for
+                    ParamType::Gas,       // Amount of gas to reserve
+                    ParamType::Ptr(None), // Address of error returned
+                ]),
                 _ => unimplemented!(),
             },
         }
+    }
+
+    /// Checks whether given sys-call has the precise variant.
+    pub(crate) fn has_precise_variant(sys_call: SysCallName) -> bool {
+        Self::required_imports_for_sys_call(sys_call).is_some()
+    }
+
+    /// Returns the required imports to build precise sys-call.
+    fn required_imports_for_sys_call(sys_call: SysCallName) -> Option<&'static [SysCallName]> {
+        // NOTE: the last sys-call must be pattern itself
+        Some(match sys_call {
+            SysCallName::ReservationSend => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationSend]
+            }
+            SysCallName::ReservationReply => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationReply]
+            }
+            SysCallName::SendCommit => &[
+                SysCallName::SendInit,
+                SysCallName::SendPush,
+                SysCallName::SendCommit,
+            ],
+            SysCallName::SendCommitWGas => &[
+                SysCallName::Size,
+                SysCallName::SendInit,
+                SysCallName::SendPushInput,
+                SysCallName::SendCommitWGas,
+            ],
+            _ => return None,
+        })
+    }
+
+    /// Returns the required imports to build precise sys-call, but of a fixed size.
+    fn required_imports<const N: usize>(sys_call: SysCallName) -> &'static [SysCallName; N] {
+        Self::required_imports_for_sys_call(sys_call)
+            .expect("failed to find required imports for sys-call")
+            .try_into()
+            .expect("failed to convert slice")
     }
 
     // If syscall changes from fallible into infallible or vice versa in future,

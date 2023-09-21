@@ -210,7 +210,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -677,7 +677,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -773,7 +773,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -913,7 +913,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1012,7 +1012,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1143,7 +1143,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1251,6 +1251,7 @@ impl GearApi {
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
                     code: code.as_ref().to_vec(),
@@ -1283,6 +1284,7 @@ impl GearApi {
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code_without_checks {
                     code: code.as_ref().to_vec(),
@@ -1318,6 +1320,7 @@ impl GearApi {
     ) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
                     who: to.into().convert(),

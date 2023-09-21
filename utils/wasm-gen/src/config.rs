@@ -39,7 +39,8 @@
 //!         ],
 //!         max_instructions: 100_000,
 //!         min_funcs: 15,
-//!         max_funcs: 30
+//!         max_funcs: 30,
+//!         unreachable_enabled: true,
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
 //!     Ok((selectable_params, arbitrary).into())
@@ -140,13 +141,22 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
-    /// Flag which signals whether `call_indirect` instruction must not be used
+    /// Flag which signals whether `call_indirect` instruction must be used
     /// during wasm generation.
     pub call_indirect_enabled: bool,
     /// Injection amount ranges for each sys-call.
     pub injection_amounts: SysCallsInjectionAmounts,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
+    /// Initial wasm memory pages.
+    pub initial_pages: u32,
+    /// Optional stack end pages.
+    pub stack_end_page: Option<u32>,
+    /// Sys-calls params config
+    pub params_config: SysCallsParamsConfig,
+    /// Flag which signals whether `unreachable` instruction must be used
+    /// during wasm generation.
+    pub unreachable_enabled: bool,
 }
 
 impl<T> Default for StandardGearWasmConfigsBundle<T> {
@@ -158,6 +168,10 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
             call_indirect_enabled: true,
             injection_amounts: SysCallsInjectionAmounts::all_once(),
             entry_points_set: Default::default(),
+            initial_pages: DEFAULT_INITIAL_SIZE,
+            stack_end_page: None,
+            params_config: SysCallsParamsConfig::default(),
+            unreachable_enabled: true,
         }
     }
 }
@@ -171,10 +185,15 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             call_indirect_enabled,
             injection_amounts,
             entry_points_set,
+            initial_pages,
+            stack_end_page,
+            params_config,
+            unreachable_enabled,
         } = self;
 
         let selectable_params = SelectableParams {
             call_indirect_enabled,
+            unreachable_enabled,
             ..SelectableParams::default()
         };
 
@@ -188,10 +207,18 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         } else {
             sys_calls_config_builder = sys_calls_config_builder.with_source_msg_dest();
         }
+        sys_calls_config_builder = sys_calls_config_builder.with_params_config(params_config);
+
+        let memory_pages_config = MemoryPagesConfig {
+            initial_size: initial_pages,
+            stack_end_page,
+            upper_limit: None,
+        };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
             .with_recursions_removed(remove_recursion)
             .with_sys_calls_config(sys_calls_config_builder.build())
             .with_entry_points_config(entry_points_set)
+            .with_memory_config(memory_pages_config)
             .build();
 
         (gear_wasm_generator_config, selectable_params)

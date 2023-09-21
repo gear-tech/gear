@@ -37,7 +37,7 @@ RUN cargo build -p gear-cli --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM ubuntu:22.10
+FROM ubuntu:22.04
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production

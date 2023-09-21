@@ -30,8 +30,6 @@ use gear_backend_common::{
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
-#[cfg(any(feature = "mock", test))]
-use gear_core::message::{ContextSettings, IncomingDispatch};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -41,20 +39,20 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
-        NoopGrowHandler, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
+use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -114,6 +112,8 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{ContextSettings, IncomingDispatch};
+
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
@@ -158,9 +158,6 @@ impl ProcessorContext {
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
-    /// Whether this extension works with lazy pages.
-    const LAZY_PAGES_ENABLED: bool;
-
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
@@ -289,6 +286,39 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
+struct LazyGrowHandler {
+    old_mem_addr: Option<u64>,
+    old_mem_size: WasmPage,
+}
+
+impl GrowHandler for LazyGrowHandler {
+    fn before_grow_action(mem: &mut impl Memory) -> Self {
+        // New pages allocation may change wasm memory buffer location.
+        // So we remove protections from lazy-pages
+        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
+        let old_mem_addr = mem.get_buffer_host_addr();
+        lazy_pages::remove_lazy_pages_prot(mem);
+        Self {
+            old_mem_addr,
+            old_mem_size: mem.size(),
+        }
+    }
+
+    fn after_grow_action(self, mem: &mut impl Memory) {
+        // Add new allocations to lazy pages.
+        // Protect all lazy pages including new allocations.
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
+        lazy_pages::update_lazy_pages_and_protect_again(
+            mem,
+            self.old_mem_addr,
+            self.old_mem_size,
+            new_mem_addr,
+        );
+    }
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
@@ -303,8 +333,6 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExternalities for Ext {
-    const LAZY_PAGES_ENABLED: bool = false;
-
     fn new(context: ProcessorContext) -> Self {
         let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
         {
@@ -321,36 +349,87 @@ impl ProcessorExternalities for Ext {
     }
 
     fn lazy_pages_init_for_program(
-        _mem: &mut impl Memory,
-        _prog_id: ProgramId,
-        _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsAccessConfig,
-        _lazy_pages_weights: LazyPagesWeights,
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
     ) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        lazy_pages::remove_lazy_pages_prot(mem);
     }
 
     fn lazy_pages_status() -> Status {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::get_status()
     }
 }
 
 impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                static_pages
-                    .iter_from_zero()
-                    .chain(allocations.iter().copied())
-                    .flat_map(|p| p.to_pages_iter())
-                    .collect()
-            };
+        let ProcessorContext {
+            allocations_context,
+            message_context,
+            gas_counter,
+            gas_reserver,
+            system_reservation,
+            program_candidates_data,
+            program_rents,
+            ..
+        } = self.context;
 
-        self.into_ext_info_inner(memory, pages_for_data)
+        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+
+        // Accessed pages are all pages, that had been released and are in allocations set or static.
+        let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
+        log::trace!("accessed pages numbers = {:?}", accessed_pages);
+
+        let mut pages_data = BTreeMap::new();
+        for page in accessed_pages {
+            let mut buf = PageBuf::new_zeroed();
+            memory.read(page.offset(), &mut buf)?;
+            pages_data.insert(page, buf);
+        }
+
+        let (outcome, mut context_store) = message_context.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            reply_deposits,
+        } = outcome.drain();
+
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
+        context_store.set_reservation_nonce(&gas_reserver);
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
+
+        let info = ExtInfo {
+            gas_amount: gas_counter.to_amount(),
+            gas_reserver,
+            system_reservation_context,
+            allocations: (allocations != initial_allocations)
+                .then_some(allocations)
+                .unwrap_or_default(),
+            pages_data,
+            generated_dispatches,
+            awakening,
+            reply_deposits,
+            context_store,
+            program_candidates_data,
+            program_rents,
+        };
+        Ok(info)
     }
 
     fn gas_amount(&self) -> GasAmount {
@@ -358,11 +437,11 @@ impl BackendExternalities for Ext {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-        _gas_counter: &mut u64,
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        Ok(())
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
@@ -594,7 +673,18 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
+        self.context
+            .allocations_context
+            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+                Ext::charge_gas_if_enough(
+                    &mut self.context.gas_counter,
+                    &mut self.context.gas_allowance_counter,
+                    self.context.page_costs.mem_grow.calc(pages),
+                )
+            })
+            .map_err(Into::into)
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -1035,89 +1125,6 @@ impl Externalities for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
-    }
-}
-
-impl Ext {
-    /// Inner alloc realization.
-    pub fn alloc_inner<G: GrowHandler>(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, AllocExtError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
-        self.context
-            .allocations_context
-            .alloc::<G>(pages, mem, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
-                )
-            })
-            .map_err(Into::into)
-    }
-
-    /// Into ext info inner impl.
-    /// `pages_for_data` returns vector of pages which data will be stored in info.
-    pub fn into_ext_info_inner(
-        self,
-        memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> Result<ExtInfo, MemoryError> {
-        let ProcessorContext {
-            allocations_context,
-            message_context,
-            gas_counter,
-            gas_reserver,
-            system_reservation,
-            program_candidates_data,
-            program_rents,
-            ..
-        } = self.context;
-
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
-        let mut pages_data = BTreeMap::new();
-        for page in pages_for_data(static_pages, &allocations) {
-            let mut buf = PageBuf::new_zeroed();
-            memory.read(page.offset(), &mut buf)?;
-            pages_data.insert(page, buf);
-        }
-
-        let (outcome, mut context_store) = message_context.drain();
-        let ContextOutcomeDrain {
-            outgoing_dispatches: generated_dispatches,
-            awakening,
-            reply_deposits,
-        } = outcome.drain();
-
-        let system_reservation_context = SystemReservationContext {
-            current_reservation: system_reservation,
-            previous_reservation: context_store.system_reservation(),
-        };
-
-        context_store.set_reservation_nonce(&gas_reserver);
-        if let Some(reservation) = system_reservation {
-            context_store.add_system_reservation(reservation);
-        }
-
-        let info = ExtInfo {
-            gas_amount: gas_counter.to_amount(),
-            gas_reserver,
-            system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
-            pages_data,
-            generated_dispatches,
-            awakening,
-            reply_deposits,
-            context_store,
-            program_candidates_data,
-            program_rents,
-        };
-        Ok(info)
     }
 }
 
@@ -1642,134 +1649,5 @@ mod tests {
             .expect("Send commit was ok");
 
         assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
-    }
-
-    mod property_tests {
-        use super::*;
-        use gear_core::{
-            memory::HostPointer,
-            pages::{PageError, PageNumber},
-        };
-        use proptest::{
-            arbitrary::any,
-            collection::size_range,
-            prop_oneof, proptest,
-            strategy::{Just, Strategy},
-            test_runner::Config as ProptestConfig,
-        };
-
-        struct TestMemory(WasmPage);
-
-        impl Memory for TestMemory {
-            type GrowError = PageError;
-
-            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages)?;
-                Ok(())
-            }
-
-            fn size(&self) -> WasmPage {
-                self.0
-            }
-
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
-
-        #[derive(Debug, Clone)]
-        enum Action {
-            Alloc { pages: WasmPage },
-            Free { page: WasmPage },
-        }
-
-        fn actions() -> impl Strategy<Value = Vec<Action>> {
-            let action = wasm_page_number().prop_flat_map(|page| {
-                prop_oneof![
-                    Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
-                ]
-            });
-            proptest::collection::vec(action, 0..1024)
-        }
-
-        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
-            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
-        }
-
-        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
-            any::<u16>().prop_map(WasmPage::from)
-        }
-
-        fn proptest_config() -> ProptestConfig {
-            ProptestConfig {
-                cases: 1024,
-                ..Default::default()
-            }
-        }
-
-        #[track_caller]
-        fn assert_alloc_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(
-                    AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
-                ) => {}
-                err => Err(err).unwrap(),
-            }
-        }
-
-        #[track_caller]
-        fn assert_free_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(AllocError::InvalidFree(_)) => {}
-                err => Err(err).unwrap(),
-            }
-        }
-
-        proptest! {
-            #![proptest_config(proptest_config())]
-            #[test]
-            fn alloc(
-                static_pages in wasm_page_number(),
-                allocations in allocations(),
-                max_pages in wasm_page_number(),
-                mem_size in wasm_page_number(),
-                actions in actions(),
-            ) {
-                let _ = env_logger::try_init();
-
-                let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let ctx = ProcessorContextBuilder::new()
-                    .with_gas(GasCounter::new(u64::MAX))
-                    .with_allowance(GasAllowanceCounter::new(u64::MAX))
-                    .with_allocation_context(ctx)
-                    .build();
-                let mut ext = Ext::new(ctx);
-                let mut mem = TestMemory(mem_size);
-
-                for action in actions {
-                    match action {
-                        Action::Alloc { pages } => {
-                            if let Err(err) = ext.alloc(pages.raw(), &mut mem) {
-                                assert_alloc_error(err);
-                            }
-                        }
-                        Action::Free { page } => {
-                            if let Err(err) = ext.free(page) {
-                                assert_free_error(err);
-                            }
-                        },
-                    }
-                }
-            }
-        }
     }
 }

@@ -91,6 +91,7 @@ mod strategies;
 mod utils;
 
 type Balance = u64;
+type Funds = u128;
 
 std::thread_local! {
     static TOTAL_ISSUANCE: RefCell<Option<Balance>> = RefCell::new(None);
@@ -140,7 +141,7 @@ impl ValueStorage for TotalIssuanceWrap {
 }
 
 type Key = GasNodeId<MapKey, ReservationKey>;
-type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
+type GasNode = super::GasNode<ExternalOrigin, Key, Balance, Funds>;
 
 #[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ExternalOrigin(MapKey);
@@ -310,6 +311,7 @@ impl super::Provider for GasProvider {
     type ExternalOrigin = ExternalOrigin;
     type NodeId = GasNodeId<MapKey, ReservationKey>;
     type Balance = Balance;
+    type Funds = Funds;
     type InternalError = Error;
     type Error = Error;
 
@@ -429,7 +431,7 @@ proptest! {
         let lock_ids = all::<LockId>().collect::<Vec<_>>();
 
         // Only root has a max balance
-        Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
+        Gas::create(external, GasMultiplier::ValuePerGas(25), root_node, max_balance).expect("Failed to create gas tree");
         assert_eq!(Gas::total_supply(), max_balance);
 
         // Nodes on which `consume` was called
