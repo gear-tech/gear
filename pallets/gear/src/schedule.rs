@@ -382,9 +382,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_block_timestamp`.
     pub gr_block_timestamp: Weight,
 
-    /// Weight of calling `gr_performance_multiplier`.
-    pub gr_performance_multiplier: Weight,
-
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
 
@@ -982,7 +979,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
-            gr_performance_multiplier: to_weight!(cost_batched!(gr_performance_multiplier)),
             gr_random: to_weight!(cost_batched!(gr_random)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
