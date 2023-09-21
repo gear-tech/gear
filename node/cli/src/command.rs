@@ -53,35 +53,21 @@ impl SubstrateCli for Cli {
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
             #[cfg(not(feature = "dev"))]
-            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
-            #[cfg(all(feature = "gear-native", feature = "dev"))]
-            "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
+            "dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
             #[cfg(all(feature = "vara-native", feature = "dev"))]
-            "vara-dev" => Box::new(chain_spec::vara::development_config()?),
-            #[cfg(feature = "gear-native")]
-            "local" | "gear-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-local` in `dev` mode");
-                Box::new(chain_spec::gear::local_testnet_config()?)
-            }
+            "dev" | "vara-dev" => Box::new(chain_spec::vara::development_config()?),
             #[cfg(feature = "vara-native")]
-            "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+            "vara" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/vara.json")[..],
             )?),
             #[cfg(feature = "vara-native")]
-            "vara-local" => {
+            "local" | "vara-local" => {
                 #[cfg(feature = "dev")]
                 log::warn!("Running `vara-local` in `dev` mode");
                 Box::new(chain_spec::vara::local_testnet_config()?)
             }
-            #[cfg(feature = "gear-native")]
-            "staging" | "gear-staging" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-staging` in `dev` mode");
-                Box::new(chain_spec::gear::staging_testnet_config()?)
-            }
-            "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/staging.json")[..],
+            "testnet" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
             )?),
             path => {
                 let path = std::path::PathBuf::from(path);
