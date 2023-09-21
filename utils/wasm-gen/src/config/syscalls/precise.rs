@@ -31,9 +31,9 @@ pub enum PreciseSysCallAdditionalData {
 /// Possible additional data for each precise sys-call.
 /// Can be used to write unit tests so you don't have to rely on randomness.
 #[derive(Debug, Clone)]
-pub struct SysCallsPreciseConfig(HashMap<SysCallName, PreciseSysCallAdditionalData>);
+pub struct PreciseSysCallsConfig(HashMap<SysCallName, PreciseSysCallAdditionalData>);
 
-impl SysCallsPreciseConfig {
+impl PreciseSysCallsConfig {
     /// Create a new sys-calls precise config filled with the given values.
     pub fn new(range: RangeInclusive<usize>) -> Self {
         Self(
@@ -66,7 +66,7 @@ impl SysCallsPreciseConfig {
     }
 }
 
-impl Default for SysCallsPreciseConfig {
+impl Default for PreciseSysCallsConfig {
     fn default() -> Self {
         Self::new(0..=3)
     }

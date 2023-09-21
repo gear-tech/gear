@@ -566,7 +566,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::I32Store(2, 0),
         ];
 
-        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_config().get(sys_call) else {
+        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_syscalls_config().get(sys_call) else {
             return Err(PreciseSysCallError::AdditionalData);
         };
 
@@ -669,7 +669,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::Call(size_idx as u32),
         ];
 
-        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_config().get(sys_call) else {
+        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_syscalls_config().get(sys_call) else {
             return Err(PreciseSysCallError::AdditionalData);
         };
 

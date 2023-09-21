@@ -44,7 +44,7 @@ impl SysCallsConfigBuilder {
         Self(SysCallsConfig {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
-            precise_config: SysCallsPreciseConfig::default(),
+            precise_syscalls_config: PreciseSysCallsConfig::default(),
             sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
@@ -59,8 +59,11 @@ impl SysCallsConfigBuilder {
     }
 
     /// Set config for precise sys-calls.
-    pub fn with_precise_config(mut self, precise_config: SysCallsPreciseConfig) -> Self {
-        self.0.precise_config = precise_config;
+    pub fn with_precise_syscalls_config(
+        mut self,
+        precise_syscalls_config: PreciseSysCallsConfig,
+    ) -> Self {
+        self.0.precise_syscalls_config = precise_syscalls_config;
 
         self
     }
@@ -149,7 +152,7 @@ impl ErrorProcessingConfig {
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
-    precise_config: SysCallsPreciseConfig,
+    precise_syscalls_config: PreciseSysCallsConfig,
     sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
@@ -180,9 +183,9 @@ impl SysCallsConfig {
         &self.params_config
     }
 
-    /// Get sys-calls precise config.
-    pub fn precise_config(&self) -> &SysCallsPreciseConfig {
-        &self.precise_config
+    /// Get precise sys-calls config.
+    pub fn precise_syscalls_config(&self) -> &PreciseSysCallsConfig {
+        &self.precise_syscalls_config
     }
 
     /// Error processing config for fallible syscalls.
