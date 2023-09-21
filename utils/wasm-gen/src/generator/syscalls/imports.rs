@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallsConfig,
+    InvocableSysCall, PreciseSysCallAdditionalData, SysCallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -60,6 +60,8 @@ pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
 /// An error that occurs when generating precise sys-call.
 #[derive(thiserror::Error, Debug)]
 pub enum PreciseSysCallError {
+    #[error("Unexpected additional data was received for precise sys-call")]
+    AdditionalData,
     #[error("{0}")]
     Arbitrary(#[from] ArbitraryError),
 }
@@ -214,8 +216,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                     name = InvocableSysCall::Precise(sys_call).to_str()
                 );
 
-                if let Err(PreciseSysCallError::Arbitrary(err)) = generate_method(self, sys_call) {
-                    return Err(err);
+                if let Err(err) = generate_method(self, sys_call) {
+                    match err {
+                        PreciseSysCallError::AdditionalData => log::trace!("{err}"),
+                        PreciseSysCallError::Arbitrary(err) => return Err(err),
+                    }
                 }
             }
         }
@@ -561,7 +566,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::I32Store(2, 0),
         ];
 
-        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_config().get(sys_call) else {
+            return Err(PreciseSysCallError::AdditionalData);
+        };
+
+        let number_of_pushes = self.unstructured.int_in_range(range)?;
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
@@ -660,7 +669,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::Call(size_idx as u32),
         ];
 
-        let number_of_pushes = self.unstructured.int_in_range(0..=3)?;
+        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_config().get(sys_call) else {
+            return Err(PreciseSysCallError::AdditionalData);
+        };
+
+        let number_of_pushes = self.unstructured.int_in_range(range)?;
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message

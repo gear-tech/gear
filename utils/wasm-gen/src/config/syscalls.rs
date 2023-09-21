@@ -21,6 +21,7 @@
 
 mod amount;
 mod param;
+mod precise;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -29,6 +30,7 @@ use std::{collections::HashSet, ops::RangeInclusive};
 
 pub use amount::*;
 pub use param::*;
+pub use precise::*;
 
 use crate::InvocableSysCall;
 
@@ -42,6 +44,7 @@ impl SysCallsConfigBuilder {
         Self(SysCallsConfig {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
+            precise_config: SysCallsPreciseConfig::default(),
             sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
@@ -51,6 +54,13 @@ impl SysCallsConfigBuilder {
     /// Set config for sys-calls params.
     pub fn with_params_config(mut self, params_config: SysCallsParamsConfig) -> Self {
         self.0.params_config = params_config;
+
+        self
+    }
+
+    /// Set config for precise sys-calls.
+    pub fn with_precise_config(mut self, precise_config: SysCallsPreciseConfig) -> Self {
+        self.0.precise_config = precise_config;
 
         self
     }
@@ -139,6 +149,7 @@ impl ErrorProcessingConfig {
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
+    precise_config: SysCallsPreciseConfig,
     sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
@@ -167,6 +178,11 @@ impl SysCallsConfig {
     /// Get sys-calls params config.
     pub fn params_config(&self) -> &SysCallsParamsConfig {
         &self.params_config
+    }
+
+    /// Get sys-calls precise config.
+    pub fn precise_config(&self) -> &SysCallsPreciseConfig {
+        &self.precise_config
     }
 
     /// Error processing config for fallible syscalls.
