@@ -1052,10 +1052,7 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SignalCode],
-            signal_body: Some(body::fallible_syscall(
-                repetitions,
-                &[InstrI32Const(res_offset)],
-            )),
+            signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
 
@@ -1069,10 +1066,7 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SignalFrom],
-            signal_body: Some(body::fallible_syscall(
-                repetitions,
-                &[InstrI32Const(res_offset)],
-            )),
+            signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
 
