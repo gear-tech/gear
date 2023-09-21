@@ -110,6 +110,7 @@ impl InitMessage {
     }
 }
 
+//TODO: #issue 3320
 /// Init message packet.
 ///
 /// This structure is preparation for future init message sending. Has no message id.
