@@ -167,7 +167,7 @@ impl pallet_transaction_payment::Config for Test {
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
-    pub const PerformanceMultiplier: u32 = 1;
+    pub const PerformanceMultiplier: u32 = 100;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;

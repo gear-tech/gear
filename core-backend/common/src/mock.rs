@@ -121,7 +121,7 @@ impl Externalities for MockExt {
         Ok(0)
     }
     fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
-        Ok(Percent::new(0))
+        Ok(Percent::new(100))
     }
     fn send_init(&mut self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)

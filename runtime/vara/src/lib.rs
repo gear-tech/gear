@@ -955,7 +955,7 @@ parameter_types! {
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
 
-    pub const PerformanceMultiplier: u32 = 1;
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 parameter_types! {

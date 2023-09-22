@@ -136,7 +136,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
-            performance_multiplier: Default::default(),
+            performance_multiplier: Percent::new(100),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
