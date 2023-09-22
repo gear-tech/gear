@@ -16,53 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing additional data for precise sys-call.
+//! Entities describing configuration for precise sys-calls.
 
-use gear_wasm_instrument::syscalls::SysCallName;
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
-/// Additional data for precise sys-calls.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PreciseSysCallAdditionalData {
-    Nothing,
-    Range(RangeInclusive<usize>),
-}
-
-/// Possible additional data for each precise sys-call.
+/// Represents the configuration for precise sys-calls.
 /// Can be used to write unit tests so you don't have to rely on randomness.
 #[derive(Debug, Clone)]
-pub struct PreciseSysCallsConfig(HashMap<SysCallName, PreciseSysCallAdditionalData>);
+pub struct PreciseSysCallsConfig {
+    range_of_send_push_calls: RangeInclusive<usize>,
+}
 
 impl PreciseSysCallsConfig {
-    /// Create a new sys-calls precise config filled with the given values.
-    pub fn new(range: RangeInclusive<usize>) -> Self {
-        Self(
-            [
-                (
-                    SysCallName::SendCommit,
-                    PreciseSysCallAdditionalData::Range(range.clone()),
-                ),
-                (
-                    SysCallName::SendCommitWGas,
-                    PreciseSysCallAdditionalData::Range(range),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        )
+    /// Creates a new configuration for precise sys-calls, filled with the given values.
+    pub fn new(range_of_send_push_calls: RangeInclusive<usize>) -> Self {
+        Self {
+            range_of_send_push_calls,
+        }
     }
 
-    /// Get additional data for sys-call.
-    pub fn get(&self, name: SysCallName) -> PreciseSysCallAdditionalData {
-        self.0
-            .get(&name)
-            .cloned()
-            .unwrap_or(PreciseSysCallAdditionalData::Nothing)
-    }
-
-    /// Set additional data for sys-call.
-    pub fn set(&mut self, name: SysCallName, additional_data: PreciseSysCallAdditionalData) {
-        self.0.insert(name, additional_data);
+    /// Get the range of `send_push*` sys-calls.
+    pub fn range_of_send_push_calls(&self) -> RangeInclusive<usize> {
+        self.range_of_send_push_calls.clone()
     }
 }
 

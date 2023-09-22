@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, PreciseSysCallAdditionalData, SysCallsConfig,
+    InvocableSysCall, SysCallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -566,11 +566,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::I32Store(2, 0),
         ];
 
-        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_syscalls_config().get(sys_call) else {
-            return Err(PreciseSysCallError::AdditionalData);
-        };
+        let number_of_pushes = self.unstructured.int_in_range(
+            self.config
+                .precise_syscalls_config()
+                .range_of_send_push_calls(),
+        )?;
 
-        let number_of_pushes = self.unstructured.int_in_range(range)?;
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
@@ -669,11 +670,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::Call(size_idx as u32),
         ];
 
-        let PreciseSysCallAdditionalData::Range(range) = self.config.precise_syscalls_config().get(sys_call) else {
-            return Err(PreciseSysCallError::AdditionalData);
-        };
+        let number_of_pushes = self.unstructured.int_in_range(
+            self.config
+                .precise_syscalls_config()
+                .range_of_send_push_calls(),
+        )?;
 
-        let number_of_pushes = self.unstructured.int_in_range(range)?;
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
