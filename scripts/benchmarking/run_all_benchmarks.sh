@@ -29,7 +29,6 @@ ONE_TIME_EXTRINSICS=(
   "gr_reply_input_wgas"
   "gr_reservation_reply"
   "gr_reservation_reply_commit"
-  "gr_reservation_reply_commit"
   "gr_exit"
   "gr_leave"
   "gr_wait"
@@ -75,7 +74,7 @@ while getopts 'bmfps:c:v' flag; do
       ;;
     *)
       # Exit early.
-      echo "Bad options. Check Script."
+      echo "Bad options. Check script."
       exit 1
       ;;
   esac
@@ -141,17 +140,25 @@ for PALLET in "${PALLETS[@]}"; do
   # Get all the extrinsics for the pallet if the pallet is "pallet_gear"
   if [ "$PALLET" == "pallet_gear" ]
   then
-    EXTRINSICS=$($GEAR benchmark pallet --list \
+    IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet --list \
       --chain=$chain_spec \
       --pallet="$PALLET" |\
       tail -n+2 |\
       cut -d',' -f2 |\
       sort |\
-      uniq
-    )
+      uniq |\
+      awk '{$1=$1}1' ORS=','
+    )"
 
     # Remove the one-time extrinsics from the extrinsics array, so that they can be benchmarked separately.
-    EXTRINSICS=($({ printf '%s\n' "${EXTRINSICS[@]}" "${ONE_TIME_EXTRINSICS[@]}"; } | sort | uniq -u))
+    EXTRINSICS=()
+    for item in "${ALL_EXTRINSICS[@]}"; do
+        # Check if the item exists in ONE_TIME_EXTRINSICS array
+        if ( [[ ! " ${ONE_TIME_EXTRINSICS[*]} " =~ " ${item} " ]] ); then
+            # If not, add the item to the new array
+            EXTRINSICS+=("$item")
+        fi
+    done
   else
     EXTRINSICS=("*")
   fi
