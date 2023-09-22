@@ -6,7 +6,7 @@ edition.workspace = true
 
 [[bin]]
 name = "gear-key-finder"
-path = "src/main.rs"
 
 [dependencies]
 hex = { workspace = true, features = ["alloc"] }
+directories.workspace = true
