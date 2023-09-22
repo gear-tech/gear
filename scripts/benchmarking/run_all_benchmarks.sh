@@ -149,10 +149,7 @@ for PALLET in "${PALLETS[@]}"; do
       uniq
     )
 
-    # Array of extrinsics to exclude from the benchmark.
-    ONE_TIME_EXTRINSICS=("gr_reply" "gr_reply_wgas" "gr_reply_commit" "gr_reply_commit_wgas" "gr_reply_input" "gr_reply_input_wgas" "gr_reservation_reply" "gr_reservation_reply_commit" "gr_reservation_reply_commit" "gr_exit" "gr_leave" "gr_wait" "gr_wait_for" "gr_wait_up_to")
-
-    # Filter out the excluded extrinsics by concatenating the arrays and discarding duplicates.
+    # Remove the one-time extrinsics from the extrinsics array, so that they can be benchmarked separately.
     EXTRINSICS=($({ printf '%s\n' "${EXTRINSICS[@]}" "${ONE_TIME_EXTRINSICS[@]}"; } | sort | uniq -u))
   else
     EXTRINSICS=("*")
@@ -180,11 +177,11 @@ for PALLET in "${PALLETS[@]}"; do
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
   fi
   
+  # If the pallet is pallet_gear, benchmark the one-time extrinsics.
   if [ "$PALLET" == "pallet_gear" ]
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     OUTPUT=$(
-      # Run the same benchmark again but for ONE_TIME_EXTRINSICS, joined by comma, and with 2000 repeats
         $GEAR benchmark pallet \
         --chain="$chain_spec" \
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \

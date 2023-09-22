@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This script merges the output of the pallet_gear benchmarking functions into
+# a single file. This is necessary because the Substrate CLI outputs the weights
+# as one file per run, and the run_all_benchmarks.sh script makes multiple runs
+# of the pallet_gear benchmarking functions.
+
 # Output file for the merged pallet_gear functions.
 MAIN_FILE="./scripts/benchmarking/weights-output/pallet_gear.rs"
 
