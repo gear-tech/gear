@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, MemoryPageStorage2, Pallet, ProgramStorage};
+use crate::{
+    Config, MemoryPageStorage2, Pallet, PausedProgramStorage, ProgramStorage, ResumeSessions,
+};
 use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
@@ -111,6 +113,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 },
             );
 
+            let _ = ResumeSessions::<T>::clear(u32::MAX, None);
+            let _ = v2::SessionMemoryPages::<T>::clear(u32::MAX, None);
+            let _ = PausedProgramStorage::<T>::clear(u32::MAX, None);
+
             current.put::<Pallet<T>>();
 
             log::info!("Successfully migrated storage");
@@ -151,6 +157,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         assert_eq!(count, old_count);
 
         assert!(v2::MemoryPageStorage::<T>::iter().next().is_none());
+        assert!(v2::SessionMemoryPages::<T>::iter().next().is_none());
+
+        assert!(ResumeSessions::<T>::iter().next().is_none());
+        assert!(PausedProgramStorage::<T>::iter().next().is_none());
 
         Ok(())
     }
@@ -228,16 +238,31 @@ mod v2 {
 
     pub type ProgramStorage<T> =
         StorageMap<ProgramStoragePrefix<T>, Identity, ProgramId, Program<BlockNumberFor<T>>>;
+
+    pub struct SessionMemoryPagesPrefix<T>(PhantomData<T>);
+
+    impl<T: Config> StorageInstance for SessionMemoryPagesPrefix<T> {
+        const STORAGE_PREFIX: &'static str = "SessionMemoryPages";
+
+        fn pallet_prefix() -> &'static str {
+            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
+                .expect("No name found for the pallet in the runtime!")
+        }
+    }
+
+    pub type SessionMemoryPages<T> =
+        StorageMap<SessionMemoryPagesPrefix<T>, Identity, u128, Vec<(GearPage, PageBuf)>>;
 }
 
 #[cfg(test)]
 #[cfg(feature = "try-runtime")]
 mod test {
     use super::*;
-    use crate::mock::*;
-    use common::ProgramState;
+    use crate::{mock::*, pallet, PausedProgramStorage};
+    use common::{PausedProgramStorage as _, ProgramState};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
+    use primitive_types::H256;
 
     #[test]
     fn migration_to_v3_works() {
@@ -274,6 +299,29 @@ mod test {
             let program = v2::Program::<BlockNumberFor<Test>>::Terminated(program_id);
             let program_id = ProgramId::from(3u64);
             v2::ProgramStorage::<Test>::insert(program_id, program);
+
+            // add a paused program
+            let program_id = ProgramId::from(4u64);
+            PausedProgramStorage::<Test>::insert(program_id, (0, H256::from([1u8; 32])));
+
+            // add a resume session
+            let session_id = pallet::Pallet::<Test>::resume_session_init(
+                USER_2,
+                30,
+                program_id,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+            pallet::Pallet::<Test>::resume_session_push(
+                session_id,
+                USER_2,
+                vec![
+                    (GearPage::from(0), PageBuf::new_zeroed()),
+                    (GearPage::from(2), PageBuf::new_zeroed()),
+                ],
+            )
+            .unwrap();
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
             let _w = MigrateToV3::<Test>::on_runtime_upgrade();
