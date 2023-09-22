@@ -3671,9 +3671,11 @@ dependencies = [
  "schnorrkel",
  "serde",
  "serde_json",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "thiserror",
  "tokio",
+ "vara-runtime",
  "which",
  "whoami",
 ]
