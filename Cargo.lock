@@ -3969,6 +3969,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-key-finder"
+version = "1.0.1"
+dependencies = [
+ "hex",
+]
+
+[[package]]
 name = "gear-lazy-pages"
 version = "1.0.1"
 dependencies = [

@@ -1,0 +1,12 @@
+[package]
+name = "gear-key-finder"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "gear-key-finder"
+path = "src/main.rs"
+
+[dependencies]
+hex = {workspace = true, features = ["alloc"] }
