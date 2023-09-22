@@ -44,7 +44,7 @@ use gear_core::{
 };
 use gear_core_backend_codegen::host;
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
-use gear_sandbox::ReturnValue;
+use gear_sandbox::{ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
@@ -87,6 +87,27 @@ macro_rules! syscall_trace {
 }
 
 const PTR_SPECIAL: u32 = u32::MAX;
+
+/// Actually just wrapper around [`ReturnValue`] to implement conversions.
+pub struct SysCallReturnValue(ReturnValue);
+
+impl From<SysCallReturnValue> for ReturnValue {
+    fn from(value: SysCallReturnValue) -> Self {
+        value.0
+    }
+}
+
+impl From<()> for SysCallReturnValue {
+    fn from((): ()) -> Self {
+        Self(ReturnValue::Unit)
+    }
+}
+
+impl From<u32> for SysCallReturnValue {
+    fn from(value: u32) -> Self {
+        Self(ReturnValue::Value(Value::I32(value as i32)))
+    }
+}
 
 pub trait SysCallContext: Sized {
     fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError>;
@@ -236,15 +257,17 @@ where
     where
         H: SysCallFabric<Ext, Args, R, S>,
         S: SysCall<Ext, R>,
+        R: Into<SysCallReturnValue>,
     {
         let (ctx, args) = S::Context::from_args(args)?;
         let sys_call = SysCallFabric::create(handler, args)?;
         // FIXME: return value is not ignored
-        let (gas, _value) = sys_call.execute(caller, ctx)?;
+        let (gas, value) = sys_call.execute(caller, ctx)?;
+        let value = value.into();
 
         Ok(WasmReturnValue {
             gas: gas as i64,
-            inner: ReturnValue::Unit,
+            inner: value.0,
         })
     }
 
