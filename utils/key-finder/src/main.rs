@@ -1,7 +1,6 @@
 use directories::ProjectDirs;
-use hex::encode;
 
-const VERSIONS: [&'static str; 7] = [
+const VERSIONS: [&str; 7] = [
     "staging_testnet",
     "staging_testnet_v2",
     "gear_staging_testnet_v3",
@@ -11,7 +10,7 @@ const VERSIONS: [&'static str; 7] = [
     "gear_staging_testnet_v7",
 ];
 
-const PATHS: [&'static str; 2] = ["gear", "gear-node"];
+const PATHS: [&str; 2] = ["gear", "gear-node"];
 
 fn main() {
     for path in PATHS {
@@ -34,6 +33,4 @@ fn main() {
             }
         }
     }
-            println!("Key found in \"{}\": 0x{}", path, key);
-        });
 }
