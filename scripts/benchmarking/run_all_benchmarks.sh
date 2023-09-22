@@ -14,7 +14,8 @@
 BENCHMARK_STEPS=50
 BENCHMARK_REPEAT=20
 
-# Steps and repeats for benchmarking so called "one-time extrinsics", which may be called only once and require a different benchmarking approach with more repeats.
+# Steps and repeats for benchmarking so called "one-time extrinsics", 
+# which may be called only once and require a different benchmarking approach with more repeats.
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
 BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 
