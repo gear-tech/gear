@@ -26,7 +26,7 @@ for FILE in "${ADDITIONAL_FILES[@]}"; do
   DEFINITIONS=$(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
 done
 
-# Iterate over lines in MAIN_FILE and append DEFINITIONS after "pub trait WeightInfo {"
+# Iterate over lines in MAIN_FILE and append definitions and weights.
 while IFS= read -r line; do
   echo "$line"
   if [[ "$line" == "pub trait WeightInfo {" ]]; then
