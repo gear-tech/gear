@@ -90,14 +90,18 @@ type TransactionPool<RuntimeApi, ExecutorDispatch> =
     sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>;
 
 macro_rules! chain_ops {
-    ($config:expr, $rpc_calculations_multiplier:expr, $scope:ident, $executor:ident, $variant:ident) => {{
+    ($config:expr, $rpc_calculations_multiplier:expr, $rpc_max_batch_size:expr, $scope:ident, $executor:ident, $variant:ident) => {{
         let PartialComponents {
             client,
             backend,
             import_queue,
             task_manager,
             ..
-        } = new_partial::<$scope::RuntimeApi, $executor>($config, $rpc_calculations_multiplier)?;
+        } = new_partial::<$scope::RuntimeApi, $executor>(
+            $config,
+            $rpc_calculations_multiplier,
+            $rpc_max_batch_size,
+        )?;
 
         Ok((
             Arc::new(Client::$variant(client)),
@@ -113,6 +117,7 @@ macro_rules! chain_ops {
 pub fn new_chain_ops(
     config: &Configuration,
     rpc_calculations_multiplier: u64,
+    rpc_max_batch_size: u64,
 ) -> Result<
     (
         Arc<Client>,
@@ -128,6 +133,7 @@ pub fn new_chain_ops(
             chain_ops!(
                 config,
                 rpc_calculations_multiplier,
+                rpc_max_batch_size,
                 gear_runtime,
                 GearExecutorDispatch,
                 Gear
@@ -138,6 +144,7 @@ pub fn new_chain_ops(
             chain_ops!(
                 config,
                 rpc_calculations_multiplier,
+                rpc_max_batch_size,
                 vara_runtime,
                 VaraExecutorDispatch,
                 Vara
@@ -153,6 +160,7 @@ pub fn new_chain_ops(
 pub fn new_partial<RuntimeApi, ExecutorDispatch>(
     config: &Configuration,
     rpc_calculations_multiplier: u64,
+    rpc_max_batch_size: u64,
 ) -> Result<
     PartialComponents<
         FullClient<RuntimeApi, ExecutorDispatch>,
@@ -325,6 +333,7 @@ where
                 },
                 gear: crate::rpc::GearDeps {
                     allowance_multiplier: rpc_calculations_multiplier,
+                    max_batch_size: rpc_max_batch_size,
                 },
             };
 
@@ -387,6 +396,7 @@ pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
     ),
     max_gas: Option<u64>,
     rpc_calculations_multiplier: u64,
+    rpc_max_batch_size: u64,
 ) -> Result<NewFullBase<RuntimeApi, ExecutorDispatch>, ServiceError>
 where
     RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -413,7 +423,7 @@ where
         select_chain,
         transaction_pool,
         other: (rpc_builder, import_setup, rpc_setup, mut telemetry),
-    } = new_partial(&config, rpc_calculations_multiplier)?;
+    } = new_partial(&config, rpc_calculations_multiplier, rpc_max_batch_size)?;
 
     let shared_voter_state = rpc_setup;
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
@@ -662,6 +672,7 @@ pub fn new_full(
     disable_hardware_benchmarks: bool,
     max_gas: Option<u64>,
     rpc_calculations_multiplier: u64,
+    rpc_max_batch_size: u64,
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
@@ -671,6 +682,7 @@ pub fn new_full(
             |_, _| (),
             max_gas,
             rpc_calculations_multiplier,
+            rpc_max_batch_size,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
@@ -680,6 +692,7 @@ pub fn new_full(
             |_, _| (),
             max_gas,
             rpc_calculations_multiplier,
+            rpc_max_batch_size,
         )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),

@@ -169,32 +169,44 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::CheckBlock(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                let (client, _, import_queue, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
         Some(Subcommand::ExportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                let (client, _, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, config.database), task_manager))
             })
         }
         Some(Subcommand::ExportState(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                let (client, _, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, config.chain_spec), task_manager))
             })
         }
         Some(Subcommand::ImportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                let (client, _, import_queue, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -205,8 +217,11 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Revert(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, backend, _, task_manager) =
-                    service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                let (client, backend, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 let aux_revert = Box::new(|client, backend, blocks| {
                     service::revert_backend(client, backend, blocks, config)
                         .map_err(|err| sc_cli::Error::Application(err.into()))
@@ -251,8 +266,11 @@ pub fn run() -> sc_cli::Result<()> {
                         }
                     }
                     BenchmarkCmd::Block(cmd) => {
-                        let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
 
                         unwrap_client!(client, cmd.run(client.clone()))
                     }
@@ -263,8 +281,11 @@ pub fn run() -> sc_cli::Result<()> {
                     ),
                     #[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
-                        let (client, backend, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                        let (client, backend, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         let db = backend.expose_db();
                         let storage = backend.expose_storage();
 
@@ -275,8 +296,11 @@ pub fn run() -> sc_cli::Result<()> {
                             sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
 
-                        let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         let ext_builder = RemarkBuilder::new(client.clone());
 
                         unwrap_client!(
@@ -294,8 +318,11 @@ pub fn run() -> sc_cli::Result<()> {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
                             sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
-                        let (client, _, _, _) =
-                            service::new_chain_ops(&config, cli.run.rpc_calculations_multiplier)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         // Register the *Remark* and *TKA* builders.
                         let ext_factory = ExtrinsicFactory(vec![
                             Box::new(RemarkBuilder::new(client.clone())),
@@ -391,6 +418,7 @@ pub fn run() -> sc_cli::Result<()> {
                     cli.no_hardware_benchmarks,
                     cli.run.max_gas,
                     cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
                 )
                 .map_err(sc_cli::Error::Service)
             })

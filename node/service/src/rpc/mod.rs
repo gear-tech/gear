@@ -70,6 +70,8 @@ pub struct GrandpaDeps<B> {
 pub struct GearDeps {
     /// gas allowance block limit multiplier.
     pub allowance_multiplier: u64,
+    /// maximum batch size for rpc call.
+    pub max_batch_size: u64,
 }
 
 /// Full client dependencies.
@@ -157,6 +159,7 @@ where
 
     let GearDeps {
         allowance_multiplier,
+        max_batch_size,
     } = gear;
 
     let chain_name = chain_spec.name().to_string();
@@ -205,7 +208,7 @@ where
     io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
     io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
 
-    io.merge(Gear::new(client.clone(), allowance_multiplier).into_rpc())?;
+    io.merge(Gear::new(client.clone(), allowance_multiplier, max_batch_size).into_rpc())?;
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 

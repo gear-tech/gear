@@ -37,6 +37,10 @@ pub struct RunCmd {
     /// The upper limit for the amount of gas a runtime api can burn in one call.
     #[arg(long, default_value_t = 64)]
     pub rpc_calculations_multiplier: u64,
+
+    /// The upper limit for the amount of calls in rpc batch.
+    #[arg(long, default_value_t = 256)]
+    pub rpc_max_batch_size: u64,
 }
 
 #[derive(Debug, Parser)]

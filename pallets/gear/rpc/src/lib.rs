@@ -37,8 +37,6 @@ use sp_core::{Bytes, H256};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
-const MAX_BATCH_SIZE: usize = 256;
-
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
@@ -141,15 +139,17 @@ pub struct Gear<C, P> {
     // just use a tuple like Gear<C, (M, N, P, ...)>
     client: Arc<C>,
     allowance_multiplier: u64,
+    max_batch_size: u64,
     _marker: std::marker::PhantomData<P>,
 }
 
 impl<C, P> Gear<C, P> {
     /// Creates a new instance of the Gear Rpc helper.
-    pub fn new(client: Arc<C>, allowance_multiplier: u64) -> Self {
+    pub fn new(client: Arc<C>, allowance_multiplier: u64, max_batch_size: u64) -> Self {
         Self {
             client,
             allowance_multiplier,
+            max_batch_size,
             _marker: Default::default(),
         }
     }
@@ -424,11 +424,14 @@ where
         batch_id_payload: Vec<(H256, Bytes)>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
-        if batch_id_payload.len() > MAX_BATCH_SIZE {
+        if batch_id_payload.len() > self.max_batch_size as usize {
             return Err(CallError::Custom(ErrorObject::owned(
                 8000,
                 "Runtime error",
-                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+                Some(format!(
+                    "Batch size must be lower than {:?}",
+                    self.max_batch_size
+                )),
             ))
             .into());
         }
@@ -516,11 +519,14 @@ where
         argument: Option<Bytes>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
-        if batch_id_payload.len() > MAX_BATCH_SIZE {
+        if batch_id_payload.len() > self.max_batch_size as usize {
             return Err(CallError::Custom(ErrorObject::owned(
                 8000,
                 "Runtime error",
-                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+                Some(format!(
+                    "Batch size must be lower than {:?}",
+                    self.max_batch_size
+                )),
             ))
             .into());
         }
