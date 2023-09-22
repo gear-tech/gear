@@ -672,15 +672,6 @@ where
         })
     }
 
-    /*
-    gas: u64,
-    payload_ptr: u32,
-    len: u32,
-    gas_limit: u64,
-    value_ptr: u32,
-    err_mid_ptr: u32
-     */
-
     fn reply_inner(
         ctx: &mut CallerWrap<Ext>,
         payload_ptr: u32,
