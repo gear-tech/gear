@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
-use gear_runtime_common;
+use gear_runtime_common::{self, constants::BANK_ADDRESS};
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::Properties;
@@ -27,15 +27,14 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
+#[cfg(feature = "dev")]
+use vara_runtime::SudoConfig;
 use vara_runtime::{
-    constants::currency::UNITS as TOKEN, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
-    GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
-    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, ValidatorSetConfig,
-    VestingConfig, WASM_BINARY,
+    constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
+    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
+    ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+    StakingRewardsConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
-
-// The URL for the telemetry server.
-// const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
@@ -94,6 +93,7 @@ pub fn authority_keys_from_seed(
     )
 }
 
+#[cfg(feature = "dev")]
 pub fn development_config() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
@@ -115,6 +115,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -161,6 +162,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Eve"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie"),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -522,6 +524,7 @@ pub fn main() -> Result<ChainSpec, String> {
                     // root_key
                     hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -554,32 +557,32 @@ fn testnet_genesis(
     )>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
+    bank_account: AccountId,
     _enable_println: bool,
 ) -> GenesisConfig {
+    #[cfg(not(feature = "dev"))]
+    let _ = root_key;
+
     const ENDOWMENT: u128 = 1_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
 
     let _num_endowed_accounts = endowed_accounts.len();
 
+    let mut balances = endowed_accounts
+        .iter()
+        .map(|k: &AccountId| (k.clone(), ENDOWMENT))
+        .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+        .collect::<Vec<_>>();
+
+    balances.push((bank_account, EXISTENTIAL_DEPOSIT));
+
     GenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
         },
-        balances: BalancesConfig {
-            balances: endowed_accounts
-                .iter()
-                .map(|k: &AccountId| (k.clone(), ENDOWMENT))
-                .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-                .collect(),
-        },
-        validator_set: ValidatorSetConfig {
-            initial_validators: initial_authorities
-                .iter()
-                .map(|x| x.0.clone())
-                .collect::<Vec<_>>(),
-        },
+        balances: BalancesConfig { balances },
         babe: BabeConfig {
             authorities: Default::default(),
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -611,6 +614,7 @@ fn testnet_genesis(
             min_nominator_bond: MIN_NOMINATOR_BOND,
             ..Default::default()
         },
+        #[cfg(feature = "dev")]
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
@@ -619,6 +623,11 @@ fn testnet_genesis(
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
         transaction_payment: Default::default(),
         treasury: Default::default(),
+        nomination_pools: NominationPoolsConfig {
+            min_create_bond: 10 * ECONOMIC_UNITS,
+            min_join_bond: ECONOMIC_UNITS,
+            ..Default::default()
+        },
         vesting: VestingConfig { vesting: vec![] },
         staking_rewards: StakingRewardsConfig {
             non_stakeable: Perquintill::from_rational(4108_u64, 10_000_u64), // 41.08%

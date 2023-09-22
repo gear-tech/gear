@@ -6,7 +6,7 @@ WORKDIR /gear
 
 COPY . /gear
 
-# Install dependecies
+# Install dependencies
 RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
@@ -33,7 +33,7 @@ RUN rustc --version
 RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain nightly
 
 # Build
-RUN cargo build -p gear-cli --no-default-features --features=vara-native,lazy-pages --profile $PROFILE
+RUN cargo build -p gear-cli --no-default-features --features=vara-native --profile $PROFILE
 
 # ===== SECOND STAGE ======
 

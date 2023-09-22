@@ -21,6 +21,7 @@ pub enum Call {
     Source,
     ReplyCode,
     Value,
+    ValueAvailable,
     Send(
         Arg<[u8; 32]>,
         Arg<Vec<u8>>,
@@ -37,12 +38,13 @@ pub enum Call {
     Load,
     LoadBytes,
     Wait,
+    WaitFor(Arg<u32>),
     Wake(Arg<[u8; 32]>),
     MessageId,
     Loop,
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::*;
     use crate::DATA;
@@ -59,7 +61,9 @@ mod wasm {
 
         // TODO: expand to be able store mid and pid separately.
         fn create_program(self) -> Option<Vec<u8>> {
-            let Self::CreateProgram(code_id, salt, payload, gas_limit, value, delay) = self else { unreachable!() };
+            let Self::CreateProgram(code_id, salt, payload, gas_limit, value, delay) = self else {
+                unreachable!()
+            };
 
             let code_id = code_id.value().into();
             let salt = salt.value();
@@ -68,7 +72,7 @@ mod wasm {
             let delay = delay.value();
 
             let res = if let Some(gas_limit) = gas_limit {
-                prog::create_program_with_gas_delayed(
+                prog::create_program_bytes_with_gas_delayed(
                     code_id,
                     salt,
                     payload,
@@ -77,7 +81,7 @@ mod wasm {
                     delay,
                 )
             } else {
-                prog::create_program_delayed(code_id, salt, payload, value, delay)
+                prog::create_program_bytes_delayed(code_id, salt, payload, value, delay)
             };
 
             let (_message_id, program_id) = res.expect("Failed to create program");
@@ -86,7 +90,9 @@ mod wasm {
         }
 
         fn reply_deposit(self) -> Option<Vec<u8>> {
-            let Self::ReplyDeposit(message_id, gas_limit) = self else { unreachable!() };
+            let Self::ReplyDeposit(message_id, gas_limit) = self else {
+                unreachable!()
+            };
 
             let message_id = message_id.value().into();
             let gas_limit = gas_limit.value();
@@ -129,13 +135,17 @@ mod wasm {
         }
 
         fn store(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
-            let Self::Store(key) = self.clone() else { unreachable!() };
+            let Self::Store(key) = self.clone() else {
+                unreachable!()
+            };
 
             self.store_impl(key, previous, false)
         }
 
         fn store_vec(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
-            let Self::StoreVec(key) = self.clone() else { unreachable!() };
+            let Self::StoreVec(key) = self.clone() else {
+                unreachable!()
+            };
 
             self.store_impl(key, previous, true)
         }
@@ -157,7 +167,9 @@ mod wasm {
         }
 
         fn panic(self) -> ! {
-            let Self::Panic(msg) = self else { unreachable!() };
+            let Self::Panic(msg) = self else {
+                unreachable!()
+            };
 
             if let Some(msg) = msg {
                 panic!("{msg}");
@@ -167,7 +179,9 @@ mod wasm {
         }
 
         fn send(self) -> Option<Vec<u8>> {
-            let Self::Send(destination, payload, gas_limit, value, delay) = self else { unreachable!() };
+            let Self::Send(destination, payload, gas_limit, value, delay) = self else {
+                unreachable!()
+            };
 
             let destination = destination.value().into();
             let payload = payload.value();
@@ -192,7 +206,9 @@ mod wasm {
         }
 
         fn reply(self) -> Option<Vec<u8>> {
-            let Self::Reply(payload, gas_limit, value) = self else { unreachable!() };
+            let Self::Reply(payload, gas_limit, value) = self else {
+                unreachable!()
+            };
 
             let payload = payload.value();
             let value = value.value();
@@ -209,7 +225,9 @@ mod wasm {
         }
 
         fn exit(self) -> ! {
-            let Self::Exit(inheritor) = self else { unreachable!() };
+            let Self::Exit(inheritor) = self else {
+                unreachable!()
+            };
 
             let inheritor = inheritor.value().into();
 
@@ -217,7 +235,9 @@ mod wasm {
         }
 
         fn bytes_eq(self) -> Option<Vec<u8>> {
-            let Self::BytesEq(left, right) = self else { unreachable!() };
+            let Self::BytesEq(left, right) = self else {
+                unreachable!()
+            };
 
             let left = left.value();
             let right = right.value();
@@ -226,7 +246,9 @@ mod wasm {
         }
 
         fn if_else(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
-            let Self::IfElse(flag, true_call, false_call) = self else { unreachable!() };
+            let Self::IfElse(flag, true_call, false_call) = self else {
+                unreachable!()
+            };
 
             let flag = flag.value();
 
@@ -241,6 +263,12 @@ mod wasm {
             (!matches!(self, Self::Value)).then(|| unreachable!());
 
             Some(msg::value().encode())
+        }
+
+        fn value_available(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::ValueAvailable)).then(|| unreachable!());
+
+            Some(exec::value_available().encode())
         }
 
         fn load(self) -> Option<Vec<u8>> {
@@ -261,8 +289,20 @@ mod wasm {
             exec::wait()
         }
 
+        fn wait_for(self) -> ! {
+            let Self::WaitFor(duration) = self else {
+                unreachable!()
+            };
+
+            let duration = duration.value();
+
+            exec::wait_for(duration)
+        }
+
         fn wake(self) -> Option<Vec<u8>> {
-            let Self::Wake(message_id) = self else { unreachable!() };
+            let Self::Wake(message_id) = self else {
+                unreachable!()
+            };
 
             let message_id = message_id.value().into();
 
@@ -298,9 +338,11 @@ mod wasm {
                 Call::Noop => None,
                 Call::IfElse(..) => self.if_else(previous),
                 Call::Value => self.value(),
+                Call::ValueAvailable => self.value_available(),
                 Call::Load => self.load(),
                 Call::LoadBytes => self.load_bytes(),
                 Call::Wait => self.wait(),
+                Call::WaitFor(..) => self.wait_for(),
                 Call::Wake(..) => self.wake(),
                 Call::MessageId => self.message_id(),
                 #[allow(clippy::empty_loop)]

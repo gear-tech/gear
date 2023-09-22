@@ -20,6 +20,8 @@
 pub mod currency {
     use runtime_primitives::Balance;
 
+    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
+
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
 
@@ -37,7 +39,7 @@ pub mod time {
     use runtime_primitives::{BlockNumber, Moment};
 
     /// Since BABE is probabilistic this is the average expected block time that
-    /// we are targetting. Blocks will be produced at a minimum duration defined
+    /// we are targeting. Blocks will be produced at a minimum duration defined
     /// by `SLOT_DURATION`, but some slots will not be allocated to any
     /// authority and hence no block will be produced. We expect to have this
     /// block time on average following the defined slot duration and the value
@@ -64,6 +66,7 @@ pub mod time {
     pub const HOURS: BlockNumber = MINUTES * 60;
     pub const DAYS: BlockNumber = HOURS * 24;
     pub const WEEKS: BlockNumber = DAYS * 7;
+    pub const MONTHS: BlockNumber = WEEKS * 4;
 
     // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
     //       Attempting to do so will brick block production.
@@ -71,13 +74,4 @@ pub mod time {
 
     // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
     pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
-
-    // The free of charge period of rent.
-    pub const RENT_FREE_PERIOD: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
-
-    // The minimal amount of blocks to resume.
-    pub const RENT_RESUME_PERIOD: BlockNumber = 86_400;
-
-    // The amount of blocks for processing resume session.
-    pub const RESUME_SESSION_DURATION: BlockNumber = 21_600;
 }

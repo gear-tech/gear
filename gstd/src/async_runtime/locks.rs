@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    collections::BTreeMap,
     config::WaitType,
     errors::{Error, Result},
     exec,
-    lock::MutexId,
-    BTreeMap, BlockCount, BlockNumber, Config, MessageId,
+    sync::MutexId,
+    BlockCount, BlockNumber, Config, MessageId,
 };
 use core::cmp::Ordering;
 use hashbrown::HashMap;
@@ -72,7 +73,7 @@ impl Lock {
         if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
             if blocks == 0 {
                 unreachable!(
-                    "Checked in `crate::msg::async::poll`, will trigger the tiemout error automatically."
+                    "Checked in `crate::msg::async::poll`, will trigger the timeout error automatically."
                 );
             }
 

@@ -33,7 +33,7 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Memory},
+    default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
@@ -376,13 +376,17 @@ where
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module
     /// and adds it to `env`. A reference to that memory is returned so that it can be used to
     /// access the memory contents from the supervisor.
-    pub fn add_memory<S>(&self, env: &mut EnvironmentDefinitionBuilder<S>) -> Option<Memory> {
+    pub fn add_memory<S>(
+        &self,
+        store: &mut Store<()>,
+        env: &mut EnvironmentDefinitionBuilder<S>,
+    ) -> Option<Memory> {
         let memory = if let Some(memory) = &self.memory {
             memory
         } else {
             return None;
         };
-        let memory = Memory::new(memory.min_pages.raw(), None).unwrap();
+        let memory = Memory::new(store, memory.min_pages.raw(), None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }

@@ -19,7 +19,7 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
+    Config, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf,
     QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -29,10 +29,7 @@ use common::{
     CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::{
-    sp_runtime::Saturating,
-    traits::{Currency, ExistenceRequirement, ReservableCurrency},
-};
+use frame_support::sp_runtime::Saturating;
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -142,66 +139,9 @@ where
                 executed,
                 ..
             } => {
-                log::trace!(
-                    "Dispatch ({:?}) init failure for program {:?}",
-                    message_id,
-                    program_id
-                );
+                log::trace!("Dispatch ({message_id:?}) init failure for program {program_id:?}");
 
-                // Some messages addressed to the program could be processed
-                // in the queue before init message. For example, that could
-                // happen when init message had more gas limit then rest block
-                // gas allowance, but a dispatch message to the program was
-                // dequeued. The other case is async init.
-                wake_waiting_init_msgs(program_id);
-
-                // If we run into `InitFailure` after real execution (not
-                // prepare or precharge) processor methods, then we are
-                // sure that it was active program.
-                let maybe_inactive = !executed;
-
-                self.clean_reservation_tasks(program_id, maybe_inactive);
-
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-                    let _ = TaskPoolOf::<T>::delete(
-                        bn,
-                        ScheduledTask::PauseProgram(program_id),
-                    );
-
-                    *p = Program::Terminated(origin);
-                }).unwrap_or_else(|e| {
-                    if !maybe_inactive {
-                        unreachable!(
-                            "Program terminated status may only be set to an existing active program: {:?}",
-                            e,
-                        );
-                    }
-                });
-
-                ProgramStorageOf::<T>::remove_program_pages(program_id);
-
-                let event = Event::ProgramChanged {
-                    id: program_id,
-                    change: ProgramChangeKind::Terminated,
-                };
-
-                let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
-
-                let balance = CurrencyOf::<T>::free_balance(&program_id);
-                let destination = Pallet::<T>::inheritor_for(origin);
-                let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
-
-                if !balance.is_zero() {
-                    CurrencyOf::<T>::transfer(
-                        &program_id,
-                        &destination,
-                        balance,
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-                }
-
-                Pallet::<T>::deposit_event(event);
+                Self::process_failed_init(program_id, origin, executed);
 
                 DispatchStatus::Failed
             }
@@ -226,24 +166,22 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        log::debug!("Exit dispatch");
+        log::debug!(
+            "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
+        );
 
-        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-
-        WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
-            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-
-            QueueOf::<T>::queue(message)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        });
-
-        let _ = ProgramStorageOf::<T>::waiting_init_take_messages(id_exited);
-
-        // Program can't be inactive, cause it was executed.
-        self.clean_reservation_tasks(id_exited, false);
+        Self::clean_waitlist(id_exited);
 
         ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
+
+            match p {
+                Program::Active(program) => Self::remove_gas_reservation_map(
+                    id_exited,
+                    core::mem::take(&mut program.gas_reservation_map),
+                ),
+                _ => unreachable!("Action executed only for active program"),
+            }
 
             *p = Program::Exited(value_destination);
         })
@@ -251,23 +189,7 @@ where
             unreachable!("`exit` can be called only from active program: {:?}", e);
         });
 
-        ProgramStorageOf::<T>::remove_program_pages(id_exited);
-
-        let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
-        let balance = CurrencyOf::<T>::free_balance(program_account);
-
-        let destination = Pallet::<T>::inheritor_for(value_destination);
-        let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
-
-        if !balance.is_zero() {
-            CurrencyOf::<T>::transfer(
-                program_account,
-                &destination,
-                balance,
-                ExistenceRequirement::AllowDeath,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-        }
+        Self::clean_inactive_program(id_exited, value_destination);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -301,10 +223,11 @@ where
             );
 
             if dispatch.value() != 0 {
-                CurrencyOf::<T>::reserve(
+                GearBank::<T>::deposit_value(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                     dispatch.value().unique_saturated_into(),
-                ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
+                )
+                .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
 
             match (gas_limit, reservation) {
@@ -410,6 +333,8 @@ where
 
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
+                log::trace!("{:?} has been write accessed, update it in storage", page);
+
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
             }
@@ -443,7 +368,8 @@ where
         let from = <T::AccountId as Origin>::from_origin(from.into_origin());
         let value = value.unique_saturated_into();
 
-        Pallet::<T>::transfer_reserved(&from, &to, value);
+        GearBank::<T>::transfer_value(&from, &to, value)
+            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
@@ -490,6 +416,7 @@ where
         );
 
         GasAllowanceOf::<T>::decrease(gas_burned);
+        // TODO: #3112. Rework requeueing logic to avoid blocked queue.
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }

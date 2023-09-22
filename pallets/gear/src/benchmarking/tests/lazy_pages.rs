@@ -307,7 +307,6 @@ where
                 &exec.block_config,
                 exec.context,
                 exec.random_data,
-                exec.memory_pages,
             )
             .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -384,7 +383,6 @@ where
                 &exec.block_config,
                 exec.context,
                 exec.random_data,
-                exec.memory_pages,
             )
             .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -544,7 +542,6 @@ where
             &exec.block_config,
             exec.context,
             exec.random_data,
-            exec.memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -588,7 +585,6 @@ where
             &exec.block_config,
             exec.context,
             exec.random_data,
-            exec.memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -605,7 +601,7 @@ where
             }
         }
 
-        assert_eq!(lazy_pages::get_status(), Status::GasLimitExceeded);
+        assert_ne!(lazy_pages::get_status(), Status::Normal);
     };
 
     // Check gas allowance exceeded.
@@ -630,7 +626,6 @@ where
             &exec.block_config,
             exec.context,
             exec.random_data,
-            exec.memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -643,6 +638,6 @@ where
             }
         }
 
-        assert_eq!(lazy_pages::get_status(), Status::GasAllowanceExceeded);
+        assert_ne!(lazy_pages::get_status(), Status::Normal);
     };
 }

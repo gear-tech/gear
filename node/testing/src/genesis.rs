@@ -30,7 +30,7 @@ use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::*, AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig,
-    ValidatorSetConfig, BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
+    BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
 };
 
 fn wasm_binary() -> &'static [u8] {
@@ -49,18 +49,18 @@ pub fn genesis_config(code: Option<&[u8]>) -> GenesisConfig {
 #[cfg(feature = "vara-native")]
 pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> GenesisConfig {
     let mut endowed = vec![
-        (alice(), 111 * DOLLARS),
-        (bob(), 100 * DOLLARS),
-        (charlie(), 100_000_000 * DOLLARS),
-        (dave(), 111 * DOLLARS),
-        (eve(), 101 * DOLLARS),
-        (ferdie(), 100 * DOLLARS),
+        (alice(), 111 * ECONOMIC_UNITS),
+        (bob(), 100 * ECONOMIC_UNITS),
+        (charlie(), 100_000_000 * ECONOMIC_UNITS),
+        (dave(), 111 * ECONOMIC_UNITS),
+        (eve(), 101 * ECONOMIC_UNITS),
+        (ferdie(), 100 * ECONOMIC_UNITS),
     ];
 
     endowed.extend(
         extra_endowed
             .into_iter()
-            .map(|endowed| (endowed, 100 * DOLLARS)),
+            .map(|endowed| (endowed, 100 * ECONOMIC_UNITS)),
     );
 
     GenesisConfig {
@@ -70,9 +70,6 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
                 .unwrap_or_else(|| wasm_binary().to_vec()),
         },
         balances: BalancesConfig { balances: endowed },
-        validator_set: ValidatorSetConfig {
-            initial_validators: vec![],
-        },
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
@@ -101,9 +98,19 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
         },
         staking: StakingConfig {
             stakers: vec![
-                (dave(), alice(), 111 * DOLLARS, StakerStatus::Validator),
-                (eve(), bob(), 100 * DOLLARS, StakerStatus::Validator),
-                (ferdie(), charlie(), 100 * DOLLARS, StakerStatus::Validator),
+                (
+                    dave(),
+                    alice(),
+                    111 * ECONOMIC_UNITS,
+                    StakerStatus::Validator,
+                ),
+                (eve(), bob(), 100 * ECONOMIC_UNITS, StakerStatus::Validator),
+                (
+                    ferdie(),
+                    charlie(),
+                    100 * ECONOMIC_UNITS,
+                    StakerStatus::Validator,
+                ),
             ],
             validator_count: 3,
             minimum_validator_count: 3,
@@ -116,6 +123,7 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
         authority_discovery: Default::default(),
         transaction_payment: Default::default(),
         treasury: Default::default(),
+        nomination_pools: Default::default(),
         vesting: Default::default(),
         staking_rewards: StakingRewardsConfig {
             non_stakeable: Perquintill::from_rational(4108_u64, 10_000_u64), // 41.08%
@@ -130,18 +138,18 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
 #[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
 pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> GenesisConfig {
     let mut endowed = vec![
-        (alice(), 111 * DOLLARS),
-        (bob(), 100 * DOLLARS),
-        (charlie(), 100_000_000 * DOLLARS),
-        (dave(), 111 * DOLLARS),
-        (eve(), 101 * DOLLARS),
-        (ferdie(), 100 * DOLLARS),
+        (alice(), 111 * ECONOMIC_UNITS),
+        (bob(), 100 * ECONOMIC_UNITS),
+        (charlie(), 100_000_000 * ECONOMIC_UNITS),
+        (dave(), 111 * ECONOMIC_UNITS),
+        (eve(), 101 * ECONOMIC_UNITS),
+        (ferdie(), 100 * ECONOMIC_UNITS),
     ];
 
     endowed.extend(
         extra_endowed
             .into_iter()
-            .map(|endowed| (endowed, 100 * DOLLARS)),
+            .map(|endowed| (endowed, 100 * ECONOMIC_UNITS)),
     );
 
     GenesisConfig {

@@ -2,7 +2,7 @@ use crate::{builder_error::BuilderError, stack_end};
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_core::code::Code;
+use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use pwasm_utils::{
     parity_wasm,
@@ -118,22 +118,27 @@ impl Optimizer {
 
         // Post-checking the program code for possible errors
         // `pallet-gear` crate performs the same check at the node level when the user tries to upload program code
-        let raw_code = code.clone();
+        let original_code = code.clone();
         match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
-            OptType::Meta => {
-                Code::new_raw_with_rules(raw_code, 1, false, |_| CustomConstantCostRules::default())
-                    .map(|_| ())
-                    .map_err(BuilderError::CodeCheckFailed)?
-            }
+            OptType::Meta => Code::try_new_mock_const_or_no_rules(
+                original_code,
+                false,
+                TryNewCodeConfig::new_no_exports_check(),
+            )
+            .map(|_| ())
+            .map_err(BuilderError::CodeCheckFailed)?,
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => {
-                Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None)
-                    .map(|_| ())
-                    .map_err(BuilderError::CodeCheckFailed)?
-            }
+            OptType::Opt => Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None,
+            )
+            .map(|_| ())
+            .map_err(BuilderError::CodeCheckFailed)?,
         }
 
         Ok(code)
@@ -225,6 +230,8 @@ pub fn do_optimization(
         .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
+        .arg("-mvp")
+        .arg("--enable-sign-ext")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -277,6 +284,9 @@ pub fn do_optimization(
         "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
         _ => panic!("Invalid optimization level {}", optimization_level),
     }
+    .mvp_features_only()
+    .enable_feature(wasm_opt::Feature::SignExt)
+    .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
     // the memory in our module is imported, `wasm-opt` needs to be told that

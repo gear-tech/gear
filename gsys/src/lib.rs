@@ -77,7 +77,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,

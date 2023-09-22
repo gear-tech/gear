@@ -27,8 +27,8 @@ use sp_consensus_babe::{
     Slot, BABE_ENGINE_ID,
 };
 use sp_core::{ed25519, sr25519, Pair};
-use sp_keyring::{AccountKeyring, Sr25519Keyring};
-use sp_runtime::{traits::SignedExtension, Digest, DigestItem, MultiAddress};
+use sp_keyring::AccountKeyring;
+use sp_runtime::{Digest, DigestItem};
 
 const ENDOWMENT: u128 = 100 * UNITS;
 const STASH: u128 = 10 * UNITS;
@@ -66,7 +66,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
-    Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+    Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
@@ -138,20 +138,22 @@ impl ExtBuilder {
             .build_storage::<Runtime>()
             .unwrap();
 
-        pallet_balances::GenesisConfig::<Runtime> {
-            balances: self
-                .initial_authorities
-                .iter()
-                .map(|x| (x.0.clone(), self.stash))
-                .chain(
-                    self.endowed_accounts
-                        .iter()
-                        .map(|k| (k.clone(), self.endowment)),
-                )
-                .collect(),
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
+        let mut balances = self
+            .initial_authorities
+            .iter()
+            .map(|x| (x.0.clone(), self.stash))
+            .chain(
+                self.endowed_accounts
+                    .iter()
+                    .map(|k| (k.clone(), self.endowment)),
+            )
+            .collect::<Vec<_>>();
+
+        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+
+        pallet_balances::GenesisConfig::<Runtime> { balances }
+            .assimilate_storage(&mut storage)
+            .unwrap();
 
         SessionConfig {
             keys: self
@@ -243,170 +245,6 @@ pub(crate) fn get_last_program_id() -> [u8; 32] {
 }
 
 #[test]
-fn signed_extension_works() {
-    use sp_runtime::transaction_validity::{InvalidTransaction, TransactionSource};
-
-    init_logger();
-
-    let alice = AccountKeyring::Alice;
-    let bob = AccountKeyring::Bob;
-    let charlie = AccountKeyring::Charlie;
-    ExtBuilder::default()
-        .initial_authorities(vec![
-            (
-                alice.into(),
-                alice.into(),
-                alice.public(),
-                ed25519::Pair::from_string("//Alice", None)
-                    .unwrap()
-                    .public(),
-                alice.public(),
-                alice.public(),
-            ),
-            (
-                bob.into(),
-                bob.into(),
-                bob.public(),
-                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
-                bob.public(),
-                bob.public(),
-            ),
-        ])
-        .stash(STASH)
-        .endowment(ENDOWMENT)
-        .endowed_accounts(vec![charlie.into()])
-        .vested_accounts(vec![(charlie.into(), 100, 500, 10 * UNITS)])
-        .build()
-        .execute_with(|| {
-            let construct_extrinsic =
-                |function: RuntimeCall, caller: Sr25519Keyring| -> UncheckedExtrinsic {
-                    let extra: SignedExtra = (
-                        DisableValueTransfers {},
-                        StakingBlackList::<Runtime>::new(),
-                        frame_system::CheckNonZeroSender::<Runtime>::new(),
-                        frame_system::CheckSpecVersion::<Runtime>::new(),
-                        frame_system::CheckTxVersion::<Runtime>::new(),
-                        frame_system::CheckGenesis::<Runtime>::new(),
-                        frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(256, 0)),
-                        frame_system::CheckNonce::<Runtime>::from(0),
-                        frame_system::CheckWeight::<Runtime>::new(),
-                        CustomChargeTransactionPayment::<Runtime>::from(0),
-                    );
-                    UncheckedExtrinsic::new_signed(
-                        function.clone(),
-                        MultiAddress::Id(caller.public().into()),
-                        Signature::Sr25519(
-                            SignedPayload::from_raw(
-                                function,
-                                extra.clone(),
-                                extra.additional_signed().unwrap(),
-                            )
-                            .using_encoded(|e| caller.sign(e)),
-                        ),
-                        extra,
-                    )
-                };
-
-            // Balance transfer should be blocked by the signed extension
-            let invalid_call = construct_extrinsic(
-                RuntimeCall::Balances(pallet_balances::Call::transfer {
-                    dest: MultiAddress::Id(bob.into()),
-                    value: 10 * UNITS,
-                }),
-                alice,
-            );
-
-            // Wrapping `bond` call in a batch is also illegal
-            let invalid_batch = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch {
-                    calls: vec![RuntimeCall::Balances(pallet_balances::Call::transfer {
-                        dest: MultiAddress::Id(bob.into()),
-                        value: 10 * UNITS,
-                    })],
-                }),
-                alice,
-            );
-
-            let invalid_batch_all = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                    calls: vec![RuntimeCall::Balances(pallet_balances::Call::transfer {
-                        dest: MultiAddress::Id(bob.into()),
-                        value: 10 * UNITS,
-                    })],
-                }),
-                alice,
-            );
-
-            // Nested batches and/or other `Utility` calls shouldn't work, as well
-            let nested_batches = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch {
-                    calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                        calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
-                            index: 0,
-                            call: Box::new(RuntimeCall::Balances(
-                                pallet_balances::Call::transfer {
-                                    dest: MultiAddress::Id(bob.into()),
-                                    value: 10 * UNITS,
-                                },
-                            )),
-                        })],
-                    })],
-                }),
-                alice,
-            );
-
-            let valid_call =
-                construct_extrinsic(RuntimeCall::Vesting(pallet_vesting::Call::vest {}), charlie);
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_call,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_batch,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_batch_all,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    nested_batches,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_ok!(Executive::validate_transaction(
-                TransactionSource::External,
-                valid_call,
-                Default::default(),
-            ));
-        });
-}
-
-#[test]
 fn tokens_locking_works() {
     init_logger();
 
@@ -477,8 +315,14 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     10 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalance
+                pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
+
+            // TODO: delete lines below (issue #3081).
+            core::mem::drop(Balances::deposit_creating(
+                &alice.to_account_id(),
+                10 * UNITS,
+            ));
 
             // Locked funds can't be transferred to a program as a message `value`
             assert_ok!(Gear::upload_program(
@@ -502,8 +346,9 @@ fn tokens_locking_works() {
                     vec![],
                     10_000_000_000,
                     11 * UNITS,
+                    false,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalance
+                pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
         });
 }

@@ -26,7 +26,7 @@ use gear_backend_common::{
     memory::ProcessAccessError,
     runtime::RunFallibleError,
     ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
     UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
     UnrecoverableWaitError,
 };
@@ -34,25 +34,25 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{
-        ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter,
+        ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
+        GasCounter, GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
-        NoopGrowHandler, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
+use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -106,12 +106,55 @@ pub struct ProcessorContext {
     pub rent_cost: u128,
 }
 
+#[cfg(any(feature = "mock", test))]
+impl ProcessorContext {
+    /// Create new mock [`ProcessorContext`] for usage in tests.
+    pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{ContextSettings, IncomingDispatch};
+
+        ProcessorContext {
+            gas_counter: GasCounter::new(0),
+            gas_allowance_counter: GasAllowanceCounter::new(0),
+            gas_reserver: GasReserver::new(
+                &<IncomingDispatch as Default>::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            system_reservation: None,
+            value_counter: ValueCounter::new(0),
+            allocations_context: AllocationsContext::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            message_context: MessageContext::new(
+                Default::default(),
+                Default::default(),
+                ContextSettings::new(0, 0, 0, 0, 0, 0),
+            ),
+            block_info: Default::default(),
+            max_pages: 512.into(),
+            page_costs: Default::default(),
+            existential_deposit: 0,
+            program_id: Default::default(),
+            program_candidates_data: Default::default(),
+            program_rents: Default::default(),
+            host_fn_weights: Default::default(),
+            forbidden_funcs: Default::default(),
+            mailbox_threshold: 0,
+            waitlist_cost: 0,
+            dispatch_hold_cost: 0,
+            reserve_for: 0,
+            reservation: 0,
+            random_data: ([0u8; 32].to_vec(), 0),
+            rent_cost: 0,
+        }
+    }
+}
+
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
-    /// Whether this extension works with lazy pages.
-    const LAZY_PAGES_ENABLED: bool;
-
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
@@ -153,7 +196,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
 }
 
 impl BackendSyscallError for UnrecoverableExtError {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::UnrecoverableExt(err)).into()
@@ -163,7 +206,7 @@ impl BackendSyscallError for UnrecoverableExtError {
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {
-        RunFallibleError::TerminationReason(self.into_termination_reason())
+        RunFallibleError::UndefinedTerminationReason(self.into_termination_reason())
     }
 }
 
@@ -207,12 +250,12 @@ impl From<FallibleExtError> for RunFallibleError {
         match err {
             FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
             FallibleExtError::ForbiddenFunction => {
-                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::Actor(
                     ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
                 ))
             }
             FallibleExtError::Charge(err) => {
-                RunFallibleError::TerminationReason(TerminationReason::from(err))
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::from(err))
             }
         }
     }
@@ -240,10 +283,45 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
+struct LazyGrowHandler {
+    old_mem_addr: Option<u64>,
+    old_mem_size: WasmPage,
+}
+
+impl GrowHandler for LazyGrowHandler {
+    fn before_grow_action(mem: &mut impl Memory) -> Self {
+        // New pages allocation may change wasm memory buffer location.
+        // So we remove protections from lazy-pages
+        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
+        let old_mem_addr = mem.get_buffer_host_addr();
+        lazy_pages::remove_lazy_pages_prot(mem);
+        Self {
+            old_mem_addr,
+            old_mem_size: mem.size(),
+        }
+    }
+
+    fn after_grow_action(self, mem: &mut impl Memory) {
+        // Add new allocations to lazy pages.
+        // Protect all lazy pages including new allocations.
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
+        lazy_pages::update_lazy_pages_and_protect_again(
+            mem,
+            self.old_mem_addr,
+            self.old_mem_size,
+            new_mem_addr,
+        );
+    }
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
+    /// Actual gas counter type within wasm module's global.
+    pub current_counter: CounterType,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -252,46 +330,103 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExternalities for Ext {
-    const LAZY_PAGES_ENABLED: bool = false;
-
     fn new(context: ProcessorContext) -> Self {
+        let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
+        {
+            CounterType::GasLimit
+        } else {
+            CounterType::GasAllowance
+        };
+
         Self {
             context,
+            current_counter,
             outgoing_gasless: 0,
         }
     }
 
     fn lazy_pages_init_for_program(
-        _mem: &mut impl Memory,
-        _prog_id: ProgramId,
-        _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsAccessConfig,
-        _lazy_pages_weights: LazyPagesWeights,
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
     ) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        lazy_pages::remove_lazy_pages_prot(mem);
     }
 
     fn lazy_pages_status() -> Status {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        lazy_pages::get_status()
     }
 }
 
 impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                static_pages
-                    .iter_from_zero()
-                    .chain(allocations.iter().copied())
-                    .flat_map(|p| p.to_pages_iter())
-                    .collect()
-            };
+        let ProcessorContext {
+            allocations_context,
+            message_context,
+            gas_counter,
+            gas_reserver,
+            system_reservation,
+            program_candidates_data,
+            program_rents,
+            ..
+        } = self.context;
 
-        self.into_ext_info_inner(memory, pages_for_data)
+        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+
+        // Accessed pages are all pages, that had been released and are in allocations set or static.
+        let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
+        log::trace!("accessed pages numbers = {:?}", accessed_pages);
+
+        let mut pages_data = BTreeMap::new();
+        for page in accessed_pages {
+            let mut buf = PageBuf::new_zeroed();
+            memory.read(page.offset(), &mut buf)?;
+            pages_data.insert(page, buf);
+        }
+
+        let (outcome, mut context_store) = message_context.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            reply_deposits,
+        } = outcome.drain();
+
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
+        context_store.set_reservation_nonce(&gas_reserver);
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
+
+        let info = ExtInfo {
+            gas_amount: gas_counter.to_amount(),
+            gas_reserver,
+            system_reservation_context,
+            allocations: (allocations != initial_allocations)
+                .then_some(allocations)
+                .unwrap_or_default(),
+            pages_data,
+            generated_dispatches,
+            awakening,
+            reply_deposits,
+            context_store,
+            program_candidates_data,
+            program_rents,
+        };
+        Ok(info)
     }
 
     fn gas_amount(&self) -> GasAmount {
@@ -299,11 +434,11 @@ impl BackendExternalities for Ext {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        Ok(())
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
@@ -433,10 +568,9 @@ impl Ext {
             return Err(ChargeError::GasLimitExceeded);
         }
         if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            if gas_counter.refund(amount) != ChargeResult::Enough {
-                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
-                unreachable!("Cannot refund {amount} for `gas_counter`");
-            }
+            // Here might be refunds for gas counter, but it's meaningless since
+            // on gas allowance exceed we totally roll up the message and give
+            // it another try in next block with the same initial resources.
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -471,40 +605,57 @@ impl CountersOwner for Ext {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: self.context.gas_counter.left(),
-            allowance: self.context.gas_allowance_counter.left(),
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+            .into()
+    }
+
+    fn current_counter_type(&self) -> CounterType {
+        self.current_counter
+    }
+
+    fn decrease_current_counter_to(&mut self, amount: u64) {
+        // For possible cases of non-atomic charges on backend side when global
+        // value is less than appropriate at the backend.
+        //
+        // Example:
+        // * While executing program calls some syscall.
+        // * Syscall ends up with unrecoverable error - gas limit exceeded.
+        // * We have to charge it so we leave backend and whole execution with 0 inner counter.
+        // * Meanwhile global is not zero, so for this case we have to skip decreasing.
+        if self.current_counter_value() <= amount {
+            log::trace!("Skipped decrease to global value");
+            return;
+        }
+
+        let GasLeft { gas, allowance } = self.gas_left();
+
+        let diff = match self.current_counter_type() {
+            CounterType::GasLimit => gas.checked_sub(amount),
+            CounterType::GasAllowance => allowance.checked_sub(amount),
+        }
+        .unwrap_or_else(|| unreachable!("Checked above"));
+
+        if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas limit left bigger than before")
+        }
+
+        if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas allowance left bigger than before")
         }
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        let GasLeft { gas, allowance } = gas_left;
+    fn define_current_counter(&mut self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
 
-        let gas_left = self.context.gas_counter.left();
-        if gas_left > gas {
-            if self.context.gas_counter.charge_if_enough(gas_left - gas) != ChargeResult::Enough {
-                // We checked above that `gas_left` is bigger than `gas`
-                unreachable!("Cannot charge {gas} from `gas_counter`");
-            }
+        if gas <= allowance {
+            self.current_counter = CounterType::GasLimit;
+            gas
         } else {
-            self.context.gas_counter.refund(gas - gas_left);
-        }
-
-        let allowance_left = self.context.gas_allowance_counter.left();
-        if allowance_left > allowance {
-            if self
-                .context
-                .gas_allowance_counter
-                .charge_if_enough(allowance_left - allowance)
-                != ChargeResult::Enough
-            {
-                // We checked above that `allowance_left` is bigger than `allowance`
-                unreachable!("Cannot charge {allowance} from `gas_allowance_counter`");
-            }
-        } else {
-            self.context
-                .gas_allowance_counter
-                .refund(allowance - allowance_left);
+            self.current_counter = CounterType::GasAllowance;
+            allowance
         }
     }
 }
@@ -519,7 +670,18 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
+        self.context
+            .allocations_context
+            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+                Ext::charge_gas_if_enough(
+                    &mut self.context.gas_counter,
+                    &mut self.context.gas_allowance_counter,
+                    self.context.page_costs.mem_grow.calc(pages),
+                )
+            })
+            .map_err(Into::into)
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -737,7 +899,11 @@ impl Externalities for Ext {
     }
 
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        let program_id = self.program_id()?;
+        let message_id = self.message_id()?;
+
+        log::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+
         Ok(())
     }
 
@@ -955,140 +1121,79 @@ impl Externalities for Ext {
     }
 }
 
-impl Ext {
-    /// Inner alloc realization.
-    pub fn alloc_inner<G: GrowHandler>(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, AllocExtError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
-        self.context
-            .allocations_context
-            .alloc::<G>(pages, mem, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
-                )
-            })
-            .map_err(Into::into)
-    }
-
-    /// Into ext info inner impl.
-    /// `pages_for_data` returns vector of pages which data will be stored in info.
-    pub fn into_ext_info_inner(
-        self,
-        memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> Result<ExtInfo, MemoryError> {
-        let ProcessorContext {
-            allocations_context,
-            message_context,
-            gas_counter,
-            gas_reserver,
-            system_reservation,
-            program_candidates_data,
-            program_rents,
-            ..
-        } = self.context;
-
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
-        let mut pages_data = BTreeMap::new();
-        for page in pages_for_data(static_pages, &allocations) {
-            let mut buf = PageBuf::new_zeroed();
-            memory.read(page.offset(), &mut buf)?;
-            pages_data.insert(page, buf);
-        }
-
-        let (outcome, mut context_store) = message_context.drain();
-        let ContextOutcomeDrain {
-            outgoing_dispatches: generated_dispatches,
-            awakening,
-            reply_deposits,
-        } = outcome.drain();
-
-        let system_reservation_context = SystemReservationContext {
-            current_reservation: system_reservation,
-            previous_reservation: context_store.system_reservation(),
-        };
-
-        context_store.set_reservation_nonce(&gas_reserver);
-        if let Some(reservation) = system_reservation {
-            context_store.add_system_reservation(reservation);
-        }
-
-        let info = ExtInfo {
-            gas_amount: gas_counter.to_amount(),
-            gas_reserver,
-            system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
-            pages_data,
-            generated_dispatches,
-            awakening,
-            reply_deposits,
-            context_store,
-            program_candidates_data,
-            program_rents,
-        };
-        Ok(info)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use gear_core::{
-        message::{ContextSettings, IncomingDispatch},
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         pages::PageNumber,
     };
+
+    struct MessageContextBuilder {
+        incoming_dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        sending_fee: u64,
+        scheduled_sending_fee: u64,
+        waiting_fee: u64,
+        waking_fee: u64,
+        reservation_fee: u64,
+        outgoing_limit: u32,
+    }
+
+    impl MessageContextBuilder {
+        fn new() -> Self {
+            Self {
+                incoming_dispatch: Default::default(),
+                program_id: Default::default(),
+                sending_fee: 0,
+                scheduled_sending_fee: 0,
+                waiting_fee: 0,
+                waking_fee: 0,
+                reservation_fee: 0,
+                outgoing_limit: 0,
+            }
+        }
+
+        fn build(self) -> MessageContext {
+            MessageContext::new(
+                self.incoming_dispatch,
+                self.program_id,
+                ContextSettings::new(
+                    self.sending_fee,
+                    self.scheduled_sending_fee,
+                    self.waiting_fee,
+                    self.waking_fee,
+                    self.reservation_fee,
+                    self.outgoing_limit,
+                ),
+            )
+        }
+
+        fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {
+            self.outgoing_limit = outgoing_limit;
+            self
+        }
+    }
 
     struct ProcessorContextBuilder(ProcessorContext);
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            let default_pc = ProcessorContext {
-                gas_counter: GasCounter::new(0),
-                gas_allowance_counter: GasAllowanceCounter::new(0),
-                gas_reserver: GasReserver::new(
-                    &<IncomingDispatch as Default>::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                system_reservation: None,
-                value_counter: ValueCounter::new(0),
-                allocations_context: AllocationsContext::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                message_context: MessageContext::new(
-                    Default::default(),
-                    Default::default(),
-                    ContextSettings::new(0, 0, 0, 0, 0, 0),
-                ),
-                block_info: Default::default(),
-                max_pages: 512.into(),
+            Self(ProcessorContext {
                 page_costs: PageCosts::new_for_tests(),
-                existential_deposit: 0,
-                program_id: Default::default(),
-                program_candidates_data: Default::default(),
-                program_rents: Default::default(),
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: 0,
-                waitlist_cost: 0,
-                dispatch_hold_cost: 0,
-                reserve_for: 0,
-                reservation: 0,
-                random_data: ([0u8; 32].to_vec(), 0),
-                rent_cost: 0,
-            };
+                ..ProcessorContext::new_mock()
+            })
+        }
 
-            Self(default_pc)
+        fn build(self) -> ProcessorContext {
+            self.0
+        }
+
+        fn with_message_context(mut self, context: MessageContext) -> Self {
+            self.0.message_context = context;
+
+            self
         }
 
         fn with_gas(mut self, gas_counter: GasCounter) -> Self {
@@ -1114,10 +1219,6 @@ mod tests {
 
             self
         }
-
-        fn build(self) -> ProcessorContext {
-            self.0
-        }
     }
 
     // Invariant: Refund never occurs in `free` call.
@@ -1127,10 +1228,7 @@ mod tests {
         let initial_gas = 100;
         let initial_allowance = 10000;
 
-        let gas_left = GasLeft {
-            gas: initial_gas,
-            allowance: initial_allowance,
-        };
+        let gas_left = (initial_gas, initial_allowance).into();
 
         let existing_page = 99.into();
         let non_existing_page = 100.into();
@@ -1218,132 +1316,331 @@ mod tests {
         assert_eq!(0, allowance);
     }
 
-    mod property_tests {
-        use super::*;
-        use gear_core::{
-            memory::HostPointer,
-            pages::{PageError, PageNumber},
-        };
-        use proptest::{
-            arbitrary::any,
-            collection::size_range,
-            prop_oneof, proptest,
-            strategy::{Just, Strategy},
-            test_runner::Config as ProptestConfig,
-        };
+    #[test]
+    // This function tests:
+    //
+    // - `send_commit` on valid handle
+    // - `send_commit` on invalid handle
+    // - `send_commit` on used handle
+    // - `send_init` after limit is exceeded
+    fn test_send_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().with_outgoing_limit(1).build())
+                .build(),
+        );
 
-        struct TestMemory(WasmPage);
+        let data = HandlePacket::default();
 
-        impl Memory for TestMemory {
-            type GrowError = PageError;
+        let fake_handle = 0;
 
-            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages)?;
-                Ok(())
-            }
+        let msg = ext.send_commit(fake_handle, data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
 
-            fn size(&self) -> WasmPage {
-                self.0
-            }
+        let handle = ext.send_init().expect("Outgoing limit is 1");
 
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert!(msg.is_ok());
 
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
+        let msg = ext.send_commit(handle, data, 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
 
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
+        let handle = ext.send_init();
+        assert_eq!(
+            handle.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutgoingMessagesAmountLimitExceeded
+            ))
+        );
+    }
 
-        #[derive(Debug, Clone)]
-        enum Action {
-            Alloc { pages: WasmPage },
-            Free { page: WasmPage },
-        }
+    #[test]
+    // This function tests:
+    //
+    // - `send_push` on non-existent handle
+    // - `send_push` on valid handle
+    // - `send_push` on used handle
+    // - `send_push` with too large payload
+    // - `send_push` data is added to buffer
+    fn test_send_push() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
 
-        fn actions() -> impl Strategy<Value = Vec<Action>> {
-            let action = wasm_page_number().prop_flat_map(|page| {
-                prop_oneof![
-                    Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
-                ]
-            });
-            proptest::collection::vec(action, 0..1024)
-        }
+        let data = HandlePacket::default();
 
-        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
-            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
-        }
+        let fake_handle = 0;
 
-        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
-            any::<u16>().prop_map(WasmPage::from)
-        }
+        let res = ext.send_push(fake_handle, &[0, 0, 0]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
 
-        fn proptest_config() -> ProptestConfig {
-            ProptestConfig {
-                cases: 1024,
-                ..Default::default()
-            }
-        }
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
 
-        #[track_caller]
-        fn assert_alloc_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(
-                    AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
-                ) => {}
-                err => Err(err).unwrap(),
-            }
-        }
+        let res = ext.send_push(handle, &[1, 2, 3]);
+        assert!(res.is_ok());
 
-        #[track_caller]
-        fn assert_free_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(AllocError::InvalidFree(_)) => {}
-                err => Err(err).unwrap(),
-            }
-        }
+        let res = ext.send_push(handle, &[4, 5, 6]);
+        assert!(res.is_ok());
 
-        proptest! {
-            #![proptest_config(proptest_config())]
-            #[test]
-            fn alloc(
-                static_pages in wasm_page_number(),
-                allocations in allocations(),
-                max_pages in wasm_page_number(),
-                mem_size in wasm_page_number(),
-                actions in actions(),
-            ) {
-                let _ = env_logger::try_init();
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
 
-                let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let ctx = ProcessorContextBuilder::new()
-                    .with_gas(GasCounter::new(u64::MAX))
-                    .with_allowance(GasAllowanceCounter::new(u64::MAX))
-                    .with_allocation_context(ctx)
-                    .build();
-                let mut ext = Ext::new(ctx);
-                let mut mem = TestMemory(mem_size);
+        let res = ext.send_push(handle, &large_payload);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
 
-                for action in actions {
-                    match action {
-                        Action::Alloc { pages } => {
-                            if let Err(err) = ext.alloc(pages.raw(), &mut mem) {
-                                assert_alloc_error(err);
-                            }
-                        }
-                        Action::Free { page } => {
-                            if let Err(err) = ext.free(page) {
-                                assert_free_error(err);
-                            }
-                        },
-                    }
-                }
-            }
-        }
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push(handle, &[7, 8, 9]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_push_input` on non-existent handle
+    // - `send_push_input` on valid handle
+    // - `send_push_input` on used handle
+    // - `send_push_input` data is added to buffer
+    fn test_send_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let data = HandlePacket::default();
+
+        let fake_handle = 0;
+
+        let res = ext.send_push_input(fake_handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.send_push_input(handle, 8, 10);
+        assert!(res.is_ok());
+
+        let msg = ext.send_commit(handle, data, 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push_input(handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_commit` with too much data
+    // - `reply_commit` with valid data
+    // - `reply_commit` duplicate reply
+    fn test_reply_commit() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[0]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::new(Payload::filled_with(0), 0));
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::DuplicateReply))
+        );
+    }
+
+    #[test]
+    // This function requires `reply_push` to work to add extra data.
+    // This function tests:
+    //
+    // - `reply_push` with valid data
+    // - `reply_push` with too much data
+    // - `reply_push` after `reply_commit`
+    // - `reply_push` data is added to buffer
+    fn test_reply_push() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext.reply_push(&[1, 2, 3]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[4, 5, 6]);
+        assert!(res.is_ok());
+
+        let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+
+        let res = ext.reply_push(&large_payload);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::MaxMessageSizeExceed
+            ))
+        );
+
+        let res = ext.reply_commit(ReplyPacket::auto());
+        assert!(res.is_ok());
+
+        let res = ext.reply_push(&[7, 8, 9]);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `reply_push_input` with valid data
+    // - `reply_push_input` after `reply_commit`
+    // - `reply_push_input` data is added to buffer
+    fn test_reply_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let res = ext
+            .context
+            .message_context
+            .payload_mut()
+            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(2, 3);
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(8, 10);
+        assert!(res.is_ok());
+
+        let msg = ext.reply_commit(ReplyPacket::auto());
+        assert!(msg.is_ok());
+
+        let res = ext.reply_push_input(0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
     }
 }

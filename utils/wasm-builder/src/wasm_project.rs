@@ -31,6 +31,8 @@ use std::{
 };
 use toml::value::Table;
 
+const OPT_LEVEL: &str = "z";
+
 /// Enum defining type of binary compiling: production program or metawasm.
 pub enum ProjectType {
     Program(Option<MetadataRepr>),
@@ -158,11 +160,12 @@ impl WasmProject {
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
         let mut dev_profile = Table::new();
-        dev_profile.insert("opt-level".into(), "s".into());
+        dev_profile.insert("opt-level".into(), OPT_LEVEL.into());
 
         let mut release_profile = Table::new();
-        release_profile.insert("lto".into(), true.into());
-        release_profile.insert("opt-level".into(), "s".into());
+        release_profile.insert("lto".into(), "fat".into());
+        release_profile.insert("opt-level".into(), OPT_LEVEL.into());
+        release_profile.insert("codegen-units".into(), 1.into());
 
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
@@ -211,6 +214,8 @@ impl WasmProject {
 
         let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
+        fs::create_dir_all(&self.wasm_target_dir)?;
+
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
             let file_base_name = self
@@ -219,7 +224,7 @@ impl WasmProject {
                 .expect("Run `WasmProject::create_project()` first");
 
             let wasm_meta_path = self
-                .original_dir
+                .wasm_target_dir
                 .join([file_base_name, ".meta.txt"].concat());
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
@@ -316,7 +321,7 @@ extern "C" fn metahash() {{
             let path = optimize::optimize_wasm(
                 original_copy_wasm_path.clone(),
                 opt_wasm_path.clone(),
-                "s",
+                "4",
                 true,
             )
             .map(|res| {
@@ -394,7 +399,6 @@ extern "C" fn metahash() {{
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
-        fs::create_dir_all(&self.wasm_target_dir)?;
 
         if self.project_type.is_metawasm() {
             self.postprocess_meta(&original_wasm_path, file_base_name)?;

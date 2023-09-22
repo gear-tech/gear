@@ -6,7 +6,7 @@ WORKDIR /gear
 
 COPY . /gear
 
-# Install dependecies
+# Install dependencies
 RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
@@ -37,7 +37,7 @@ RUN cargo build -p gear-cli --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM ubuntu:22.10
+FROM ubuntu:22.04
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production

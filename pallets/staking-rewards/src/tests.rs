@@ -1040,7 +1040,7 @@ fn inflation_with_too_many_stakers_adds_up() {
             MILLISECONDS_PER_YEAR,
         );
         let annualized_rewards = yearly_inflation * initial_total_issuance;
-        // At 92% staking rate, the respective ROI is withing the 30% cap.
+        // At 92% staking rate, the respective ROI is within the 30% cap.
         let expected_rewards = overall_time_fraction * annualized_rewards;
 
         // Rounding error could have accumulated over many eras
@@ -1180,6 +1180,57 @@ fn unclaimed_rewards_burn() {
             Perquintill::from_percent(84) * expected_rewards,
             actual_rewards / 10_000_000 // 0.00001%
         );
+    });
+}
+
+#[test]
+fn empty_rewards_pool_causes_inflation() {
+    let (target_inflation, ideal_stake, _, non_stakeable) = sensible_defaults();
+    let pool_balance = 0; // empty rewards pool
+    let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
+    ext.execute_with(|| {
+        // Getting up-to-date data on era duration (they may differ from runtime constants)
+        let sessions_per_era = <Test as pallet_staking::Config>::SessionsPerEra::get() as u64;
+        let epoch_duration = SESSION_DURATION;
+        let era_duration = sessions_per_era * epoch_duration;
+
+        let (initial_total_issuance, _, _, initial_rewards_pool_balance) = chain_state();
+        assert_eq!(initial_rewards_pool_balance, 0); // ED is auto-deducted by the getter function
+
+        // Running chain until era rollover
+        run_to_block(era_duration + 1);
+
+        // No payout is expected for era #0 anyway because the "official" staked amount is 0
+        assert_eq!(
+            Staking::eras_validator_reward(0)
+                .expect("ErasValidatorReward storage must exist after era end; qed"),
+            0
+        );
+
+        // Running chain until the next era rollover
+        run_to_block(2 * era_duration + 1);
+
+        // Claim rewards to trigger rewards minting
+        for era in 0_u32..2 {
+            pallet_staking::Validators::<Test>::iter().for_each(|(stash_id, _)| {
+                assert_ok!(Staking::payout_stakers(
+                    RuntimeOrigin::signed(SIGNER),
+                    stash_id,
+                    era
+                ));
+            });
+        }
+
+        // Take up-to-date measurements of the chain stats
+        let (total_issuance, _, _, rewards_pool_balance) = chain_state();
+
+        // The rewards pool balance is still 0: we should have failed to offset any rewards
+        assert_eq!(initial_rewards_pool_balance, rewards_pool_balance);
+        // Staker rewards for eras 0 and 1
+        let actual_rewards = Staking::eras_validator_reward(1)
+            .expect("ErasValidatorReward storage must exist after era end; qed");
+        // Total issuance grew accordingly have changed
+        assert_eq!(total_issuance, initial_total_issuance + actual_rewards);
     });
 }
 

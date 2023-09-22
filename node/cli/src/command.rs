@@ -52,20 +52,34 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            #[cfg(feature = "gear-native")]
+            #[cfg(not(feature = "dev"))]
+            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
+            #[cfg(all(feature = "gear-native", feature = "dev"))]
             "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(feature = "vara-native")]
+            #[cfg(all(feature = "vara-native", feature = "dev"))]
             "vara-dev" => Box::new(chain_spec::vara::development_config()?),
             #[cfg(feature = "gear-native")]
-            "local" | "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
+            "local" | "gear-local" => {
+                #[cfg(feature = "dev")]
+                log::warn!("Running `gear-local` in `dev` mode");
+                Box::new(chain_spec::gear::local_testnet_config()?)
+            }
             #[cfg(feature = "vara-native")]
             "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/vara.json")[..],
             )?),
             #[cfg(feature = "vara-native")]
-            "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
+            "vara-local" => {
+                #[cfg(feature = "dev")]
+                log::warn!("Running `vara-local` in `dev` mode");
+                Box::new(chain_spec::vara::local_testnet_config()?)
+            }
             #[cfg(feature = "gear-native")]
-            "staging" | "gear-staging" => Box::new(chain_spec::gear::staging_testnet_config()?),
+            "staging" | "gear-staging" => {
+                #[cfg(feature = "dev")]
+                log::warn!("Running `gear-staging` in `dev` mode");
+                Box::new(chain_spec::gear::staging_testnet_config()?)
+            }
             "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/staging.json")[..],
             )?),
@@ -75,24 +89,25 @@ impl SubstrateCli for Cli {
                 let chain_spec = Box::new(chain_spec::RawChainSpec::from_json_file(path.clone())?)
                     as Box<dyn ChainSpec>;
 
+                if chain_spec.is_dev() {
+                    #[cfg(not(feature = "dev"))]
+                    return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into());
+                }
+
                 // When `force_*` is provide or the file name starts with the name of a known chain,
                 // we use the chain spec for the specific chain.
                 if self.run.force_vara || chain_spec.is_vara() {
                     #[cfg(feature = "vara-native")]
-                    {
-                        Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?)
-                    }
+                    return Ok(Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?));
 
                     #[cfg(not(feature = "vara-native"))]
-                    return Err("Vara runtime is not available. Please compile the node with `--features vara-native` to enable it.".into());
+                    return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into());
                 } else {
                     #[cfg(feature = "gear-native")]
-                    {
-                        Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?)
-                    }
+                    return Ok(Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?));
 
                     #[cfg(not(feature = "gear-native"))]
-                    return Err("Gear runtime is not available. Please compile the node with default features to enable it.".into());
+                    return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into());
                 }
             }
         })
@@ -352,7 +367,7 @@ pub fn run() -> sc_cli::Result<()> {
             Ok(())
         }
         None => {
-            let runner = if cli.run.base.validator {
+            let runner = if cli.run.base.validator && cli.run.base.shared_params.log.is_empty() {
                 cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
                     logger.with_detailed_output(false);
                     logger.with_max_level(log::LevelFilter::Info);
@@ -362,7 +377,7 @@ pub fn run() -> sc_cli::Result<()> {
             };
 
             runner.run_node_until_exit(|config| async move {
-                service::new_full(config, cli.no_hardware_benchmarks)
+                service::new_full(config, cli.no_hardware_benchmarks, cli.run.max_gas)
                     .map_err(sc_cli::Error::Service)
             })
         }

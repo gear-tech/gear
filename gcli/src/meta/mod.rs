@@ -23,7 +23,7 @@ mod tests;
 
 use crate::result::{Error, Result};
 use core_processor::configs::BlockInfo;
-use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
+use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -73,6 +73,8 @@ pub enum Meta {
 }
 
 impl Meta {
+    const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
+
     fn format_metadata(meta: &MetadataRepr, fmt: &mut fmt::Formatter) -> fmt::Result {
         let registry =
             PortableRegistry::decode(&mut meta.registry.as_ref()).map_err(|_| fmt::Error)?;
@@ -80,11 +82,8 @@ impl Meta {
         display.field("init", &Io::new(&meta.init, &registry));
         display.field("handle", &Io::new(&meta.handle, &registry));
         display.field("others", &Io::new(&meta.others, &registry));
-        let single_types = [
-            ("reply", meta.reply),
-            ("signal", meta.signal),
-            ("state", meta.state),
-        ];
+        display.field("state", &Io::new(&meta.state, &registry));
+        let single_types = [("reply", meta.reply), ("signal", meta.signal)];
         for (name, ty) in single_types {
             if let Some(id) = ty {
                 display.field(name, &registry.derive_id(id).map_err(|_| fmt::Error)?);
@@ -110,33 +109,35 @@ impl Meta {
 
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        core_processor::informational::execute_for_reply::<
-            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
-            String,
-        >(
-            method.into(),
-            wasm,
-            None,
-            None,
-            None,
-            Default::default(),
-            u64::MAX,
-            BlockInfo::default(),
-        )
-        .map_err(Error::WasmExecution)
+        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+            Self::PAGE_STORAGE_PREFIX
+        ));
+
+        sp_io::TestExternalities::default().execute_with(|| {
+            core_processor::informational::execute_for_reply::<
+                gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
+                String,
+            >(
+                method.into(),
+                wasm,
+                None,
+                None,
+                Default::default(),
+                u64::MAX,
+                BlockInfo::default(),
+            )
+            .map_err(Error::WasmExecution)
+        })
     }
 
     /// Decode metawasm from wasm binary.
     pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
-        let code = InstrumentedCodeAndId::from(CodeAndId::new(Code::new_raw(
+        let code = Code::try_new_mock_const_or_no_rules(
             wasm.to_vec(),
-            1,
-            None,
             true,
-            false,
-        )?))
-        .into_parts()
-        .0;
+            TryNewCodeConfig::new_no_exports_check(),
+        )?;
+        let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
 
         Ok(Self::Wasm(MetawasmData::decode(
             &mut Self::execute(code, "metadata")?.as_ref(),

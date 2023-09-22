@@ -21,14 +21,13 @@
 use crate::{
     executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
 };
+use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
-use gear_backend_common::{
-    LimitedStr, SystemReservationContext, SystemTerminationReason, TrapExplanation,
-};
+use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -432,15 +431,9 @@ pub trait JournalHandler {
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
 
-/// Execution error
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum ExecutionError {
-    /// Actor execution error
-    #[display(fmt = "{_0}")]
-    Actor(ActorExecutionError),
-    /// System execution error
-    #[display(fmt = "{_0}")]
-    System(SystemExecutionError),
+actor_system_error! {
+    /// Execution error.
+    pub type ExecutionError = ActorSystemError<ActorExecutionError, SystemExecutionError>;
 }
 
 /// Actor execution error.
@@ -464,8 +457,8 @@ pub enum ActorExecutionErrorReplyReason {
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
-    #[display(fmt = "Environment error: {_0}")]
-    Environment(LimitedStr<'static>),
+    #[display(fmt = "Environment error: <host error stripped>")]
+    Environment,
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
@@ -475,16 +468,14 @@ impl ActorExecutionErrorReplyReason {
     /// Convert self into [`gear_core_errors::SimpleExecutionError`].
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
-            ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(_) => {
-                SimpleExecutionError::RanOutOfGas
-            }
-            ActorExecutionErrorReplyReason::PrepareMemory(_) => SimpleExecutionError::Unsupported,
-            ActorExecutionErrorReplyReason::Environment(_) => SimpleExecutionError::Unsupported,
-            ActorExecutionErrorReplyReason::Trap(expl) => match expl {
+            Self::PreChargeGasLimitExceeded(_) => SimpleExecutionError::RanOutOfGas,
+            Self::PrepareMemory(_) | Self::Environment => SimpleExecutionError::Unsupported,
+            Self::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
-                TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
+                TrapExplanation::ForbiddenFunction | TrapExplanation::UnrecoverableExt(_) => {
+                    SimpleExecutionError::BackendError
+                }
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
-                TrapExplanation::UnrecoverableExt(_) => SimpleExecutionError::BackendError,
                 TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
@@ -505,7 +496,7 @@ pub enum SystemExecutionError {
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
-    TerminationReason(SystemTerminationReason),
+    UndefinedTerminationReason(SystemTerminationReason),
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
@@ -554,8 +545,6 @@ pub struct WasmExecutionContext {
     pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,
-    /// Memory pages with initial data.
-    pub pages_initial_data: BTreeMap<GearPage, PageBuf>,
     /// Size of the memory block.
     pub memory_size: WasmPage,
 }

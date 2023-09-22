@@ -28,7 +28,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
-use sp_core::{ConstU128, H256};
+use sp_core::H256;
 use sp_runtime::{
     generic,
     traits::{BlakeTwo256, IdentityLookup},
@@ -81,6 +81,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
         GearVoucher: pallet_gear_voucher,
@@ -138,12 +139,6 @@ impl system::Config for Test {
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
     type MaxConsumers = frame_support::traits::ConstU32<16>;
-}
-
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -205,11 +200,20 @@ impl Drop for DynamicScheduleReset {
     }
 }
 
+parameter_types! {
+    pub const BankAddress: AccountId = 15082001;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
+}
+
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
@@ -228,6 +232,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<true>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -296,10 +302,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
             (USER_1, 5_000_000_000_000_000_u128),
-            (USER_2, 200_000_000_000_000_u128),
+            (USER_2, 350_000_000_000_000_u128),
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
@@ -369,7 +376,7 @@ pub fn run_to_block_maybe_with_queue(
                 QueueProcessingOf::<Test>::deny();
             }
 
-            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+            Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }
 
         Gear::on_finalize(System::block_number());
@@ -378,7 +385,7 @@ pub fn run_to_block_maybe_with_queue(
             assert!(!System::events().iter().any(|e| {
                 matches!(
                     e.event,
-                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
                 )
             }))
         }

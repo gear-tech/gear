@@ -1,25 +1,34 @@
 [package]
 name = "gear-core-processor"
-version = "0.1.0"
+description = "The core processor for Gear programs"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common.workspace = true
 gear-wasm-instrument.workspace = true
+gear-lazy-pages-common.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
 derive_more.workspace = true
 static_assertions.workspace = true
+actor-system-error.workspace = true
 
 [dev-dependencies]
-proptest.workspace = true
 env_logger.workspace = true
 enum-iterator.workspace = true
 
 [features]
+default = ["std"]
+std = ["gear-lazy-pages-common/std"]
 strict = []
+mock = []

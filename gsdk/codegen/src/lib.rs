@@ -26,14 +26,14 @@ mod storage;
 ///
 /// # Note
 ///
-/// - the docs must be end with `at specfied block.`
+/// - the docs must be end with `at specified block.`
 /// - the function name must be end with `_at`.
 /// - the last argument must be `Option<H256>`.
 ///
 /// # Example
 ///
 /// ```ignore
-/// /// Imdocs at specfied block.
+/// /// Imdocs at specified block.
 /// #[storage_fetch]
 /// pub fn query_storage_at(addr: Address, block_hash: Option<H256>) -> R {
 ///     // ...
@@ -43,7 +43,7 @@ mod storage;
 /// will generate functions
 ///
 /// ```ignore
-/// /// Imdocs at specfied block.
+/// /// Imdocs at specified block.
 /// pub fn query_storage_at(addr: Address, block_hash: impl Into<Option<H256>>) -> R {
 ///     // ...
 /// }

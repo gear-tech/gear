@@ -28,7 +28,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
-use sp_core::{ConstU128, H256};
+use sp_core::{ConstBool, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -55,15 +55,16 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        GearScheduler: pallet_gear_scheduler::{Pallet},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        System: system,
+        Timestamp: pallet_timestamp,
+        Authorship: pallet_authorship,
+        Balances: pallet_balances,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
+        Gear: pallet_gear,
+        GearGas: pallet_gear_gas,
     }
 );
 
@@ -112,12 +113,6 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = ();
@@ -131,13 +126,19 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const BankAddress: AccountId = 15082001;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+}
+
+impl pallet_gear_bank::Config for Test {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
@@ -156,6 +157,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<true>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -217,6 +220,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
@@ -250,13 +254,13 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             );
         }
 
-        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {
             matches!(
                 e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
             )
         }))
     }

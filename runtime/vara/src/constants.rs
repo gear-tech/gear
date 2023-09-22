@@ -20,22 +20,22 @@
 pub mod currency {
     use runtime_primitives::Balance;
 
+    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
+
+    /// Base economic unit, 50 Vara.
+    pub const ECONOMIC_UNITS: Balance = UNITS * 50;
+    pub const ECONOMIC_CENTIUNITS: Balance = ECONOMIC_UNITS / 100;
+
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = 10_000_000_000_000; // 10 Vara
+    pub const EXISTENTIAL_DEPOSIT: Balance = 10 * UNITS; // 10 Vara
 
     /// The program rent cost per block.
     pub const RENT_COST_PER_BLOCK: Balance = 125_000_000;
 
-    // TODO: review quantities based on economic model (issue #1277)
-    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
-    pub const DOLLARS: Balance = UNITS * 20; // 1 token is worth ~$0.05
-    pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
-    pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
-
     /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
         // TODO: review numbers (#2650)
-        items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+        items as Balance * 15 * ECONOMIC_CENTIUNITS + (bytes as Balance) * 6 * ECONOMIC_CENTIUNITS
     }
 }
 
@@ -44,7 +44,7 @@ pub mod time {
     use runtime_primitives::{BlockNumber, Moment};
 
     /// Since BABE is probabilistic this is the average expected block time that
-    /// we are targetting. Blocks will be produced at a minimum duration defined
+    /// we are targeting. Blocks will be produced at a minimum duration defined
     /// by `SLOT_DURATION`, but some slots will not be allocated to any
     /// authority and hence no block will be produced. We expect to have this
     /// block time on average following the defined slot duration and the value
@@ -75,6 +75,7 @@ pub mod time {
     pub const HOURS: BlockNumber = MINUTES * 60;
     pub const DAYS: BlockNumber = HOURS * 24;
     pub const WEEKS: BlockNumber = DAYS * 7;
+    pub const MONTHS: BlockNumber = WEEKS * 4;
 
     // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
     //       Attempting to do so will brick block production.
@@ -87,7 +88,4 @@ pub mod time {
 
     // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
     pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
-
-    // The free of charge period of rent.
-    pub const RENT_FREE_PERIOD: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
 }

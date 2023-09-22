@@ -161,21 +161,24 @@ macro_rules! impl_runtime_apis_plus_common {
 					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
 				}
 
-				fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
-					UncheckedExtrinsic::new_unsigned(Gear::run_call().into()).into()
+				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
+					UncheckedExtrinsic::new_unsigned(
+						Gear::run_call(max_gas).into()
+					).into()
 				}
 
-				fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state(program_id)
+				fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+					Gear::read_state(program_id, payload)
 				}
 
 				fn read_state_using_wasm(
 					program_id: H256,
+					payload: Vec<u8>,
 					fn_name: Vec<u8>,
 					wasm: Vec<u8>,
 					argument: Option<Vec<u8>>,
 				) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state_using_wasm(program_id, fn_name, wasm, argument)
+					Gear::read_state_using_wasm(program_id, payload, fn_name, wasm, argument)
 				}
 
 				fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {

@@ -25,16 +25,16 @@ use crate::{
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
             pallet_balances::AccountData,
+            pallet_gear_bank::pallet::BankAccount,
         },
         storage::{
-            GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage, SessionStorage,
-            SystemStorage, TimestampStorage,
+            GearBankStorage, GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage,
+            SessionStorage, SystemStorage, TimestampStorage,
         },
     },
     result::{Error, Result},
-    types,
     utils::storage_address_bytes,
-    Api, BlockNumber,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
@@ -108,7 +108,7 @@ impl Api {
     }
 
     /// Get program pages from program id.
-    pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
+    pub async fn program_pages(&self, pid: ProgramId) -> Result<GearPages> {
         let program = self.gprog(pid).await?;
         self.gpages(pid, &program).await
     }
@@ -183,9 +183,9 @@ impl Api {
     #[storage_fetch]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
+        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
         block_hash: Option<H256>,
-    ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
+    ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
         let gas_node_ids = gas_node_ids.as_ref();
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
@@ -195,6 +195,21 @@ impl Api {
             gas_nodes.push((*gas_node_id, gas_node));
         }
         Ok(gas_nodes)
+    }
+}
+
+// pallet-gear-bank
+impl Api {
+    /// Get Gear bank account data at specified block.
+    #[storage_fetch]
+    pub async fn bank_info_at(
+        &self,
+        account_id: AccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<BankAccount<u128>> {
+        let addr = Self::storage(GearBankStorage::Bank, vec![Value::from_bytes(account_id)]);
+
+        self.fetch_storage_at(&addr, block_hash).await
     }
 }
 
@@ -299,7 +314,7 @@ impl Api {
         program_id: ProgramId,
         program: &ActiveProgram<BlockNumber>,
         block_hash: Option<H256>,
-    ) -> Result<types::GearPages> {
+    ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
         for page in &program.pages_with_data {

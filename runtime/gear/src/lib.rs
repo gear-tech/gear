@@ -54,16 +54,19 @@ use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
-    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
-    AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
-    VALUE_PER_GAS,
+    constants::{
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -86,7 +89,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
@@ -121,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 220,
+    spec_version: 1010,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -274,7 +277,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u128 = 10;
+    pub const QueueLengthStep: u128 = 1000;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
@@ -451,13 +454,19 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+    pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
+}
+
+impl pallet_gear_bank::Config for Runtime {
+    type Currency = Balances;
+    type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
@@ -472,13 +481,21 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
+
+    #[cfg(feature = "runtime-benchmarks")]
+    type ProgramRentEnabled = ConstBool<true>;
+
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type ProgramRentEnabled = ConstBool<false>;
+
+    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
@@ -520,21 +537,33 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// TODO: in case of the `send_reply_with_voucher` call we have to iterate through the
+// TODO: in case of the `send_reply` prepaid call we have to iterate through the
 // user's mailbox to dig out the stored message source `program_id` to check if it has
 // issued a voucher to pay for the reply extrinsic transaction fee.
 // Isn't there a better way to do that?
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
-                destination, ..
-            }) => Some(GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
-                reply_to_id, ..
-            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
-            ),
+            RuntimeCall::Gear(pallet_gear::Call::send_message {
+                destination,
+                prepaid,
+                ..
+            }) => prepaid.then(|| GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::Gear(pallet_gear::Call::send_reply {
+                reply_to_id,
+                prepaid,
+                ..
+            }) => {
+                if *prepaid {
+                    <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                        |stored_message| {
+                            GearVoucher::voucher_account_id(who, &stored_message.source())
+                        },
+                    )
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -571,7 +600,7 @@ where
 //
 // While updating the indexes, please update the indexes in `gsdk/src/metadata/mod.rs`
 // as well, example: https://github.com/gear-tech/gear/pull/2370/commits/a82cb5ba365cf47aef2c42a285a1793a86e711c1
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -600,13 +629,14 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
 
-        // Only available with "debug-mode" feature on
+        // Only available with "dev" feature on
         GearDebug: pallet_gear_debug = 199,
     }
 );
 
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -635,6 +665,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         GearVoucher: pallet_gear_voucher = 106,
+        GearBank: pallet_gear_bank = 107,
     }
 );
 
@@ -673,9 +704,9 @@ pub type Executive = frame_executive::Executive<
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 type DebugInfo = GearDebug;
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 type DebugInfo = ();
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -773,6 +804,12 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            unimplemented!();
         }
     }
 }

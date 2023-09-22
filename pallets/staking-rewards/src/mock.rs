@@ -67,14 +67,11 @@ pub(crate) const NOM_1_CONTROLLER: AccountId = 41;
 pub(crate) const ROOT: AccountId = 101;
 
 pub(crate) const INITIAL_TOTAL_TOKEN_SUPPLY: u128 = 1_000_000 * UNITS;
-pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * MILLICENTS; // 10
+pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS / 100_000; // 10
 pub(crate) const VALIDATOR_STAKE: u128 = 100 * UNITS; // 10
 pub(crate) const ENDOWMENT: u128 = 100 * UNITS;
 
 pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
-pub(crate) const DOLLARS: u128 = UNITS; // 1 to 1
-pub(crate) const CENTS: u128 = DOLLARS / 100; // 1_000
-pub(crate) const MILLICENTS: u128 = CENTS / 1_000; // 1
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
 pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
@@ -394,7 +391,7 @@ impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: u128 = DOLLARS;
+    pub const ProposalBondMinimum: u128 = UNITS;
     pub const SpendPeriod: u32 = 100;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
@@ -612,20 +609,15 @@ pub(crate) fn run_for_n_blocks(n: u64) {
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    System::on_initialize(new_block_number);
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
-    Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
-    Staking::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     Staking::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
-    Balances::on_finalize(current_blk);
-    System::on_finalize(current_blk);
 }
 
 pub fn default_test_ext() -> sp_io::TestExternalities {
@@ -653,7 +645,7 @@ pub(crate) fn nominators_total_balance() -> u128 {
         .fold(0_u128, |acc, x| acc.saturating_add(x))
 }
 
-// Retuns the chain state as a tuple
+// Returns the chain state as a tuple
 // (`total_issuance`, `stakeable_amount`, `treasury_balance`, `staking_rewards_pool_balance`)
 pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
     (

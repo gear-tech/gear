@@ -21,6 +21,7 @@
 #![allow(useless_deprecated, deprecated)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
@@ -35,9 +36,9 @@ use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
+use sp_std::mem;
 
 extern crate alloc;
-use alloc::string::String;
 
 #[cfg(feature = "std")]
 use gear_lazy_pages as lazy_pages;
@@ -86,6 +87,22 @@ impl PassBy for LazyPagesRuntimeContext {
     type PassBy = Codec<LazyPagesRuntimeContext>;
 }
 
+fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
+    let mem_interval_size = mem::size_of::<MemoryInterval>();
+    for chunk in bytes.chunks_exact(mem_interval_size) {
+        // can't panic because of chunks_exact
+        intervals.push(MemoryInterval::try_from_bytes(chunk).unwrap());
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = codec)]
+pub enum ProcessAccessErrorVer1 {
+    OutOfBounds,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+}
+
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
@@ -94,10 +111,58 @@ pub trait GearRI {
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
         gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+    ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
         let mut gas_left = gas_left.0;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
-        (gas_left, res)
+        let gas_before = gas_left.gas;
+        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
+
+        // Support charge for allowance otherwise DB will be corrupted.
+        gas_left.allowance = gas_left
+            .allowance
+            .saturating_sub(gas_before.saturating_sub(gas_left.gas));
+
+        match res {
+            Ok(_) => {
+                if gas_left.allowance > 0 {
+                    (gas_left, Ok(()))
+                } else {
+                    (gas_left, Err(ProcessAccessErrorVer1::GasAllowanceExceeded))
+                }
+            }
+            Err(ProcessAccessError::OutOfBounds) => {
+                (gas_left, Err(ProcessAccessErrorVer1::OutOfBounds))
+            }
+            Err(ProcessAccessError::GasLimitExceeded) => {
+                (gas_left, Err(ProcessAccessErrorVer1::GasLimitExceeded))
+            }
+        }
+    }
+
+    #[version(2)]
+    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+        let mem_interval_size = mem::size_of::<MemoryInterval>();
+        let reads_len = reads.len();
+        let writes_len = writes.len();
+
+        let mut reads_intervals = Vec::with_capacity(reads_len / mem_interval_size);
+        deserialize_mem_intervals(reads, &mut reads_intervals);
+        let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
+        deserialize_mem_intervals(writes, &mut writes_intervals);
+
+        let mut gas_counter = LittleEndian::read_u64(gas_bytes);
+
+        let res = match lazy_pages::pre_process_memory_accesses(
+            &reads_intervals,
+            &writes_intervals,
+            &mut gas_counter,
+        ) {
+            Ok(_) => 0,
+            Err(err) => err.into(),
+        };
+
+        LittleEndian::write_u64(gas_bytes, gas_counter);
+
+        res
     }
 
     fn lazy_pages_status() -> (Status,) {
@@ -165,4 +230,39 @@ pub trait GearRI {
     }
 
     // Bellow goes deprecated runtime interface functions.
+}
+
+/// For debug using in benchmarks testing.
+/// In wasm runtime is impossible to interact with OS functionality,
+/// this interface allows to do it partially.
+#[runtime_interface]
+pub trait GearDebug {
+    fn println(msg: &[u8]) {
+        println!("{}", sp_std::str::from_utf8(msg).unwrap());
+    }
+
+    fn file_write(path: &str, data: Vec<u8>) {
+        use std::{fs::File, io::Write};
+
+        let mut file = File::create(path).unwrap();
+        file.write_all(&data).unwrap();
+    }
+
+    fn file_read(path: &str) -> Vec<u8> {
+        use std::{fs::File, io::Read};
+
+        let mut file = File::open(path).unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        data
+    }
+
+    fn time_in_nanos() -> u128 {
+        use std::time::SystemTime;
+
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    }
 }

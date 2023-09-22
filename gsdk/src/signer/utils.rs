@@ -18,26 +18,140 @@
 
 //! Utils
 
+use super::Inner;
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, types::InBlock, Error,
+    backtrace::BacktraceStatus,
+    config::GearConfig,
+    metadata::{
+        calls::SudoCall, gear_runtime::RuntimeCall, sudo::Event as SudoEvent, CallInfo, Event,
+    },
+    result::Result,
+    signer::SignerRpc,
+    Error, TxInBlock, TxStatus,
 };
+use anyhow::anyhow;
 use scale_value::Composite;
-use subxt::blocks::ExtrinsicEvents;
+use sp_core::H256;
+use std::sync::Arc;
+use subxt::{
+    blocks::ExtrinsicEvents,
+    dynamic::Value,
+    tx::{DynamicPayload, TxProgress},
+    Error as SubxtError, OnlineClient,
+};
 
+type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-impl Signer {
-    /// Get self balance
-    pub async fn balance(&self) -> Result<u128> {
-        self.api().get_balance(&self.address()).await
-    }
-
+impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let after = before.saturating_sub(self.balance().await?);
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let after = before.saturating_sub(signer_rpc.get_balance().await?);
         log::info!("	Balance spent: {after}");
 
         Ok(())
+    }
+
+    /// Propagates log::info for given status.
+    pub(crate) fn log_status(status: &TxStatus) {
+        match status {
+            TxStatus::Future => log::info!("	Status: Future"),
+            TxStatus::Ready => log::info!("	Status: Ready"),
+            TxStatus::Broadcast(v) => log::info!("	Status: Broadcast( {v:?} )"),
+            TxStatus::InBlock(b) => log::info!(
+                "	Status: InBlock( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::Retracted(h) => log::warn!("	Status: Retracted( {h} )"),
+            TxStatus::FinalityTimeout(h) => log::error!("	Status: FinalityTimeout( {h} )"),
+            TxStatus::Finalized(b) => log::info!(
+                "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::Usurped(h) => log::error!("	Status: Usurped( {h} )"),
+            TxStatus::Dropped => log::error!("	Status: Dropped"),
+            TxStatus::Invalid => log::error!("	Status: Invalid"),
+        }
+    }
+
+    /// Listen transaction process and print logs.
+    pub async fn process<'a>(&self, tx: DynamicPayload) -> Result<TxInBlock> {
+        use subxt::tx::TxStatus::*;
+
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let before = signer_rpc.get_balance().await?;
+
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
+        let (pallet, name) = (tx.pallet_name(), tx.call_name());
+
+        log::info!("Submitted extrinsic {}::{}", pallet, name);
+
+        let mut queue: Vec<BacktraceStatus> = Default::default();
+        let mut hash: Option<H256> = None;
+
+        while let Some(status) = process.next_item().await {
+            let status = status?;
+            Self::log_status(&status);
+
+            if let Some(h) = &hash {
+                self.backtrace
+                    .clone()
+                    .append(*h, BacktraceStatus::from(&status));
+            } else {
+                queue.push((&status).into());
+            }
+
+            match status {
+                Future | Ready | Broadcast(_) | Retracted(_) => (),
+                InBlock(b) => {
+                    hash = Some(b.extrinsic_hash());
+                    self.backtrace.append(
+                        b.extrinsic_hash(),
+                        BacktraceStatus::InBlock {
+                            block_hash: b.block_hash(),
+                            extrinsic_hash: b.extrinsic_hash(),
+                        },
+                    );
+                }
+                Finalized(b) => {
+                    log::info!(
+                        "Successfully submitted call {}::{} {} at {}!",
+                        pallet,
+                        name,
+                        b.extrinsic_hash(),
+                        b.block_hash()
+                    );
+                    self.log_balance_spent(before).await?;
+                    return Ok(b);
+                }
+                _ => {
+                    self.log_balance_spent(before).await?;
+                    return Err(status.into());
+                }
+            }
+        }
+
+        Err(anyhow!("Transaction wasn't found").into())
+    }
+
+    /// Process sudo transaction.
+    pub async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
+        let tx = self.process(tx).await?;
+        let events = tx.wait_for_success().await?;
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.api().decode_error(err).into());
+            }
+        }
+
+        Ok(events)
     }
 
     /// Run transaction.
@@ -46,7 +160,7 @@ impl Signer {
     ///
     /// # You may not need this.
     ///
-    /// Read the docs of [`Signer`] to checkout the wrappred transactions,
+    /// Read the docs of [`Signer`](`super::Signer`) to checkout the wrappred transactions,
     /// we need this function only when we want to execute a transaction
     /// which has not been wrapped in `gsdk`.
     ///
@@ -74,7 +188,7 @@ impl Signer {
     /// // The code above euqals to:
     ///
     /// {
-    ///    let in_block = signer.transfer(dest, value).await?;
+    ///    let in_block = signer.calls.transfer(dest, value).await?;
     /// }
     ///
     /// // ...
@@ -83,7 +197,7 @@ impl Signer {
         &self,
         call: Call,
         fields: impl Into<Composite<()>>,
-    ) -> InBlock {
+    ) -> Result<TxInBlock> {
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await
@@ -98,5 +212,30 @@ impl Signer {
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process_sudo(tx).await
+    }
+
+    /// `pallet_sudo::sudo`
+    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
+        self.sudo_run_tx(SudoCall::Sudo, vec![Value::from(call)])
+            .await
+    }
+
+    /// Wrapper for submit and watch with nonce.
+    async fn sign_and_submit_then_watch<'a>(
+        &self,
+        tx: &DynamicPayload,
+    ) -> Result<TxProgressT, SubxtError> {
+        if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(tx, &self.signer)
+                .await
+        }
     }
 }

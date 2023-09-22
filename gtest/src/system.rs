@@ -37,14 +37,27 @@ impl Default for System {
 }
 
 impl System {
+    pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
+
+    /// Create a new system.
     pub fn new() -> Self {
+        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+            Self::PAGE_STORAGE_PREFIX
+        ));
         Default::default()
     }
 
+    /// Init logger with "gwasm" target set to `debug` level.
     pub fn init_logger(&self) {
-        self.init_logger_with_default_filter("gwasm=debug")
+        self.init_logger_with_default_filter("gwasm=debug");
     }
 
+    /// Init logger with "gwasm" and "gtest" targets set to `debug` level.
+    pub fn init_verbose_logger(&self) {
+        self.init_logger_with_default_filter("gwasm=debug,gtest=debug");
+    }
+
+    /// Init logger with `default_filter` as default filter.
     pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
         let _ = Builder::from_env(Env::default().default_filter_or(default_filter))
             .format(|buf, record| {
@@ -129,10 +142,11 @@ impl System {
     ///
     /// This method is mainly used for providing a proper program from program
     /// creation logic. In order to successfully create a new program with
-    /// `gstd::prog::create_program_with_gas` function, developer should
+    /// `gstd::prog::create_program_bytes_with_gas` function, developer should
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    #[track_caller]
     pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
@@ -143,6 +157,7 @@ impl System {
         self.0.borrow_mut().store_new_code(&code)
     }
 
+    #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
         if !self.0.borrow().is_user(&program_id) {
