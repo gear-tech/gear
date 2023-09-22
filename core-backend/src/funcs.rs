@@ -24,6 +24,7 @@ use crate::{
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableMemoryError,
     },
+    env::SandboxValue,
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::CallerWrap,
     BackendExternalities,
@@ -43,7 +44,8 @@ use gear_core::{
 };
 use gear_core_backend_codegen::host;
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
-use gear_sandbox_env::HostError;
+use gear_sandbox::ReturnValue;
+use gear_sandbox_env::{HostError, WasmReturnValue};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
@@ -84,6 +86,40 @@ macro_rules! syscall_trace {
     }
 }
 
+pub trait FallibleSysCall<Ext> {
+    fn execute(
+        &self,
+        ctx: &mut CallerWrap<Ext>,
+        gas: u64,
+        res_ptr: u32,
+    ) -> Result<(u64, ()), HostError>;
+}
+
+type InnerFallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
+
+impl<T, E, F, Ext> FallibleSysCall<Ext> for InnerFallibleSysCall<E, F>
+where
+    F: Fn(&mut CallerWrap<Ext>) -> Result<T, RunFallibleError>,
+    E: From<Result<T, u32>>,
+    Ext: BackendExternalities + 'static,
+{
+    fn execute(
+        &self,
+        ctx: &mut CallerWrap<Ext>,
+        gas: u64,
+        res_ptr: u32,
+    ) -> Result<(u64, ()), HostError> {
+        let (costs, _error, func) = self;
+        ctx.run_fallible::<T, _, E>(gas, res_ptr, *costs, |ctx| (func)(ctx))
+    }
+}
+
+#[derive(Default)]
+struct FallibleSysCallError<T>(PhantomData<T>);
+
+#[derive(Default)]
+struct FallibleSysCallOutput<T>(PhantomData<T>);
+
 const PTR_SPECIAL: u32 = u32::MAX;
 
 pub(crate) struct FuncsHandler<Ext: Externalities + 'static> {
@@ -119,6 +155,86 @@ where
             .try_into()
             .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
             .map_err(RunFallibleError::FallibleExt)
+    }
+
+    fn sandbox() {
+        trait SysCallFabric<Ext, Args, S> {
+            fn create(&self, args: &[SandboxValue]) -> Result<S, HostError>;
+        }
+
+        impl<Ext, S, H> SysCallFabric<Ext, (u32, u32, u32, u32, u32, u32), S> for H
+        where
+            H: Fn(u32, u32, u32, u32, u32, u32) -> S,
+            S: FallibleSysCall<Ext>,
+        {
+            fn create(&self, args: &[SandboxValue]) -> Result<S, HostError> {
+                let [a, b, c, d, e, f]: [SandboxValue; 6] =
+                    args.try_into().map_err(|_| HostError)?;
+                let a = a.try_into()?;
+                let b = b.try_into()?;
+                let c = c.try_into()?;
+                let d = d.try_into()?;
+                let e = e.try_into()?;
+                let f = f.try_into()?;
+                Ok((self)(a, b, c, d, e, f))
+            }
+        }
+
+        fn execute<Ext, H, Args, S>(
+            ctx: &mut CallerWrap<Ext>,
+            args: &[SandboxValue],
+            handler: H,
+        ) -> Result<WasmReturnValue, HostError>
+        where
+            Ext: BackendExternalities + 'static,
+            Ext::UnrecoverableError: BackendSyscallError,
+            RunFallibleError: From<Ext::FallibleError>,
+            Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+            H: SysCallFabric<Ext, Args, S>,
+            S: FallibleSysCall<Ext>,
+        {
+            let (gas, args) = args.split_first().ok_or(HostError)?;
+            let gas = (*gas).try_into()?;
+            let (res_ptr, args) = args.split_last().ok_or(HostError)?;
+            let res_ptr = (*res_ptr).try_into()?;
+
+            let sys_call = SysCallFabric::create(&handler, args)?;
+            let (gas, ()) = sys_call.execute(ctx, gas, res_ptr)?;
+
+            Ok(WasmReturnValue {
+                gas: gas as i64,
+                inner: ReturnValue::Unit,
+            })
+        }
+    }
+
+    pub fn create_program2(
+        cid_value_ptr: u32,
+        salt_ptr: u32,
+        salt_len: u32,
+        payload_ptr: u32,
+        payload_len: u32,
+        delay: u32,
+    ) -> impl FallibleSysCall<Ext> {
+        (
+            RuntimeCosts::CreateProgram(payload_len, salt_len),
+            FallibleSysCallError::<ErrorWithTwoHashes>::default(),
+            move |ctx: &mut CallerWrap<Ext>| -> Result<_, RunFallibleError> {
+                let read_cid_value = ctx.manager.register_read_as(cid_value_ptr);
+                let read_salt = ctx.manager.register_read(salt_ptr, salt_len);
+                let read_payload = ctx.manager.register_read(payload_ptr, payload_len);
+                let HashWithValue {
+                    hash: code_id,
+                    value,
+                } = ctx.read_as(read_cid_value)?;
+                let salt = Self::read_message_payload(ctx, read_salt)?;
+                let payload = Self::read_message_payload(ctx, read_payload)?;
+
+                ctx.ext_mut()
+                    .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
+                    .map_err(Into::into)
+            },
+        )
     }
 
     // TODO #3037

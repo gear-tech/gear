@@ -61,7 +61,7 @@ use gear_wasm_instrument::{
 };
 
 #[derive(Clone, Copy)]
-struct SandboxValue(Value);
+pub struct SandboxValue(Value);
 
 impl From<i32> for SandboxValue {
     fn from(value: i32) -> Self {
