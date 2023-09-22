@@ -213,6 +213,17 @@ where
             fn create(self, args: &[SandboxValue]) -> Result<S, HostError>;
         }
 
+        impl<Ext, R, S, H> SysCallFabric<Ext, (), R, S> for H
+        where
+            H: Fn() -> S,
+            S: SysCall<Ext, R>,
+        {
+            fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
+                let _: [SandboxValue; 0] = args.try_into().map_err(|_| HostError)?;
+                Ok((self)())
+            }
+        }
+
         impl<Ext, R, S, H> SysCallFabric<Ext, (u32,), R, S> for H
         where
             H: Fn(u32) -> S,
@@ -277,7 +288,14 @@ where
             let _ = execute(caller, &[], FuncsHandler::<Ext>::create_program2);
             let _ = execute(caller, &[], FuncsHandler::<Ext>::size2);
             let _ = execute(caller, &[], FuncsHandler::<Ext>::alloc2);
+            let _ = execute(caller, &[], FuncsHandler::<Ext>::forbidden2);
         }
+    }
+
+    pub fn forbidden2() -> impl SysCall<Ext> {
+        (RuntimeCosts::Null, |_: &mut CallerWrap<Ext>| {
+            Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
+        })
     }
 
     pub fn alloc2(pages: u32) -> impl SysCall<Ext, u32> {
