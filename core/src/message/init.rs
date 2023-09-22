@@ -178,6 +178,23 @@ impl InitPacket {
         }
     }
 
+    /// Create new InitPacket with optional gas.
+    pub fn maybe_with_gas(
+        code_id: CodeId,
+        salt: Salt,
+        payload: Payload,
+        message_id: Option<MessageId>,
+        gas_limit: Option<GasLimit>,
+        value: Value,
+    ) -> Self {
+        match gas_limit {
+            None => Self::new(code_id, salt, payload, message_id, value),
+            Some(gas_limit) => {
+                Self::new_with_gas(code_id, salt, payload, message_id, gas_limit, value)
+            }
+        }
+    }
+
     /// Packet destination (newly created program id).
     pub fn destination(&self) -> ProgramId {
         self.program_id

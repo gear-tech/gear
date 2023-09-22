@@ -350,13 +350,12 @@ where
         } = ctx.read_as(read_hash_val)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value)
-        } else {
-            HandlePacket::new(destination.into(), payload, value)
-        };
-
-        ctx.ext_mut().send(packet, delay).map_err(Into::into)
+        ctx.ext_mut()
+            .send(
+                HandlePacket::maybe_with_gas(destination.into(), payload, gas_limit, value),
+                delay,
+            )
+            .map_err(Into::into)
     }
 
     pub fn send(pid_value_ptr: u32, payload_ptr: u32, len: u32, delay: u32) -> impl SysCall<Ext> {
@@ -398,14 +397,17 @@ where
             value,
         } = ctx.read_as(read_pid_value)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            HandlePacket::new_with_gas(destination.into(), Default::default(), gas_limit, value)
-        } else {
-            HandlePacket::new(destination.into(), Default::default(), value)
-        };
-
         ctx.ext_mut()
-            .send_commit(handle, packet, delay)
+            .send_commit(
+                handle,
+                HandlePacket::maybe_with_gas(
+                    destination.into(),
+                    Default::default(),
+                    gas_limit,
+                    value,
+                ),
+                delay,
+            )
             .map_err(Into::into)
     }
 
@@ -566,6 +568,7 @@ where
         )
     }
 
+    // TODO: write proper benchmark #2825
     pub fn signal_code() -> impl SysCall<Ext> {
         (
             RuntimeCosts::SignalCode,
@@ -689,13 +692,9 @@ where
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            ReplyPacket::new_with_gas(payload, gas_limit, value)
-        } else {
-            ReplyPacket::new(payload, value)
-        };
-
-        ctx.ext_mut().reply(packet).map_err(Into::into)
+        ctx.ext_mut()
+            .reply(ReplyPacket::maybe_with_gas(payload, gas_limit, value))
+            .map_err(Into::into)
     }
 
     pub fn reply(payload_ptr: u32, len: u32, value_ptr: u32) -> impl SysCall<Ext> {
@@ -730,13 +729,13 @@ where
     ) -> Result<MessageId, RunFallibleError> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            ReplyPacket::new_with_gas(Default::default(), gas_limit, value)
-        } else {
-            ReplyPacket::new(Default::default(), value)
-        };
-
-        ctx.ext_mut().reply_commit(packet).map_err(Into::into)
+        ctx.ext_mut()
+            .reply_commit(ReplyPacket::maybe_with_gas(
+                Default::default(),
+                gas_limit,
+                value,
+            ))
+            .map_err(Into::into)
     }
 
     pub fn reply_commit(value_ptr: u32) -> impl SysCall<Ext> {
@@ -806,6 +805,7 @@ where
         )
     }
 
+    // TODO: write proper benchmark #2825
     pub fn signal_from() -> impl SysCall<Ext> {
         (
             RuntimeCosts::SignalFrom,
@@ -839,13 +839,13 @@ where
         // Charge for `len` is inside `reply_push_input`
         ctx.ext_mut().reply_push_input(offset, len)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            ReplyPacket::new_with_gas(Default::default(), gas_limit, value)
-        } else {
-            ReplyPacket::new(Default::default(), value)
-        };
-
-        ctx.ext_mut().reply_commit(packet).map_err(Into::into)
+        ctx.ext_mut()
+            .reply_commit(ReplyPacket::maybe_with_gas(
+                Default::default(),
+                gas_limit,
+                value,
+            ))
+            .map_err(Into::into)
     }
 
     pub fn reply_input(offset: u32, len: u32, value_ptr: u32) -> impl SysCall<Ext> {
@@ -903,14 +903,17 @@ where
         // Charge for `len` inside `send_push_input`
         ctx.ext_mut().send_push_input(handle, offset, len)?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            HandlePacket::new_with_gas(destination.into(), Default::default(), gas_limit, value)
-        } else {
-            HandlePacket::new(destination.into(), Default::default(), value)
-        };
-
         ctx.ext_mut()
-            .send_commit(handle, packet, delay)
+            .send_commit(
+                handle,
+                HandlePacket::maybe_with_gas(
+                    destination.into(),
+                    Default::default(),
+                    gas_limit,
+                    value,
+                ),
+                delay,
+            )
             .map_err(Into::into)
     }
 
@@ -1198,21 +1201,18 @@ where
 
         let message_id = ctx.ext_mut().message_id()?;
 
-        let packet = if let Some(gas_limit) = gas_limit {
-            InitPacket::new_with_gas(
-                code_id.into(),
-                salt,
-                payload,
-                Some(message_id),
-                gas_limit,
-                value,
-            )
-        } else {
-            InitPacket::new(code_id.into(), salt, payload, Some(message_id), value)
-        };
-
         ctx.ext_mut()
-            .create_program(packet, delay)
+            .create_program(
+                InitPacket::maybe_with_gas(
+                    code_id.into(),
+                    salt,
+                    payload,
+                    Some(message_id),
+                    gas_limit,
+                    value,
+                ),
+                delay,
+            )
             .map_err(Into::into)
     }
 
