@@ -60,8 +60,6 @@ pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
 /// An error that occurs when generating precise sys-call.
 #[derive(thiserror::Error, Debug)]
 pub enum PreciseSysCallError {
-    #[error("Unexpected additional data was received for precise sys-call")]
-    AdditionalData,
     #[error("{0}")]
     Arbitrary(#[from] ArbitraryError),
 }
@@ -216,11 +214,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                     name = InvocableSysCall::Precise(sys_call).to_str()
                 );
 
-                if let Err(err) = generate_method(self, sys_call) {
-                    match err {
-                        PreciseSysCallError::AdditionalData => log::trace!("{err}"),
-                        PreciseSysCallError::Arbitrary(err) => return Err(err),
-                    }
+                if let Err(PreciseSysCallError::Arbitrary(err)) = generate_method(self, sys_call) {
+                    return Err(err);
                 }
             }
         }
