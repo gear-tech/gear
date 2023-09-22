@@ -86,39 +86,95 @@ macro_rules! syscall_trace {
     }
 }
 
-pub trait FallibleSysCall<Ext> {
+pub trait SysCallContext: Sized {
+    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError>;
+}
+
+pub trait SysCall<Ext> {
+    type Context: SysCallContext;
+
     fn execute(
         &self,
-        ctx: &mut CallerWrap<Ext>,
-        gas: u64,
-        res_ptr: u32,
+        caller: &mut CallerWrap<Ext>,
+        ctx: Self::Context,
     ) -> Result<(u64, ()), HostError>;
 }
 
-type InnerFallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
+struct FallibleSysCallContext {
+    gas: u64,
+    res_ptr: u32,
+}
 
-impl<T, E, F, Ext> FallibleSysCall<Ext> for InnerFallibleSysCall<E, F>
+impl SysCallContext for FallibleSysCallContext {
+    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError> {
+        let (gas, args) = args.split_first().ok_or(HostError)?;
+        let gas: u64 = (*gas).try_into()?;
+        let (res_ptr, args) = args.split_last().ok_or(HostError)?;
+        let res_ptr: u32 = (*res_ptr).try_into()?;
+        Ok((FallibleSysCallContext { gas, res_ptr }, args))
+    }
+}
+
+type FallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
+
+impl<T, E, F, Ext> SysCall<Ext> for FallibleSysCall<E, F>
 where
     F: Fn(&mut CallerWrap<Ext>) -> Result<T, RunFallibleError>,
     E: From<Result<T, u32>>,
     Ext: BackendExternalities + 'static,
 {
+    type Context = FallibleSysCallContext;
+
     fn execute(
         &self,
-        ctx: &mut CallerWrap<Ext>,
-        gas: u64,
-        res_ptr: u32,
+        caller: &mut CallerWrap<Ext>,
+        context: Self::Context,
     ) -> Result<(u64, ()), HostError> {
         let (costs, _error, func) = self;
-        ctx.run_fallible::<T, _, E>(gas, res_ptr, *costs, |ctx| (func)(ctx))
+        let FallibleSysCallContext { gas, res_ptr } = context;
+        caller.run_fallible::<T, _, E>(gas, res_ptr, *costs, |ctx| (func)(ctx))
+    }
+}
+
+pub struct InfallibleSysCallContext {
+    gas: u64,
+}
+
+impl SysCallContext for InfallibleSysCallContext {
+    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError> {
+        let (gas, args) = args.split_first().ok_or(HostError)?;
+        let gas: u64 = (*gas).try_into()?;
+        Ok((Self { gas }, args))
+    }
+}
+
+type InfallibleSysCall<F> = (RuntimeCosts, F);
+
+impl<T, F, Ext> SysCall<Ext> for InfallibleSysCall<F>
+where
+    F: Fn(&mut CallerWrap<Ext>) -> Result<T, UndefinedTerminationReason>,
+    Ext: BackendExternalities + 'static,
+{
+    type Context = InfallibleSysCallContext;
+
+    fn execute(
+        &self,
+        caller: &mut CallerWrap<Ext>,
+        ctx: Self::Context,
+    ) -> Result<(u64, ()), HostError> {
+        let (costs, func) = self;
+        let InfallibleSysCallContext { gas } = ctx;
+        caller
+            .run_any::<T, _>(gas, *costs, |ctx| (func)(ctx))
+            .map(|(gas, _)| {
+                // FIXME: sys-call return value is not supported yet
+                (gas, ())
+            })
     }
 }
 
 #[derive(Default)]
 struct FallibleSysCallError<T>(PhantomData<T>);
-
-#[derive(Default)]
-struct FallibleSysCallOutput<T>(PhantomData<T>);
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
@@ -159,15 +215,27 @@ where
 
     fn sandbox() {
         trait SysCallFabric<Ext, Args, S> {
-            fn create(&self, args: &[SandboxValue]) -> Result<S, HostError>;
+            fn create(self, args: &[SandboxValue]) -> Result<S, HostError>;
+        }
+
+        impl<Ext, S, H> SysCallFabric<Ext, (u32,), S> for H
+        where
+            H: Fn(u32) -> S,
+            S: SysCall<Ext>,
+        {
+            fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
+                let [a]: [SandboxValue; 1] = args.try_into().map_err(|_| HostError)?;
+                let a = a.try_into()?;
+                Ok((self)(a))
+            }
         }
 
         impl<Ext, S, H> SysCallFabric<Ext, (u32, u32, u32, u32, u32, u32), S> for H
         where
             H: Fn(u32, u32, u32, u32, u32, u32) -> S,
-            S: FallibleSysCall<Ext>,
+            S: SysCall<Ext>,
         {
-            fn create(&self, args: &[SandboxValue]) -> Result<S, HostError> {
+            fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
                 let [a, b, c, d, e, f]: [SandboxValue; 6] =
                     args.try_into().map_err(|_| HostError)?;
                 let a = a.try_into()?;
@@ -181,7 +249,7 @@ where
         }
 
         fn execute<Ext, H, Args, S>(
-            ctx: &mut CallerWrap<Ext>,
+            caller: &mut CallerWrap<Ext>,
             args: &[SandboxValue],
             handler: H,
         ) -> Result<WasmReturnValue, HostError>
@@ -191,15 +259,11 @@ where
             RunFallibleError: From<Ext::FallibleError>,
             Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
             H: SysCallFabric<Ext, Args, S>,
-            S: FallibleSysCall<Ext>,
+            S: SysCall<Ext>,
         {
-            let (gas, args) = args.split_first().ok_or(HostError)?;
-            let gas = (*gas).try_into()?;
-            let (res_ptr, args) = args.split_last().ok_or(HostError)?;
-            let res_ptr = (*res_ptr).try_into()?;
-
-            let sys_call = SysCallFabric::create(&handler, args)?;
-            let (gas, ()) = sys_call.execute(ctx, gas, res_ptr)?;
+            let (ctx, args) = S::Context::from_args(args)?;
+            let sys_call = SysCallFabric::create(handler, args)?;
+            let (gas, ()) = sys_call.execute(caller, ctx)?;
 
             Ok(WasmReturnValue {
                 gas: gas as i64,
@@ -215,7 +279,7 @@ where
         payload_ptr: u32,
         payload_len: u32,
         delay: u32,
-    ) -> impl FallibleSysCall<Ext> {
+    ) -> impl SysCall<Ext> {
         (
             RuntimeCosts::CreateProgram(payload_len, salt_len),
             FallibleSysCallError::<ErrorWithTwoHashes>::default(),
@@ -235,6 +299,16 @@ where
                     .map_err(Into::into)
             },
         )
+    }
+
+    pub fn size2(size_ptr: u32) -> impl SysCall<Ext> {
+        (RuntimeCosts::Size, move |ctx: &mut CallerWrap<Ext>| {
+            let size = ctx.ext_mut().size()? as u32;
+
+            let write_size = ctx.manager.register_write_as(size_ptr);
+            ctx.write_as(write_size, size.to_le_bytes())
+                .map_err(Into::into)
+        })
     }
 
     // TODO #3037
