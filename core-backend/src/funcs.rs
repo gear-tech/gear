@@ -376,7 +376,7 @@ where
         delay: u32,
     ) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::Send(len),
+            RuntimeCosts::SendWGas(len),
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::send_inner(ctx, pid_value_ptr, payload_ptr, len, Some(gas_limit), delay)
@@ -428,7 +428,7 @@ where
         delay: u32,
     ) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::SendCommit,
+            RuntimeCosts::SendCommitWGas,
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::send_commit_inner(ctx, handle, pid_value_ptr, Some(gas_limit), delay)
@@ -705,7 +705,7 @@ where
         value_ptr: u32,
     ) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::Reply(len),
+            RuntimeCosts::ReplyWGas(len),
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::reply_inner(ctx, payload_ptr, len, Some(gas_limit), value_ptr)
@@ -739,7 +739,7 @@ where
 
     pub fn reply_commit_wgas(gas_limit: u64, value_ptr: u32) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::ReplyCommit,
+            RuntimeCosts::ReplyCommitWGas,
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::reply_commit_inner(ctx, Some(gas_limit), value_ptr)
@@ -856,7 +856,7 @@ where
         value_ptr: u32,
     ) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::ReplyInput,
+            RuntimeCosts::ReplyInputWGas,
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::reply_input_inner(ctx, offset, len, Some(gas_limit), value_ptr)
@@ -926,7 +926,7 @@ where
         delay: u32,
     ) -> impl SysCall<Ext> {
         (
-            RuntimeCosts::SendInput,
+            RuntimeCosts::SendInputWGas,
             FallibleSysCallError::<ErrorWithHash>::default(),
             move |ctx: &mut CallerWrap<Ext>| {
                 Self::send_input_inner(ctx, pid_value_ptr, offset, len, Some(gas_limit), delay)
