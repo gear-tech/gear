@@ -9,4 +9,4 @@ name = "gear-key-finder"
 path = "src/main.rs"
 
 [dependencies]
-hex = {workspace = true, features = ["alloc"] }
+hex = { workspace = true, features = ["alloc"] }
