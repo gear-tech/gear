@@ -90,14 +90,14 @@ pub trait SysCallContext: Sized {
     fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError>;
 }
 
-pub trait SysCall<Ext> {
+pub trait SysCall<Ext, T = ()> {
     type Context: SysCallContext;
 
     fn execute(
         &self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
-    ) -> Result<(u64, ()), HostError>;
+    ) -> Result<(u64, T), HostError>;
 }
 
 struct FallibleSysCallContext {
@@ -117,7 +117,7 @@ impl SysCallContext for FallibleSysCallContext {
 
 type FallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
 
-impl<T, E, F, Ext> SysCall<Ext> for FallibleSysCall<E, F>
+impl<T, E, F, Ext> SysCall<Ext, ()> for FallibleSysCall<E, F>
 where
     F: Fn(&mut CallerWrap<Ext>) -> Result<T, RunFallibleError>,
     E: From<Result<T, u32>>,
@@ -150,7 +150,7 @@ impl SysCallContext for InfallibleSysCallContext {
 
 type InfallibleSysCall<F> = (RuntimeCosts, F);
 
-impl<T, F, Ext> SysCall<Ext> for InfallibleSysCall<F>
+impl<T, F, Ext> SysCall<Ext, T> for InfallibleSysCall<F>
 where
     F: Fn(&mut CallerWrap<Ext>) -> Result<T, UndefinedTerminationReason>,
     Ext: BackendExternalities + 'static,
@@ -161,15 +161,10 @@ where
         &self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
-    ) -> Result<(u64, ()), HostError> {
+    ) -> Result<(u64, T), HostError> {
         let (costs, func) = self;
         let InfallibleSysCallContext { gas } = ctx;
-        caller
-            .run_any::<T, _>(gas, *costs, |ctx| (func)(ctx))
-            .map(|(gas, _)| {
-                // FIXME: sys-call return value is not supported yet
-                (gas, ())
-            })
+        caller.run_any::<T, _>(gas, *costs, |ctx| (func)(ctx))
     }
 }
 
@@ -214,14 +209,14 @@ where
     }
 
     fn sandbox() {
-        trait SysCallFabric<Ext, Args, S> {
+        trait SysCallFabric<Ext, Args, R, S> {
             fn create(self, args: &[SandboxValue]) -> Result<S, HostError>;
         }
 
-        impl<Ext, S, H> SysCallFabric<Ext, (u32,), S> for H
+        impl<Ext, R, S, H> SysCallFabric<Ext, (u32,), R, S> for H
         where
             H: Fn(u32) -> S,
-            S: SysCall<Ext>,
+            S: SysCall<Ext, R>,
         {
             fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
                 let [a]: [SandboxValue; 1] = args.try_into().map_err(|_| HostError)?;
@@ -230,10 +225,10 @@ where
             }
         }
 
-        impl<Ext, S, H> SysCallFabric<Ext, (u32, u32, u32, u32, u32, u32), S> for H
+        impl<Ext, R, S, H> SysCallFabric<Ext, (u32, u32, u32, u32, u32, u32), R, S> for H
         where
             H: Fn(u32, u32, u32, u32, u32, u32) -> S,
-            S: SysCall<Ext>,
+            S: SysCall<Ext, R>,
         {
             fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
                 let [a, b, c, d, e, f]: [SandboxValue; 6] =
@@ -248,7 +243,7 @@ where
             }
         }
 
-        fn execute<Ext, H, Args, S>(
+        fn execute<Ext, H, Args, R, S>(
             caller: &mut CallerWrap<Ext>,
             args: &[SandboxValue],
             handler: H,
@@ -258,18 +253,53 @@ where
             Ext::UnrecoverableError: BackendSyscallError,
             RunFallibleError: From<Ext::FallibleError>,
             Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
-            H: SysCallFabric<Ext, Args, S>,
-            S: SysCall<Ext>,
+            H: SysCallFabric<Ext, Args, R, S>,
+            S: SysCall<Ext, R>,
         {
             let (ctx, args) = S::Context::from_args(args)?;
             let sys_call = SysCallFabric::create(handler, args)?;
-            let (gas, ()) = sys_call.execute(caller, ctx)?;
+            // FIXME: return value is not ignored
+            let (gas, _value) = sys_call.execute(caller, ctx)?;
 
             Ok(WasmReturnValue {
                 gas: gas as i64,
                 inner: ReturnValue::Unit,
             })
         }
+
+        fn check<Ext>(caller: &mut CallerWrap<Ext>)
+        where
+            Ext: BackendExternalities + 'static,
+            Ext::UnrecoverableError: BackendSyscallError,
+            RunFallibleError: From<Ext::FallibleError>,
+            Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+        {
+            let _ = execute(caller, &[], FuncsHandler::<Ext>::create_program2);
+            let _ = execute(caller, &[], FuncsHandler::<Ext>::size2);
+            let _ = execute(caller, &[], FuncsHandler::<Ext>::alloc2);
+        }
+    }
+
+    pub fn alloc2(pages: u32) -> impl SysCall<Ext, u32> {
+        (
+            RuntimeCosts::Alloc(pages),
+            move |ctx: &mut CallerWrap<Ext>| {
+                let res = ctx.alloc(pages);
+                let res = ctx.process_alloc_func_result(res)?;
+
+                let page = match res {
+                    Ok(page) => {
+                        log::trace!("Alloc {pages:?} pages at {page:?}");
+                        page.raw()
+                    }
+                    Err(err) => {
+                        log::trace!("Alloc failed: {err}");
+                        u32::MAX
+                    }
+                };
+                Ok(page)
+            },
+        )
     }
 
     pub fn create_program2(
