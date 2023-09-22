@@ -13,6 +13,7 @@ const VERSIONS: [&str; 7] = [
 const PATHS: [&str; 2] = ["gear", "gear-node"];
 
 fn main() {
+    let mut found = false;
     for path in PATHS {
         let chains_path = ProjectDirs::from("", "", path)
             .unwrap()
@@ -26,11 +27,15 @@ fn main() {
                     let key = std::fs::read(&key_path);
                     if let Ok(key) = key {
                         println!("Key found in \"{path}/{version}\": 0x{}", hex::encode(key));
+                        found = true;
                     } else {
                         eprintln!("Failed to read key from {path:?}",);
                     }
                 }
             }
         }
+    }
+    if !found {
+        println!("No key file was found. Please try to run this utility with `sudo`.");
     }
 }
