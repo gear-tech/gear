@@ -14,41 +14,26 @@ const VERSIONS: [&'static str; 7] = [
 const PATHS: [&'static str; 2] = ["gear", "gear-node"];
 
 fn main() {
-    PATHS
-        .iter()
-        .flat_map(|p| {
-            if let Some(proj_dirs) = ProjectDirs::from("", "", p) {
-                let path = proj_dirs.data_local_dir();
-                if path.is_dir() {
-                    let path = path.join("chains");
-                    return VERSIONS
-                        .iter()
-                        .filter_map(|v| {
-                            let mut path = path.clone();
-                            path.push(v);
-                            if path.is_dir() {
-                                path.push("network");
-                                path.push("secret_ed25519");
-                                if path.is_file() {
-                                    return Some((path, p, v));
-                                }
-                            }
-                            None
-                        })
-                        .collect::<Vec<_>>();
+    for path in PATHS {
+        let chains_path = ProjectDirs::from("", "", path)
+            .unwrap()
+            .data_local_dir()
+            .join("chains");
+        if chains_path.is_dir() {
+            for version in VERSIONS {
+                let mut key_path = chains_path.join(version);
+                key_path.extend(&["network", "secret_ed25519"]);
+                if key_path.is_file() {
+                    let key = std::fs::read(&key_path);
+                    if let Ok(key) = key {
+                        println!("Key found in \"{path}/{version}\": 0x{}", hex::encode(key));
+                    } else {
+                        eprintln!("Failed to read key from {path:?}",);
+                    }
                 }
             }
-            vec![]
-        })
-        .filter_map(|(path, p, v)| {
-            if let Ok(key) = std::fs::read(&path) {
-                Some((p.to_string() + "/" + v, encode(key)))
-            } else {
-                eprintln!("Failed to read key from {:?}", path);
-                None
-            }
-        })
-        .for_each(|(path, key)| {
+        }
+    }
             println!("Key found in \"{}\": 0x{}", path, key);
         });
 }
