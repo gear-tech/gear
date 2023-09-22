@@ -286,6 +286,7 @@ fn execute_wasm_with_syscall_injected(
             max_instructions: 0,
             min_funcs: 1,
             max_funcs: 1,
+            unreachable_enabled: true,
         },
     );
 

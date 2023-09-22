@@ -1,0 +1,46 @@
+name: Comparison table
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: For which runtime generate comparison table?
+        required: true
+        type: choice
+        options:
+          - gear
+          - vara
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+
+jobs:
+  comparison-table:
+    runs-on: [kuberunner]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout & fetch all history"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Build: Init"
+        run: ./scripts/gear.sh init cargo
+
+      - name: "Generate comparison tables (${{ inputs.runtime }})"
+        run: |
+          ./scripts/weight-diff.sh master $(git branch --show-current) ${{ inputs.runtime }} --display-units > ${{ inputs.runtime }}-tables.txt
+
+      - name: "ACTIONS: Upload artifact with comparison tables (${{ inputs.runtime }})"
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ inputs.runtime }}-tables
+          path: ${{ inputs.runtime }}-tables.txt

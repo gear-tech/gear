@@ -23,10 +23,12 @@
 
 use crate::authorship::*;
 
-use codec::Encode;
+use codec::{Decode, Encode};
+use common::Program;
 use core::convert::TryFrom;
 use frame_support::{storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use runtime_primitives::BlockNumber;
 use sc_client_api::Backend;
 use sc_transaction_pool::BasicPool;
 use sc_transaction_pool_api::{
@@ -53,6 +55,7 @@ use testing::{
 use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
 
 const SOURCE: TransactionSource = TransactionSource::External;
+const DEFAULT_GAS_LIMIT: u64 = 865_000_000;
 
 fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
 where
@@ -91,7 +94,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
                     code: WASM_BINARY.to_vec(),
                     salt: salt.as_bytes().to_vec(),
                     init_payload: (i as u64).encode(),
-                    gas_limit: 500_000_000,
+                    gas_limit: DEFAULT_GAS_LIMIT,
                     value: 0,
                 }),
             };
@@ -513,8 +516,8 @@ fn block_max_gas_works() {
 
     init_logger();
 
-    const INIT_MSG_GAS_LIMIT: u64 = 500_000_000;
-    const MAX_GAS: u64 = 2 * INIT_MSG_GAS_LIMIT + 25_000_100; // Enough to fit 2 messages
+    // Enough to fit 2 messages
+    const MAX_GAS: u64 = 2 * DEFAULT_GAS_LIMIT + 25_000_100;
 
     let client_builder = TestClientBuilder::new()
         .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
@@ -621,15 +624,32 @@ fn block_max_gas_works() {
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
 
-    let mut queue_len = 0_u32;
-
-    state
-        .keys(queue_entry_args)
-        .unwrap()
-        .for_each(|_k| queue_len += 1);
+    let queue_len = state.keys(queue_entry_args).unwrap().count();
 
     // 2 out of 5 messages have been processed, 3 remain in the queue
     assert_eq!(queue_len, 3);
+
+    let programs_prefix = storage_prefix(
+        pallet_gear_program::Pallet::<Runtime>::name().as_bytes(),
+        "ProgramStorage".as_bytes(),
+    );
+    let mut iter_args = IterArgs::default();
+    iter_args.prefix = Some(&programs_prefix);
+
+    // The fact that 2 init messages out of 5 have been processed means
+    // that there should be 2 inited programs.
+    let inited_count = state.pairs(iter_args).unwrap().fold(0u32, |count, pair| {
+        let value = match pair {
+            Ok((_key, value)) => value,
+            _ => return count,
+        };
+
+        match Program::<BlockNumber>::decode(&mut &value[..]) {
+            Ok(p) if p.is_initialized() => count + 1,
+            _ => count,
+        }
+    });
+    assert_eq!(inited_count, 2);
 }
 
 #[test]

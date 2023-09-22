@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{msg, MessageId, exec};
+use gstd::{exec, msg, MessageId};
 
 static mut MID: Option<MessageId> = None;
 static mut DONE: bool = false;
@@ -33,11 +33,15 @@ extern "C" fn handle() {
     if let Some(message_id) = unsafe { MID.take() } {
         let delay: u32 = msg::load().unwrap();
 
-        unsafe { DONE = true; }
+        unsafe {
+            DONE = true;
+        }
 
         exec::wake_delayed(message_id, delay).expect("Failed to wake message");
     } else if unsafe { !DONE } {
-        unsafe { MID = Some(msg::id()); }
+        unsafe {
+            MID = Some(msg::id());
+        }
 
         exec::wait();
     }
