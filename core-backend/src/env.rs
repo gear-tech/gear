@@ -61,7 +61,7 @@ use gear_wasm_instrument::{
 };
 
 #[derive(Clone, Copy)]
-pub struct SandboxValue(Value);
+pub struct SandboxValue(pub Value);
 
 impl From<i32> for SandboxValue {
     fn from(value: i32) -> Self {
@@ -333,6 +333,11 @@ where
 
         builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (2) -> (1)));
         builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (2) -> (1)));
+
+        builder.add_func(CreateProgram, |caller, args| {
+            let mut caller = CallerWrap::prepare(caller)?;
+            FuncsHandler::execute(&mut caller, args, FuncsHandler::create_program2)
+        });
     }
 }
 

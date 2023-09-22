@@ -110,7 +110,7 @@ impl From<u32> for SysCallReturnValue {
 }
 
 pub trait SysCallContext: Sized {
-    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError>;
+    fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
 }
 
 pub trait SysCall<Ext, T = ()> {
@@ -124,7 +124,7 @@ pub trait SysCall<Ext, T = ()> {
 }
 
 pub trait SysCallFabric<Ext, Args, R, S> {
-    fn create(self, args: &[SandboxValue]) -> Result<S, HostError>;
+    fn create(self, args: &[Value]) -> Result<S, HostError>;
 }
 
 impl<Ext, R, S, H> SysCallFabric<Ext, (), R, S> for H
@@ -132,8 +132,8 @@ where
     H: Fn() -> S,
     S: SysCall<Ext, R>,
 {
-    fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
-        let _: [SandboxValue; 0] = args.try_into().map_err(|_| HostError)?;
+    fn create(self, args: &[Value]) -> Result<S, HostError> {
+        let _: [Value; 0] = args.try_into().map_err(|_| HostError)?;
         Ok((self)())
     }
 }
@@ -143,9 +143,9 @@ where
     H: Fn(u32) -> S,
     S: SysCall<Ext, R>,
 {
-    fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
-        let [a]: [SandboxValue; 1] = args.try_into().map_err(|_| HostError)?;
-        let a = a.try_into()?;
+    fn create(self, args: &[Value]) -> Result<S, HostError> {
+        let [a]: [Value; 1] = args.try_into().map_err(|_| HostError)?;
+        let a = SandboxValue(a).try_into()?;
         Ok((self)(a))
     }
 }
@@ -155,14 +155,14 @@ where
     H: Fn(u32, u32, u32, u32, u32, u32) -> S,
     S: SysCall<Ext, R>,
 {
-    fn create(self, args: &[SandboxValue]) -> Result<S, HostError> {
-        let [a, b, c, d, e, f]: [SandboxValue; 6] = args.try_into().map_err(|_| HostError)?;
-        let a = a.try_into()?;
-        let b = b.try_into()?;
-        let c = c.try_into()?;
-        let d = d.try_into()?;
-        let e = e.try_into()?;
-        let f = f.try_into()?;
+    fn create(self, args: &[Value]) -> Result<S, HostError> {
+        let [a, b, c, d, e, f]: [Value; 6] = args.try_into().map_err(|_| HostError)?;
+        let a = SandboxValue(a).try_into()?;
+        let b = SandboxValue(b).try_into()?;
+        let c = SandboxValue(c).try_into()?;
+        let d = SandboxValue(d).try_into()?;
+        let e = SandboxValue(e).try_into()?;
+        let f = SandboxValue(f).try_into()?;
         Ok((self)(a, b, c, d, e, f))
     }
 }
@@ -173,11 +173,11 @@ struct FallibleSysCallContext {
 }
 
 impl SysCallContext for FallibleSysCallContext {
-    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError> {
+    fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = (*gas).try_into()?;
+        let gas: u64 = SandboxValue(*gas).try_into()?;
         let (res_ptr, args) = args.split_last().ok_or(HostError)?;
-        let res_ptr: u32 = (*res_ptr).try_into()?;
+        let res_ptr: u32 = SandboxValue(*res_ptr).try_into()?;
         Ok((FallibleSysCallContext { gas, res_ptr }, args))
     }
 }
@@ -211,9 +211,9 @@ pub struct InfallibleSysCallContext {
 }
 
 impl SysCallContext for InfallibleSysCallContext {
-    fn from_args(args: &[SandboxValue]) -> Result<(Self, &[SandboxValue]), HostError> {
+    fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = (*gas).try_into()?;
+        let gas: u64 = SandboxValue(*gas).try_into()?;
         Ok((Self { gas }, args))
     }
 }
@@ -251,7 +251,7 @@ where
 {
     pub fn execute<H, Args, R, S>(
         caller: &mut CallerWrap<Ext>,
-        args: &[SandboxValue],
+        args: &[Value],
         handler: H,
     ) -> Result<WasmReturnValue, HostError>
     where
@@ -261,7 +261,6 @@ where
     {
         let (ctx, args) = S::Context::from_args(args)?;
         let sys_call = SysCallFabric::create(handler, args)?;
-        // FIXME: return value is not ignored
         let (gas, value) = sys_call.execute(caller, ctx)?;
         let value = value.into();
 
