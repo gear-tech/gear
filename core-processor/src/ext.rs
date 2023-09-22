@@ -46,6 +46,7 @@ use gear_core::{
         ReplyPacket,
     },
     pages::{PageU32Size, WasmPage},
+    percent::Percent,
     reservation::GasReserver,
 };
 use gear_core_errors::{
@@ -74,7 +75,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Performance multiplier.
-    pub performance_multiplier: u32,
+    pub performance_multiplier: Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -702,7 +703,7 @@ impl Externalities for Ext {
         Ok(self.context.block_info.timestamp)
     }
 
-    fn performance_multiplier(&self) -> Result<u32, Self::UnrecoverableError> {
+    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
         Ok(self.context.performance_multiplier)
     }
 

@@ -23,6 +23,7 @@ use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
     pages::{GearPage, WasmPage},
+    percent::Percent,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
@@ -145,7 +146,7 @@ pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Performance multiplier.
-    pub performance_multiplier: u32,
+    pub performance_multiplier: Percent,
     /// Max amount of pages in program memory during execution.
     pub max_pages: WasmPage,
     /// Pages costs.
@@ -179,7 +180,7 @@ pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
     /// Performance multiplier.
-    pub performance_multiplier: u32,
+    pub performance_multiplier: Percent,
     /// Max allowed page numbers for wasm program.
     pub max_pages: WasmPage,
     /// Allocations config.

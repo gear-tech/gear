@@ -72,6 +72,7 @@ use gear_core::{
     memory::PageBuf,
     message::*,
     pages::{GearPage, WasmPage},
+    percent::Percent,
 };
 use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -172,7 +173,7 @@ pub mod pallet {
 
         /// Performance multiplier.
         #[pallet::constant]
-        type PerformanceMultiplier: Get<u32>;
+        type PerformanceMultiplier: Get<Percent>;
 
         type DebugInfo: DebugInfo;
 

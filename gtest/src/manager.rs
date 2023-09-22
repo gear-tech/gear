@@ -39,6 +39,7 @@ use gear_core::{
         StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
+    percent::Percent,
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -818,7 +819,7 @@ impl ExtManager {
             .expect("Unable to find gas limit for message");
         let block_config = BlockConfig {
             block_info: self.block_info,
-            performance_multiplier: 1,
+            performance_multiplier: Percent::new(1),
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
