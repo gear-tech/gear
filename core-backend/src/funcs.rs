@@ -182,6 +182,9 @@ impl SysCallContext for FallibleSysCallContext {
     }
 }
 
+#[derive(Default)]
+struct FallibleSysCallError<T>(PhantomData<T>);
+
 type FallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
 
 impl<T, E, F, Ext> SysCall<Ext, ()> for FallibleSysCall<E, F>
@@ -234,9 +237,6 @@ where
         caller.run_any::<T, _>(gas, *costs, |ctx| (func)(ctx))
     }
 }
-
-#[derive(Default)]
-struct FallibleSysCallError<T>(PhantomData<T>);
 
 pub(crate) struct FuncsHandler<Ext: Externalities + 'static> {
     _phantom: PhantomData<Ext>,
