@@ -240,7 +240,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     where
         I: Iterator<Item = InvocableSysCall>,
     {
-        let mut insertion_mapping: BTreeMap<usize, Vec<InvocableSysCall>> = BTreeMap::new();
+        let mut insertion_mapping: BTreeMap<_, Vec<_>> = BTreeMap::new();
         for syscall in syscalls {
             let insert_into = *self.unstructured.choose(insert_into_funcs)?;
 
