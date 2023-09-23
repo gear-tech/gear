@@ -78,5 +78,6 @@ pub fn generate_gear_program_module(
 // TODO
 // 1. Rename all sys-calls and sys_calls to syscalls
 // 2. clean-up in SysCallsImportsGenerator
-// 3. Check all other code
-// 4. Check logs after merging @mertwole's changes. Make it more clear.
+// 3. clean-up after 3242, 3196
+// 4. Check all other code
+// 5. Check logs after merging @mertwole's changes. Make it more clear.
