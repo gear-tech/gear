@@ -122,6 +122,7 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(module.into(), vec![])?;
 
+        // inserting a message with a signal which will be later handled by utils::prepare_exec
         let msg_id = MessageId::from(10);
         let signal_code = SignalCode::RemovedFromWaitlist;
         let msg = Message::new(
