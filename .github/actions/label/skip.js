@@ -9,7 +9,7 @@ const CHECKS = ["check", "build"]
 const [owner, repo] = ["gear-tech", "gear"];
 
 module.exports = async ({ github, core }) => {
-  if (!TITLE.includes(SKIP_CI)) return;
+  if (!TITLE.includes(SKIP_CI) && !TITLE.includes(DEP)) return;
 
   core.info(`Skipping CI for ${TITLE}`);
 
