@@ -20,7 +20,7 @@
 
 use std::ops::RangeInclusive;
 
-/// Represents the configuration for precise sys-calls.
+/// Represents the configuration for building some parts of precise sys-calls.
 /// Can be used to write unit tests so you don't have to rely on randomness.
 #[derive(Debug, Clone)]
 pub struct PreciseSysCallsConfig {
