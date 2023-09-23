@@ -3,6 +3,7 @@
  */
 
 const SKIP_CI = "[skip-ci]";
+const DEP = "[dep]";
 const { TITLE, HEAD_SHA } = process.env;
 const CHECKS = ["check", "build"]
 const [owner, repo] = ["gear-tech", "gear"];
@@ -13,6 +14,8 @@ module.exports = async ({ github, core }) => {
   core.info(`Skipping CI for ${TITLE}`);
 
   for (check of CHECKS) {
+    if (TITLE.includes(DEP) && check === "check") continue;
+
     const { data: res } = await github.rest.checks.create({
       owner,
       repo,

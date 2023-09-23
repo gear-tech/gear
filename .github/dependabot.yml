@@ -7,7 +7,7 @@ updates:
       interval: "weekly"
       day: "friday"
     commit-message:
-      prefix: "[skip-ci] "
+      prefix: "[dep] "
 
   - package-ecosystem: "cargo"
     directory: "/examples/"
@@ -16,7 +16,7 @@ updates:
       interval: "weekly"
       day: "friday"
     commit-message:
-      prefix: "[skip-ci] "
+      prefix: "[dep] "
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -25,4 +25,4 @@ updates:
       interval: "weekly"
       day: "friday"
     commit-message:
-      prefix: "[skip-ci] "
+      prefix: "[dep] "
