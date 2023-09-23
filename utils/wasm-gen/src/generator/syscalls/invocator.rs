@@ -32,7 +32,7 @@ use gear_wasm_instrument::{
     syscalls::{ParamType, SysCallName, SysCallSignature},
 };
 use std::{
-    collections::{hash_map::Entry, BTreeMap, HashMap},
+    collections::{btree_map::Entry, BTreeMap, BinaryHeap},
     iter,
 };
 
@@ -215,7 +215,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 });
 
         let insertion_mapping =
-            self.get_syscall_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
+            self.build_syscalls_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
 
         for (insert_into_fn, syscalls) in insertion_mapping {
             self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
@@ -231,17 +231,16 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     /// Distributes provided syscalls among provided function ids.
     ///
-    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`
-    /// as a vector to avoid indeterminance that may be caused by `HashMap` usage.
-    fn get_syscall_insertion_mapping<I>(
+    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`.
+    fn build_syscalls_insertion_mapping<I>(
         &mut self,
         syscalls: I,
         insert_into_funcs: &[usize],
-    ) -> Result<Vec<(usize, Vec<InvocableSysCall>)>>
+    ) -> Result<BTreeMap<usize, Vec<InvocableSysCall>>>
     where
         I: Iterator<Item = InvocableSysCall>,
     {
-        let mut insertion_mapping: HashMap<usize, Vec<InvocableSysCall>> = HashMap::new();
+        let mut insertion_mapping: BTreeMap<usize, Vec<InvocableSysCall>> = BTreeMap::new();
         for syscall in syscalls {
             let insert_into = *self.unstructured.choose(insert_into_funcs)?;
 
@@ -254,10 +253,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 }
             }
         }
-
-        let mut insertion_mapping: Vec<_> = insertion_mapping.into_iter().collect();
-        // Sort it to avoid indeterminance appeared because of HashMap usage.
-        insertion_mapping.sort_by(|a, b| a.0.cmp(&b.0));
 
         Ok(insertion_mapping)
     }
@@ -280,17 +275,17 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         // index is used as an insertion point.
         let last = if fn_code_len > 1 { fn_code_len - 2 } else { 0 };
 
-        let mut insertion_positions = syscalls
-            .into_iter()
-            .map(|syscall| Ok((self.unstructured.int_in_range(0..=last)?, syscall)))
-            .collect::<Result<Vec<_>>>()?;
-
         // Sort in descending order. It's needed to guarantee that no syscall
         // invocation instructions will intersect with each other as we start
         // inserting syscalls from the last index.
-        insertion_positions.sort_by(|a, b| b.0.cmp(&a.0));
+        let insertion_positions = iter::from_fn(|| Some(self.unstructured.int_in_range(0..=last)))
+            .take(syscalls.len())
+            .collect::<Result<BinaryHeap<_>>>()?
+            .into_sorted_vec()
+            .into_iter()
+            .rev();
 
-        for (pos, syscall) in insertion_positions {
+        for (pos, syscall) in insertion_positions.zip(syscalls) {
             let call_indexes_handle = self
                 .sys_call_imports
                 .get(&syscall)
