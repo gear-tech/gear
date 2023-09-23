@@ -2989,7 +2989,6 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -3231,7 +3230,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
@@ -4170,16 +4168,12 @@ fn claim_value_works() {
 
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
-        let charged_for_page_load = if cfg!(feature = "lazy-pages") {
-            gas_price(
-                <Test as Config>::Schedule::get()
-                    .memory_weights
-                    .load_page_data
-                    .ref_time(),
-            )
-        } else {
-            0
-        };
+        let charged_for_page_load = gas_price(
+            <Test as Config>::Schedule::get()
+                .memory_weights
+                .load_page_data
+                .ref_time(),
+        );
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =
@@ -14320,6 +14314,45 @@ fn gear_block_number_math_adds_up() {
         run_to_block(150, None);
         assert_eq!(System::block_number(), 150);
         assert_eq!(Gear::block_number(), 130);
+    })
+}
+
+#[test]
+fn test_gas_info_of_terminated_program() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Dies in init
+        let init_dead = Calls::builder().panic("Die in init");
+        let handle_dead = Calls::builder().panic("Called after being terminated!");
+        let (_, pid_dead) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt1",
+            Scheme::predefined(init_dead, handle_dead, Calls::default()),
+            0,
+        );
+
+        // Sends in handle message do dead program
+        let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
+        let (_, proxy_pid) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt2",
+            Scheme::predefined(Calls::default(), handle_proxy, Calls::default()),
+            0,
+        );
+
+        run_to_next_block(None);
+
+        let _gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(proxy_pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
     })
 }
 
