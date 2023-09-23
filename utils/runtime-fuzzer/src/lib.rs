@@ -49,7 +49,7 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
     let sender = runtime::account(runtime::alice());
-    let sender_prog_id = ProgramId::from(<AccountId as AsRef<[u8; 32]>>::as_ref(&sender).clone());
+    let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
 
     let generators = default_generator_set(test_input_id);
     let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
