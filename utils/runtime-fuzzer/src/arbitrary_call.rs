@@ -233,6 +233,7 @@ fn config(
         log_info,
         params_config,
         initial_pages: initial_pages as u32,
+        unreachable_enabled: false,
         ..Default::default()
     }
 }

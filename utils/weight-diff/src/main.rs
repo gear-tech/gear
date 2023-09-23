@@ -66,13 +66,13 @@ enum Commands {
     },
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Copy, Clone, ValueEnum)]
 enum Runtime {
     Gear,
     Vara,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Copy, Clone, ValueEnum)]
 enum WeightsKind {
     Instruction,
     HostFn,
@@ -247,7 +247,7 @@ fn main() {
                 }
             }
 
-            println!("Comparison table for {runtime:?} runtime");
+            println!("Comparison table for {runtime:?} runtime for {kind:?}");
             println!();
 
             let mut builder = Builder::default();

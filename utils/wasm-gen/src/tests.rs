@@ -22,6 +22,7 @@ use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExp
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::Code,
+    ids::{CodeId, ProgramId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -242,6 +243,12 @@ fn execute_wasm_with_syscall_injected(
     const INITIAL_PAGES: u16 = 1;
     const INJECTED_SYSCALLS: u32 = 8;
 
+    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_syscall_inject";
+
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        PROGRAM_STORAGE_PREFIX
+    ));
+
     // We create Unstructured from zeroes here as we just need any
     let buf = vec![0; UNSTRUCTURED_SIZE];
     let mut unstructured = Unstructured::new(&buf);
@@ -279,6 +286,7 @@ fn execute_wasm_with_syscall_injected(
             max_instructions: 0,
             min_funcs: 1,
             max_funcs: 1,
+            unreachable_enabled: true,
         },
     );
 
@@ -295,10 +303,14 @@ fn execute_wasm_with_syscall_injected(
     // Imitate that reply was already sent.
     let _ = message_context.reply_commit(ReplyPacket::auto(), None);
 
+    let code_id = CodeId::generate(code.original_code());
+    let program_id = ProgramId::generate(code_id, b"");
+
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
+        program_id,
         ..ProcessorContext::new_mock()
     };
 
@@ -313,7 +325,15 @@ fn execute_wasm_with_syscall_injected(
     .expect("Failed to create environment");
 
     let report = env
-        .execute(|mem, _, _| -> Result<(), u32> {
+        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+            gear_core_processor::Ext::lazy_pages_init_for_program(
+                mem,
+                program_id,
+                Some(mem.size()),
+                globals_config,
+                Default::default(),
+            );
+
             if let Some(mem_write) = initial_memory_write {
                 return mem
                     .write(mem_write.offset, &mem_write.content)

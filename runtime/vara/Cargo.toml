@@ -97,6 +97,7 @@ pallet-gear-payment.workspace = true
 pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 
 [dev-dependencies]
@@ -143,6 +144,7 @@ std = [
 	"pallet-gear-program/std",
 	"pallet-gear-staking-rewards/std",
 	"pallet-gear-rpc-runtime-api/std",
+	"pallet-gear-staking-rewards-rpc-runtime-api/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -259,9 +261,4 @@ dev = [
 	"pallet-gear-debug",
 	"pallet-gear-program/dev",
 	"pallet-sudo",
-]
-lazy-pages = [
-	"pallet-gear/lazy-pages",
-	"pallet-gear-payment/lazy-pages",
-	"pallet-gear-debug?/lazy-pages",
 ]
