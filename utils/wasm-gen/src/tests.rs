@@ -176,7 +176,7 @@ fn injecting_addresses_works() {
 fn error_processing_works_for_fallible_syscalls() {
     use gear_backend_common::ActorTerminationReason;
 
-    let _ = env_logger::builder().is_test(true).try_init();
+    gear_utils::init_default_logger();
 
     // We create Unstructured from zeroes here as we just need any.
     let buf = vec![0; UNSTRUCTURED_SIZE];
@@ -243,7 +243,7 @@ fn error_processing_works_for_fallible_syscalls() {
 fn precise_syscalls_works() {
     use gear_backend_common::ActorTerminationReason;
 
-    let _ = env_logger::builder().is_test(true).try_init();
+    gear_utils::init_default_logger();
 
     // Pin a specific seed for this test.
     let mut rng = SmallRng::seed_from_u64(1234);
