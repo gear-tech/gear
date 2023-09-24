@@ -624,7 +624,9 @@ fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
     use gear_core::message::DispatchKind;
     use gear_core_backend::{
-        env::BackendReport, error::ActorTerminationReason, mock::MockExt, Environment,
+        env::{BackendReport, Environment},
+        error::ActorTerminationReason,
+        mock::MockExt,
     };
     use parity_wasm::builder;
 

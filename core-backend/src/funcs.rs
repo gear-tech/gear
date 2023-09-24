@@ -86,7 +86,7 @@ macro_rules! syscall_trace {
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
-pub struct FuncsHandler<Ext: Externalities + 'static> {
+pub(crate) struct FuncsHandler<Ext: Externalities + 'static> {
     _phantom: PhantomData<Ext>,
 }
 

@@ -29,9 +29,8 @@ use gear_core::{
     pages::WASM_PAGE_SIZE,
 };
 use gear_core_backend::{
-    env::BackendReport,
+    env::{BackendReport, Environment},
     error::{TerminationReason, TrapExplanation},
-    Environment,
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;

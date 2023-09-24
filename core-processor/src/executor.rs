@@ -46,12 +46,13 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    env::{BackendReport, EnvironmentError},
+    env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
-    BackendExternalities, Environment, MemoryWrap,
+    memory::MemoryWrap,
+    BackendExternalities,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{

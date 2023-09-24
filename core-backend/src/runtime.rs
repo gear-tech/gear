@@ -21,11 +21,12 @@
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
     memory::{
-        MemoryAccessError, MemoryAccessManager, MemoryWrapRef, WasmMemoryRead, WasmMemoryReadAs,
-        WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+        DefaultExecutorMemory, MemoryAccessError, MemoryAccessManager, MemoryWrapRef,
+        WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite,
+        WasmMemoryWriteAs,
     },
     state::{HostState, State},
-    BackendExternalities, DefaultExecutorMemory,
+    BackendExternalities,
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
@@ -59,7 +60,7 @@ pub(crate) fn caller_host_state_take<Ext>(
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub struct CallerWrap<'a, 'b: 'a, Ext> {
+pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
     pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
     pub manager: MemoryAccessManager<Ext>,
     pub memory: DefaultExecutorMemory,

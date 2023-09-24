@@ -44,7 +44,7 @@ use gear_sandbox::{
 
 pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
 
-pub struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
+pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
     pub memory: DefaultExecutorMemory,
     pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
 }
@@ -138,7 +138,7 @@ where
 }
 
 #[derive(Debug, Clone, derive_more::From)]
-pub enum MemoryAccessError {
+pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
@@ -204,7 +204,7 @@ impl BackendSyscallError for MemoryAccessError {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<Ext> {
+pub(crate) struct MemoryAccessManager<Ext> {
     // Contains non-zero length intervals only.
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
@@ -439,31 +439,31 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
 }
 
 /// Read static size type access wrapper.
-pub struct WasmMemoryReadAs<T> {
+pub(crate) struct WasmMemoryReadAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
-pub struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
+pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
-pub struct WasmMemoryRead {
+pub(crate) struct WasmMemoryRead {
     pub(crate) ptr: u32,
     pub(crate) size: u32,
 }
 
 /// Write static size type access wrapper.
-pub struct WasmMemoryWriteAs<T> {
+pub(crate) struct WasmMemoryWriteAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
-pub struct WasmMemoryWrite {
+pub(crate) struct WasmMemoryWrite {
     pub(crate) ptr: u32,
     pub(crate) size: u32,
 }

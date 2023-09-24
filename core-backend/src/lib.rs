@@ -25,14 +25,11 @@ extern crate alloc;
 pub mod env;
 pub mod error;
 mod funcs;
-mod memory;
+pub mod memory;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
 mod runtime;
 mod state;
-
-pub use env::Environment;
-pub use memory::{DefaultExecutorMemory, MemoryWrap};
 
 use gear_core::{
     env::Externalities,
