@@ -70,10 +70,6 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         &mut self.host_state_mut().ext
     }
 
-    pub fn unreachable_error() -> HostError {
-        HostError
-    }
-
     #[track_caller]
     pub fn run_any<T, F>(
         &mut self,
