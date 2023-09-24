@@ -25,17 +25,17 @@ extern crate core;
 
 pub mod env;
 mod funcs;
-pub mod memory;
+mod memory;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
-pub mod runtime;
+mod runtime;
 mod state;
 
-use codec::{Decode, Encode};
 pub use env::Environment;
 pub use memory::{DefaultExecutorMemory, MemoryWrap};
 
 use actor_system_error::actor_system_error;
+use codec::{Decode, Encode};
 use gear_core::{
     env::Externalities,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount},
