@@ -21,9 +21,8 @@
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
     memory::{
-        DefaultExecutorMemory, MemoryAccessError, MemoryAccessManager, MemoryWrapRef,
-        WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite,
-        WasmMemoryWriteAs,
+        ExecutorMemory, MemoryAccessError, MemoryAccessManager, MemoryWrapRef, WasmMemoryRead,
+        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     state::{HostState, State},
     BackendExternalities,
@@ -42,8 +41,8 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 
 #[track_caller]
 pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
-    caller: &'a mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
-) -> &'a mut State<Ext, DefaultExecutorMemory> {
+    caller: &'a mut Caller<'_, HostState<Ext, ExecutorMemory>>,
+) -> &'a mut State<Ext, ExecutorMemory> {
     caller
         .data_mut()
         .as_mut()
@@ -52,8 +51,8 @@ pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
 
 #[track_caller]
 pub(crate) fn caller_host_state_take<Ext>(
-    caller: &mut Caller<'_, HostState<Ext, DefaultExecutorMemory>>,
-) -> State<Ext, DefaultExecutorMemory> {
+    caller: &mut Caller<'_, HostState<Ext, ExecutorMemory>>,
+) -> State<Ext, ExecutorMemory> {
     caller
         .data_mut()
         .take()
@@ -61,9 +60,9 @@ pub(crate) fn caller_host_state_take<Ext>(
 }
 
 pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
-    pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
+    pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
     pub manager: MemoryAccessManager<Ext>,
-    pub memory: DefaultExecutorMemory,
+    pub memory: ExecutorMemory,
 }
 
 impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
@@ -133,7 +132,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
 
     #[track_caller]
     pub fn prepare(
-        caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
+        caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
     ) -> Result<Self, HostError> {
         let memory = caller_host_state_mut(caller).memory.clone();
         Ok(Self {
@@ -144,14 +143,14 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<Ext, DefaultExecutorMemory> {
+    pub fn host_state_mut(&mut self) -> &mut State<Ext, ExecutorMemory> {
         caller_host_state_mut(self.caller)
     }
 
     #[track_caller]
     pub fn memory<'c, 'd: 'c>(
-        caller: &'c mut Caller<'d, HostState<Ext, DefaultExecutorMemory>>,
-        memory: DefaultExecutorMemory,
+        caller: &'c mut Caller<'d, HostState<Ext, ExecutorMemory>>,
+        memory: ExecutorMemory,
     ) -> MemoryWrapRef<'c, 'd, Ext> {
         MemoryWrapRef::<'c, 'd, _> { memory, caller }
     }

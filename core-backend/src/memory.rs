@@ -42,11 +42,11 @@ use gear_sandbox::{
     SandboxMemory,
 };
 
-pub type DefaultExecutorMemory = gear_sandbox::default_executor::Memory;
+pub(crate) type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
 pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
-    pub memory: DefaultExecutorMemory,
-    pub caller: &'a mut Caller<'b, HostState<Ext, DefaultExecutorMemory>>,
+    pub memory: ExecutorMemory,
+    pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
 }
 
 impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
@@ -78,28 +78,25 @@ impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
     }
 }
 
-/// Wrapper for [`DefaultExecutorMemory`].
+/// Wrapper for [`ExecutorMemory`].
 pub struct MemoryWrap<Ext>
 where
     Ext: Externalities + 'static,
 {
-    pub(crate) memory: DefaultExecutorMemory,
-    pub(crate) store: Store<HostState<Ext, DefaultExecutorMemory>>,
+    pub(crate) memory: ExecutorMemory,
+    pub(crate) store: Store<HostState<Ext, ExecutorMemory>>,
 }
 
 impl<Ext> MemoryWrap<Ext>
 where
     Ext: Externalities + 'static,
 {
-    /// Wrap [`DefaultExecutorMemory`] for Memory trait.
-    pub fn new(
-        memory: DefaultExecutorMemory,
-        store: Store<HostState<Ext, DefaultExecutorMemory>>,
-    ) -> Self {
+    /// Wrap [`ExecutorMemory`] for Memory trait.
+    pub fn new(memory: ExecutorMemory, store: Store<HostState<Ext, ExecutorMemory>>) -> Self {
         MemoryWrap { memory, store }
     }
 
-    pub(crate) fn into_store(self) -> Store<HostState<Ext, DefaultExecutorMemory>> {
+    pub(crate) fn into_store(self) -> Store<HostState<Ext, ExecutorMemory>> {
         self.store
     }
 }
@@ -483,7 +480,7 @@ mod tests {
         use gear_sandbox::SandboxMemory as WasmMemory;
 
         let mut store = Store::new(None);
-        let memory: DefaultExecutorMemory =
+        let memory: ExecutorMemory =
             WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
                 .expect("Memory creation failed");
         *store.data_mut() = Some(State {
