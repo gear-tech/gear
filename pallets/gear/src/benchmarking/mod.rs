@@ -94,7 +94,10 @@ use gear_core::{
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
 };
-use gear_core_backend::{DefaultExecutorMemory, Environment, MemoryWrap};
+use gear_core_backend::{
+    env::Environment,
+    memory::{ExecutorMemory, MemoryWrap},
+};
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
@@ -1639,7 +1642,7 @@ benchmarks! {
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::new(None);
-        let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
         let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {

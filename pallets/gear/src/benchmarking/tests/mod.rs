@@ -36,7 +36,7 @@ use crate::{
     HandleKind,
 };
 use common::benchmarking;
-use gear_core_backend::TrapExplanation;
+use gear_core_backend::error::TrapExplanation;
 use gear_wasm_instrument::parity_wasm::elements::Instruction;
 
 pub fn check_stack_overflow<T>()

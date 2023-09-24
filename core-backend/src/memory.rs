@@ -42,7 +42,7 @@ use gear_sandbox::{
     SandboxMemory,
 };
 
-pub(crate) type ExecutorMemory = gear_sandbox::default_executor::Memory;
+pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
 pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
     pub memory: ExecutorMemory,
@@ -92,10 +92,7 @@ where
     Ext: Externalities + 'static,
 {
     /// Wrap [`ExecutorMemory`] for Memory trait.
-    pub(crate) fn new(
-        memory: ExecutorMemory,
-        store: Store<HostState<Ext, ExecutorMemory>>,
-    ) -> Self {
+    pub fn new(memory: ExecutorMemory, store: Store<HostState<Ext, ExecutorMemory>>) -> Self {
         MemoryWrap { memory, store }
     }
 
