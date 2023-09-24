@@ -128,43 +128,43 @@ pub trait SysCall<Ext, T = ()> {
     ) -> Result<(u64, T), HostError>;
 }
 
-pub trait SysCallFabric<Ext, Args: ?Sized, R, S> {
-    fn create(self, args: &[Value]) -> Result<S, HostError>;
+pub trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
+    fn build(self, args: &[Value]) -> Result<S, HostError>;
 }
 
-impl<Ext, R, S, H> SysCallFabric<Ext, (), R, S> for H
+impl<Ext, R, S, H> SysCallBuilder<Ext, (), R, S> for H
 where
     H: Fn() -> S,
     S: SysCall<Ext, R>,
 {
-    fn create(self, args: &[Value]) -> Result<S, HostError> {
+    fn build(self, args: &[Value]) -> Result<S, HostError> {
         let _: [Value; 0] = args.try_into().map_err(|_| HostError)?;
         Ok((self)())
     }
 }
 
-impl<Ext, R, S, H> SysCallFabric<Ext, [Value], R, S> for H
+impl<Ext, R, S, H> SysCallBuilder<Ext, [Value], R, S> for H
 where
     H: for<'a> Fn(&'a [Value]) -> S,
     S: SysCall<Ext, R>,
 {
-    fn create(self, args: &[Value]) -> Result<S, HostError> {
+    fn build(self, args: &[Value]) -> Result<S, HostError> {
         Ok((self)(args))
     }
 }
 
-macro_rules! impl_syscall_fabric {
+macro_rules! impl_syscall_builder {
     ($($generic:ident),+) => {
         #[allow(non_snake_case)]
-        impl<Ext, Res, Call, Handler, $($generic),+> SysCallFabric<Ext, ($($generic,)+), Res, Call>
+        impl<Ext, Res, Call, Handler, $($generic),+> SysCallBuilder<Ext, ($($generic,)+), Res, Call>
             for Handler
         where
             Handler: Fn($($generic),+) -> Call,
             Call: SysCall<Ext, Res>,
             $( $generic: TryFrom<SandboxValue, Error = HostError>,)+
         {
-            fn create(self, args: &[Value]) -> Result<Call, HostError> {
-                const ARGS_AMOUNT: usize = impl_syscall_fabric!(@count $($generic),+);
+            fn build(self, args: &[Value]) -> Result<Call, HostError> {
+                const ARGS_AMOUNT: usize = impl_syscall_builder!(@count $($generic),+);
 
                 let [$($generic),+]: [Value; ARGS_AMOUNT] = args.try_into().map_err(|_| HostError)?;
                 $(
@@ -175,16 +175,16 @@ macro_rules! impl_syscall_fabric {
         }
     };
     (@count $generic:ident) => { 1 };
-    (@count $generic:ident, $($generics:ident),+) => { 1 + impl_syscall_fabric!(@count $($generics),+) };
+    (@count $generic:ident, $($generics:ident),+) => { 1 + impl_syscall_builder!(@count $($generics),+) };
 }
 
-impl_syscall_fabric!(A);
-impl_syscall_fabric!(A, B);
-impl_syscall_fabric!(A, B, C);
-impl_syscall_fabric!(A, B, C, D);
-impl_syscall_fabric!(A, B, C, D, E);
-impl_syscall_fabric!(A, B, C, D, E, F);
-impl_syscall_fabric!(A, B, C, D, E, F, G);
+impl_syscall_builder!(A);
+impl_syscall_builder!(A, B);
+impl_syscall_builder!(A, B, C);
+impl_syscall_builder!(A, B, C, D);
+impl_syscall_builder!(A, B, C, D, E);
+impl_syscall_builder!(A, B, C, D, E, F);
+impl_syscall_builder!(A, B, C, D, E, F, G);
 
 type SimpleSysCall<F> = F;
 
@@ -294,13 +294,13 @@ where
         handler: H,
     ) -> Result<WasmReturnValue, HostError>
     where
-        H: SysCallFabric<Ext, Args, R, S>,
+        H: SysCallBuilder<Ext, Args, R, S>,
         Args: ?Sized,
         S: SysCall<Ext, R>,
         R: Into<SysCallReturnValue>,
     {
         let (ctx, args) = S::Context::from_args(args)?;
-        let sys_call = SysCallFabric::create(handler, args)?;
+        let sys_call = SysCallBuilder::build(handler, args)?;
         let (gas, value) = sys_call.execute(caller, ctx)?;
         let value = value.into();
 
