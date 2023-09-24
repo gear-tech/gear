@@ -51,58 +51,13 @@ use gear_sandbox::{
     default_executor::{
         EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory, Store,
     },
-    AsContextExt, HostError, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, Value,
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
     GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
-
-#[derive(Clone, Copy)]
-pub struct SandboxValue(pub Value);
-
-impl From<i32> for SandboxValue {
-    fn from(value: i32) -> Self {
-        SandboxValue(Value::I32(value))
-    }
-}
-
-impl From<u32> for SandboxValue {
-    fn from(value: u32) -> Self {
-        SandboxValue(Value::I32(value as i32))
-    }
-}
-
-impl From<i64> for SandboxValue {
-    fn from(value: i64) -> Self {
-        SandboxValue(Value::I64(value))
-    }
-}
-
-impl TryFrom<SandboxValue> for u32 {
-    type Error = HostError;
-
-    fn try_from(val: SandboxValue) -> Result<u32, HostError> {
-        if let Value::I32(val) = val.0 {
-            Ok(val as u32)
-        } else {
-            Err(HostError)
-        }
-    }
-}
-
-impl TryFrom<SandboxValue> for u64 {
-    type Error = HostError;
-
-    fn try_from(val: SandboxValue) -> Result<u64, HostError> {
-        if let Value::I64(val) = val.0 {
-            Ok(val as u64)
-        } else {
-            Err(HostError)
-        }
-    }
-}
 
 macro_rules! wrap_syscall {
     ($func:ident) => {

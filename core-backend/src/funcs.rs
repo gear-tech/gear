@@ -87,6 +87,52 @@ macro_rules! syscall_trace {
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
+/// Actually just wrapper around [`Value`] to implement conversions.
+#[derive(Clone, Copy)]
+struct SysCallValue(Value);
+
+impl From<i32> for SysCallValue {
+    fn from(value: i32) -> Self {
+        SysCallValue(Value::I32(value))
+    }
+}
+
+impl From<u32> for SysCallValue {
+    fn from(value: u32) -> Self {
+        SysCallValue(Value::I32(value as i32))
+    }
+}
+
+impl From<i64> for SysCallValue {
+    fn from(value: i64) -> Self {
+        SysCallValue(Value::I64(value))
+    }
+}
+
+impl TryFrom<SysCallValue> for u32 {
+    type Error = HostError;
+
+    fn try_from(val: SysCallValue) -> Result<u32, HostError> {
+        if let Value::I32(val) = val.0 {
+            Ok(val as u32)
+        } else {
+            Err(HostError)
+        }
+    }
+}
+
+impl TryFrom<SysCallValue> for u64 {
+    type Error = HostError;
+
+    fn try_from(val: SysCallValue) -> Result<u64, HostError> {
+        if let Value::I64(val) = val.0 {
+            Ok(val as u64)
+        } else {
+            Err(HostError)
+        }
+    }
+}
+
 /// Actually just wrapper around [`ReturnValue`] to implement conversions.
 pub struct SysCallReturnValue(ReturnValue);
 
@@ -161,14 +207,14 @@ macro_rules! impl_syscall_builder {
         where
             Handler: FnOnce($($generic),+) -> Call,
             Call: SysCall<Ext, Res>,
-            $( $generic: TryFrom<SandboxValue, Error = HostError>,)+
+            $( $generic: TryFrom<SysCallValue, Error = HostError>,)+
         {
             fn build(self, args: &[Value]) -> Result<Call, HostError> {
                 const ARGS_AMOUNT: usize = impl_syscall_builder!(@count $($generic),+);
 
                 let [$($generic),+]: [Value; ARGS_AMOUNT] = args.try_into().map_err(|_| HostError)?;
                 $(
-                    let $generic = SandboxValue($generic).try_into()?;
+                    let $generic = SysCallValue($generic).try_into()?;
                 )+
                 Ok((self)($($generic),+))
             }
@@ -214,9 +260,9 @@ struct FallibleSysCallContext {
 impl SysCallContext for FallibleSysCallContext {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = SandboxValue(*gas).try_into()?;
+        let gas: u64 = SysCallValue(*gas).try_into()?;
         let (res_ptr, args) = args.split_last().ok_or(HostError)?;
-        let res_ptr: u32 = SandboxValue(*res_ptr).try_into()?;
+        let res_ptr: u32 = SysCallValue(*res_ptr).try_into()?;
         Ok((FallibleSysCallContext { gas, res_ptr }, args))
     }
 }
@@ -252,7 +298,7 @@ pub struct InfallibleSysCallContext {
 impl SysCallContext for InfallibleSysCallContext {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = SandboxValue(*gas).try_into()?;
+        let gas: u64 = SysCallValue(*gas).try_into()?;
         Ok((Self { gas }, args))
     }
 }
