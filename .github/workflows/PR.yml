@@ -25,6 +25,15 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - uses: actions/github-script@v6
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+        with:
+          script: |
+            const script = require('./.github/actions/label/skip.js');
+            await script({ github, core });
+
       - name: Check Commit Message
         id: check-commit-message
         run: |
@@ -45,6 +54,7 @@ jobs:
 
   check:
     needs: status
+    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.outputs.cache }}

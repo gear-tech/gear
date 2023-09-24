@@ -285,6 +285,7 @@ fn execute_wasm_with_syscall_injected(
             max_instructions: 0,
             min_funcs: 1,
             max_funcs: 1,
+            unreachable_enabled: true,
         },
     );
 
@@ -302,7 +303,7 @@ fn execute_wasm_with_syscall_injected(
     let _ = message_context.reply_commit(ReplyPacket::auto(), None);
 
     let code_id = CodeId::generate(code.original_code());
-    let program_id = ProgramId::generate(code_id, b"");
+    let program_id = ProgramId::generate_from_user(code_id, b"");
 
     let processor_context = ProcessorContext {
         message_context,

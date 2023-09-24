@@ -114,7 +114,7 @@ impl<'a> Arbitrary<'a> for GearCalls {
             );
             log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-            let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+            let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
 
             log::trace!("Generated code for program id - {program_id}");
 
@@ -233,6 +233,7 @@ fn config(
         log_info,
         params_config,
         initial_pages: initial_pages as u32,
+        unreachable_enabled: false,
         ..Default::default()
     }
 }
