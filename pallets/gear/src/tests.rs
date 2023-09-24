@@ -83,6 +83,60 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn default_wait_lock_timeout() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Kind::Send.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        let expiration_block = get_waitlist_expiration(mid);
+
+        run_to_block(expiration_block, None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "ran into error-reply: {:?}",
+                GstdError::Timeout(expiration_block, expiration_block)
+            )
+        } else {
+            String::from("no info")
+        };
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
+    })
+}
+
+#[test]
 fn value_counter_set_correctly_for_interruptions() {
     use demo_constructor::{Arg, Calls, Scheme};
 
