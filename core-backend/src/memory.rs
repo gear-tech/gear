@@ -78,7 +78,7 @@ impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
     }
 }
 
-/// Wrapper for [`ExecutorMemory`].
+/// Wrapper for executor memory.
 pub struct MemoryWrap<Ext>
 where
     Ext: Externalities + 'static,
@@ -92,7 +92,10 @@ where
     Ext: Externalities + 'static,
 {
     /// Wrap [`ExecutorMemory`] for Memory trait.
-    pub fn new(memory: ExecutorMemory, store: Store<HostState<Ext, ExecutorMemory>>) -> Self {
+    pub(crate) fn new(
+        memory: ExecutorMemory,
+        store: Store<HostState<Ext, ExecutorMemory>>,
+    ) -> Self {
         MemoryWrap { memory, store }
     }
 

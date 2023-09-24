@@ -229,7 +229,7 @@ pub enum TrapExplanation {
     Unknown,
 }
 
-/// Error returned from closure argument in [`runtime::CallerWrap::run_fallible`].
+/// Error returned by fallible sys-call.
 #[derive(Debug, Clone)]
 pub enum RunFallibleError {
     UndefinedTerminationReason(UndefinedTerminationReason),
