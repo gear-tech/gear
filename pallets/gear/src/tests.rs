@@ -69,7 +69,7 @@ use gear_core::{
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
 };
-use gear_core_backend::{
+use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;

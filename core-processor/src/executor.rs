@@ -47,8 +47,11 @@ use gear_core::{
 };
 use gear_core_backend::{
     env::{BackendReport, EnvironmentError},
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    Environment, MemoryWrap, RunFallibleError, TerminationReason,
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TerminationReason,
+    },
+    BackendExternalities, Environment, MemoryWrap,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{

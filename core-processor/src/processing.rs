@@ -35,7 +35,8 @@ use gear_core::{
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
+    BackendExternalities,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 

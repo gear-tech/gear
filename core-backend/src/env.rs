@@ -19,13 +19,16 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TerminationReason,
+    },
     funcs::FuncsHandler,
     memory::MemoryWrap,
     runtime,
     runtime::CallerWrap,
     state::{HostState, State},
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    RunFallibleError, TerminationReason,
+    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{

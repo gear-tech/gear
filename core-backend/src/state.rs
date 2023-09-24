@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ActorTerminationReason, BackendExternalities, TerminationReason, TrapExplanation,
-    UndefinedTerminationReason,
+    error::{
+        ActorTerminationReason, TerminationReason, TrapExplanation, UndefinedTerminationReason,
+    },
+    BackendExternalities,
 };
 use core::fmt::Debug;
 

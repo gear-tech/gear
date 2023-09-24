@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BackendAllocSyscallError, BackendExternalities, BackendSyscallError, RunFallibleError,
-    UndefinedTerminationReason,
+    error::{
+        BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
+    },
+    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::{Decode, Encode};

@@ -19,11 +19,14 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+        UnrecoverableMemoryError,
+    },
     memory::{MemoryAccessError, WasmMemoryRead},
     runtime::CallerWrap,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    RunFallibleError, TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
-    UnrecoverableMemoryError,
+    BackendExternalities,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;

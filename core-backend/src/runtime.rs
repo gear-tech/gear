@@ -19,13 +19,13 @@
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
 use crate::{
+    error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
     memory::{
         MemoryAccessError, MemoryAccessManager, MemoryWrapRef, WasmMemoryRead, WasmMemoryReadAs,
         WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     state::{HostState, State},
-    BackendAllocSyscallError, BackendExternalities, DefaultExecutorMemory, RunFallibleError,
-    UndefinedTerminationReason,
+    BackendExternalities, DefaultExecutorMemory,
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};

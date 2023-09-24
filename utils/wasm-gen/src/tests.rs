@@ -28,7 +28,11 @@ use gear_core::{
     },
     pages::WASM_PAGE_SIZE,
 };
-use gear_core_backend::{env::BackendReport, Environment, TerminationReason, TrapExplanation};
+use gear_core_backend::{
+    env::BackendReport,
+    error::{TerminationReason, TrapExplanation},
+    Environment,
+};
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
@@ -173,7 +177,7 @@ fn injecting_addresses_works() {
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
-    use gear_core_backend::ActorTerminationReason;
+    use gear_core_backend::error::ActorTerminationReason;
 
     let fallible_syscalls = SysCallName::instrumentable()
         .into_iter()
