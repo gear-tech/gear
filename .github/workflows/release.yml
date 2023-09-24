@@ -53,8 +53,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: "Environment: Cargo path"
-        run: >
-          echo "/tmp/cargo/bin" >> $GITHUB_PATH
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
@@ -70,8 +69,7 @@ jobs:
           echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> "$GITHUB_ENV"
 
       - name: "Artifact: Make `artifact` directory"
-        run: >
-          mkdir -p artifact
+        run: mkdir -p artifact
 
       - name: "Build: `wasm-proc`"
         run: |
@@ -79,8 +77,7 @@ jobs:
           cp -vf target/release/wasm-proc ./
 
       - name: "Build: Production `gear-cli`"
-        run: >
-          cargo build -p gear-cli --profile production
+        run: cargo build -p gear-cli --profile production
 
       - name: "Test: Production runtimes"
         run: |
@@ -95,8 +92,7 @@ jobs:
           strip artifact/gear || true
 
       - name: "Build: Development `gear-cli`"
-        run: >
-          cargo build -p gear-cli --profile production -F dev
+        run: cargo build -p gear-cli --profile production -F dev
 
       - name: "Test: Development runtimes"
         run: |
