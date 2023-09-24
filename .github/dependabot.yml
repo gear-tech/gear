@@ -9,6 +9,9 @@ updates:
     commit-message:
       prefix: "[depbot] "
     groups:
+      deps:
+        patterns:
+          - "*"
 
   - package-ecosystem: "cargo"
     directory: "/examples/"
@@ -19,6 +22,9 @@ updates:
     commit-message:
       prefix: "[depbot] "
     groups:
+      deps:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -29,3 +35,6 @@ updates:
     commit-message:
       prefix: "[depbot] "
     groups:
+      deps:
+        patterns:
+          - "*"
