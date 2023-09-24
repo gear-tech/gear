@@ -65,8 +65,8 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "GEAR_SPEC=$(cat runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> "$GITHUB_ENV"
-          echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> "$GITHUB_ENV"
+          echo "GEAR_SPEC=$(cat runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
 
       - name: "Artifact: Make `artifact` directory"
         run: mkdir -p artifact
