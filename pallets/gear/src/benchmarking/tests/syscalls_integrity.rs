@@ -68,7 +68,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate(CodeId::generate(WASM_BINARY), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
@@ -397,7 +397,7 @@ where
     )
     .expect("failed to upload test program");
 
-    let pid = ProgramId::generate(wasm_module.hash, b"alloc-free-test");
+    let pid = ProgramId::generate_from_user(wasm_module.hash, b"alloc-free-test");
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -527,7 +527,11 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
         let salt = 10u64;
-        let expected_pid = ProgramId::generate(simplest_gear_wasm::<T>().hash, &salt.to_le_bytes());
+        let expected_pid = ProgramId::generate_from_program(
+            simplest_gear_wasm::<T>().hash,
+            &salt.to_le_bytes(),
+            next_user_mid,
+        );
 
         let mp = vec![Kind::CreateProgram(
             salt,
@@ -961,7 +965,8 @@ where
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
 
-    let tester_pid = ProgramId::generate(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
+    let tester_pid =
+        ProgramId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
