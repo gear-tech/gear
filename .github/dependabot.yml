@@ -2,27 +2,30 @@ version: 2
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
-    labels: ["A0-pleasereview", "A4-insubstantial", "E2-forcemacos"]
+    labels: ["A4-insubstantial", "E2-forcemacos"]
     schedule:
       interval: "weekly"
       day: "friday"
     commit-message:
       prefix: "[depbot] "
+    groups:
 
   - package-ecosystem: "cargo"
     directory: "/examples/"
-    labels: ["A0-pleasereview", "A4-insubstantial"]
+    labels: ["A4-insubstantial"]
     schedule:
       interval: "weekly"
       day: "friday"
     commit-message:
       prefix: "[depbot] "
+    groups:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    labels: ["A0-pleasereview", "A4-insubstantial"]
+    labels: ["A4-insubstantial"]
     schedule:
       interval: "weekly"
       day: "friday"
     commit-message:
       prefix: "[depbot] "
+    groups:
