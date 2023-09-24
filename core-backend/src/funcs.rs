@@ -122,7 +122,7 @@ pub trait SysCall<Ext, T = ()> {
     type Context: SysCallContext;
 
     fn execute(
-        &self,
+        self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
     ) -> Result<(u64, T), HostError>;
@@ -134,7 +134,7 @@ pub trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
 
 impl<Ext, R, S, H> SysCallBuilder<Ext, (), R, S> for H
 where
-    H: Fn() -> S,
+    H: FnOnce() -> S,
     S: SysCall<Ext, R>,
 {
     fn build(self, args: &[Value]) -> Result<S, HostError> {
@@ -145,7 +145,7 @@ where
 
 impl<Ext, R, S, H> SysCallBuilder<Ext, [Value], R, S> for H
 where
-    H: for<'a> Fn(&'a [Value]) -> S,
+    H: for<'a> FnOnce(&'a [Value]) -> S,
     S: SysCall<Ext, R>,
 {
     fn build(self, args: &[Value]) -> Result<S, HostError> {
@@ -159,7 +159,7 @@ macro_rules! impl_syscall_builder {
         impl<Ext, Res, Call, Handler, $($generic),+> SysCallBuilder<Ext, ($($generic,)+), Res, Call>
             for Handler
         where
-            Handler: Fn($($generic),+) -> Call,
+            Handler: FnOnce($($generic),+) -> Call,
             Call: SysCall<Ext, Res>,
             $( $generic: TryFrom<SandboxValue, Error = HostError>,)+
         {
@@ -190,13 +190,13 @@ type SimpleSysCall<F> = F;
 
 impl<T, F, Ext> SysCall<Ext, T> for SimpleSysCall<F>
 where
-    F: Fn(&mut CallerWrap<Ext>) -> Result<T, HostError>,
+    F: FnOnce(&mut CallerWrap<Ext>) -> Result<T, HostError>,
     Ext: BackendExternalities + 'static,
 {
     type Context = InfallibleSysCallContext;
 
     fn execute(
-        &self,
+        self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
     ) -> Result<(u64, T), HostError> {
@@ -228,20 +228,20 @@ type FallibleSysCall<E, F> = (RuntimeCosts, FallibleSysCallError<E>, F);
 
 impl<T, E, F, Ext> SysCall<Ext, ()> for FallibleSysCall<E, F>
 where
-    F: Fn(&mut CallerWrap<Ext>) -> Result<T, RunFallibleError>,
+    F: FnOnce(&mut CallerWrap<Ext>) -> Result<T, RunFallibleError>,
     E: From<Result<T, u32>>,
     Ext: BackendExternalities + 'static,
 {
     type Context = FallibleSysCallContext;
 
     fn execute(
-        &self,
+        self,
         caller: &mut CallerWrap<Ext>,
         context: Self::Context,
     ) -> Result<(u64, ()), HostError> {
         let (costs, _error, func) = self;
         let FallibleSysCallContext { gas, res_ptr } = context;
-        caller.run_fallible::<T, _, E>(gas, res_ptr, *costs, |ctx| (func)(ctx))
+        caller.run_fallible::<T, _, E>(gas, res_ptr, costs, func)
     }
 }
 
@@ -267,13 +267,13 @@ where
     type Context = InfallibleSysCallContext;
 
     fn execute(
-        &self,
+        self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
     ) -> Result<(u64, T), HostError> {
         let (costs, func) = self;
         let InfallibleSysCallContext { gas } = ctx;
-        caller.run_any::<T, _>(gas, *costs, |ctx| (func)(ctx))
+        caller.run_any::<T, _>(gas, costs, func)
     }
 }
 
