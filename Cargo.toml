@@ -205,7 +205,7 @@ gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "lazy-pages/common" }
+gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
