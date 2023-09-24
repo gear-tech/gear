@@ -68,7 +68,7 @@ jobs:
   build:
     needs: status
     if: >-
-      (steps.check-commit-message.outputs.skip-ci != 1) && (
+      (needs.status.outputs.skip-ci != 1) && (
         contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
         || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
         || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
