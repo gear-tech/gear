@@ -3922,7 +3922,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "actor-system-error",
  "blake2-rfc",
@@ -4011,7 +4011,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "gear-core",
  "num_enum",
@@ -4020,7 +4020,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "byteorder",
  "derive_more",

@@ -1,6 +1,6 @@
 [package]
 name = "gear-lazy-pages"
-description = "Gear lazy-pages support"
+description = "Gear lazy-pages implementation"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
