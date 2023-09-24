@@ -357,7 +357,7 @@ fn execute_wasm_with_custom_configs(
         .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
-    let program_id = ProgramId::generate(code_id, b"");
+    let program_id = ProgramId::generate_from_user(code_id, b"");
 
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
