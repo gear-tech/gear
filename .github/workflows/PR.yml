@@ -19,6 +19,7 @@ jobs:
   status:
     runs-on: ubuntu-latest
     outputs:
+      skip-ci: ${{ steps.check-commit-message.outputs.skip-ci }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
     steps:
       - uses: actions/checkout@v4
