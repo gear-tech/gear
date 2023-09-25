@@ -163,11 +163,11 @@ impl From<u32> for SysCallReturnValue {
     }
 }
 
-pub trait SysCallContext: Sized {
+pub(crate) trait SysCallContext: Sized {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
 }
 
-pub trait SysCall<Ext, T = ()> {
+pub(crate) trait SysCall<Ext, T = ()> {
     type Context: SysCallContext;
 
     fn execute(
@@ -177,7 +177,7 @@ pub trait SysCall<Ext, T = ()> {
     ) -> Result<(u64, T), HostError>;
 }
 
-pub trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
+pub(crate) trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
     fn build(self, args: &[Value]) -> Result<S, HostError>;
 }
 
