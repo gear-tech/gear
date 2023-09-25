@@ -77,6 +77,8 @@ members = [
     "gsdk/codegen",
     "gsdk/api-gen",
     "gstd",
+    "gstd/framework/macros",
+    "gstd/framework/macros/core",
     "gsys",
     "gtest",
     "node/cli",
@@ -86,7 +88,7 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz"
+    "utils/runtime-fuzzer/fuzz",
 ]
 
 [workspace.dependencies]
@@ -127,6 +129,7 @@ parking_lot = "0.12.1"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.1", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
+proc-macro-error = "1.0"
 proptest = "1.1.0"
 quick-xml = "0.28"
 quote = { version = "1.0.33", default-features = false }

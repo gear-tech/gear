@@ -1,0 +1,10 @@
+[package]
+name = "gstd-framework-macros-core"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true

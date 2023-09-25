@@ -1,0 +1,13 @@
+[package]
+name = "gstd-framework-macros"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+gstd-framework-macros-core = { path = "./core" }
+proc-macro-error.workspace = true

@@ -4778,6 +4778,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gstd-framework-macros"
+version = "1.0.1"
+dependencies = [
+ "gstd-framework-macros-core",
+ "proc-macro-error",
+]
+
+[[package]]
+name = "gstd-framework-macros-core"
+version = "1.0.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "gsys"
 version = "1.0.1"
 
