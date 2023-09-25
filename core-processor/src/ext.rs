@@ -55,7 +55,6 @@ use gear_core_errors::{
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
-use gear_lazy_pages_interface as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -315,7 +314,7 @@ impl GrowHandler for LazyGrowHandler {
         // So we remove protections from lazy-pages
         // and then in `after_grow_action` we set protection back for new wasm memory buffer.
         let old_mem_addr = mem.get_buffer_host_addr();
-        lazy_pages::remove_lazy_pages_prot(mem);
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
         Self {
             old_mem_addr,
             old_mem_size: mem.size(),
@@ -328,7 +327,7 @@ impl GrowHandler for LazyGrowHandler {
         let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
             unreachable!("Memory size cannot be zero after grow is applied for memory")
         });
-        lazy_pages::update_lazy_pages_and_protect_again(
+        gear_lazy_pages_interface::update_lazy_pages_and_protect_again(
             mem,
             self.old_mem_addr,
             self.old_mem_size,
@@ -381,7 +380,7 @@ impl ProcessorExternalities for Ext {
         let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
-        let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+        let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
             let wasm_page = p.to_page();
             wasm_page < static_pages || allocations.contains(&wasm_page)
@@ -437,15 +436,21 @@ impl ProcessorExternalities for Ext {
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
+        gear_lazy_pages_interface::init_for_program(
+            mem,
+            prog_id,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        );
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        lazy_pages::remove_lazy_pages_prot(mem);
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
     }
 
     fn lazy_pages_status() -> Status {
-        lazy_pages::get_status()
+        gear_lazy_pages_interface::get_status()
     }
 }
 
@@ -459,7 +464,7 @@ impl BackendExternalities for Ext {
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
+        gear_lazy_pages_interface::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 

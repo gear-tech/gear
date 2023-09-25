@@ -29,7 +29,6 @@ use gear_core::{
     pages::{PageNumber, PageU32Size},
 };
 use gear_lazy_pages_common::Status;
-use gear_lazy_pages_interface as lazy_pages;
 use rand::{Rng, SeedableRng};
 
 use super::*;
@@ -590,7 +589,7 @@ where
             }
         }
 
-        assert_ne!(lazy_pages::get_status(), Status::Normal);
+        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
     };
 
     // Check gas allowance exceeded.
@@ -624,6 +623,6 @@ where
             }
         }
 
-        assert_ne!(lazy_pages::get_status(), Status::Normal);
+        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
     };
 }
