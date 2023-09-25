@@ -41,7 +41,7 @@ impl MutexId {
     }
 
     pub fn next(self) -> Self {
-        Self(self.0.checked_add(1).unwrap_or_else(|| 1))
+        Self(self.0.checked_add(1).unwrap_or(1))
     }
 }
 
