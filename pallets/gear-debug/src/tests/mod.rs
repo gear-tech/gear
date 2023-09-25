@@ -25,13 +25,11 @@ use common::{
     ActiveProgram, CodeStorage, Origin as _, PausedProgramStorage, ProgramStorage,
 };
 use frame_support::{assert_err, assert_ok};
-#[cfg(feature = "lazy-pages")]
-use gear_core::pages::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{
@@ -146,8 +144,8 @@ fn debug_mode_works() {
         let code_1 = utils::parse_wat(wat_1);
         let code_2 = utils::parse_wat(wat_2);
 
-        let program_id_1 = ProgramId::generate(CodeId::generate(&code_1), DEFAULT_SALT);
-        let program_id_2 = ProgramId::generate(CodeId::generate(&code_2), DEFAULT_SALT);
+        let program_id_1 = ProgramId::generate_from_user(CodeId::generate(&code_1), DEFAULT_SALT);
+        let program_id_2 = ProgramId::generate_from_user(CodeId::generate(&code_2), DEFAULT_SALT);
 
         PalletGear::<Test>::upload_program(
             RuntimeOrigin::signed(1),
@@ -202,19 +200,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
@@ -280,19 +278,19 @@ fn debug_mode_works() {
                 ],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
@@ -309,19 +307,19 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
-                        }),
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
                             code_hash: utils::h256_code_hash(&code_2),
+                        }),
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
                 ],
@@ -393,7 +391,6 @@ fn get_last_snapshot() -> DebugData {
     }
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_not_allocated_pages() {
     // Currently we has no mechanism to restrict not allocated pages access during wasm execution
@@ -516,7 +513,7 @@ fn check_not_allocated_pages() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
@@ -595,7 +592,6 @@ fn check_not_allocated_pages() {
     })
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_changed_pages_in_storage() {
     // This test checks that only pages, which has been write accessed,
@@ -736,7 +732,7 @@ fn check_changed_pages_in_storage() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
@@ -874,7 +870,7 @@ fn check_gear_stack_end() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = utils::parse_wat(wat.as_str());
-        let program_id = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
@@ -903,12 +899,6 @@ fn check_gear_stack_end() {
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
 
-        #[cfg(feature = "lazy-pages")]
-        log::debug!("LAZY-PAGES IS ON");
-
-        #[cfg(not(feature = "lazy-pages"))]
-        log::debug!("LAZY-PAGES IS OFF");
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -936,7 +926,8 @@ fn disabled_program_rent() {
     init_logger();
     new_test_ext().execute_with(|| {
         let salt = b"salt".to_vec();
-        let pay_rent_id = ProgramId::generate(CodeId::generate(TEST_SYSCALLS_BINARY), &salt);
+        let pay_rent_id =
+            ProgramId::generate_from_user(CodeId::generate(TEST_SYSCALLS_BINARY), &salt);
 
         let program_value = 10_000_000;
         assert_ok!(Gear::upload_program(

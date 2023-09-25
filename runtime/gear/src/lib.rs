@@ -124,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 1000,
+    spec_version: 1010,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -804,6 +804,12 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            unimplemented!();
         }
     }
 }

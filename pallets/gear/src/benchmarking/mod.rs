@@ -238,7 +238,6 @@ where
         &exec.block_config,
         exec.context,
         exec.random_data,
-        exec.memory_pages,
     )
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
@@ -339,7 +338,7 @@ where
         let value = CurrencyOf::<T>::minimum_balance();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -369,7 +368,6 @@ pub struct Exec<T: Config> {
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 }
 
 benchmarks! {
@@ -388,12 +386,10 @@ benchmarks! {
     check_all {
         syscalls_integrity::main_test::<T>();
         tests::check_stack_overflow::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -403,12 +399,9 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -418,19 +411,16 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging_special::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
@@ -511,7 +501,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         let block_count = 1_000u32.into();
@@ -531,7 +521,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -556,7 +546,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -592,7 +582,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);

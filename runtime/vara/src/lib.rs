@@ -142,7 +142,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1000,
+    spec_version: 1010,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1380,6 +1380,12 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            StakingRewards::inflation_info()
         }
     }
 }

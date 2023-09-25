@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,29 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{msg, MessageId, exec};
+#![cfg_attr(not(feature = "std"), no_std)]
 
-static mut MID: Option<MessageId> = None;
-static mut DONE: bool = false;
+pub use pallet_gear_staking_rewards::InflationInfo;
 
-#[no_mangle]
-extern "C" fn init() {
-    let delay: u32 = msg::load().unwrap();
-
-    msg::send_bytes_delayed(msg::source(), "Delayed hello!", 0, delay).unwrap();
-}
-
-#[no_mangle]
-extern "C" fn handle() {
-    if let Some(message_id) = unsafe { MID.take() } {
-        let delay: u32 = msg::load().unwrap();
-
-        unsafe { DONE = true; }
-
-        exec::wake_delayed(message_id, delay).expect("Failed to wake message");
-    } else if unsafe { !DONE } {
-        unsafe { MID = Some(msg::id()); }
-
-        exec::wait();
+sp_api::decl_runtime_apis! {
+    pub trait GearStakingRewardsApi {
+        /// Calculate token economics related data.
+        fn inflation_info() -> InflationInfo;
     }
 }

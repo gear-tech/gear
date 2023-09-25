@@ -139,7 +139,6 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --features=lazy-pages
           --release
 
   upload:

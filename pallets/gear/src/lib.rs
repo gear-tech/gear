@@ -24,9 +24,6 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(feature = "lazy-pages")]
-mod ext;
-
 mod internal;
 mod queue;
 mod runtime_api;
@@ -46,6 +43,7 @@ pub use crate::{
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
+pub use gear_core::gas::GasInfo;
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
@@ -58,6 +56,7 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
+    Ext,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -74,6 +73,7 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
+use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -85,15 +85,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-#[cfg(feature = "lazy-pages")]
-use gear_lazy_pages_common as lazy_pages;
-
-#[cfg(feature = "lazy-pages")]
-use ext::LazyPagesExt as Ext;
-
-#[cfg(not(feature = "lazy-pages"))]
-use core_processor::Ext;
 
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
@@ -147,27 +138,6 @@ impl DebugInfo for () {
     fn is_enabled() -> bool {
         false
     }
-}
-
-/// The struct contains results of gas calculation required to process
-/// a message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub struct GasInfo {
-    /// Represents minimum gas limit required for execution.
-    pub min_limit: u64,
-    /// Gas amount that we reserve for some other on-chain interactions.
-    pub reserved: u64,
-    /// Contains number of gas burned during message processing.
-    pub burned: u64,
-    /// The value may be returned if a program happens to be executed
-    /// the second or next time in a block.
-    pub may_be_returned: u64,
-    /// Was the message placed into waitlist at the end of calculating.
-    ///
-    /// This flag shows, that `min_limit` makes sense and have some guarantees
-    /// only before insertion into waitlist.
-    pub waited: bool,
 }
 
 #[frame_support::pallet]
@@ -607,6 +577,7 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -702,26 +673,41 @@ pub mod pallet {
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
+            gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
-                .map_err(String::into_bytes)
+            Self::read_state_using_wasm_impl(
+                program_id,
+                payload,
+                fn_name,
+                wasm,
+                argument,
+                gas_allowance,
+            )
+            .map_err(String::into_bytes)
         }
 
-        pub fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+        pub fn read_state(
+            program_id: H256,
+            payload: Vec<u8>,
+            gas_allowance: Option<u64>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_impl(program_id, payload).map_err(String::into_bytes)
+            Self::read_state_impl(program_id, payload, gas_allowance).map_err(String::into_bytes)
         }
 
-        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+        pub fn read_metahash(
+            program_id: H256,
+            gas_allowance: Option<u64>,
+        ) -> Result<H256, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id, gas_allowance).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -732,6 +718,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
             initial_gas: Option<u64>,
+            gas_allowance: Option<u64>,
         ) -> Result<GasInfo, Vec<u8>> {
             Self::calculate_gas_info_impl(
                 source,
@@ -741,6 +728,7 @@ pub mod pallet {
                 value,
                 allow_other_panics,
                 false,
+                gas_allowance,
             )
         }
 
@@ -770,6 +758,7 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                     allow_skip_zero_replies,
+                    None,
                 );
                 GasAllowanceOf::<T>::put(gas_allowance);
                 if queue_processing {
@@ -1023,46 +1012,11 @@ pub mod pallet {
             }
         }
 
-        pub(crate) fn enable_lazy_pages() -> bool {
-            #[cfg(feature = "lazy-pages")]
-            {
-                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
-                }
-                true
+        pub(crate) fn enable_lazy_pages() {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
-
-            #[cfg(not(feature = "lazy-pages"))]
-            {
-                false
-            }
-        }
-
-        pub(crate) fn get_and_track_memory_pages(
-            manager: &mut ExtManager<T>,
-            program_id: ProgramId,
-            pages_with_data: &BTreeSet<GearPage>,
-            lazy_pages_enabled: bool,
-        ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            let pages = if lazy_pages_enabled {
-                Default::default()
-            } else {
-                match ProgramStorageOf::<T>::get_program_data_for_pages(
-                    program_id,
-                    pages_with_data.iter(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        log::error!("Cannot get data for program pages: {err:?}");
-                        return None;
-                    }
-                }
-            };
-
-            manager.insert_program_id_loaded_pages(program_id);
-
-            Some(pages)
         }
 
         pub(crate) fn block_config() -> BlockConfig {
@@ -1224,6 +1178,7 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
