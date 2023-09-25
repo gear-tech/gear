@@ -243,7 +243,7 @@ fn error_processing_works_for_fallible_syscalls() {
 
 #[test]
 fn precise_syscalls_works() {
-    use gear_backend_common::ActorTerminationReason;
+    use gear_core_backend::error::ActorTerminationReason;
 
     gear_utils::init_default_logger();
 
