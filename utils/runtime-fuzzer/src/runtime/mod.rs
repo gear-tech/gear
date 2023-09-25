@@ -28,9 +28,10 @@ use gear_runtime::{
 };
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
 use pallet_gear_bank::Config as GearBankConfig;
+use runtime_primitives::Balance;
 use sp_io::TestExternalities;
 
-pub use account::{account, alice};
+pub use account::{acc_max_balance, account, alice, get_account_balance};
 pub use block::{default_gas_limit, run_to_block, run_to_next_block};
 pub use mailbox::get_mailbox_messages;
 
@@ -91,13 +92,12 @@ pub fn new_test_ext() -> TestExternalities {
     ext
 }
 
-pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
-    let new_reserved = BalancesPallet::<Runtime>::reserved_balance(&who);
+pub fn set_account_balance(account: AccountId, balance: Balance) -> DispatchResultWithPostInfo {
+    let new_reserved = BalancesPallet::<Runtime>::reserved_balance(&account);
     BalancesPallet::<Runtime>::set_balance(
         RuntimeOrigin::root(),
-        who.into(),
-        <Runtime as GearBankConfig>::GasMultiplier::get()
-            .gas_to_value(account::acc_max_balance() as u64),
+        account.into(),
+        <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(balance as u64),
         new_reserved,
     )
 }

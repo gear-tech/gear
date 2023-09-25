@@ -21,7 +21,8 @@ use crate::{
         ExtrinsicGeneratorSet, MailboxProvider, RepeatedGenerator, SendMessageGenerator,
         SendReplyGenerator, UploadProgramGenerator,
     },
-    runtime::{self, default_gas_limit, get_mailbox_messages},
+    runtime::{self, acc_max_balance, default_gas_limit, get_mailbox_messages},
+    FuzzingConfig,
 };
 use gear_core::ids::MessageId;
 use gear_runtime::AccountId;
@@ -37,12 +38,16 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
     const SEND_MESSAGE_CALLS: usize = 15;
     const SEND_REPLY_CALLS: usize = 1;
 
+    let min_value_sent = 0;
+    let max_value_sent =
+        acc_max_balance() / (UPLOAD_PROGRAM_CALLS + SEND_MESSAGE_CALLS + SEND_REPLY_CALLS) as u128;
+
     ExtrinsicGeneratorSet::new(vec![
         RepeatedGenerator::new(
             UPLOAD_PROGRAM_CALLS,
             UploadProgramGenerator {
                 gas: default_gas_limit(),
-                value: 0,
+                value: min_value_sent..=max_value_sent,
                 test_input_id,
             }
             .into(),
@@ -51,7 +56,7 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
             SEND_MESSAGE_CALLS,
             SendMessageGenerator {
                 gas: default_gas_limit(),
-                value: 0,
+                value: min_value_sent..=max_value_sent,
                 prepaid: false,
             }
             .into(),
@@ -63,12 +68,22 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
                     account_id: runtime::account(runtime::alice()),
                 }),
                 gas: default_gas_limit(),
-                value: 0,
+                value: min_value_sent..=max_value_sent,
                 prepaid: false,
             }
             .into(),
         ),
     ])
+}
+
+pub(crate) fn default_fuzzing_config() -> FuzzingConfig {
+    let min_sender_balance = acc_max_balance() / 2;
+    let max_sender_balance = acc_max_balance();
+
+    FuzzingConfig {
+        initial_sender_balance: min_sender_balance..=max_sender_balance,
+        allow_exceed_sender_balance: false,
+    }
 }
 
 struct MailboxProviderImpl {

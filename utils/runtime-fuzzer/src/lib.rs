@@ -24,16 +24,23 @@ mod runtime;
 mod tests;
 mod utils;
 
-use arbitrary::Result;
+use arbitrary::{Result, Unstructured};
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
-use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
-use pallet_balances::Pallet as BalancesPallet;
+use gear_runtime::{AccountId, Gear, RuntimeOrigin};
 use runtime::*;
 use sha1::*;
+use std::ops::RangeInclusive;
 use utils::default_generator_set;
+
+use crate::utils::default_fuzzing_config;
+
+pub(crate) struct FuzzingConfig {
+    initial_sender_balance: RangeInclusive<u128>,
+    allow_exceed_sender_balance: bool,
+}
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(data: &[u8]) -> Result<()> {
@@ -48,27 +55,34 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     let test_input_id = get_sha1_string(data);
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
+    let fuzzing_config = default_fuzzing_config();
+
     let sender = runtime::account(runtime::alice());
     let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
 
+    let mut unstructured = Unstructured::new(data);
+
+    let initial_sender_balance =
+        unstructured.int_in_range(fuzzing_config.initial_sender_balance.clone())?;
+
     let generators = default_generator_set(test_input_id);
-    let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
+    let gear_calls = GearCalls::new(unstructured, generators, vec![sender_prog_id])?;
 
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {
-        // Increase maximum balance of the `sender`.
+        // Set balance of the `sender`.
         {
-            increase_to_max_balance(sender.clone())
+            set_account_balance(sender.clone(), initial_sender_balance)
                 .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
             log::info!(
                 "Current balance of the sender - {}",
-                BalancesPallet::<Runtime>::free_balance(&sender)
+                get_account_balance(&sender)
             );
         }
 
         for gear_call in gear_calls {
             let gear_call = gear_call?;
-            let call_res = execute_gear_call(sender.clone(), gear_call);
+            let call_res = execute_gear_call(sender.clone(), gear_call, &fuzzing_config);
             log::info!("Extrinsic result: {call_res:?}");
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
@@ -80,10 +94,23 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     Ok(test_ext)
 }
 
-fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
+fn execute_gear_call(
+    sender: AccountId,
+    call: GearCall,
+    fuzzing_config: &FuzzingConfig,
+) -> DispatchResultWithPostInfo {
+    let allowed_to_spend_value = if fuzzing_config.allow_exceed_sender_balance {
+        u128::MAX
+    } else {
+        get_account_balance(&sender)
+    };
+
     match call {
         GearCall::UploadProgram(args) => {
             let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
+
+            let value = u128::min(allowed_to_spend_value, value);
+
             Gear::upload_program(
                 RuntimeOrigin::signed(sender),
                 code,
@@ -95,6 +122,9 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
         }
         GearCall::SendMessage(args) => {
             let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
+
+            let value = u128::min(allowed_to_spend_value, value);
+
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
@@ -106,6 +136,9 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
         }
         GearCall::SendReply(args) => {
             let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
+
+            let value = u128::min(allowed_to_spend_value, value);
+
             Gear::send_reply(
                 RuntimeOrigin::signed(sender),
                 message_id,

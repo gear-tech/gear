@@ -38,6 +38,7 @@ use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
+use std::ops::RangeInclusive;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -78,16 +79,16 @@ pub(crate) struct GearCalls<'a> {
 
 impl<'a> GearCalls<'a> {
     pub(crate) fn new(
-        data: &'a [u8],
+        unstructured: Unstructured<'a>,
         generators: ExtrinsicGeneratorSet,
         existing_users: Vec<ProgramId>,
     ) -> Result<GearCalls<'a>> {
-        if data.len() < generators.unstructured_size_hint() {
+        if unstructured.len() < generators.unstructured_size_hint() {
             return Err(Error::NotEnoughData);
         }
 
         Ok(GearCalls {
-            unstructured: Unstructured::new(data),
+            unstructured,
             intermediate_data: TempData {
                 existing_addresses: existing_users,
             },
@@ -189,7 +190,7 @@ impl ExtrinsicGenerator {
 /// Extrinsic generator that's capable of generating `UploadProgram` calls.
 pub(crate) struct UploadProgramGenerator {
     pub gas: u64,
-    pub value: u128,
+    pub value: RangeInclusive<u128>,
     pub test_input_id: String,
 }
 
@@ -232,8 +233,10 @@ impl UploadProgramGenerator {
 
         intermediate_data.existing_addresses.push(program_id);
 
+        let value = unstructured.int_in_range(self.value.clone())?;
+
         Ok(Some(
-            UploadProgramArgs((code, salt, payload, self.gas, self.value)).into(),
+            UploadProgramArgs((code, salt, payload, self.gas, value)).into(),
         ))
     }
 
@@ -252,7 +255,7 @@ impl From<UploadProgramGenerator> for ExtrinsicGenerator {
 /// Extrinsic generator that's capable of generating `SendMessage` calls.
 pub(crate) struct SendMessageGenerator {
     pub gas: u64,
-    pub value: u128,
+    pub value: RangeInclusive<u128>,
     pub prepaid: bool,
 }
 
@@ -272,8 +275,10 @@ impl SendMessageGenerator {
         );
         log::trace!("Payload (send_message) length {:?}", payload.len());
 
+        let value = unstructured.int_in_range(self.value.clone())?;
+
         Ok(Some(
-            SendMessageArgs((program_id, payload, self.gas, self.value, self.prepaid)).into(),
+            SendMessageArgs((program_id, payload, self.gas, value, self.prepaid)).into(),
         ))
     }
 
@@ -294,7 +299,7 @@ pub(crate) struct SendReplyGenerator {
     pub mailbox_provider: Box<dyn MailboxProvider>,
 
     pub gas: u64,
-    pub value: u128,
+    pub value: RangeInclusive<u128>,
     pub prepaid: bool,
 }
 
@@ -317,9 +322,9 @@ impl SendReplyGenerator {
                 );
                 log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-                Some(
-                    SendReplyArgs((message_id, payload, self.gas, self.value, self.prepaid)).into(),
-                )
+                let value = unstructured.int_in_range(self.value.clone())?;
+
+                Some(SendReplyArgs((message_id, payload, self.gas, value, self.prepaid)).into())
             }
         })
     }

@@ -18,6 +18,7 @@
 
 use gear_common::Origin;
 use gear_runtime::Runtime;
+use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -61,4 +62,8 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
 
 pub fn acc_max_balance() -> Balance {
     BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
+}
+
+pub fn get_account_balance(account: &AccountId) -> Balance {
+    BalancesPallet::<Runtime>::free_balance(account)
 }
