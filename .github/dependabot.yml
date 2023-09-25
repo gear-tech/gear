@@ -13,25 +13,12 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: "cargo"
-    directory: "/examples/"
-    labels: ["A4-insubstantial"]
-    schedule:
-      interval: "weekly"
-      day: "friday"
-    commit-message:
-      prefix: "[depbot] "
-    groups:
-      deps:
-        patterns:
-          - "*"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     labels: ["A4-insubstantial"]
     schedule:
       interval: "weekly"
-      day: "friday"
+      day: "sunday"
     commit-message:
       prefix: "[depbot] "
     groups:
