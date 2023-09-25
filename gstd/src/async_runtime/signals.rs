@@ -51,14 +51,18 @@ impl WakeSignals {
     }
 
     pub fn register_signal(&mut self, waiting_reply_to: MessageId) {
+        let message_id = crate::msg::id();
+
         self.signals.insert(
             waiting_reply_to,
             WakeSignal {
-                message_id: crate::msg::id(),
+                message_id,
                 payload: None,
                 waker: None,
             },
         );
+
+        crate::async_runtime::locks().lock(message_id, waiting_reply_to, Default::default());
     }
 
     pub fn record_reply(&mut self) {
