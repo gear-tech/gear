@@ -42,7 +42,8 @@ pub fn run_to_next_block() {
     run_to_block(System::block_number() + 1, None);
 }
 
-/// Run gear-protocol until the block `n` giving `remaining_weight` for each block.
+/// Run gear-protocol until the block `n` giving `remaining_weight` for each
+/// block.
 pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
@@ -84,7 +85,8 @@ pub fn on_initialize() {
     Gear::on_initialize(System::block_number());
 }
 
-/// Run on_finalize hooks in pallets reversed order, as they appear in `AllPalletsWithSystem`.
+/// Run on_finalize hooks in pallets reversed order, as they appear in
+/// `AllPalletsWithSystem`.
 // TODO #2307
 pub fn on_finalize_without_system() {
     let bn = System::block_number();

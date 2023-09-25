@@ -77,6 +77,17 @@ impl WasmModule {
             .expect("minimal possible is 1 by config")
     }
 
+    /// Counts amount of instructions in the provided function.
+    pub fn count_func_instructions(&self, func_id: usize) -> usize {
+        self.0
+            .code_section()
+            .expect("has at least one function by config")
+            .bodies()[func_id]
+            .code()
+            .elements()
+            .len()
+    }
+
     /// Returns an option with a value of initial memory size,
     /// defined in the import section.
     ///
