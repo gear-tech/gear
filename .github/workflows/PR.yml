@@ -34,11 +34,13 @@ jobs:
             CACHE=""
           fi
 
-          echo "cache: ${CACHE}"
-          echo "commit message: ${MESSAGE}"
+          if [[ $MESSAGE == *"[skip-ci]"* ]]; then
+            echo "skip-ci: 1"
+            echo "skip-ci=1" >> $GITHUB_OUTPUT
+          fi
 
+          echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
-          echo "commit-message=${MESSAGE}"
 
       - uses: actions/github-script@v6
         env:
@@ -60,7 +62,7 @@ jobs:
     needs: status
     if: >-
       !contains(github.event.pull_request.title, '[skip-ci]')
-      && !contains(needs.status.outputs.commit-message, '[skip-ci]')
+      && needs.status.outputs.skip-ci != '1'
 
     uses: ./.github/workflows/check.yml
     with:
@@ -69,7 +71,7 @@ jobs:
   build:
     needs: status
     if: >-
-      !contains(needs.status.outputs.commit-message, '[skip-ci]') && (
+      needs.status.outputs.skip-ci != '1' && (
         contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
         || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
         || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
