@@ -83,6 +83,60 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn default_wait_lock_timeout() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Kind::Send.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        let expiration_block = get_waitlist_expiration(mid);
+
+        run_to_block(expiration_block, None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "ran into error-reply: {:?}",
+                GstdError::Timeout(expiration_block, expiration_block)
+            )
+        } else {
+            String::from("no info")
+        };
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
+    })
+}
+
+#[test]
 fn value_counter_set_correctly_for_interruptions() {
     use demo_constructor::{Arg, Calls, Scheme};
 
@@ -1228,7 +1282,8 @@ fn delayed_user_replacement() {
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let future_program_address =
+            ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
@@ -6100,7 +6155,6 @@ fn test_pausing_programs_works() {
         let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
-        let child_program_id = generate_program_id(&child_code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), child_code,));
 
@@ -6129,6 +6183,13 @@ fn test_pausing_programs_works() {
             0,
             false,
         ));
+
+        let child_program_id = ProgramId::generate_from_program(
+            child_code_hash.into(),
+            DEFAULT_SALT,
+            get_last_message_id(),
+        );
+
         run_to_next_block(None);
 
         let child_bn = System::block_number();
@@ -7126,7 +7187,7 @@ fn test_create_program_duplicate() {
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(3, None);
 
-        // Program tries to create the same
+        // Program creates identical program
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             factory_id,
@@ -7142,11 +7203,8 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(4, None);
 
-        // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
-        // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
-        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(3 + 3 + 1); // +3 from extrinsics (2 upload_program, 1 send_message) +1 for auto generated reply
-        assert_init_success(2); // +2 from extrinsics (2 upload_program)
+        assert_init_success(3); // (3 upload_program)
 
         System::reset_events();
         MailboxOf::<Test>::clear();
@@ -7163,7 +7221,7 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(5, None);
 
-        // Try to create the same
+        // Create an identical program from program
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             factory_id,
@@ -7175,24 +7233,17 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(6, None);
 
-        // First call successfully creates a program and sends a messages to it (+2 dequeued, +1 dispatched)
-        // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
-        // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
-        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(5 + 2 + 3); // +2 from extrinsics (send_message) +3 for auto generated replies
-        assert_init_success(1);
+        assert_init_success(2); // Both uploads succeed due to unique program id generation
 
-        assert_noop!(
-            Gear::upload_program(
-                RuntimeOrigin::signed(USER_1),
-                child_code,
-                b"salt1".to_vec(),
-                EMPTY_PAYLOAD.to_vec(),
-                10_000_000_000,
-                0,
-            ),
-            Error::<Test>::ProgramAlreadyExists,
-        );
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            child_code,
+            b"salt1".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
     });
 }
 
@@ -7349,7 +7400,7 @@ fn test_create_program_miscellaneous() {
             RuntimeOrigin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
-                // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
+                // duplicate in the next block: init is executed due to new ProgramId generation, replies are generated (+4 dequeue, +2 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt3".to_vec(), 200_000_000),
@@ -7363,7 +7414,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(5, None);
 
         assert_total_dequeued(18 + 4 + 6); // +4 for 3 send_message calls and 1 upload_program call +6 for auto generated replies
-        assert_init_success(3 + 1); // +1 for submitting factory
+        assert_init_success(4 + 1); // +1 for submitting factory
     });
 }
 
@@ -9843,7 +9894,8 @@ fn program_generator_works() {
 
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
-        let expected_child_id = ProgramId::generate(code_id, &expected_salt);
+        let expected_child_id =
+            ProgramId::generate_from_program(code_id, &expected_salt, message_id);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -14679,7 +14731,7 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
-        ProgramId::generate(CodeId::generate(code), salt)
+        ProgramId::generate_from_user(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
