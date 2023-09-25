@@ -37,11 +37,11 @@ pub(crate) struct MutexId(u32);
 
 impl MutexId {
     pub const fn new() -> Self {
-        MutexId(1)
+        MutexId(0)
     }
 
     pub fn next(self) -> Self {
-        Self(self.0.checked_add(1).unwrap_or(1))
+        Self(self.0.wrapping_add(1))
     }
 }
 
