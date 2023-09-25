@@ -31,13 +31,11 @@ use jsonrpsee::{
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
-use sp_api::{ApiError, ApiRef, ProvideRuntimeApi};
+use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-
-const MAX_BATCH_SIZE: usize = 256;
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
@@ -140,14 +138,18 @@ pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>
     client: Arc<C>,
+    allowance_multiplier: u64,
+    max_batch_size: u64,
     _marker: std::marker::PhantomData<P>,
 }
 
 impl<C, P> Gear<C, P> {
     /// Creates a new instance of the Gear Rpc helper.
-    pub fn new(client: Arc<C>) -> Self {
+    pub fn new(client: Arc<C>, allowance_multiplier: u64, max_batch_size: u64) -> Self {
         Self {
             client,
+            allowance_multiplier,
+            max_batch_size,
             _marker: Default::default(),
         }
     }
@@ -171,6 +173,59 @@ where
 
         runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
+
+    fn get_api_version(&self, at_hash: <Block as BlockT>::Hash) -> Result<u32, CallError> {
+        self.client
+            .runtime_api()
+            .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
+            .map_err(|e| into_call_err(e, "Failed to get gear runtime api version"))?
+            .ok_or_else(|| {
+                CallError::Custom(ErrorObject::owned(
+                    8000,
+                    "Gear runtime api wasn't found in the runtime",
+                    None::<String>,
+                ))
+            })
+    }
+
+    fn calculate_gas_info(
+        &self,
+        at_hash: <Block as BlockT>::Hash,
+        source: H256,
+        kind: HandleKind,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
+        min_limit: Option<u64>,
+    ) -> RpcResult<GasInfo> {
+        let api_version = self.get_api_version(at_hash)?;
+
+        self.run_with_api_copy(|api| {
+            if api_version < 2 {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_2(
+                    at_hash,
+                    source,
+                    kind,
+                    payload,
+                    value,
+                    allow_other_panics,
+                    min_limit,
+                )
+            } else {
+                api.calculate_gas_info(
+                    at_hash,
+                    source,
+                    kind,
+                    payload,
+                    value,
+                    allow_other_panics,
+                    min_limit,
+                    Some(self.allowance_multiplier),
+                )
+            }
+        })
+    }
 }
 
 /// Error type of this RPC api.
@@ -188,6 +243,10 @@ impl From<Error> for i64 {
             Error::DecodeError => 2,
         }
     }
+}
+
+fn into_call_err(error: impl ToString, desc: &'static str) -> CallError {
+    CallError::Custom(ErrorObject::owned(8000, desc, Some(error.to_string())))
 }
 
 #[async_trait]
@@ -208,28 +267,25 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::InitByHash(CodeId::from_origin(code_id)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::InitByHash(CodeId::from_origin(code_id)),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::InitByHash(CodeId::from_origin(code_id)),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            Some(min_limit),
+        )
     }
 
     fn get_init_upload_gas_spent(
@@ -243,28 +299,25 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Init(code.to_vec()),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Init(code.to_vec()),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Init(code.to_vec()),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Init(code.to_vec()),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            Some(min_limit),
+        )
     }
 
     fn get_handle_gas_spent(
@@ -278,28 +331,25 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Handle(ProgramId::from_origin(dest)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Handle(ProgramId::from_origin(dest)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Handle(ProgramId::from_origin(dest)),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Handle(ProgramId::from_origin(dest)),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            Some(min_limit),
+        )
     }
 
     fn get_reply_gas_spent(
@@ -313,34 +363,31 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Reply(
-                    MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReplyReason::Manual),
-                ),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                None,
-            )
-        })?;
-        self.run_with_api_copy(|api| {
-            api.calculate_gas_info(
-                at_hash,
-                source,
-                HandleKind::Reply(
-                    MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReplyReason::Manual),
-                ),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-                Some(min_limit),
-            )
-        })
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Reply(
+                MessageId::from_origin(message_id),
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Reply(
+                MessageId::from_origin(message_id),
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
+            payload.to_vec(),
+            value,
+            allow_other_panics,
+            Some(min_limit),
+        )
     }
 
     fn read_state(
@@ -351,8 +398,25 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.to_vec()))
+        let api_version = self.get_api_version(at_hash)?;
+
+        if api_version < 2 {
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.read_state_before_version_2(at_hash, program_id, payload.to_vec())
+            })
             .map(Bytes)
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_state(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    Some(self.allowance_multiplier),
+                )
+            })
+            .map(Bytes)
+        }
     }
 
     fn read_state_batch(
@@ -360,24 +424,49 @@ where
         batch_id_payload: Vec<(H256, Bytes)>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
-        if batch_id_payload.len() > MAX_BATCH_SIZE {
+        if batch_id_payload.len() > self.max_batch_size as usize {
             return Err(CallError::Custom(ErrorObject::owned(
                 8000,
                 "Runtime error",
-                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+                Some(format!(
+                    "Batch size must be lower than {:?}",
+                    self.max_batch_size
+                )),
             ))
             .into());
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        batch_id_payload
-            .into_iter()
-            .map(|(program_id, payload)| {
-                self.run_with_api_copy(|api| api.read_state(at_hash, program_id, payload.0))
+        let api_version = self.get_api_version(at_hash)?;
+
+        if api_version < 2 {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        #[allow(deprecated)]
+                        api.read_state_before_version_2(at_hash, program_id, payload.0)
+                    })
                     .map(Bytes)
-            })
-            .collect()
+                })
+                .collect()
+        } else {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        api.read_state(
+                            at_hash,
+                            program_id,
+                            payload.0,
+                            Some(self.allowance_multiplier),
+                        )
+                    })
+                    .map(Bytes)
+                })
+                .collect()
+        }
     }
 
     fn read_state_using_wasm(
@@ -391,17 +480,35 @@ where
     ) -> RpcResult<Bytes> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| {
-            api.read_state_using_wasm(
-                at_hash,
-                program_id,
-                payload.to_vec(),
-                fn_name.to_vec(),
-                wasm.to_vec(),
-                argument.map(|v| v.to_vec()),
-            )
-            .map(|r| r.map(Bytes))
-        })
+        let api_version = self.get_api_version(at_hash)?;
+
+        if api_version < 2 {
+            self.run_with_api_copy(|api| {
+                #[allow(deprecated)]
+                api.read_state_using_wasm_before_version_2(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    fn_name.to_vec(),
+                    wasm.to_vec(),
+                    argument.map(|v| v.to_vec()),
+                )
+                .map(|r| r.map(Bytes))
+            })
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_state_using_wasm(
+                    at_hash,
+                    program_id,
+                    payload.to_vec(),
+                    fn_name.to_vec(),
+                    wasm.to_vec(),
+                    argument.map(|v| v.to_vec()),
+                    Some(self.allowance_multiplier),
+                )
+                .map(|r| r.map(Bytes))
+            })
+        }
     }
 
     fn read_state_using_wasm_batch(
@@ -412,33 +519,59 @@ where
         argument: Option<Bytes>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
-        if batch_id_payload.len() > MAX_BATCH_SIZE {
+        if batch_id_payload.len() > self.max_batch_size as usize {
             return Err(CallError::Custom(ErrorObject::owned(
                 8000,
                 "Runtime error",
-                Some(format!("Batch size must be lower than {MAX_BATCH_SIZE:?}")),
+                Some(format!(
+                    "Batch size must be lower than {:?}",
+                    self.max_batch_size
+                )),
             ))
             .into());
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        batch_id_payload
-            .into_iter()
-            .map(|(program_id, payload)| {
-                self.run_with_api_copy(|api| {
-                    api.read_state_using_wasm(
-                        at_hash,
-                        program_id,
-                        payload.to_vec(),
-                        fn_name.clone().to_vec(),
-                        wasm.clone().to_vec(),
-                        argument.clone().map(|v| v.to_vec()),
-                    )
-                    .map(|r| r.map(Bytes))
+        let api_version = self.get_api_version(at_hash)?;
+
+        if api_version < 2 {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        #[allow(deprecated)]
+                        api.read_state_using_wasm_before_version_2(
+                            at_hash,
+                            program_id,
+                            payload.to_vec(),
+                            fn_name.clone().to_vec(),
+                            wasm.clone().to_vec(),
+                            argument.clone().map(|v| v.to_vec()),
+                        )
+                        .map(|r| r.map(Bytes))
+                    })
                 })
-            })
-            .collect()
+                .collect()
+        } else {
+            batch_id_payload
+                .into_iter()
+                .map(|(program_id, payload)| {
+                    self.run_with_api_copy(|api| {
+                        api.read_state_using_wasm(
+                            at_hash,
+                            program_id,
+                            payload.to_vec(),
+                            fn_name.clone().to_vec(),
+                            wasm.clone().to_vec(),
+                            argument.clone().map(|v| v.to_vec()),
+                            Some(self.allowance_multiplier),
+                        )
+                        .map(|r| r.map(Bytes))
+                    })
+                })
+                .collect()
+        }
     }
 
     fn read_metahash(
@@ -448,6 +581,15 @@ where
     ) -> RpcResult<H256> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| api.read_metahash(at_hash, program_id))
+        let api_version = self.get_api_version(at_hash)?;
+
+        if api_version < 2 {
+            #[allow(deprecated)]
+            self.run_with_api_copy(|api| api.read_metahash_before_version_2(at_hash, program_id))
+        } else {
+            self.run_with_api_copy(|api| {
+                api.read_metahash(at_hash, program_id, Some(self.allowance_multiplier))
+            })
+        }
     }
 }

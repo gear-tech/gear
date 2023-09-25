@@ -66,6 +66,14 @@ pub struct GrandpaDeps<B> {
     pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+/// Extra dependencies for GEAR.
+pub struct GearDeps {
+    /// gas allowance block limit multiplier.
+    pub allowance_multiplier: u64,
+    /// maximum batch size for rpc call.
+    pub max_batch_size: u64,
+}
+
 /// Full client dependencies.
 pub struct FullDeps<C, P, SC, B> {
     /// The client instance to use.
@@ -82,6 +90,8 @@ pub struct FullDeps<C, P, SC, B> {
     pub babe: BabeDeps,
     /// GRANDPA specific dependencies.
     pub grandpa: GrandpaDeps<B>,
+    /// GEAR specific dependencies.
+    pub gear: GearDeps,
 }
 
 /// Instantiate all Full RPC extensions.
@@ -131,6 +141,7 @@ where
         deny_unsafe,
         babe,
         grandpa,
+        gear,
     } = deps;
 
     let BabeDeps {
@@ -145,6 +156,11 @@ where
         subscription_executor,
         finality_provider,
     } = grandpa;
+
+    let GearDeps {
+        allowance_multiplier,
+        max_batch_size,
+    } = gear;
 
     let chain_name = chain_spec.name().to_string();
     let genesis_hash = client
@@ -192,7 +208,7 @@ where
     io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
     io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
 
-    io.merge(Gear::new(client.clone()).into_rpc())?;
+    io.merge(Gear::new(client.clone(), allowance_multiplier, max_batch_size).into_rpc())?;
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
