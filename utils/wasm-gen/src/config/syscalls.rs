@@ -21,6 +21,7 @@
 
 mod amount;
 mod param;
+mod precise;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -29,10 +30,12 @@ use std::{collections::HashSet, ops::RangeInclusive};
 
 pub use amount::*;
 pub use param::*;
+pub use precise::*;
 
 use crate::InvocableSysCall;
 
 /// Builder for [`SysCallsConfig`].
+#[derive(Debug, Clone)]
 pub struct SysCallsConfigBuilder(SysCallsConfig);
 
 impl SysCallsConfigBuilder {
@@ -41,6 +44,7 @@ impl SysCallsConfigBuilder {
         Self(SysCallsConfig {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
+            precise_syscalls_config: PreciseSysCallsConfig::default(),
             sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
@@ -50,6 +54,16 @@ impl SysCallsConfigBuilder {
     /// Set config for sys-calls params.
     pub fn with_params_config(mut self, params_config: SysCallsParamsConfig) -> Self {
         self.0.params_config = params_config;
+
+        self
+    }
+
+    /// Set config for precise sys-calls.
+    pub fn with_precise_syscalls_config(
+        mut self,
+        precise_syscalls_config: PreciseSysCallsConfig,
+    ) -> Self {
+        self.0.precise_syscalls_config = precise_syscalls_config;
 
         self
     }
@@ -138,6 +152,7 @@ impl ErrorProcessingConfig {
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
+    precise_syscalls_config: PreciseSysCallsConfig,
     sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
@@ -166,6 +181,11 @@ impl SysCallsConfig {
     /// Get sys-calls params config.
     pub fn params_config(&self) -> &SysCallsParamsConfig {
         &self.params_config
+    }
+
+    /// Get precise sys-calls config.
+    pub fn precise_syscalls_config(&self) -> &PreciseSysCallsConfig {
+        &self.precise_syscalls_config
     }
 
     /// Error processing config for fallible syscalls.
