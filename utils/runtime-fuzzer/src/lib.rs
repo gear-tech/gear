@@ -18,29 +18,44 @@
 
 #![allow(clippy::items_after_test_module)]
 
-mod arbitrary_call;
+mod gear_calls;
 mod runtime;
 #[cfg(test)]
 mod tests;
+mod utils;
 
-pub use arbitrary_call::GearCalls;
-
+use arbitrary::Result;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
+use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
+use gear_calls::GearCalls;
+use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
+use sha1::*;
+use utils::default_generator_set;
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(gear_calls: GearCalls) {
-    run_impl(gear_calls);
+pub fn run(data: &[u8]) -> Result<()> {
+    run_impl(data).map(|_| ())
 }
 
-fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
+fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
+    log::trace!(
+        "New GearCalls generation: random data received {}",
+        data.len()
+    );
+    let test_input_id = get_sha1_string(data);
+    log::trace!("Generating GearCalls from corpus - {}", test_input_id);
+
     let sender = runtime::account(runtime::alice());
+    let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
+
+    let generators = default_generator_set(test_input_id);
+    let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
 
     let mut test_ext = new_test_ext();
-    test_ext.execute_with(|| {
+    test_ext.execute_with(|| -> Result<()> {
         // Increase maximum balance of the `sender`.
         {
             increase_to_max_balance(sender.clone())
@@ -52,15 +67,17 @@ fn run_impl(GearCalls(gear_calls): GearCalls) -> sp_io::TestExternalities {
         }
 
         for gear_call in gear_calls {
+            let gear_call = gear_call?;
             let call_res = execute_gear_call(sender.clone(), gear_call);
             log::info!("Extrinsic result: {call_res:?}");
-
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
         }
-    });
 
-    test_ext
+        Ok(())
+    })?;
+
+    Ok(test_ext)
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
@@ -87,6 +104,28 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
                 prepaid,
             )
         }
+        GearCall::SendReply(args) => {
+            let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
+            Gear::send_reply(
+                RuntimeOrigin::signed(sender),
+                message_id,
+                payload,
+                gas_limit,
+                value,
+                prepaid,
+            )
+        }
+        GearCall::ClaimValue(args) => {
+            let ClaimValueArgs(message_id) = args;
+            Gear::claim_value(RuntimeOrigin::signed(sender), message_id)
+        }
         _ => unimplemented!("Unsupported currently."),
     }
+}
+
+fn get_sha1_string(input: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(input);
+
+    hex::encode(hasher.finalize())
 }
