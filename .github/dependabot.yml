@@ -5,7 +5,7 @@ updates:
     labels: ["A4-insubstantial", "E2-forcemacos"]
     schedule:
       interval: "weekly"
-      day: "friday"
+      day: "sunday"
     commit-message:
       prefix: "[depbot] "
     groups:
