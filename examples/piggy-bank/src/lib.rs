@@ -27,20 +27,4 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    use gstd::{debug, exec, msg};
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        msg::with_read_on_stack(|msg| {
-            let available_value = exec::value_available();
-            let value = msg::value();
-            debug!("inserted: {value}, total: {available_value}");
-
-            if msg.expect("Failed to load payload bytes") == b"smash" {
-                debug!("smashing, total: {available_value}");
-                msg::reply_bytes(b"send", available_value).unwrap();
-            }
-        });
-    }
-}
+mod wasm;

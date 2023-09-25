@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod tasks;
 mod utils;
 use syscalls::Benches;
 
@@ -59,7 +60,7 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
     Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -68,6 +69,7 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
+    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
@@ -236,11 +238,35 @@ where
         &exec.block_config,
         exec.context,
         exec.random_data,
-        exec.memory_pages,
     )
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
+fn get_last_session_id<T: Config>() -> Option<SessionId> {
+    find_latest_event::<T, _, _>(|event| match event {
+        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
+        _ => None,
+    })
+}
+
+pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
+where
+    T: Config,
+    F: Fn(Event<T>) -> Option<R>,
+{
+    SystemPallet::<T>::events()
+        .into_iter()
+        .rev()
+        .filter_map(|event_record| {
+            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+            let event: Result<Event<T>, _> = event.try_into();
+
+            event.ok()
+        })
+        .find_map(mapping_filter)
+}
+
+#[track_caller]
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -261,14 +287,6 @@ where
     )
     .expect("failed to start resume session");
 
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    let session_id = match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
-        _ => unreachable!(),
-    };
-
     let memory_pages = {
         let mut pages = Vec::with_capacity(c as usize);
         for i in 0..c {
@@ -278,7 +296,7 @@ where
         pages
     };
 
-    (session_id, memory_pages)
+    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -320,7 +338,7 @@ where
         let value = CurrencyOf::<T>::minimum_balance();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -350,7 +368,6 @@ pub struct Exec<T: Config> {
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 }
 
 benchmarks! {
@@ -369,12 +386,10 @@ benchmarks! {
     check_all {
         syscalls_integrity::main_test::<T>();
         tests::check_stack_overflow::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -384,12 +399,9 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -399,19 +411,16 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging_special::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
@@ -492,7 +501,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         let block_count = 1_000u32.into();
@@ -512,7 +521,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -537,7 +546,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -573,7 +582,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -2750,6 +2759,89 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
+    }
+
+    tasks_remove_resume_session {
+        let session_id = tasks::remove_resume_session::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_resume_session(session_id);
+    }
+
+    tasks_remove_gas_reservation {
+        let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_gas_reservation(program_id, reservation_id);
+    }
+
+    tasks_send_user_message_to_mailbox {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, true);
+    }
+
+    tasks_send_user_message {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, false);
+    }
+
+    tasks_send_dispatch {
+        let message_id = tasks::send_dispatch::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_dispatch(message_id);
+    }
+
+    tasks_wake_message {
+        let (program_id, message_id) = tasks::wake_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(program_id, message_id);
+    }
+
+    tasks_wake_message_no_wake {
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(Default::default(), Default::default());
+    }
+
+    tasks_remove_from_waitlist {
+        let (program_id, message_id) = tasks::remove_from_waitlist::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_waitlist(program_id, message_id);
+    }
+
+    tasks_remove_from_mailbox {
+        let (user, message_id) = tasks::remove_from_mailbox::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+    }
+
+    tasks_pause_program {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_uninited {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
