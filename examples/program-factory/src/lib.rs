@@ -93,10 +93,13 @@ mod tests {
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
-        let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &0i32.to_le_bytes());
-
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, CreateProgram::Default.encode());
+        let child_id_expected = calculate_program_id(
+            CHILD_CODE_HASH.into(),
+            &0i32.to_le_bytes(),
+            Some(res.sent_message_id()),
+        );
         assert!(!res.main_failed());
         assert!(sys.is_active_program(child_id_expected));
     }
@@ -108,20 +111,26 @@ mod tests {
         let factory = prepare_factory(&sys);
 
         let salt = 0i32.to_be_bytes();
-        let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &salt);
         let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000_000)]);
 
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, payload.encode());
+
+        let child_id_expected =
+            calculate_program_id(CHILD_CODE_HASH.into(), &salt, Some(res.sent_message_id()));
+
         assert!(!res.main_failed());
         assert!(sys.is_active_program(child_id_expected));
 
         // Send `handle` msg to create a duplicate
         let res = factory.send_bytes(10001, payload.encode());
+
+        let child_id_expected =
+            calculate_program_id(CHILD_CODE_HASH.into(), &salt, Some(res.sent_message_id()));
+
         assert!(!res.main_failed());
-        // Init message, which is not processed. Error reply for that init is generated.
-        // Dispatch message is processed, no error replies, because message is sent to
-        // the original program.
+        assert!(sys.is_active_program(child_id_expected));
+
         assert_eq!(res.total_processed(), 3 + 1 + 1); // +1 for the original message, initiated by user +1 for auto generated replies
     }
 
@@ -134,9 +143,13 @@ mod tests {
         // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";
-        let fictional_program_id = calculate_program_id(non_existing_code_hash.into(), salt);
         let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
+        let fictional_program_id = calculate_program_id(
+            non_existing_code_hash.into(),
+            salt,
+            Some(res.sent_message_id()),
+        );
         assert!(!res.main_failed());
         // No new program with fictional id
         assert!(sys.is_active_program(fictional_program_id));

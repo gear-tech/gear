@@ -226,7 +226,7 @@ impl UploadProgramGenerator {
         );
         log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
 
         log::trace!("Generated code for program id - {program_id}");
 
