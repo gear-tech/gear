@@ -16,28 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::arbitrary_call::MIN_GEAR_CALLS_BYTES;
 use crate::*;
-use arbitrary::{Arbitrary, Unstructured};
 use proptest::prelude::*;
 
 const MAX_GEAR_CALLS_BYTES: usize = 30_000_000;
+const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
+
+#[test]
+fn proptest_input_validity() {
+    assert!(MIN_GEAR_CALLS_BYTES >= crate::utils::min_unstructured_input_size());
+    assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
+}
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))]
     #[test]
     fn test_fuzzer_reproduction(buf in prop::collection::vec(any::<u8>(), MIN_GEAR_CALLS_BYTES..MAX_GEAR_CALLS_BYTES)) {
-        let mut u1 = Unstructured::new(&buf);
-        let mut u2 = Unstructured::new(&buf);
+        let ext1 = run_impl(&buf);
+        let ext2 = run_impl(&buf);
 
-        let calls1 = GearCalls::arbitrary(&mut u1).expect("failed gear calls creation");
-        let calls2 = GearCalls::arbitrary(&mut u2).expect("failed gear calls creation");
-
-        assert_eq!(calls1, calls2);
-
-        let ext1 = run_impl(calls1);
-        let ext2 = run_impl(calls2);
-
-        assert!(ext1.eq(&ext2), "Both test-exts must be equal");
+        match (ext1, ext2) {
+            (Ok(ext1), Ok(ext2)) => {
+                assert!(ext1.eq(&ext2), "Both test-exts must be equal");
+            }
+            (ext1, ext2) => {
+                ext1.expect("One or both of fuzzer runs failed");
+                ext2.expect("One or both of fuzzer runs failed");
+            }
+        }
     }
 }

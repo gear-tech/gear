@@ -112,8 +112,8 @@ where
             matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
         }), "No message with expected id had succeeded");
 
-        let state =
-            Gear::<T>::read_state_impl(pid, Default::default()).expect("Failed to read state");
+        let state = Gear::<T>::read_state_impl(pid, Default::default(), None)
+            .expect("Failed to read state");
         assert_eq!(approx_size(state.len(), i), expected_size(i));
     }
 }
