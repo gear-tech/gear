@@ -61,7 +61,7 @@ jobs:
   check:
     needs: status
     if: >-
-      !contains(github.event.pull_request.title, '[skip-ci]') && needs.status.outputs.skip-ci
+      !contains(github.event.pull_request.title, '[skip-ci]') && !needs.status.outputs.skip-ci
 
     uses: ./.github/workflows/check.yml
     with:
