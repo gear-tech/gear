@@ -41,8 +41,7 @@ impl MutexId {
     }
 
     pub fn next(self) -> Self {
-        let id = self.0.wrapping_add(1);
-        MutexId(if id == 0 { 1 } else { id })
+        Self(self.0.checked_add(1).unwrap_or_else(|| 1))
     }
 }
 
@@ -125,7 +124,7 @@ impl<T> Mutex<T> {
     /// of scope, the mutex will be unlocked.
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
         MutexLockFuture {
-            mutex_id: self.get_or_set_id(),
+            mutex_id: self.get_or_assign_id(),
             mutex: self,
             own_up_for: None,
         }
@@ -141,7 +140,7 @@ impl<T> Mutex<T> {
         unsafe { &mut *self.locked.get() }
     }
 
-    fn get_or_set_id(&self) -> MutexId {
+    fn get_or_assign_id(&self) -> MutexId {
         let id = unsafe { &mut *self.id.get() };
         *id.get_or_insert_with(|| unsafe {
             let id = NEXT_MUTEX_ID;
@@ -298,7 +297,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
             current_block.saturating_add(self.own_up_for.unwrap_or_else(Config::mx_lock_duration));
         async_runtime::locks().remove_mx_lock_monitor(owner_msg_id, self.mutex_id);
         if let Some(next_rival_msg_id) = self.mutex.queue.first() {
-            // Give the next rival message a chance to won the lock after this owner
+            // Give the next rival message a chance to own the lock after this owner
             // exceeds the lock ownership duration
             async_runtime::locks().insert_mx_lock_monitor(
                 *next_rival_msg_id,
