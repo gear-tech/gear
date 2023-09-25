@@ -23,6 +23,7 @@ rand = { workspace = true, features = ["small_rng"] }
 wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
+gear-utils.workspace = true
 
 gear-core-backend = { workspace = true, features = ["std"] }
 gear-core-processor = { workspace = true, features = ["std", "mock"] }
