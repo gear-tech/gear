@@ -52,34 +52,20 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            #[cfg(not(feature = "dev"))]
-            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
-            #[cfg(all(feature = "gear-native", feature = "dev"))]
+            #[cfg(feature = "gear-native")]
             "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(all(feature = "vara-native", feature = "dev"))]
+            #[cfg(feature = "vara-native")]
             "vara-dev" => Box::new(chain_spec::vara::development_config()?),
             #[cfg(feature = "gear-native")]
-            "local" | "gear-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-local` in `dev` mode");
-                Box::new(chain_spec::gear::local_testnet_config()?)
-            }
+            "local" | "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
             #[cfg(feature = "vara-native")]
             "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/vara.json")[..],
             )?),
             #[cfg(feature = "vara-native")]
-            "vara-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `vara-local` in `dev` mode");
-                Box::new(chain_spec::vara::local_testnet_config()?)
-            }
+            "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
             #[cfg(feature = "gear-native")]
-            "staging" | "gear-staging" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-staging` in `dev` mode");
-                Box::new(chain_spec::gear::staging_testnet_config()?)
-            }
+            "staging" | "gear-staging" => Box::new(chain_spec::gear::staging_testnet_config()?),
             "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/staging.json")[..],
             )?),
@@ -88,11 +74,6 @@ impl SubstrateCli for Cli {
 
                 let chain_spec = Box::new(chain_spec::RawChainSpec::from_json_file(path.clone())?)
                     as Box<dyn ChainSpec>;
-
-                if chain_spec.is_dev() {
-                    #[cfg(not(feature = "dev"))]
-                    return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into());
-                }
 
                 // When `force_*` is provide or the file name starts with the name of a known chain,
                 // we use the chain spec for the specific chain.
