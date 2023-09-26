@@ -328,7 +328,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
             None,
@@ -364,7 +364,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
             Some(allocations),
@@ -399,7 +399,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
             Some(allocations),

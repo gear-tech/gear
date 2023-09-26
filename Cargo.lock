@@ -3672,11 +3672,10 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gmeta",
  "gsdk",
  "hex",
@@ -3803,50 +3802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-backend-codegen"
-version = "1.0.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.31",
-]
-
-[[package]]
-name = "gear-backend-common"
-version = "1.0.1"
-dependencies = [
- "actor-system-error",
- "blake2-rfc",
- "derive_more",
- "gear-backend-codegen",
- "gear-core",
- "gear-core-errors",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "num_enum",
- "parity-scale-codec",
- "rand 0.8.5",
- "scale-info",
-]
-
-[[package]]
-name = "gear-backend-sandbox"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "gear-backend-common",
- "gear-core",
- "gear-core-errors",
- "gear-sandbox",
- "gear-sandbox-env",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
@@ -3957,11 +3912,40 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "proptest",
+ "rand 0.8.5",
  "scale-info",
  "serde",
  "static_assertions",
  "wabt",
  "wasmparser-nostd 0.100.1",
+]
+
+[[package]]
+name = "gear-core-backend"
+version = "1.0.1"
+dependencies = [
+ "actor-system-error",
+ "blake2-rfc",
+ "derive_more",
+ "gear-core",
+ "gear-core-backend-codegen",
+ "gear-core-errors",
+ "gear-lazy-pages-common",
+ "gear-sandbox",
+ "gear-sandbox-env",
+ "gear-wasm-instrument",
+ "gsys",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-core-backend-codegen"
+version = "1.0.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -3981,10 +3965,11 @@ dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
- "gear-backend-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-wasm-instrument",
  "log",
  "scale-info",
@@ -4007,8 +3992,8 @@ dependencies = [
  "derive_more",
  "env_logger",
  "errno",
- "gear-backend-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -4026,13 +4011,22 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "0.1.0"
+version = "1.0.1"
+dependencies = [
+ "gear-core",
+ "num_enum",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-lazy-pages-interface"
+version = "1.0.1"
 dependencies = [
  "byteorder",
  "derive_more",
- "gear-backend-common",
  "gear-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "log",
@@ -4152,9 +4146,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "gear-backend-common",
  "gear-common",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",
@@ -4210,10 +4204,10 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
- "gear-backend-common",
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-primitives",
  "log",
  "pallet-authorship",
@@ -4234,9 +4228,9 @@ version = "1.0.1"
 dependencies = [
  "byteorder",
  "derive_more",
- "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -4458,11 +4452,10 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4483,9 +4476,8 @@ name = "gear-wasm-instrument"
 version = "1.0.1"
 dependencies = [
  "enum-iterator 1.4.1",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
@@ -4794,12 +4786,10 @@ dependencies = [
  "demo-ping",
  "derive_more",
  "env_logger",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
@@ -7405,13 +7395,13 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
@@ -7478,7 +7468,6 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-backend-sandbox",
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
@@ -13547,9 +13536,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "gear-backend-common",
  "gear-common",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",

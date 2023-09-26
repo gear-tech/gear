@@ -15,7 +15,8 @@ members = [
     "common",
     "common/codegen",
     "core",
-    "core-backend/*",
+    "core-backend",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -195,9 +196,8 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-backend-codegen = { path = "core-backend/codegen" }
-gear-backend-common = { path = "core-backend/common" }
-gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
+gear-core-backend-codegen = { path = "core-backend/codegen" }
+gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
@@ -205,7 +205,8 @@ gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
+gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
+gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
 gear-runtime-common = { path = "runtime/common", default-features = false }

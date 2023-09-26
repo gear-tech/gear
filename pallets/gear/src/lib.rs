@@ -73,7 +73,6 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
-use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -85,8 +84,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -1014,7 +1011,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }

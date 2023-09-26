@@ -41,7 +41,7 @@ impl System {
 
     /// Create a new system.
     pub fn new() -> Self {
-        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
             Self::PAGE_STORAGE_PREFIX
         ));
         Default::default()
