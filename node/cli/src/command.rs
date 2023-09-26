@@ -52,11 +52,11 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            // Common "dev" chain. `gear-runtime` is prioritized.
-            #[cfg(feature = "gear-native")]
-            "dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
+            // Common "dev" chain. `vara-runtime` is prioritized.
+            #[cfg(feature = "vara-native")]
             "dev" => Box::new(chain_spec::vara::development_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "dev" => Box::new(chain_spec::gear::development_config()?),
             #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
             "dev" => return Err("No runtimes specified to compile."),
 
@@ -66,11 +66,11 @@ impl SubstrateCli for Cli {
             #[cfg(feature = "vara-native")]
             "vara-dev" => Box::new(chain_spec::vara::development_config()?),
 
-            // Common "local" chain. `gear-runtime` is prioritized.
-            #[cfg(feature = "gear-native")]
-            "local" => Box::new(chain_spec::gear::local_testnet_config()?),
-            #[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
+            // Common "local" chain. `vara-runtime` is prioritized.
+            #[cfg(feature = "vara-native")]
             "local" => Box::new(chain_spec::vara::local_testnet_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "local" => Box::new(chain_spec::gear::local_testnet_config()?),
             #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
             "local" => return Err("No runtimes specified to compile."),
 
