@@ -330,7 +330,7 @@ impl SysCallName {
             Self::ReplyCommitWGas => SysCallSignature::gr([
                 Gas,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
-                Ptr(PtrInfo::new_immutable(PtrType::ErrorWithHash)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)),
             ]),
             Self::ReservationReply => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),

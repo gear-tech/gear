@@ -79,41 +79,64 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(name) => name.signature(),
             InvocableSysCall::Precise(name) => match name {
                 SysCallName::ReservationSend => SysCallSignature::gr([
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
+                    // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
                         length_param_id: 2,
-                    })), // Pointer to payload
-                    ParamType::Size,     // Size of the payload
-                    ParamType::Delay,    // Number of blocks to delay the sending for
-                    ParamType::Gas,      // Amount of gas to reserve
-                    ParamType::Duration, // Duration of the reservation
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)), // Address of error returned
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Duration of the reservation
+                    ParamType::Duration,
+                    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)),
                 ]),
                 SysCallName::ReservationReply => SysCallSignature::gr([
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)), // Address of value
+                    // Address of value
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                    // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
                         length_param_id: 2,
-                    })), // Pointer to payload
-                    ParamType::Size,                                        // Size of the payload
-                    ParamType::Gas,      // Amount of gas to reserve
-                    ParamType::Duration, // Duration of the reservation
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)), // Address of error returned
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Duration of the reservation
+                    ParamType::Duration,
+                    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)),
                 ]),
                 SysCallName::SendCommit => SysCallSignature::gr([
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)), // Address of value
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
+                    // Address of value
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                    // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
                         length_param_id: 2,
-                    })), // Pointer to payload
-                    ParamType::Size,                                        // Size of the payload
-                    ParamType::Delay, // Number of blocks to delay the sending for
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)), // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
                 SysCallName::SendCommitWGas => SysCallSignature::gr([
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
-                    ParamType::Delay, // Number of blocks to delay the sending for
-                    ParamType::Gas,   // Amount of gas to reserve
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)), // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
                 _ => unimplemented!(),
             },
@@ -158,70 +181,18 @@ impl InvocableSysCall {
             .expect("failed to convert slice")
     }
 
-    // If syscall changes from fallible into infallible or vice versa in future,
-    // we'll see it by analyzing code coverage stats produced by fuzzer.
+    /// This fn assumes that fallible syscalls will have pointer to the returned error
+    /// among their params.
     pub(crate) fn is_fallible(&self) -> bool {
-        let underlying_syscall = match *self {
-            Self::Loose(sc) => sc,
-            Self::Precise(sc) => sc,
-        };
-
-        match underlying_syscall {
-            SysCallName::BlockHeight
-            | SysCallName::BlockTimestamp
-            | SysCallName::Debug
-            | SysCallName::Panic
-            | SysCallName::OomPanic
-            | SysCallName::Exit
-            | SysCallName::GasAvailable
-            | SysCallName::Leave
-            | SysCallName::MessageId
-            | SysCallName::ProgramId
-            | SysCallName::Random
-            | SysCallName::Size
-            | SysCallName::Source
-            | SysCallName::ValueAvailable
-            | SysCallName::Value
-            | SysCallName::WaitFor
-            | SysCallName::WaitUpTo
-            | SysCallName::Wait
-            | SysCallName::Alloc
-            | SysCallName::Free
-            | SysCallName::OutOfGas => false,
-            SysCallName::CreateProgramWGas
-            | SysCallName::CreateProgram
-            | SysCallName::ReplyDeposit
-            | SysCallName::ReplyCode
-            | SysCallName::SignalCode
-            | SysCallName::PayProgramRent
-            | SysCallName::Read
-            | SysCallName::ReplyCommitWGas
-            | SysCallName::ReplyCommit
-            | SysCallName::ReplyPush
-            | SysCallName::ReplyPushInput
-            | SysCallName::ReplyTo
-            | SysCallName::SignalFrom
-            | SysCallName::ReplyInputWGas
-            | SysCallName::ReplyWGas
-            | SysCallName::Reply
-            | SysCallName::ReplyInput
-            | SysCallName::ReservationReplyCommit
-            | SysCallName::ReservationReply
-            | SysCallName::ReservationSendCommit
-            | SysCallName::ReservationSend
-            | SysCallName::ReserveGas
-            | SysCallName::SendCommitWGas
-            | SysCallName::SendCommit
-            | SysCallName::SendInit
-            | SysCallName::SendPush
-            | SysCallName::SendPushInput
-            | SysCallName::SendInputWGas
-            | SysCallName::SendWGas
-            | SysCallName::Send
-            | SysCallName::SendInput
-            | SysCallName::SystemReserveGas
-            | SysCallName::UnreserveGas
-            | SysCallName::Wake => true,
-        }
+        let params = self.into_signature().params;
+        params.into_iter().any(|param| {
+            matches!(
+                param,
+                ParamType::Ptr(PtrInfo {
+                    mutable: true,
+                    ty
+                }) if ty.is_error()
+            )
+        })
     }
 }
