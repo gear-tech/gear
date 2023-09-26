@@ -334,28 +334,25 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        match invocable.has_destination_param() {
-            Some(argument_index) => {
-                log::trace!(
-                    " -- Generating build call for {} sys-call with destination",
-                    invocable.to_str()
-                );
+        if let Some(argument_index) = invocable.has_destination_param() {
+            log::trace!(
+                " -- Generating build call for {} sys-call with destination",
+                invocable.to_str()
+            );
 
-                self.build_call_with_destination(
-                    invocable,
-                    signature,
-                    call_indexes_handle,
-                    argument_index,
-                )
-            }
-            None => {
-                log::trace!(
-                    " -- Generating build call for common sys-call {}",
-                    invocable.to_str()
-                );
+            self.build_call_with_destination(
+                invocable,
+                signature,
+                call_indexes_handle,
+                argument_index,
+            )
+        } else {
+            log::trace!(
+                " -- Generating build call for common sys-call {}",
+                invocable.to_str()
+            );
 
-                self.build_call(invocable, signature, call_indexes_handle)
-            }
+            self.build_call(invocable, signature, call_indexes_handle)
         }
     }
 
