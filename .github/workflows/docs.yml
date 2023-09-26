@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
-    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
+    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') && github.actor != 'dependabot[bot]' }}
     steps:
       - uses: actions/checkout@v4
 
