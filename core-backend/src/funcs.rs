@@ -182,9 +182,9 @@ pub(crate) trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
     fn build(self, args: &[Value]) -> Result<S, HostError>;
 }
 
-impl<Ext, R, S, H> SysCallBuilder<Ext, (), R, S> for H
+impl<Ext, R, S, B> SysCallBuilder<Ext, (), R, S> for B
 where
-    H: FnOnce() -> S,
+    B: FnOnce() -> S,
     S: SysCall<Ext, R>,
 {
     fn build(self, args: &[Value]) -> Result<S, HostError> {
@@ -193,9 +193,9 @@ where
     }
 }
 
-impl<Ext, R, S, H> SysCallBuilder<Ext, [Value], R, S> for H
+impl<Ext, R, S, B> SysCallBuilder<Ext, [Value], R, S> for B
 where
-    H: for<'a> FnOnce(&'a [Value]) -> S,
+    B: for<'a> FnOnce(&'a [Value]) -> S,
     S: SysCall<Ext, R>,
 {
     fn build(self, args: &[Value]) -> Result<S, HostError> {
@@ -206,10 +206,10 @@ where
 macro_rules! impl_syscall_builder {
     ($($generic:ident),+) => {
         #[allow(non_snake_case)]
-        impl<Ext, Res, Call, Handler, $($generic),+> SysCallBuilder<Ext, ($($generic,)+), Res, Call>
-            for Handler
+        impl<Ext, Res, Call, Builder, $($generic),+> SysCallBuilder<Ext, ($($generic,)+), Res, Call>
+            for Builder
         where
-            Handler: FnOnce($($generic),+) -> Call,
+            Builder: FnOnce($($generic),+) -> Call,
             Call: SysCall<Ext, Res>,
             $( $generic: TryFrom<SysCallValue, Error = HostError>,)+
         {
@@ -338,23 +338,23 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
-    pub fn execute<H, Args, R, S>(
+    pub fn execute<B, Args, R, S>(
         caller: &mut gear_sandbox::default_executor::Caller<HostState<Ext, ExecutorMemory>>,
         args: &[Value],
-        handler: H,
+        builder: B,
     ) -> Result<WasmReturnValue, HostError>
     where
-        H: SysCallBuilder<Ext, Args, R, S>,
+        B: SysCallBuilder<Ext, Args, R, S>,
         Args: ?Sized,
         S: SysCall<Ext, R>,
         R: Into<SysCallReturnValue>,
     {
-        log::trace!(target: "syscalls", "{}({})", function_name::<H>(), ArgsFormatter(args));
+        log::trace!(target: "syscalls", "{}({})", function_name::<B>(), ArgsFormatter(args));
 
         let mut caller = CallerWrap::prepare(caller);
 
         let (ctx, args) = S::Context::from_args(args)?;
-        let sys_call = SysCallBuilder::build(handler, args)?;
+        let sys_call = builder.build(args)?;
         let (gas, value) = sys_call.execute(&mut caller, ctx)?;
         let value = value.into();
 
