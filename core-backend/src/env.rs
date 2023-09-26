@@ -26,7 +26,6 @@ use crate::{
     funcs::FuncsHandler,
     memory::MemoryWrap,
     runtime,
-    runtime::CallerWrap,
     state::{HostState, State},
     BackendExternalities,
 };
@@ -61,10 +60,7 @@ use gear_wasm_instrument::{
 
 macro_rules! wrap_syscall {
     ($func:ident) => {
-        |caller, args| {
-            let mut caller = CallerWrap::prepare(caller)?;
-            FuncsHandler::execute(&mut caller, args, FuncsHandler::$func)
-        }
+        |caller, args| FuncsHandler::execute(caller, args, FuncsHandler::$func)
     };
 }
 

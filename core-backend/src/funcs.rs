@@ -24,8 +24,9 @@ use crate::{
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableMemoryError,
     },
-    memory::{MemoryAccessError, WasmMemoryRead},
+    memory::{ExecutorMemory, MemoryAccessError, WasmMemoryRead},
     runtime::CallerWrap,
+    state::HostState,
     BackendExternalities,
 };
 use alloc::string::{String, ToString};
@@ -338,7 +339,7 @@ where
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
     pub fn execute<H, Args, R, S>(
-        caller: &mut CallerWrap<Ext>,
+        caller: &mut gear_sandbox::default_executor::Caller<HostState<Ext, ExecutorMemory>>,
         args: &[Value],
         handler: H,
     ) -> Result<WasmReturnValue, HostError>
@@ -350,9 +351,11 @@ where
     {
         log::trace!(target: "syscalls", "{}({})", function_name::<H>(), ArgsFormatter(args));
 
+        let mut caller = CallerWrap::prepare(caller);
+
         let (ctx, args) = S::Context::from_args(args)?;
         let sys_call = SysCallBuilder::build(handler, args)?;
-        let (gas, value) = sys_call.execute(caller, ctx)?;
+        let (gas, value) = sys_call.execute(&mut caller, ctx)?;
         let value = value.into();
 
         Ok(WasmReturnValue {

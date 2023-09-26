@@ -130,16 +130,13 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         res
     }
 
-    #[track_caller]
-    pub fn prepare(
-        caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
-    ) -> Result<Self, HostError> {
+    pub fn prepare(caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>) -> Self {
         let memory = caller_host_state_mut(caller).memory.clone();
-        Ok(Self {
+        Self {
             caller,
             manager: Default::default(),
             memory,
-        })
+        }
     }
 
     #[track_caller]
