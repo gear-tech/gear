@@ -24,7 +24,7 @@ mod runtime;
 mod tests;
 mod utils;
 
-use arbitrary::{Arbitrary, Result, Unstructured};
+use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
@@ -44,9 +44,9 @@ pub struct RuntimeFuzzerInput<'a>(&'a [u8]);
 
 impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let ret = Self(u.peek_bytes(u.len()).expect("took bytes within buffer len"));
+        let data = u.peek_bytes(u.len()).ok_or(Error::NotEnoughData)?;
 
-        Ok(ret)
+        Ok(Self(data))
     }
 }
 
@@ -61,14 +61,8 @@ impl Debug for RuntimeFuzzerInput<'_> {
     }
 }
 
-impl<'a> RuntimeFuzzerInput<'a> {
-    pub fn into_inner(self) -> &'a [u8] {
-        self.0
-    }
-}
-
 /// Runs all the fuzz testing internal machinery.
-pub fn run(data: &[u8]) -> Result<()> {
+pub fn run(RuntimeFuzzerInput(data): RuntimeFuzzerInput<'_>) -> Result<()> {
     run_impl(data).map(|_| ())
 }
 

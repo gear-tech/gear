@@ -26,7 +26,7 @@ fuzz_target!(|data: RuntimeFuzzerInput<'_>| -> Corpus {
 
     log::info!("Executing generated gear calls");
 
-    match runtime_fuzzer::run(data.into_inner()) {
+    match runtime_fuzzer::run(data) {
         Err(_) => Corpus::Reject,
         Ok(_) => Corpus::Keep,
     }
