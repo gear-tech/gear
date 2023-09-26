@@ -92,7 +92,7 @@ members = [
 [workspace.dependencies]
 anyhow = "1.0.75"
 arbitrary = "1.3.0"
-async-recursion = "1.0.4"
+async-recursion = "1.0.5"
 async-trait = "0.1.73"
 base64 = "0.21.3"
 byteorder = { version = "1.4.3", default-features = false }
@@ -158,7 +158,7 @@ subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.31"
-thiserror = "1.0.44"
+thiserror = "1.0.48"
 tokio = { version = "1.27.0" }
 url = "2.4.1"
 wat = "1.0.71"
