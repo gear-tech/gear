@@ -167,13 +167,34 @@ pub fn run() -> sc_cli::Result<()> {
         _ = std::fs::rename(old_base.path(), new_base.path());
     }
 
+    let base = &mut cli.run.base;
+
     // Force setting `Wasm` as default execution strategy.
-    cli.run
-        .base
+    let execution_strategy = base
         .import_params
         .execution_strategies
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
+
+    // Checking if node supposed to be validator (explicitly or by shortcuts).
+    let is_validator = base.validator
+        || base.shared_params.dev
+        || base.alice
+        || base.bob
+        || base.charlie
+        || base.dave
+        || base.eve
+        || base.ferdie
+        || base.one
+        || base.two;
+
+    // Denying ability to validate blocks with non-wasm execution.
+    if is_validator && *execution_strategy != ExecutionStrategy::Wasm {
+        return Err(
+            "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
+                .into(),
+        );
+    }
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
