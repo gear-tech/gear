@@ -58,6 +58,9 @@ use gear_wasm_instrument::{
     GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
+// we have requirement to pass function pointer for `gear_sandbox`
+// so the only reason this macro exists is const function pointers are not stabilized yet
+// so we create non-capturing closure that can be coerced into function pointer
 macro_rules! wrap_syscall {
     ($func:ident) => {
         |caller, args| FuncsHandler::execute(caller, args, FuncsHandler::$func)
