@@ -38,3 +38,5 @@ pub use self::{
     mutex::{Mutex, MutexGuard, MutexLockFuture},
     rwlock::{RwLock, RwLockReadFuture, RwLockReadGuard, RwLockWriteFuture, RwLockWriteGuard},
 };
+
+pub(crate) use self::mutex::MutexId;
