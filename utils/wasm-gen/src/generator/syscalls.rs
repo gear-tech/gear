@@ -42,7 +42,7 @@ pub use additional_data::*;
 pub use imports::*;
 pub use invocator::*;
 
-use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
+use gear_wasm_instrument::syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature};
 
 /// Type of invocable sys-call.
 ///
@@ -79,34 +79,41 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(name) => name.signature(),
             InvocableSysCall::Precise(name) => match name {
                 SysCallName::ReservationSend => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Delay,        // Number of blocks to delay the sending for
-                    ParamType::Gas,          // Amount of gas to reserve
-                    ParamType::Duration,     // Duration of the reservation
-                    ParamType::Ptr(None),    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                        length_param_id: 2,
+                    })), // Pointer to payload
+                    ParamType::Size,     // Size of the payload
+                    ParamType::Delay,    // Number of blocks to delay the sending for
+                    ParamType::Gas,      // Amount of gas to reserve
+                    ParamType::Duration, // Duration of the reservation
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)), // Address of error returned
                 ]),
                 SysCallName::ReservationReply => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of value
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Gas,          // Amount of gas to reserve
-                    ParamType::Duration,     // Duration of the reservation
-                    ParamType::Ptr(None),    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)), // Address of value
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                        length_param_id: 2,
+                    })), // Pointer to payload
+                    ParamType::Size,                                        // Size of the payload
+                    ParamType::Gas,      // Amount of gas to reserve
+                    ParamType::Duration, // Duration of the reservation
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)), // Address of error returned
                 ]),
                 SysCallName::SendCommit => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Delay,        // Number of blocks to delay the sending for
-                    ParamType::Ptr(None),    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)), // Address of value
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                        length_param_id: 2,
+                    })), // Pointer to payload
+                    ParamType::Size,                                        // Size of the payload
+                    ParamType::Delay, // Number of blocks to delay the sending for
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)), // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                 ]),
                 SysCallName::SendCommitWGas => SysCallSignature::gr([
-                    ParamType::Ptr(None), // Address of recipient and value (HashWithValue struct)
-                    ParamType::Delay,     // Number of blocks to delay the sending for
-                    ParamType::Gas,       // Amount of gas to reserve
-                    ParamType::Ptr(None), // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)), // Address of recipient and value (HashWithValue struct)
+                    ParamType::Delay, // Number of blocks to delay the sending for
+                    ParamType::Gas,   // Amount of gas to reserve
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)), // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                 ]),
                 _ => unimplemented!(),
             },

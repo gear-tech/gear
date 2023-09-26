@@ -29,7 +29,7 @@ use crate::{
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
-    syscalls::{ParamType, SysCallName, SysCallSignature},
+    syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature},
 };
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap},
@@ -64,16 +64,18 @@ pub(crate) fn process_sys_call_params(
             ParamType::Alloc => ProcessedSysCallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Ptr(maybe_idx) => maybe_idx
-                .map(|_| {
-                    // skipping next as we don't need the following `Size` param,
-                    // because it will be chosen in accordance to the wasm module
-                    // memory pages config.
-                    skip_next_param = true;
+            ParamType::Ptr(PtrInfo {
+                ty: PtrType::BufferStart { .. },
+                ..
+            }) => {
+                // skipping next as we don't need the following `Size` param,
+                // because it will be chosen in accordance to the wasm module
+                // memory pages config.
+                skip_next_param = true;
 
-                    ProcessedSysCallParams::MemoryArray
-                })
-                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
+                ProcessedSysCallParams::MemoryArray
+            }
+            ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -576,20 +578,24 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         param_setters: &[ParamSetter],
     ) -> Vec<Instruction> {
         // TODO: #3129.
-        // Assume here that:
-        // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
-        // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
+        // Assume here that all the errors returned from syscalls
+        // contain `ErrorCode` in the start of memory where pointer points.
 
         static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
         assert_eq!(gsys::ErrorCode::default(), 0);
 
         let params = signature.params;
-        assert!(matches!(
-            params
-                .last()
-                .expect("The last argument of fallible syscall must be pointer to error code"),
-            ParamType::Ptr(None)
-        ));
+
+        let last_param = params
+            .last()
+            .expect("The fallible syscall expected to have at least one argument");
+        match last_param {
+            ParamType::Ptr(ptr_info) => {
+                assert!(ptr_info.ty.is_error() && ptr_info.mutable);
+            }
+            _ => panic!("The last argument of fallible syscall must be a pointer to error code"),
+        }
+
         assert_eq!(params.len(), param_setters.len());
 
         if let Some(ptr) = param_setters

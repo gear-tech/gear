@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, SysCallName},
+    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -679,7 +679,10 @@ fn check_memory_array_pointers_definition_correctness() {
             .params
             .iter()
             .filter_map(|param_ty| match param_ty {
-                ParamType::Ptr(maybe_size_idx) if maybe_size_idx.is_some() => *maybe_size_idx,
+                ParamType::Ptr(PtrInfo {
+                    ty: PtrType::BufferStart { length_param_id },
+                    ..
+                }) => Some(*length_param_id),
                 _ => None,
             });
 
