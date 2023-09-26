@@ -167,25 +167,6 @@ impl ParamSetter {
 
 pub type SysCallInvokeInstructions = Vec<Instruction>;
 
-pub enum SysCallKind {
-    WithDestination(usize),
-    Common,
-}
-
-impl From<InvocableSysCall> for SysCallKind {
-    fn from(invocable: InvocableSysCall) -> Self {
-        use InvocableSysCall::*;
-        use SysCallName::*;
-
-        match invocable {
-            Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
-            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Self::WithDestination(0),
-            Loose(SendCommit | SendCommitWGas) => Self::WithDestination(1),
-            _ => Self::Common,
-        }
-    }
-}
-
 impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Insert sys-calls invokes.
     ///
@@ -353,8 +334,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        match SysCallKind::from(invocable) {
-            SysCallKind::WithDestination(argument_index) => {
+        match invocable.has_destination_param() {
+            Some(argument_index) => {
                 log::trace!(
                     " -- Generating build call for {} sys-call with destination",
                     invocable.to_str()
@@ -367,7 +348,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     argument_index,
                 )
             }
-            SysCallKind::Common => {
+            None => {
                 log::trace!(
                     " -- Generating build call for common sys-call {}",
                     invocable.to_str()
