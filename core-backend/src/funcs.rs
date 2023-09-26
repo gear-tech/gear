@@ -294,8 +294,7 @@ where
             .map_err(Into::into)
     }
 
-    // TODO: write proper benchmark #2825
-    #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithSignalCode)]
+    #[host(fallible, cost = RuntimeCosts::SignalCode, err = ErrorWithSignalCode)]
     pub fn signal_code(
         ctx: &mut CallerWrap<'_, '_, Ext>,
         gas: u64,
@@ -479,7 +478,6 @@ where
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
-    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
     pub fn signal_from(
         ctx: &mut CallerWrap<'_, '_, Ext>,
