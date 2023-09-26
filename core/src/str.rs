@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! String with limited length realization.
+//! String with limited length implementation
 
 use alloc::{borrow::Cow, string::String};
 use parity_scale_codec::{Decode, Encode};
