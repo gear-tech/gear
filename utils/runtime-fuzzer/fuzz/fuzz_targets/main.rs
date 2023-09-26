@@ -19,13 +19,16 @@
 #![no_main]
 
 use libfuzzer_sys::{fuzz_target, Corpus};
+use runtime_fuzzer::{self, RuntimeFuzzerInput};
 
-fuzz_target!(|data: &[u8]| -> Corpus {
+fuzz_target!(|data: RuntimeFuzzerInput<'_>| -> Corpus {
     gear_utils::init_default_logger();
 
     log::info!("Executing generated gear calls");
 
-    match runtime_fuzzer::run(data) {
+    panic!("HUH");
+
+    match runtime_fuzzer::run(data.into_inner()) {
         Err(_) => Corpus::Reject,
         Ok(_) => Corpus::Keep,
     }

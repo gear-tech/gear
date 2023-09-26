@@ -24,7 +24,7 @@ mod runtime;
 mod tests;
 mod utils;
 
-use arbitrary::Result;
+use arbitrary::{Arbitrary, Result, Unstructured};
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
@@ -33,7 +33,39 @@ use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 use sha1::*;
+use std::fmt::Debug;
 use utils::default_generator_set;
+
+/// This is a wrapper over random bytes provided from fuzzer.
+///
+/// It's main purpose is to be a mock implementor of `Debug`.
+/// For more info see `Debug` impl.
+pub struct RuntimeFuzzerInput<'a>(&'a [u8]);
+
+impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        let ret = Self(u.peek_bytes(u.len()).expect("took bytes within buffer len"));
+
+        Ok(ret)
+    }
+}
+
+/// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the crashing input.
+/// Fuzzer constructs from the input an array of [`GearCall`] with pretty large codes and payloads,
+/// therefore to avoid printing huge amount of data we do a mock implementation of [`Debug`].
+impl Debug for RuntimeFuzzerInput<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("RuntimeFuzzerInput")
+            .field(&"Mock `Debug` impl")
+            .finish()
+    }
+}
+
+impl<'a> RuntimeFuzzerInput<'a> {
+    pub fn into_inner(self) -> &'a [u8] {
+        self.0
+    }
+}
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(data: &[u8]) -> Result<()> {
