@@ -28,8 +28,9 @@
 //! Just simply run `cargo run --release -- -p <path_to_corpus>`.
 
 use anyhow::Result;
+use arbitrary::{Arbitrary, Unstructured};
 use clap::Parser;
-use runtime_fuzzer::{self};
+use runtime_fuzzer::{self, RuntimeFuzzerInput};
 use std::{fs, path::PathBuf};
 
 /// A simple tool to run corpus.
@@ -45,10 +46,14 @@ fn main() -> Result<()> {
     let params = Params::parse();
 
     let corpus_bytes = fs::read(params.path)?;
+    let fuzzer_input = {
+        let mut u = Unstructured::new(&corpus_bytes);
+        RuntimeFuzzerInput::arbitrary(&mut u)?
+    };
 
     gear_utils::init_default_logger();
 
-    runtime_fuzzer::run(&corpus_bytes).expect("Fuzzer run failed");
+    runtime_fuzzer::run(fuzzer_input).expect("Fuzzer run failed");
 
     Ok(())
 }
