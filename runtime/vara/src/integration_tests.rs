@@ -28,7 +28,7 @@ use sp_consensus_babe::{
 };
 use sp_core::{ed25519, sr25519, Pair};
 use sp_keyring::AccountKeyring;
-use sp_runtime::{Digest, DigestItem};
+use sp_runtime::{traits::Zero, Digest, DigestItem};
 
 const ENDOWMENT: u128 = 100 * UNITS;
 const STASH: u128 = 10 * UNITS;
@@ -61,11 +61,13 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
+    Treasury::on_initialize(new_block_number);
     // Session::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
+    Treasury::on_initialize(current_blk);
     Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
@@ -176,6 +178,7 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
+        #[cfg(feature = "dev")]
         SudoConfig { key: self.root }
             .assimilate_storage(&mut storage)
             .unwrap();
@@ -350,5 +353,90 @@ fn tokens_locking_works() {
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
+        });
+}
+
+#[test]
+fn dust_treasury() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+    let eve = AccountKeyring::Eve;
+    let ferdie = AccountKeyring::Ferdie;
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![
+            charlie.into(),
+            dave.into(),
+            eve.into(),
+            Treasury::account_id(),
+        ])
+        .vested_accounts(vec![
+            (dave.into(), 10, 100, 10 * UNITS), // 1 TOKEN unlocked per block
+            (eve.into(), 10, 100, 10 * UNITS),
+        ])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let acc_data = System::account(ferdie.to_account_id()).data;
+
+            // Ferdie have zero balance
+            assert_eq!(acc_data.free, Zero::zero());
+
+            let pot = Treasury::pot();
+
+            // Treasury have free funds
+            assert_eq!(pot, ENDOWMENT - EXISTENTIAL_DEPOSIT);
+
+            // Transfer EXISTENTIAL_DEPOSIT to ferdie
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(dave.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT
+            ));
+
+            run_to_block(2);
+
+            assert_eq!(
+                System::account(ferdie.to_account_id()).data.free,
+                EXISTENTIAL_DEPOSIT
+            );
+
+            // Transfer half of EXISTENTIAL_DEPOSIT
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                EXISTENTIAL_DEPOSIT / 2
+            ));
+
+            run_to_block(3);
+
+            // Check that dust is in Treasury
+            assert_eq!(Treasury::pot(), pot + EXISTENTIAL_DEPOSIT / 2);
         });
 }
