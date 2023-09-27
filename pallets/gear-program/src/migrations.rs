@@ -176,7 +176,6 @@ mod v2 {
         traits::{PalletInfo, StorageInstance},
         Identity,
     };
-    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::ProgramId,
         memory::PageBuf,
@@ -225,8 +224,10 @@ mod v2 {
     pub type MemoryPageStorage<T> =
         StorageDoubleMap<MemoryPagesPrefix<T>, Identity, ProgramId, Identity, GearPage, PageBuf>;
 
+    #[cfg(feature = "try-runtime")]
     pub struct ProgramStoragePrefix<T>(PhantomData<T>);
 
+    #[cfg(feature = "try-runtime")]
     impl<T: Config> StorageInstance for ProgramStoragePrefix<T> {
         const STORAGE_PREFIX: &'static str = "ProgramStorage";
 
@@ -236,8 +237,13 @@ mod v2 {
         }
     }
 
-    pub type ProgramStorage<T> =
-        StorageMap<ProgramStoragePrefix<T>, Identity, ProgramId, Program<BlockNumberFor<T>>>;
+    #[cfg(feature = "try-runtime")]
+    pub type ProgramStorage<T> = StorageMap<
+        ProgramStoragePrefix<T>,
+        Identity,
+        ProgramId,
+        Program<frame_system::pallet_prelude::BlockNumberFor<T>>,
+    >;
 
     pub struct SessionMemoryPagesPrefix<T>(PhantomData<T>);
 
