@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::executor::HostState;
-use wasmi::{
-    core::memory_units::Pages, AsContext, AsContextMut, Caller, Extern, Func, Memory, Store,
-};
+use wasmi::{core::memory_units::Pages, AsContextMut, Caller, Extern, Func, Memory, Store};
 
 pub fn alloc(store: &mut Store<HostState>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
@@ -43,16 +41,16 @@ pub fn free(ctx: impl AsContextMut) -> Extern {
     Extern::Func(Func::wrap(ctx, |_: i32| 0))
 }
 
-pub fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
+pub fn gr_panic(ctx: &mut Store<HostState>, _memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut caller: Caller<'_, HostState>, ptr: u32, len: i32| {
+        move |mut _caller: Caller<'_, HostState>, _ptr: u32, _len: i32| {
             // let (ptr, len) = (ptr as usize, len as usize);
             //
             // let mut msg = vec![0; len];
             // memory
             //     .clone()
-            //     .read(store, ptr, &mut msg)
+            //     .read(ctx.as_context(), ptr, &mut msg)
             //     .map_err(|e| {
             //         log::error!("{:?}", e);
             //         // Trap::i32_exit(1)
@@ -60,7 +58,7 @@ pub fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
             //     .unwrap();
             //
             // log::error!("panic occurred: {:?}", String::from_utf8_lossy(&msg));
-            Ok(())
+            // Ok(())
         },
     ))
 }
@@ -76,34 +74,35 @@ pub fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
         move |mut caller: Caller<'_, HostState>, at: u32, len: i32, buff: i32, err: i32| {
-            // let (at, len, buff, err) = (at as _, len as _, buff as _, err as _);
-            //
-            // let msg = &caller.data().msg;
-            // let mut payload = vec![0; len];
-            // if at + len <= msg.len() {
-            //     payload.copy_from_slice(&msg[at..(at + len)]);
-            // } else {
-            //     log::error!("overflow");
-            //     // return Err(Trap::i32_exit(1));
-            //     return;
-            // }
-            //
-            // let len: u32 = memory
-            //     .clone()
-            //     .write(caller.as_context_mut(), buff, &payload)
-            //     .map_err(|e| log::error!("{:?}", e))
-            //     .is_err()
-            //     .into();
-            //
-            // memory
-            //     .clone()
-            //     .write(caller.as_context_mut(), err, &len.to_le_bytes())
-            //     .map_err(|e| {
-            //         log::error!("{:?}", e);
-            //         // Trap::i32_exit(1)
-            //     })?;
-            //
-            // Ok(())
+            let (at, len, buff, err) = (at as _, len as _, buff as _, err as _);
+
+            let msg = &caller.host_data().msg;
+            let mut payload = vec![0; len];
+            if at + len <= msg.len() {
+                payload.copy_from_slice(&msg[at..(at + len)]);
+            } else {
+                log::error!("overflow");
+                // return Err(Trap::i32_exit(1));
+                return Ok(());
+            }
+
+            let len: u32 = memory
+                .clone()
+                .write(caller.as_context_mut(), buff, &payload)
+                .map_err(|e| log::error!("{:?}", e))
+                .is_err()
+                .into();
+
+            memory
+                .clone()
+                .write(caller.as_context_mut(), err, &len.to_le_bytes())
+                .map_err(|e| {
+                    log::error!("{:?}", e);
+                    // Trap::i32_exit(1)
+                })
+                .unwrap();
+
+            Ok(())
         },
     ))
 }
@@ -123,35 +122,25 @@ pub fn gr_reply(ctx: &mut Store<HostState>) -> Extern {
     ))
 }
 
-/// # NOTE
-///
-/// Just for the compatible with the program metadata
-pub fn gr_error(ctx: &mut Store<HostState>) -> Extern {
-    Extern::Func(Func::wrap(
-        ctx,
-        move |mut _caller: Caller<'_, HostState>, _ptr: u32, _err_ptr: u32| Ok(()),
-    ))
-}
-
 pub fn gr_size(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
         move |mut caller: Caller<'_, HostState>, size_ptr: u32| {
-            // let size = caller.data().msg.len() as u32;
-            //
-            // memory
-            //     .clone()
-            //     .write(
-            //         caller.as_context_mut(),
-            //         size_ptr as usize,
-            //         &size.to_le_bytes(),
-            //     )
-            //     .map_err(|e| {
-            //         log::error!("{:?}", e);
-            //         // Trap::i32_exit(1)
-            //     })?;
-            //
-            // Ok(())
+            let size = caller.host_data().msg.len() as u32;
+
+            memory
+                .clone()
+                .write(
+                    caller.as_context_mut(),
+                    size_ptr as usize,
+                    &size.to_le_bytes(),
+                )
+                .map_err(|e| {
+                    log::error!("{:?}", e);
+                })
+                .unwrap();
+
+            Ok(())
         },
     ))
 }
