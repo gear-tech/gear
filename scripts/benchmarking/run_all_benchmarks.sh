@@ -14,12 +14,12 @@
 BENCHMARK_STEPS=50
 BENCHMARK_REPEAT=20
 
-# Steps and repeats for benchmarking so called "one-time extrinsics", 
+# Steps and repeats for benchmarking so called "one-time extrinsics",
 # which may be called only once and require a different benchmarking approach with more repeats.
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
 BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 
-# List of one-time extrinsics to benchmark. 
+# List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
 ONE_TIME_EXTRINSICS=$(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
@@ -72,7 +72,7 @@ done
 if [ "$skip_build" != true ]
 then
   echo "[+] Compiling Gear benchmarks..."
-  cargo build --profile=production --locked --features=dev,runtime-benchmarks
+  cargo build --profile=production --locked --features=runtime-benchmarks
 fi
 
 # The executable to use.
@@ -172,7 +172,7 @@ for PALLET in "${PALLETS[@]}"; do
     echo "$OUTPUT" >> "$ERR_FILE"
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
   fi
-  
+
   # If the pallet is pallet_gear, benchmark the one-time extrinsics.
   if [ "$PALLET" == "pallet_gear" ]
   then

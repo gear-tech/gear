@@ -259,6 +259,5 @@ try-runtime = [
 ]
 dev = [
 	"pallet-gear-debug",
-	"pallet-gear-program/dev",
 	"pallet-sudo",
 ]

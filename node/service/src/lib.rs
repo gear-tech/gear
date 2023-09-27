@@ -59,9 +59,6 @@ pub trait IdentifyVariant {
 
     /// Returns `true` if this is a configuration for the vara network.
     fn is_vara(&self) -> bool;
-
-    /// Returns true if this configuration is for a development network.
-    fn is_dev(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
@@ -70,9 +67,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
     }
     fn is_vara(&self) -> bool {
         self.id().to_lowercase().starts_with("vara")
-    }
-    fn is_dev(&self) -> bool {
-        self.id().ends_with("dev")
     }
 }
 

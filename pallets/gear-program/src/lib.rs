@@ -147,10 +147,11 @@ pub mod pallet {
         storage::*,
         CodeMetadata, Program,
     };
-    #[cfg(feature = "dev")]
-    use frame_support::storage::PrefixIterator;
     use frame_support::{
-        dispatch::EncodeLike, pallet_prelude::*, storage::Key, traits::StorageVersion,
+        dispatch::EncodeLike,
+        pallet_prelude::*,
+        storage::{Key, PrefixIterator},
+        traits::StorageVersion,
         StoragePrefixedMap,
     };
     use frame_system::pallet_prelude::*;
@@ -387,7 +388,6 @@ pub mod pallet {
         type ResumeSessions = ResumeSessionsWrap<T>;
     }
 
-    #[cfg(feature = "dev")]
     impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
         type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
         type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
