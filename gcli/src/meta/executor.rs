@@ -37,7 +37,7 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     ));
 
     let engine = Engine::default();
-    let module = Module::new(&engine, &wasm[..]).unwrap();
+    let module = Module::new(&engine, wasm).unwrap();
 
     let mut store = Store::new(&engine, HostState::default());
     let mut linker = <Linker<HostState>>::new();
@@ -59,11 +59,11 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
             .unwrap();
 
         linker
-            .define("env", "gr_read", funcs::gr_read(&mut store, memory.clone()))
+            .define("env", "gr_read", funcs::gr_read(&mut store, memory))
             .unwrap();
 
         linker
-            .define("env", "alloc", funcs::alloc(&mut store, memory.clone()))
+            .define("env", "alloc", funcs::alloc(&mut store, memory))
             .unwrap();
 
         linker
