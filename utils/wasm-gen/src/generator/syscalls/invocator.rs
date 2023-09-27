@@ -588,7 +588,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                         .map(|ptr_write| {
                             Ok((
                                 ptr_write.offset,
-                                ptr_write.data.get_words(&mut self.unstructured)?,
+                                ptr_write
+                                    .data
+                                    .generate_data_to_write(&mut self.unstructured)?,
                             ))
                         })
                         .collect::<Result<Vec<_>>>()?;
