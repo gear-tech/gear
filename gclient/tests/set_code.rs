@@ -27,7 +27,9 @@ async fn set_code_succeed() {
         .await
         .unwrap();
     let _block_hash = api
-        .set_code_without_checks_by_path("../target/release/wbuild/gear-runtime/gear_runtime.wasm")
+        .set_code_without_checks_by_path(
+            "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm",
+        )
         .await
         .unwrap();
 }
@@ -38,7 +40,9 @@ async fn set_code_failed() {
         .await
         .unwrap();
     let err = api
-        .set_code_by_path("../target/release/wbuild/gear-runtime/gear_runtime.wasm")
+        .set_code_by_path(
+            "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm",
+        )
         .await
         .unwrap_err();
 

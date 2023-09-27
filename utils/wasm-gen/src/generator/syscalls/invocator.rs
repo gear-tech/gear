@@ -363,13 +363,18 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        if self.is_sys_call_with_destination(invocable) {
+        if let Some(argument_index) = invocable.has_destination_param() {
             log::trace!(
                 " -- Generating build call for {} sys-call with destination",
                 invocable.to_str()
             );
 
-            self.build_call_with_destination(invocable, signature, call_indexes_handle)
+            self.build_call_with_destination(
+                invocable,
+                signature,
+                call_indexes_handle,
+                argument_index,
+            )
         } else {
             log::trace!(
                 " -- Generating build call for common sys-call {}",
@@ -383,16 +388,16 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     fn build_call_with_destination(
         &mut self,
         invocable: InvocableSysCall,
-        mut signature: SysCallSignature,
+        signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
+        argument_index: usize,
     ) -> Result<Vec<Instruction>> {
-        // The value for the first param is chosen from config.
+        // The value for the destination param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
-        signature.params.remove(0);
-        let mut call_without_destination_instrs =
+        let mut original_instructions =
             self.build_call(invocable, signature, call_indexes_handle)?;
 
-        let res = if self.config.sys_call_destination().is_source() {
+        let destination_instructions = if self.config.sys_call_destination().is_source() {
             log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
@@ -400,8 +405,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 .get(&InvocableSysCall::Loose(SysCallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
-
-            let mut instructions = Vec::with_capacity(3 + call_without_destination_instrs.len());
 
             let mem_size = self
                 .module
@@ -415,17 +418,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let upper_limit = mem_size.saturating_sub(100);
             let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
-            // call `gsys::gr_source` with a memory offset
-            instructions.push(Instruction::I32Const(offset as i32));
-            instructions.push(Instruction::Call(gr_source_call_indexes_handle));
-            // pass the offset as the first argument to the send-call
-            instructions.push(Instruction::I32Const(offset as i32));
-            instructions.append(&mut call_without_destination_instrs);
-
-            instructions
+            vec![
+                // call `gsys::gr_source` with a memory offset
+                Instruction::I32Const(offset as i32),
+                Instruction::Call(gr_source_call_indexes_handle),
+                // pass the offset as the first argument to the send-call
+                Instruction::I32Const(offset as i32),
+            ]
         } else {
-            let mut instructions = Vec::with_capacity(1 + call_without_destination_instrs.len());
-
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
                     assert!(self.config.sys_call_destination().is_existing_addresses());
@@ -441,35 +441,12 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 }
             };
 
-            instructions.push(Instruction::I32Const(address_offset as i32));
-            instructions.append(&mut call_without_destination_instrs);
-
-            instructions
+            vec![Instruction::I32Const(address_offset as i32)]
         };
 
-        Ok(res)
-    }
+        original_instructions.splice(argument_index..argument_index + 1, destination_instructions);
 
-    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
-        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
-    }
-
-    fn is_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
-        use InvocableSysCall::*;
-        [
-            Loose(SysCallName::Send),
-            Loose(SysCallName::SendWGas),
-            Loose(SysCallName::SendInput),
-            Loose(SysCallName::SendInputWGas),
-            Precise(SysCallName::ReservationSend),
-            Precise(SysCallName::SendCommit),
-            Precise(SysCallName::SendCommitWGas),
-        ]
-        .contains(&sys_call)
-    }
-
-    fn is_exit_sys_call(&self, sys_call: InvocableSysCall) -> bool {
-        matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
+        Ok(original_instructions)
     }
 
     fn build_call(

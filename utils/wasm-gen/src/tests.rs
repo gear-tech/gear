@@ -18,8 +18,6 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{BackendReport, Environment, TerminationReason, TrapExplanation};
-use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},
@@ -29,6 +27,10 @@ use gear_core::{
         ReplyPacket,
     },
     pages::WASM_PAGE_SIZE,
+};
+use gear_core_backend::{
+    env::{BackendReport, Environment},
+    error::{TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
@@ -174,7 +176,7 @@ fn injecting_addresses_works() {
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
-    use gear_backend_common::ActorTerminationReason;
+    use gear_core_backend::error::ActorTerminationReason;
 
     gear_utils::init_default_logger();
 
@@ -241,7 +243,7 @@ fn error_processing_works_for_fallible_syscalls() {
 
 #[test]
 fn precise_syscalls_works() {
-    use gear_backend_common::ActorTerminationReason;
+    use gear_core_backend::error::ActorTerminationReason;
 
     gear_utils::init_default_logger();
 
@@ -328,7 +330,7 @@ fn execute_wasm_with_custom_configs(
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
 
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         PROGRAM_STORAGE_PREFIX
     ));
 
@@ -378,7 +380,7 @@ fn execute_wasm_with_custom_configs(
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);
-    let env = SandboxEnvironment::new(
+    let env = Environment::new(
         ext,
         code.code(),
         DispatchKind::Init,

@@ -63,14 +63,14 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{
-    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
-};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
+};
+use gear_core_backend::error::{
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -286,7 +286,7 @@ fn read_big_state() {
 
             assert_succeed(mid);
             let state =
-                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
+                Gear::read_state_impl(pid, Default::default(), None).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -2053,8 +2053,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res =
-            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
+        let res = Gear::read_state_impl(program_id, Default::default(), None)
+            .expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
@@ -2095,6 +2095,7 @@ fn read_state_using_wasm_works() {
             func1,
             META_WASM_V1.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
 
@@ -2120,6 +2121,7 @@ fn read_state_using_wasm_works() {
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
+            None,
         )
         .expect("Failed to read state");
 
@@ -2140,6 +2142,7 @@ fn read_state_bn_and_timestamp_works() {
             "block_number",
             META_WASM_V3.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
         let res = u32::decode(&mut res.as_ref()).unwrap();
@@ -2153,6 +2156,7 @@ fn read_state_bn_and_timestamp_works() {
             Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2215,6 +2219,7 @@ fn wasm_metadata_generation_works() {
             "metadata",
             META_WASM_V1.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
 
@@ -2232,6 +2237,7 @@ fn wasm_metadata_generation_works() {
             Default::default(),
             "metadata",
             META_WASM_V2.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2285,7 +2291,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "inexistent",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Empty function
@@ -2294,7 +2301,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "empty",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Greed function
@@ -2303,7 +2311,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "loop",
             meta_wasm,
-            None
+            None,
+            None,
         )
         .is_err());
     });
@@ -6376,15 +6385,15 @@ fn state_request() {
         run_to_next_block(None);
 
         for (key, value) in data {
-            let ret =
-                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            let ret = Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode(), None)
+                .unwrap();
             assert_eq!(
                 Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
                 value
             );
         }
 
-        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode(), None).unwrap();
         let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
         let expected: BTreeMap<u32, u32> = data.into_iter().collect();
         assert_eq!(ret, expected);
@@ -9105,19 +9114,19 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
 
         let (lock_owner_msg_id, _lock_owner_msg_block_number) =
             send_command_to_waiter(WaiterCommand::MxLock(
-                u32::MAX,
+                None,
                 MxLockContinuation::General(LockContinuation::SleepFor(4)),
             ));
 
         let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-            u32::MAX,
+            None,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
         let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-            u32::MAX,
+            None,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
@@ -9333,7 +9342,7 @@ fn mx_lock_ownership_exceedance() {
                     assert_command_result(command_msg_id);
 
                     let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-                        1,
+                        Some(1),
                         MxLockContinuation::General(LockContinuation::Nothing),
                     ));
 
@@ -9357,7 +9366,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Wait),
             ),
             LOCK_HOLD_DURATION,
@@ -9380,7 +9389,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Wait),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9399,11 +9408,43 @@ fn mx_lock_ownership_exceedance() {
             },
         );
 
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock at the first attempt because Msg1's lock ownership
+        // time has not exceeded, but succeeds at the second one after Msg1's lock ownership
+        // time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                Some(LOCK_HOLD_DURATION),
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+
+                run_for_blocks(1, None);
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
         // Msg1 acquires lock and forgets its lock guard
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Forget),
             ),
             LOCK_HOLD_DURATION,
@@ -9419,7 +9460,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Forget),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9435,7 +9476,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
             ),
             LOCK_HOLD_DURATION,
@@ -9458,7 +9499,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9477,10 +9518,38 @@ fn mx_lock_ownership_exceedance() {
             },
         );
 
+        // Msg1 acquires lock and goes into sleep for shorter than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded,
+        // but succeeds after Msg1 releases the lock after the sleep
+        run_test_case(
+            WaiterCommand::MxLock(
+                Some(LOCK_HOLD_DURATION + 1),
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION)),
+            ),
+            2,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+
+                run_for_blocks(1, None);
+                assert_succeed(command_msg_id);
+                assert_succeed(lock_msg_id);
+            },
+        );
+
         // Msg1 acquires lock and tries to re-enter the same lock
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
-            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            WaiterCommand::MxLock(Some(LOCK_HOLD_DURATION), MxLockContinuation::Lock),
             LOCK_HOLD_DURATION,
             &|command_msg_id| {
                 assert!(WaitlistOf::<Test>::contains(
@@ -9500,7 +9569,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg1 acquires lock and tries to re-enter the same lock
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
-            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            WaiterCommand::MxLock(Some(LOCK_HOLD_DURATION), MxLockContinuation::Lock),
             LOCK_HOLD_DURATION - 1,
             &|command_msg_id| {
                 assert!(WaitlistOf::<Test>::contains(
@@ -13510,6 +13579,20 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
         );
+
+        // ok result when we use custom multiplier
+        let gas_info_result = Gear::calculate_gas_info_impl(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            BlockGasLimitOf::<Test>::get(),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            false,
+            Some(64),
+        );
+
+        assert!(gas_info_result.is_ok());
     });
 }
 
@@ -14434,7 +14517,6 @@ mod utils {
         traits::tokens::{currency::Currency, Balance},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
-    use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},

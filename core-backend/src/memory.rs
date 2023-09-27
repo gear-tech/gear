@@ -16,40 +16,126 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Work with WASM program memory in backends.
+//! sp-sandbox extensions for memory.
 
 use crate::{
-    runtime::RunFallibleError, BackendExternalities, BackendSyscallError, TrapExplanation,
-    UndefinedTerminationReason, UnrecoverableMemoryError,
+    error::{
+        BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
+        UnrecoverableMemoryError,
+    },
+    state::HostState,
+    BackendExternalities,
 };
 use alloc::vec::Vec;
-use core::{
-    fmt::Debug,
-    marker::PhantomData,
-    mem,
-    mem::{size_of, MaybeUninit},
-    result::Result,
-    slice,
-};
+use codec::{Decode, DecodeAll, MaxEncodedLen};
+use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
-    memory::{Memory, MemoryError, MemoryInterval},
+    env::Externalities,
+    memory::{HostPointer, Memory, MemoryError, MemoryInterval},
+    pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use scale_info::scale::{Decode, DecodeAll, MaxEncodedLen};
+use gear_lazy_pages_common::ProcessAccessError;
+use gear_sandbox::{
+    default_executor::{Caller, Store},
+    SandboxMemory,
+};
 
-/// Memory access error during sys-call that lazy-pages have caught.
-/// 0 index is reserved for an ok result.
-#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
-pub enum ProcessAccessError {
-    OutOfBounds = 1,
-    GasLimitExceeded = 2,
+pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
+
+pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
+    pub memory: ExecutorMemory,
+    pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
+}
+
+impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
+    type GrowError = gear_sandbox::Error;
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+        self.memory.grow(self.caller, pages.raw()).map(|_| ())
+    }
+
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.size(self.caller))
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.memory
+            .write(self.caller, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.memory
+            .read(self.caller, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        self.memory.get_buff(self.caller) as HostPointer
+    }
+}
+
+/// Wrapper for executor memory.
+pub struct MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    pub(crate) memory: ExecutorMemory,
+    pub(crate) store: Store<HostState<Ext, ExecutorMemory>>,
+}
+
+impl<Ext> MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    /// Wrap [`ExecutorMemory`] for Memory trait.
+    pub fn new(memory: ExecutorMemory, store: Store<HostState<Ext, ExecutorMemory>>) -> Self {
+        MemoryWrap { memory, store }
+    }
+
+    pub(crate) fn into_store(self) -> Store<HostState<Ext, ExecutorMemory>> {
+        self.store
+    }
+}
+
+/// Memory interface for the allocator.
+impl<Ext> Memory for MemoryWrap<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    type GrowError = gear_sandbox::Error;
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+        self.memory.grow(&mut self.store, pages.raw()).map(|_| ())
+    }
+
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.size(&self.store))
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.memory
+            .write(&mut self.store, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.memory
+            .read(&self.store, offset, buffer)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        self.memory.get_buff(&mut self.store) as HostPointer
+    }
 }
 
 #[derive(Debug, Clone, derive_more::From)]
-pub enum MemoryAccessError {
+pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
@@ -98,51 +184,6 @@ impl BackendSyscallError for MemoryAccessError {
     }
 }
 
-/// Memory accesses recorder/registrar, which allow to register new accesses.
-pub trait MemoryAccessRecorder {
-    /// Register new read access.
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead;
-
-    /// Register new read static size type access.
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T>;
-
-    /// Register new read decoded type access.
-    fn register_read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        ptr: u32,
-    ) -> WasmMemoryReadDecoded<T>;
-
-    /// Register new write access.
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite;
-
-    /// Register new write static size access.
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T>;
-}
-
-pub trait MemoryOwner {
-    /// Read from owned memory to new byte vector.
-    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError>;
-
-    /// Read from owned memory to new object `T`.
-    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError>;
-
-    /// Read from owned memory and decoded data into object `T`.
-    fn read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        read: WasmMemoryReadDecoded<T>,
-    ) -> Result<T, MemoryAccessError>;
-
-    /// Write data from `buff` to owned memory.
-    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError>;
-
-    /// Write data from `obj` to owned memory.
-    fn write_as<T: Sized>(
-        &mut self,
-        write: WasmMemoryWriteAs<T>,
-        obj: T,
-    ) -> Result<(), MemoryAccessError>;
-}
-
 /// Memory access manager. Allows to pre-register memory accesses,
 /// and pre-process, them together. For example:
 /// ```ignore
@@ -160,7 +201,7 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<Ext> {
+pub(crate) struct MemoryAccessManager<Ext> {
     // Contains non-zero length intervals only.
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
@@ -177,16 +218,16 @@ impl<Ext> Default for MemoryAccessManager<Ext> {
     }
 }
 
-impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+impl<Ext> MemoryAccessManager<Ext> {
+    pub fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryRead { ptr, size }
     }
 
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        let size = size_of::<T>() as u32;
+    pub fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        let size = mem::size_of::<T>() as u32;
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
@@ -196,7 +237,7 @@ impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
         }
     }
 
-    fn register_read_decoded<T: Decode + MaxEncodedLen>(
+    pub fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
@@ -210,15 +251,15 @@ impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
         }
     }
 
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+    pub fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryWrite { ptr, size }
     }
 
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        let size = size_of::<T>() as u32;
+    pub fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+        let size = mem::size_of::<T>() as u32;
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
@@ -395,31 +436,120 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
 }
 
 /// Read static size type access wrapper.
-pub struct WasmMemoryReadAs<T> {
+pub(crate) struct WasmMemoryReadAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
-pub struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
+pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
-pub struct WasmMemoryRead {
+pub(crate) struct WasmMemoryRead {
     pub(crate) ptr: u32,
     pub(crate) size: u32,
 }
 
 /// Write static size type access wrapper.
-pub struct WasmMemoryWriteAs<T> {
+pub(crate) struct WasmMemoryWriteAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
-pub struct WasmMemoryWrite {
+pub(crate) struct WasmMemoryWrite {
     pub(crate) ptr: u32,
     pub(crate) size: u32,
+}
+
+/// can't be tested outside the node runtime
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{error::ActorTerminationReason, mock::MockExt, state::State};
+    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
+    use gear_sandbox::{AsContextExt, SandboxStore};
+
+    fn new_test_memory(
+        static_pages: u16,
+        max_pages: u16,
+    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
+        use gear_sandbox::SandboxMemory as WasmMemory;
+
+        let mut store = Store::new(None);
+        let memory: ExecutorMemory =
+            WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
+                .expect("Memory creation failed");
+        *store.data_mut() = Some(State {
+            ext: MockExt::default(),
+            memory: memory.clone(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
+
+        let memory = MemoryWrap::new(memory, store);
+
+        (
+            AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
+            memory,
+        )
+    }
+
+    #[test]
+    fn smoky() {
+        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
+            16.into()
+        );
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
+            16.into()
+        );
+
+        // there is a space for 14 more
+        for _ in 0..14 {
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap();
+        }
+
+        // no more mem!
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            Err(AllocError::ProgramAllocOutOfBounds)
+        );
+
+        // but we free some
+        ctx.free(137.into()).unwrap();
+
+        // and now can allocate page that was freed
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(137.into())
+        );
+
+        // if we have 2 in a row we can allocate even 2
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(117.into())
+        );
+
+        // but if 2 are not in a row, bad luck
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Err(AllocError::ProgramAllocOutOfBounds)
+        );
+    }
 }

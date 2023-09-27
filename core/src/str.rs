@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,34 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! String with limited length implementation
+
 use alloc::{borrow::Cow, string::String};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-#[macro_export]
-macro_rules! assert_ok {
-    ( $x:expr $(,)? ) => {
-        let is = $x;
-        match is {
-            Ok(_) => (),
-            _ => assert!(false, "Expected Ok(_). Got {:#?}", is),
-        }
-    };
-    ( $x:expr, $y:expr $(,)? ) => {
-        assert_eq!($x, Ok($y));
-    };
-}
-
-#[macro_export]
-macro_rules! assert_err {
-    ( $x:expr , $y:expr $(,)? ) => {
-        assert_eq!($x, Err($y.into()));
-    };
-}
-
-// Max amount of bytes allowed to be thrown as string explanation of the error.
+/// Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
 
 fn smart_truncate(s: &mut String, max_bytes: usize) {
@@ -58,7 +37,7 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
-/// Wrapped string to fit `core_backend::TRIMMED_MAX_LEN` amount of bytes.
+/// Wrapped string to fit [`TRIMMED_MAX_LEN`] amount of bytes.
 ///
 /// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
 /// created from a `&str`.
@@ -76,6 +55,7 @@ impl<'a> LimitedStr<'a> {
         " bytes."
     );
 
+    /// Convert from `&str` in compile-time.
     #[track_caller]
     pub const fn from_small_str(s: &'a str) -> Self {
         if s.len() > TRIMMED_MAX_LEN {
@@ -85,11 +65,13 @@ impl<'a> LimitedStr<'a> {
         Self(Cow::Borrowed(s))
     }
 
+    /// Return string slice.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
 }
 
+/// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
 #[display(fmt = "String must be less than {} bytes.", TRIMMED_MAX_LEN)]
 pub struct LimitedStrTryFromError;

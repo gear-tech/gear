@@ -18,17 +18,25 @@
 
 //! Core logic for usage both in runtime and in lazy-pages native part.
 
-use core::fmt::Debug;
+#![no_std]
 
-use core::any::Any;
-use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage};
-use scale_info::scale::{self, Decode, Encode};
+use codec::{Decode, Encode};
+use core::{any::Any, fmt::Debug};
+use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage, str::LimitedStr};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::utils::LimitedStr;
+/// Memory access error during sys-call that lazy-pages have caught.
+/// 0 index is reserved for an ok result.
+#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum ProcessAccessError {
+    OutOfBounds = 1,
+    GasLimitExceeded = 2,
+}
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub enum GlobalsAccessMod {
     /// Is wasm runtime.
     WasmRuntime,
@@ -38,7 +46,7 @@ pub enum GlobalsAccessMod {
 
 /// Lazy-pages cases weights.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
     pub signal_read: CostPerPage<GearPage>,
@@ -58,7 +66,7 @@ pub struct LazyPagesWeights {
 
 /// Globals ctx for lazy-pages initialization for program.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 pub struct GlobalsAccessConfig {
     /// Raw pointer to the globals access provider.
     pub access_ptr: HostPointer,
@@ -74,16 +82,20 @@ pub struct GlobalsAccessError;
 pub trait GlobalsAccessor {
     /// Returns global `name` value, if `name` is I64 global export.
     fn get_i64(&self, name: &LimitedStr) -> Result<i64, GlobalsAccessError>;
+
     /// Set global `name` == `value`, if `name` is I64 global export.
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError>;
+
     /// Returns global `name` value, if `name` is I32 global export.
     fn get_i32(&self, _name: &LimitedStr) -> Result<i32, GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
+
     /// Set global `name` == `value`, if `name` is I32 global export.
     fn set_i32(&mut self, _name: &LimitedStr, _value: i32) -> Result<(), GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
+
     /// Returns as `&mut dyn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -98,7 +110,7 @@ pub trait GlobalsAccessor {
 /// termination reason sets as `gas limit exceeded` or `gas allowance exceeded`, depending on status.
 /// NOTE: `repr(i64)` is important to be able add additional fields, without old runtimes separate support logic.
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 #[repr(i64)]
 // TODO: consider removal of two exceed options in favor of one global (issue #3018).
 // Will require bump of many RI func's versions.

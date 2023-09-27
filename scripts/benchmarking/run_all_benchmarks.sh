@@ -10,6 +10,20 @@
 #
 # Should be run from the root of the repo.
 
+# Steps and repeats for main benchmark.
+BENCHMARK_STEPS=50
+BENCHMARK_REPEAT=20
+
+# Steps and repeats for benchmarking so called "one-time extrinsics",
+# which may be called only once and require a different benchmarking approach with more repeats.
+BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
+BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
+
+# List of one-time extrinsics to benchmark.
+# They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
+# which defines them as one-time extrinsics.
+ONE_TIME_EXTRINSICS=$(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
+
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
     b)
@@ -48,7 +62,7 @@ while getopts 'bmfps:c:v' flag; do
       ;;
     *)
       # Exit early.
-      echo "Bad options. Check Script."
+      echo "Bad options. Check script."
       exit 1
       ;;
   esac
@@ -58,7 +72,7 @@ done
 if [ "$skip_build" != true ]
 then
   echo "[+] Compiling Gear benchmarks..."
-  cargo build --profile=production --locked --features=dev,runtime-benchmarks
+  cargo build --profile=production --locked --features=runtime-benchmarks
 fi
 
 # The executable to use.
@@ -110,26 +124,77 @@ for PALLET in "${PALLETS[@]}"; do
     unset start_pallet
   fi
 
-  FOLDER="$(echo "${PALLET#*_}" | tr '_' '-')";
+
+  # Get all the extrinsics for the pallet if the pallet is "pallet_gear"
+  if [ "$PALLET" == "pallet_gear" ]
+  then
+    IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet --list \
+      --chain=$chain_spec \
+      --pallet="$PALLET" |\
+      tail -n+2 |\
+      cut -d',' -f2 |\
+      sort |\
+      uniq |\
+      awk '{$1=$1}1' ORS=','
+    )"
+
+    # Remove the one-time extrinsics from the extrinsics array, so that they can be benchmarked separately.
+    EXTRINSICS=()
+    for item in "${ALL_EXTRINSICS[@]}"; do
+        # Check if the item exists in ONE_TIME_EXTRINSICS array
+        if ( [[ ! " ${ONE_TIME_EXTRINSICS[*]} " =~ " ${item} " ]] ); then
+            # If not, add the item to the new array
+            EXTRINSICS+=("$item")
+        fi
+    done
+  else
+    EXTRINSICS=("*")
+  fi
+
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
     $GEAR benchmark pallet \
-    --chain=$chain_spec \
-    --steps=50 \
-    --repeat=20 \
+    --chain="$chain_spec" \
+    --steps=$BENCHMARK_STEPS \
+    --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
-    --extrinsic="*" \
+    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --execution=wasm \
     --wasm-execution=compiled \
     --heap-pages=4096 \
     --output="$WEIGHT_FILE" \
     --template=.maintain/frame-weight-template.hbs 2>&1
   )
+
   if [ $? -ne 0 ]; then
     echo "$OUTPUT" >> "$ERR_FILE"
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  fi
+
+  # If the pallet is pallet_gear, benchmark the one-time extrinsics.
+  if [ "$PALLET" == "pallet_gear" ]
+  then
+    echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
+    OUTPUT=$(
+        $GEAR benchmark pallet \
+        --chain="$chain_spec" \
+        --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
+        --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
+        --pallet="$PALLET" \
+        --extrinsic="$(IFS=, ; echo "${ONE_TIME_EXTRINSICS[*]}")" \
+        --execution=wasm \
+        --wasm-execution=compiled \
+        --heap-pages=4096 \
+        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
+        --template=.maintain/frame-weight-template.hbs 2>&1
+    )
+
+    if [ $? -ne 0 ]; then
+      echo "$OUTPUT" >> "$ERR_FILE"
+      echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+    fi
   fi
 done
 
@@ -161,6 +226,9 @@ if [ ! -z "$storage_folder" ]; then
 else
   unset storage_folder
 fi
+
+# Merge pallet_gear weights.
+./scripts/benchmarking/merge_outputs.sh
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then

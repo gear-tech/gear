@@ -73,12 +73,12 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
-    #[cfg(not(feature = "vara-testing"))]
-    let args = vec!["--tmp", "--dev"];
     #[cfg(feature = "vara-testing")]
+    let args = vec!["--tmp", "--dev"];
+    #[cfg(not(feature = "vara-testing"))]
     let args = vec![
         "--tmp",
-        "--chain=vara-dev",
+        "--chain=gear-dev",
         "--alice",
         "--validator",
         "--reserved-only",

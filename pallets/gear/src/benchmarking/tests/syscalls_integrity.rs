@@ -112,8 +112,8 @@ where
             matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
         }), "No message with expected id had succeeded");
 
-        let state =
-            Gear::<T>::read_state_impl(pid, Default::default()).expect("Failed to read state");
+        let state = Gear::<T>::read_state_impl(pid, Default::default(), None)
+            .expect("Failed to read state");
         assert_eq!(approx_size(state.len(), i), expected_size(i));
     }
 }
@@ -207,7 +207,7 @@ where
             )]
             .encode(),
         )
-        .with_value(10_000_000_000);
+        .with_value(50_000_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -492,7 +492,8 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = u16::MAX as u128;
+        let sending_value = 10_000_000_000_000;
+
         let mp = MessageParamsBuilder::new(vec![Kind::Value(sending_value)].encode())
             .with_value(sending_value);
 
@@ -506,11 +507,10 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = 10_000;
-        // Program sends 2000
-        let mp =
-            MessageParamsBuilder::new(vec![Kind::ValueAvailable(sending_value - 2000)].encode())
-                .with_value(sending_value);
+        let sending_value = 20_000_000_000_000;
+        // Program sends 10_000_000_000_000
+        let mp = MessageParamsBuilder::new(vec![Kind::ValueAvailable(10_000_000_000_000)].encode())
+            .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

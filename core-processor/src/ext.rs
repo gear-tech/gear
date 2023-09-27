@@ -16,19 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PageCosts};
+use crate::{
+    configs::{BlockInfo, PageCosts},
+    context::SystemReservationContext,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
-};
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TrapExplanation, UndefinedTerminationReason,
-    UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
-    UnrecoverableWaitError,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -42,17 +36,25 @@ use gear_core::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
+        ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
+        MessageContext, Packet, ReplyPacket,
     },
-    pages::{PageU32Size, WasmPage},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+        UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
+    },
+    BackendExternalities,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
-use gear_lazy_pages_common as lazy_pages;
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -152,11 +154,29 @@ impl ProcessorContext {
     }
 }
 
+#[derive(Debug)]
+pub struct ExtInfo {
+    pub gas_amount: GasAmount,
+    pub gas_reserver: GasReserver,
+    pub system_reservation_context: SystemReservationContext,
+    pub allocations: BTreeSet<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
+    pub awakening: Vec<(MessageId, u32)>,
+    pub reply_deposits: Vec<(MessageId, u64)>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_rents: BTreeMap<ProgramId, u32>,
+    pub context_store: ContextStore,
+}
+
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
+
+    /// Convert externalities into info.
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
@@ -294,7 +314,7 @@ impl GrowHandler for LazyGrowHandler {
         // So we remove protections from lazy-pages
         // and then in `after_grow_action` we set protection back for new wasm memory buffer.
         let old_mem_addr = mem.get_buffer_host_addr();
-        lazy_pages::remove_lazy_pages_prot(mem);
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
         Self {
             old_mem_addr,
             old_mem_size: mem.size(),
@@ -307,7 +327,7 @@ impl GrowHandler for LazyGrowHandler {
         let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
             unreachable!("Memory size cannot be zero after grow is applied for memory")
         });
-        lazy_pages::update_lazy_pages_and_protect_again(
+        gear_lazy_pages_interface::update_lazy_pages_and_protect_again(
             mem,
             self.old_mem_addr,
             self.old_mem_size,
@@ -345,26 +365,6 @@ impl ProcessorExternalities for Ext {
         }
     }
 
-    fn lazy_pages_init_for_program(
-        mem: &mut impl Memory,
-        prog_id: ProgramId,
-        stack_end: Option<WasmPage>,
-        globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
-    ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
-    }
-
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        lazy_pages::remove_lazy_pages_prot(mem);
-    }
-
-    fn lazy_pages_status() -> Status {
-        lazy_pages::get_status()
-    }
-}
-
-impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let ProcessorContext {
             allocations_context,
@@ -380,7 +380,7 @@ impl BackendExternalities for Ext {
         let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
-        let mut accessed_pages = lazy_pages::get_write_accessed_pages();
+        let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
             let wasm_page = p.to_page();
             wasm_page < static_pages || allocations.contains(&wasm_page)
@@ -429,6 +429,32 @@ impl BackendExternalities for Ext {
         Ok(info)
     }
 
+    fn lazy_pages_init_for_program(
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
+    ) {
+        gear_lazy_pages_interface::init_for_program(
+            mem,
+            prog_id,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        );
+    }
+
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
+    }
+
+    fn lazy_pages_status() -> Status {
+        gear_lazy_pages_interface::get_status()
+    }
+}
+
+impl BackendExternalities for Ext {
     fn gas_amount(&self) -> GasAmount {
         self.context.gas_counter.to_amount()
     }
@@ -438,7 +464,7 @@ impl BackendExternalities for Ext {
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, gas_counter)
+        gear_lazy_pages_interface::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 

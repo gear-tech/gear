@@ -181,6 +181,19 @@ impl InvocableSysCall {
             .expect("failed to convert slice")
     }
 
+    /// Returns the index of the destination param.
+    fn has_destination_param(&self) -> Option<usize> {
+        use InvocableSysCall::*;
+        use SysCallName::*;
+
+        match *self {
+            Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
+            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Some(0),
+            Loose(SendCommit | SendCommitWGas) => Some(1),
+            _ => None,
+        }
+    }
+
     /// This fn assumes that fallible syscalls will have pointer to the returned error
     /// among their params.
     pub(crate) fn is_fallible(&self) -> bool {

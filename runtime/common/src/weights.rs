@@ -1,5 +1,5 @@
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
+use gear_lazy_pages_common::LazyPagesWeights;
 use pallet_gear::InstructionWeights;
 
 const INSTRUCTIONS_SPREAD: u8 = 50;

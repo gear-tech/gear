@@ -23,8 +23,32 @@
 extern crate alloc;
 
 pub mod env;
+pub mod error;
+mod funcs;
 pub mod memory;
-pub mod runtime;
+#[cfg(any(feature = "mock", test))]
+pub mod mock;
+mod runtime;
+mod state;
 
-pub use env::SandboxEnvironment;
-pub use memory::{DefaultExecutorMemory, MemoryWrap};
+use gear_core::{
+    env::Externalities,
+    gas::{CountersOwner, GasAmount},
+    memory::MemoryInterval,
+};
+use gear_lazy_pages_common::ProcessAccessError;
+
+/// Extended externalities that can manage gas counters.
+pub trait BackendExternalities: Externalities + CountersOwner {
+    fn gas_amount(&self) -> GasAmount;
+
+    /// Pre-process memory access if need.
+    fn pre_process_memory_accesses(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
+    ) -> Result<(), ProcessAccessError>;
+}
+
+#[cfg(test)]
+mod tests;

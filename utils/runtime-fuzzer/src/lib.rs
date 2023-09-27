@@ -24,7 +24,8 @@ mod runtime;
 mod tests;
 mod utils;
 
-use arbitrary::{Result, Unstructured};
+use crate::utils::default_fuzzing_config;
+use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
@@ -32,18 +33,42 @@ use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, RuntimeOrigin};
 use runtime::*;
 use sha1::*;
-use std::ops::RangeInclusive;
+use std::{fmt::Debug, ops::RangeInclusive};
 use utils::default_generator_set;
 
-use crate::utils::default_fuzzing_config;
+/// This is a wrapper over random bytes provided from fuzzer.
+///
+/// It's main purpose is to be a mock implementor of `Debug`.
+/// For more info see `Debug` impl.
+pub struct RuntimeFuzzerInput<'a>(&'a [u8]);
 
+impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        let data = u.peek_bytes(u.len()).ok_or(Error::NotEnoughData)?;
+
+        Ok(Self(data))
+    }
+}
+
+/// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the crashing input.
+/// Fuzzer constructs from the input an array of [`GearCall`] with pretty large codes and payloads,
+/// therefore to avoid printing huge amount of data we do a mock implementation of [`Debug`].
+impl Debug for RuntimeFuzzerInput<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("RuntimeFuzzerInput")
+            .field(&"Mock `Debug` impl")
+            .finish()
+    }
+}
+
+/// Contains some general configs for fuzzer.
 pub(crate) struct FuzzingConfig {
     initial_sender_balance: RangeInclusive<u128>,
     allow_exceed_sender_balance: bool,
 }
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(data: &[u8]) -> Result<()> {
+pub fn run(RuntimeFuzzerInput(data): RuntimeFuzzerInput<'_>) -> Result<()> {
     run_impl(data).map(|_| ())
 }
 
