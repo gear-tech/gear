@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Program metadata parser
+mod executor;
+mod funcs;
 mod registry;
 #[cfg(test)]
 mod tests;
 
 use crate::result::{Error, Result};
-use core_processor::configs::BlockInfo;
-use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig};
+use gear_core::code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -73,8 +74,6 @@ pub enum Meta {
 }
 
 impl Meta {
-    const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
-
     fn format_metadata(meta: &MetadataRepr, fmt: &mut fmt::Formatter) -> fmt::Result {
         let registry =
             PortableRegistry::decode(&mut meta.registry.as_ref()).map_err(|_| fmt::Error)?;
@@ -107,26 +106,6 @@ impl Meta {
         display.finish()
     }
 
-    /// Execute meta method.
-    fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-            Self::PAGE_STORAGE_PREFIX
-        ));
-
-        sp_io::TestExternalities::default().execute_with(|| {
-            core_processor::informational::execute_for_reply::<core_processor::Ext, String>(
-                method.into(),
-                wasm,
-                None,
-                None,
-                Default::default(),
-                u64::MAX,
-                BlockInfo::default(),
-            )
-            .map_err(Error::WasmExecution)
-        })
-    }
-
     /// Decode metawasm from wasm binary.
     pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
         let code = Code::try_new_mock_const_or_no_rules(
@@ -137,7 +116,7 @@ impl Meta {
         let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
 
         Ok(Self::Wasm(MetawasmData::decode(
-            &mut Self::execute(code, "metadata")?.as_ref(),
+            &mut executor::execute(code.code(), "metadata")?.as_ref(),
         )?))
     }
 

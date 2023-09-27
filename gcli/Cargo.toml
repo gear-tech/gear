@@ -47,6 +47,7 @@ etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" ] }
 vara-runtime = { workspace = true, features = [ "std" ] }
+wasmi.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
@@ -54,6 +55,7 @@ demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+wabt.workspace = true
 
 [build-dependencies]
 which.workspace = true

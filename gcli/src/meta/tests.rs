@@ -123,6 +123,8 @@ fn test_parse_metadata_works() {
 #[test]
 fn test_parse_metawasm_data_1_works() {
     use demo_new_meta::META_WASM_V1;
+    let www = wabt::wasm2wat(META_WASM_V1).unwrap();
+    println!("{}", www);
     let meta = Meta::decode_wasm(META_WASM_V1).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V1_OUTPUT.trim());
 }

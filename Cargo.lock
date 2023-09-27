@@ -3696,6 +3696,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "vara-runtime",
+ "wabt",
+ "wasmi 0.14.0",
  "which",
  "whoami",
 ]
