@@ -43,6 +43,7 @@ pub use crate::{
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
+pub use gear_core::gas::GasInfo;
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
@@ -72,7 +73,6 @@ use gear_core::{
     message::*,
     pages::{GearPage, WasmPage},
 };
-use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -84,8 +84,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -137,27 +135,6 @@ impl DebugInfo for () {
     fn is_enabled() -> bool {
         false
     }
-}
-
-/// The struct contains results of gas calculation required to process
-/// a message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub struct GasInfo {
-    /// Represents minimum gas limit required for execution.
-    pub min_limit: u64,
-    /// Gas amount that we reserve for some other on-chain interactions.
-    pub reserved: u64,
-    /// Contains number of gas burned during message processing.
-    pub burned: u64,
-    /// The value may be returned if a program happens to be executed
-    /// the second or next time in a block.
-    pub may_be_returned: u64,
-    /// Was the message placed into waitlist at the end of calculating.
-    ///
-    /// This flag shows, that `min_limit` makes sense and have some guarantees
-    /// only before insertion into waitlist.
-    pub waited: bool,
 }
 
 #[frame_support::pallet]
@@ -597,6 +574,7 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -692,26 +670,41 @@ pub mod pallet {
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
+            gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
-                .map_err(String::into_bytes)
+            Self::read_state_using_wasm_impl(
+                program_id,
+                payload,
+                fn_name,
+                wasm,
+                argument,
+                gas_allowance,
+            )
+            .map_err(String::into_bytes)
         }
 
-        pub fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+        pub fn read_state(
+            program_id: H256,
+            payload: Vec<u8>,
+            gas_allowance: Option<u64>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_impl(program_id, payload).map_err(String::into_bytes)
+            Self::read_state_impl(program_id, payload, gas_allowance).map_err(String::into_bytes)
         }
 
-        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+        pub fn read_metahash(
+            program_id: H256,
+            gas_allowance: Option<u64>,
+        ) -> Result<H256, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id, gas_allowance).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -722,6 +715,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
             initial_gas: Option<u64>,
+            gas_allowance: Option<u64>,
         ) -> Result<GasInfo, Vec<u8>> {
             Self::calculate_gas_info_impl(
                 source,
@@ -731,6 +725,7 @@ pub mod pallet {
                 value,
                 allow_other_panics,
                 false,
+                gas_allowance,
             )
         }
 
@@ -760,6 +755,7 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                     allow_skip_zero_replies,
+                    None,
                 );
                 GasAllowanceOf::<T>::put(gas_allowance);
                 if queue_processing {
@@ -1015,7 +1011,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }
@@ -1179,6 +1175,7 @@ pub mod pallet {
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );

@@ -649,8 +649,12 @@ fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
     fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
-pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
-    ProgramId::generate(code_id, salt)
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
+    if let Some(id) = id {
+        ProgramId::generate_from_program(code_id, salt, id)
+    } else {
+        ProgramId::generate_from_user(code_id, salt)
+    }
 }
 
 #[cfg(test)]

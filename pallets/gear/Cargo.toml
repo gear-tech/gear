@@ -26,12 +26,12 @@ static_assertions.workspace = true
 # Internal deps
 common.workspace = true
 gear-runtime-interface = { workspace = true }
+gear-lazy-pages-interface.workspace = true
 gear-lazy-pages-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-backend-common.workspace = true
-gear-backend-sandbox.workspace = true
+gear-core-backend.workspace = true
 pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
@@ -137,8 +137,8 @@ std = [
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
 	"core-processor/std",
-	"gear-backend-sandbox/std",
-	"gear-lazy-pages-common/std",
+	"gear-core-backend/std",
+	"gear-lazy-pages-interface/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -172,7 +172,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
-	"gear-backend-common/mock",
+	"gear-core-backend/mock",
 	"gear-core-errors/codec",
 	"gear-sandbox",
 	"sp-consensus-slots",

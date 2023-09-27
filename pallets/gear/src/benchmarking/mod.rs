@@ -58,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -77,7 +77,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -85,8 +85,6 @@ use frame_support::{
     traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_backend_common::Environment;
-use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
@@ -95,6 +93,10 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    env::Environment,
+    memory::{ExecutorMemory, MemoryWrap},
 };
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
@@ -234,12 +236,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-    )
-    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
 fn get_last_session_id<T: Config>() -> Option<SessionId> {
@@ -338,7 +336,7 @@ where
         let value = CurrencyOf::<T>::minimum_balance();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -460,7 +458,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -501,7 +499,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         let block_count = 1_000u32.into();
@@ -521,7 +519,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -546,7 +544,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -582,7 +580,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -1339,6 +1337,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_signal_code {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_signal_code(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_signal_from {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -1644,8 +1653,8 @@ benchmarks! {
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::new(None);
-        let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_backend_common::mock::MockExt>::new(mem, store);
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(1.into()).unwrap();

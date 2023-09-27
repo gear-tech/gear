@@ -116,6 +116,41 @@ where
         )
     }
 
+    fn prepare_signal_handle(
+        module: ModuleDefinition,
+        value: u32,
+    ) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
+
+        // inserting a message with a signal which will be later handled by utils::prepare_exec
+        let msg_id = MessageId::from(10);
+        let signal_code = SignalCode::RemovedFromWaitlist;
+        let msg = Message::new(
+            msg_id,
+            instance.addr.as_bytes().into(),
+            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            Default::default(),
+            Some(1_000_000),
+            0,
+            None,
+        )
+        .into_stored();
+        let msg = msg.try_into().expect("Error during message conversion");
+
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
+            .expect("Error during mailbox insertion");
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Signal(msg_id, signal_code),
+            vec![],
+            PrepareConfig {
+                value: value.into(),
+                ..Default::default()
+            },
+        )
+    }
+
     fn prepare_handle_override_max_pages(
         module: ModuleDefinition,
         value: u32,
@@ -1011,6 +1046,20 @@ where
         )
     }
 
+    pub fn gr_signal_code(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::SignalCode],
+            signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
+            ..Default::default()
+        };
+
+        Self::prepare_signal_handle(module, 0)
+    }
+
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
@@ -1018,11 +1067,11 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SignalFrom],
-            handle_body: Some(body::syscall(repetitions, &[InstrI32Const(res_offset)])),
+            signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_signal_handle(module, 0)
     }
 
     pub fn gr_reply_input(

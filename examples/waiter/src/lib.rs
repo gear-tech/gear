@@ -35,9 +35,7 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "wasm-wrapper"))]
-mod wasm {
-    include! {"./code.rs"}
-}
+mod wasm;
 
 #[cfg(feature = "std")]
 pub fn system_reserve() -> u64 {
@@ -109,7 +107,7 @@ pub enum Command {
     ReplyAndWait(WaitSubcommand),
     SleepFor(Vec<BlockCount>, SleepForWaitType),
     WakeUp([u8; 32]),
-    MxLock(BlockCount, MxLockContinuation),
+    MxLock(Option<BlockCount>, MxLockContinuation),
     MxLockStaticAccess(LockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
     RwLockStaticAccess(RwLockType, LockStaticAccessSubcommand),

@@ -448,9 +448,9 @@ dependencies = [
 
 [[package]]
 name = "async-recursion"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
+checksum = "5fd55a5ba1179988837d24ab4c7cc8ed6efdeff578ede0416b4225a5fca35bd0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2227,7 +2227,6 @@ dependencies = [
  "gear-core",
  "gear-wasm-builder",
  "gstd",
- "gsys",
  "gtest",
  "parity-scale-codec",
 ]
@@ -2518,7 +2517,16 @@ version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f51c5d4ddabd36886dd3e1438cb358cdcb0d7c499cb99cb4ac2e38e18b5cb210"
 dependencies = [
- "dirs-sys",
+ "dirs-sys 0.3.7",
+]
+
+[[package]]
+name = "directories"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a49173b84e034382284f27f1af4dcbbd231ffa358c0fe316541a7337f376a35"
+dependencies = [
+ "dirs-sys 0.4.1",
 ]
 
 [[package]]
@@ -2537,7 +2545,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
- "dirs-sys",
+ "dirs-sys 0.3.7",
 ]
 
 [[package]]
@@ -2549,6 +2557,18 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "dirs-sys"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
+dependencies = [
+ "libc",
+ "option-ext",
+ "redox_users",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2582,11 +2602,11 @@ checksum = "86e3bdc80eee6e16b2b6b0f87fbc98c04bee3455e35174c0de1a125d0688c632"
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=9135baa#9135baa728ef9a9a04a887998e019733c4b093af"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git#15352f969112faa463302f2490bbb7f6e1cb904d"
 dependencies = [
  "libc",
- "libc_print",
- "page_size 0.4.2",
+ "libc-print",
+ "page_size 0.6.0",
  "static_assertions",
  "str-buf",
 ]
@@ -3633,14 +3653,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -3652,11 +3672,10 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
- "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gmeta",
  "gsdk",
  "hex",
@@ -3672,16 +3691,18 @@ dependencies = [
  "schnorrkel",
  "serde",
  "serde_json",
+ "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "thiserror",
  "tokio",
+ "vara-runtime",
  "which",
  "whoami",
 ]
 
 [[package]]
 name = "gclient"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3725,7 +3746,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3738,7 +3759,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "demo-mul-by-const",
  "env_logger",
@@ -3781,50 +3802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-backend-codegen"
-version = "1.0.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.32",
-]
-
-[[package]]
-name = "gear-backend-common"
-version = "1.0.0"
-dependencies = [
- "actor-system-error",
- "blake2-rfc",
- "derive_more",
- "gear-backend-codegen",
- "gear-core",
- "gear-core-errors",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "num_enum",
- "parity-scale-codec",
- "rand 0.8.5",
- "scale-info",
-]
-
-[[package]]
-name = "gear-backend-sandbox"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "gear-backend-common",
- "gear-core",
- "gear-core-errors",
- "gear-sandbox",
- "gear-sandbox-env",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
@@ -3850,7 +3827,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "clap 4.4.2",
  "frame-benchmarking",
@@ -3884,7 +3861,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3912,7 +3889,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "quote",
  "syn 2.0.32",
@@ -3920,7 +3897,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -3935,15 +3912,45 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "proptest",
+ "rand 0.8.5",
  "scale-info",
+ "serde",
  "static_assertions",
  "wabt",
  "wasmparser-nostd 0.100.1",
 ]
 
 [[package]]
+name = "gear-core-backend"
+version = "1.0.1"
+dependencies = [
+ "actor-system-error",
+ "blake2-rfc",
+ "derive_more",
+ "gear-core",
+ "gear-core-backend-codegen",
+ "gear-core-errors",
+ "gear-lazy-pages-common",
+ "gear-sandbox",
+ "gear-sandbox-env",
+ "gear-wasm-instrument",
+ "gsys",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-core-backend-codegen"
+version = "1.0.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.32",
+]
+
+[[package]]
 name = "gear-core-errors"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -3952,16 +3959,17 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "actor-system-error",
  "derive_more",
  "enum-iterator 1.4.1",
  "env_logger",
- "gear-backend-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-wasm-instrument",
  "log",
  "scale-info",
@@ -3969,15 +3977,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-key-finder"
+version = "1.0.1"
+dependencies = [
+ "directories 5.0.1",
+ "hex",
+]
+
+[[package]]
 name = "gear-lazy-pages"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "cfg-if",
  "derive_more",
  "env_logger",
  "errno",
- "gear-backend-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -3995,13 +4011,22 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "0.1.0"
+version = "1.0.1"
+dependencies = [
+ "gear-core",
+ "num_enum",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-lazy-pages-interface"
+version = "1.0.1"
 dependencies = [
  "byteorder",
  "derive_more",
- "gear-backend-common",
  "gear-common",
  "gear-core",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "log",
@@ -4010,7 +4035,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4042,7 +4067,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4111,7 +4136,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -4121,9 +4146,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "gear-backend-common",
  "gear-common",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",
@@ -4173,16 +4198,16 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
- "gear-backend-common",
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-primitives",
  "log",
  "pallet-authorship",
@@ -4199,13 +4224,13 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "byteorder",
  "derive_more",
- "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
+ "gear-lazy-pages-common",
  "gear-sandbox-host",
  "libc",
  "log",
@@ -4221,7 +4246,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
@@ -4274,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -4355,7 +4380,7 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "cc",
 ]
@@ -4427,11 +4452,10 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4449,12 +4473,11 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "enum-iterator 1.4.1",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
+ "gear-core-backend",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
@@ -4619,7 +4642,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4633,7 +4656,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4657,7 +4680,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -4671,9 +4694,11 @@ dependencies = [
  "gsdk",
  "gsdk-codegen",
  "hex",
+ "indexmap 2.0.0",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
+ "parking_lot 0.12.1",
  "rand 0.8.5",
  "scale-decode",
  "scale-value",
@@ -4708,7 +4733,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4717,7 +4742,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bs58",
  "futures",
@@ -4746,7 +4771,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.0.0"
+version = "1.0.1"
 
 [[package]]
 name = "gtest"
@@ -4761,12 +4786,10 @@ dependencies = [
  "demo-ping",
  "derive_more",
  "env_logger",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
@@ -5606,9 +5629,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
 
 [[package]]
-name = "libc_print"
-version = "0.1.16"
-source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
+name = "libc-print"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06cea5d58bd9ba4717bbf5c6c5bb11bb6e9e76685b7fff34039b80f50ce86c11"
 dependencies = [
  "libc",
 ]
@@ -7074,6 +7098,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
 name = "os_str_bytes"
 version = "6.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7115,9 +7145,9 @@ dependencies = [
 
 [[package]]
 name = "page_size"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
+checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
 dependencies = [
  "libc",
  "winapi",
@@ -7125,9 +7155,9 @@ dependencies = [
 
 [[package]]
 name = "page_size"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
+checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
 dependencies = [
  "libc",
  "winapi",
@@ -7314,7 +7344,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "blake2-rfc",
  "demo-async",
@@ -7365,13 +7395,13 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-backend-common",
- "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
@@ -7412,7 +7442,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -7430,7 +7460,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-debug"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "demo-vec",
  "env_logger",
@@ -7438,7 +7468,6 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-backend-sandbox",
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
@@ -7467,7 +7496,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7496,7 +7525,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7520,7 +7549,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7554,7 +7583,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7563,7 +7592,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -7588,7 +7617,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -7604,7 +7633,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -7615,7 +7644,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7646,7 +7675,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -7698,7 +7727,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -10371,7 +10400,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox#93aa762a96970dc7d5987a8c890a6be4912f3cd3"
 dependencies = [
  "async-trait",
- "directories",
+ "directories 4.0.1",
  "exit-future",
  "futures",
  "futures-timer",
@@ -12344,9 +12373,9 @@ dependencies = [
 
 [[package]]
 name = "str-buf"
-version = "2.0.5"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0873cb29201126440dcc78d0b1f5a13d917e78831778429a7920ca9c7f3dae1e"
+checksum = "e75b72ee54e2f93c3ea1354066162be893ee5e25773ab743de3e088cecbb4f31"
 
 [[package]]
 name = "strsim"
@@ -12768,18 +12797,18 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.47"
+version = "1.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97a802ec30afc17eee47b2855fc72e0c4cd62be9b4efe6591edde0ec5bd68d8f"
+checksum = "1177e8c6d7ede7afde3585fd2513e611227efd6481bd78d2e82ba1ce16557ed4"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.47"
+version = "1.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb623b56e39ab7dcd4b1b98bb6c8f8d907ed255b18de254088016b27a8ee19b"
+checksum = "10712f02019e9288794769fba95cd6847df9874d49d871d062172f9dd41bc4cc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -13495,7 +13524,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "const-str",
  "env_logger",
@@ -13507,9 +13536,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "gear-backend-common",
  "gear-common",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",
@@ -13751,7 +13780,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 [[package]]
 name = "wasm-encoder"
 version = "0.16.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "leb128",
 ]
@@ -13838,7 +13867,7 @@ dependencies = [
 [[package]]
 name = "wasm-smith"
 version = "0.11.4"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "arbitrary",
  "flagset",
@@ -14220,7 +14249,7 @@ checksum = "718ed7c55c2add6548cca3ddd6383d738cd73b892df400e96b9aa876f0141d7a"
 [[package]]
 name = "wasmparser"
 version = "0.90.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#9942645b3891607e13f11f6444ca320ba36a6a1f"
 dependencies = [
  "indexmap 1.9.3",
 ]

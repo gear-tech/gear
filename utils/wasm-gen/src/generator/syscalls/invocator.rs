@@ -31,7 +31,10 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{ParamType, SysCallName, SysCallSignature},
 };
-use std::{collections::BTreeMap, iter};
+use std::{
+    collections::{btree_map::Entry, BTreeMap, BinaryHeap},
+    iter,
+};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSysCallParams {
@@ -162,6 +165,8 @@ impl ParamSetter {
     }
 }
 
+pub type SysCallInvokeInstructions = Vec<Instruction>;
+
 impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Insert sys-calls invokes.
     ///
@@ -173,23 +178,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        for (invocable, (amount, call_indexes_handle)) in self.sys_call_imports.clone() {
-            let instructions = self.build_sys_call_invoke_instructions(
-                invocable,
-                invocable.into_signature(),
-                call_indexes_handle,
-            )?;
-
-            log::trace!(
-                "Inserting the {} sys_call {} times",
-                invocable.to_str(),
-                amount
-            );
-
-            for instructions in iter::repeat(&instructions).take(amount as usize) {
-                self.insert_sys_call_instructions(instructions)?;
-            }
-        }
+        self.insert_sys_calls()?;
 
         log::trace!(
             "Random data after inserting all sys-calls invocations - {}",
@@ -204,25 +193,159 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         })
     }
 
+    fn insert_sys_calls(&mut self) -> Result<()> {
+        log::trace!(
+            "Random data before inserting sys-calls invoke instructions - {}",
+            self.unstructured.len()
+        );
+
+        let code_funcs = self.module.count_code_funcs();
+        let insert_into_funcs: Vec<_> = (0..code_funcs)
+            .filter(|idx| !self.call_indexes.is_custom_func(*idx))
+            .collect();
+
+        let syscalls_to_insert =
+            self.sys_call_imports
+                .clone()
+                .into_iter()
+                .flat_map(|(syscall, (amount, _))| {
+                    iter::repeat(syscall)
+                        .take(amount as usize)
+                        .collect::<Vec<_>>()
+                });
+
+        let insertion_mapping =
+            self.build_syscalls_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
+
+        for (insert_into_fn, syscalls) in insertion_mapping {
+            self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
+        }
+
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions - {}",
+            self.unstructured.len()
+        );
+
+        Ok(())
+    }
+
+    /// Distributes provided syscalls among provided function ids.
+    ///
+    /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`.
+    fn build_syscalls_insertion_mapping<I>(
+        &mut self,
+        syscalls: I,
+        insert_into_funcs: &[usize],
+    ) -> Result<BTreeMap<usize, Vec<InvocableSysCall>>>
+    where
+        I: Iterator<Item = InvocableSysCall>,
+    {
+        let mut insertion_mapping: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        for syscall in syscalls {
+            let insert_into = *self.unstructured.choose(insert_into_funcs)?;
+
+            match insertion_mapping.entry(insert_into) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(syscall);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![syscall]);
+                }
+            }
+        }
+
+        Ok(insertion_mapping)
+    }
+
+    fn insert_sys_calls_into_fn(
+        &mut self,
+        insert_into_fn: usize,
+        syscalls: Vec<InvocableSysCall>,
+    ) -> Result<()> {
+        log::trace!(
+            "Random data before inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        let fn_code_len = self.module.count_func_instructions(insert_into_fn);
+
+        // The end of insertion range is second-to-last index, as the last
+        // index is defined for `Instruction::End` of the function body.
+        // But if there's only one instruction in the function, then `0`
+        // index is used as an insertion point.
+        let last = if fn_code_len > 1 { fn_code_len - 2 } else { 0 };
+
+        // Sort in descending order. It's needed to guarantee that no syscall
+        // invocation instructions will intersect with each other as we start
+        // inserting syscalls from the last index.
+        let insertion_positions = iter::from_fn(|| Some(self.unstructured.int_in_range(0..=last)))
+            .take(syscalls.len())
+            .collect::<Result<BinaryHeap<_>>>()?
+            .into_sorted_vec()
+            .into_iter()
+            .rev();
+
+        for (pos, syscall) in insertion_positions.zip(syscalls) {
+            let call_indexes_handle = self
+                .sys_call_imports
+                .get(&syscall)
+                .map(|(_, call_indexes_handle)| *call_indexes_handle)
+                .expect("Syscall presented in sys_call_imports");
+            let instructions = self.build_sys_call_invoke_instructions(
+                syscall,
+                syscall.into_signature(),
+                call_indexes_handle,
+            )?;
+
+            log::trace!(
+                " -- Inserting syscall {} into function {insert_into_fn} at position {pos}",
+                syscall.to_str()
+            );
+
+            self.module.with(|mut module| {
+                let code = module
+                    .code_section_mut()
+                    .expect("has at least one function by config")
+                    .bodies_mut()[insert_into_fn]
+                    .code_mut()
+                    .elements_mut();
+                code.splice(pos..pos, instructions);
+                (module, ())
+            });
+        }
+
+        log::trace!(
+            "Random data after inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            self.unstructured.len()
+        );
+
+        Ok(())
+    }
+
     fn build_sys_call_invoke_instructions(
         &mut self,
         invocable: InvocableSysCall,
         signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
-    ) -> Result<Vec<Instruction>> {
+    ) -> Result<SysCallInvokeInstructions> {
         log::trace!(
             "Random data before building {} sys-call invoke instructions - {}",
             invocable.to_str(),
             self.unstructured.len()
         );
 
-        if self.is_sys_call_with_destination(invocable) {
+        if let Some(argument_index) = invocable.has_destination_param() {
             log::trace!(
                 " -- Generating build call for {} sys-call with destination",
                 invocable.to_str()
             );
 
-            self.build_call_with_destination(invocable, signature, call_indexes_handle)
+            self.build_call_with_destination(
+                invocable,
+                signature,
+                call_indexes_handle,
+                argument_index,
+            )
         } else {
             log::trace!(
                 " -- Generating build call for common sys-call {}",
@@ -236,16 +359,16 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     fn build_call_with_destination(
         &mut self,
         invocable: InvocableSysCall,
-        mut signature: SysCallSignature,
+        signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
+        argument_index: usize,
     ) -> Result<Vec<Instruction>> {
-        // The value for the first param is chosen from config.
+        // The value for the destination param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
-        signature.params.remove(0);
-        let mut call_without_destination_instrs =
+        let mut original_instructions =
             self.build_call(invocable, signature, call_indexes_handle)?;
 
-        let res = if self.config.sys_call_destination().is_source() {
+        let destination_instructions = if self.config.sys_call_destination().is_source() {
             log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
@@ -253,8 +376,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 .get(&InvocableSysCall::Loose(SysCallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
-
-            let mut instructions = Vec::with_capacity(3 + call_without_destination_instrs.len());
 
             let mem_size = self
                 .module
@@ -268,17 +389,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let upper_limit = mem_size.saturating_sub(100);
             let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
-            // call `gsys::gr_source` with a memory offset
-            instructions.push(Instruction::I32Const(offset as i32));
-            instructions.push(Instruction::Call(gr_source_call_indexes_handle));
-            // pass the offset as the first argument to the send-call
-            instructions.push(Instruction::I32Const(offset as i32));
-            instructions.append(&mut call_without_destination_instrs);
-
-            instructions
+            vec![
+                // call `gsys::gr_source` with a memory offset
+                Instruction::I32Const(offset as i32),
+                Instruction::Call(gr_source_call_indexes_handle),
+                // pass the offset as the first argument to the send-call
+                Instruction::I32Const(offset as i32),
+            ]
         } else {
-            let mut instructions = Vec::with_capacity(1 + call_without_destination_instrs.len());
-
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
                     assert!(self.config.sys_call_destination().is_existing_addresses());
@@ -294,35 +412,12 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 }
             };
 
-            instructions.push(Instruction::I32Const(address_offset as i32));
-            instructions.append(&mut call_without_destination_instrs);
-
-            instructions
+            vec![Instruction::I32Const(address_offset as i32)]
         };
 
-        Ok(res)
-    }
+        original_instructions.splice(argument_index..argument_index + 1, destination_instructions);
 
-    fn is_sys_call_with_destination(&self, sys_call: InvocableSysCall) -> bool {
-        self.is_send_sys_call(sys_call) || self.is_exit_sys_call(sys_call)
-    }
-
-    fn is_send_sys_call(&self, sys_call: InvocableSysCall) -> bool {
-        use InvocableSysCall::*;
-        [
-            Loose(SysCallName::Send),
-            Loose(SysCallName::SendWGas),
-            Loose(SysCallName::SendInput),
-            Loose(SysCallName::SendInputWGas),
-            Precise(SysCallName::ReservationSend),
-            Precise(SysCallName::SendCommit),
-            Precise(SysCallName::SendCommitWGas),
-        ]
-        .contains(&sys_call)
-    }
-
-    fn is_exit_sys_call(&self, sys_call: InvocableSysCall) -> bool {
-        matches!(sys_call, InvocableSysCall::Loose(SysCallName::Exit))
+        Ok(original_instructions)
     }
 
     fn build_call(
@@ -527,54 +622,6 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             Instruction::Unreachable,
             Instruction::End,
         ]
-    }
-
-    fn insert_sys_call_instructions(&mut self, instructions: &[Instruction]) -> Result<()> {
-        log::trace!(
-            "Random data before inserting sys-call's invoke instructions - {}",
-            self.unstructured.len()
-        );
-
-        let last_funcs_idx = self.module.count_code_funcs() - 1;
-        let mut insert_into_func_no = self.unstructured.int_in_range(0..=last_funcs_idx)?;
-
-        // Do not insert into custom newly generated function, but only into pre-defined
-        // internal functions.
-        //
-        // This loop will definitely end, because there are only 4 custom functions (3 for gear entry points
-        // and one for precise reservation send) and minimal amount of internal functions is 15.
-        while self.call_indexes.is_custom_func(insert_into_func_no) {
-            insert_into_func_no = self.unstructured.int_in_range(0..=last_funcs_idx)?;
-        }
-
-        log::trace!(" -- Inserting sys-call into function with idx {insert_into_func_no}");
-
-        self.module.with(|mut module| {
-            let code = module
-                .code_section_mut()
-                .expect("has at least one function by config")
-                .bodies_mut()[insert_into_func_no]
-                .code_mut()
-                .elements_mut();
-
-            // The end of insertion range is second-to-last index, as the last
-            // index is defined for `Instruction::End` of the function body.
-            // But if there's only one instruction in the function, then `0`
-            // index is used as an insertion point.
-            let last = if code.len() > 1 { code.len() - 2 } else { 0 };
-
-            let res = self.unstructured.int_in_range(0..=last).map(|pos| {
-                log::trace!(" -- Inserting into position {pos}");
-                code.splice(pos..pos, instructions.iter().cloned());
-            });
-
-            log::trace!(
-                "Random data after inserting sys-call's invoke instructions - {}",
-                self.unstructured.len()
-            );
-
-            (module, res)
-        })
     }
 
     fn resolves_calls_indexes(&mut self) {

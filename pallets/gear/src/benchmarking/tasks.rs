@@ -55,7 +55,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
         code,
@@ -106,7 +106,7 @@ where
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
     let code = benchmarking::generate_wasm2(16.into()).unwrap();
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         code,
@@ -146,7 +146,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
         WASM_BINARY.to_vec(),
@@ -212,7 +212,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -267,7 +267,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -316,7 +316,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),

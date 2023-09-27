@@ -2,18 +2,17 @@
 name = "demo-compose"
 version = "0.1.0"
 authors.workspace = true
-edition = "2021"
-license = "GPL-3.0"
-workspace = "../../"
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+hex.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
-
-[lib]
 
 [features]
 debug = ["gstd/debug"]

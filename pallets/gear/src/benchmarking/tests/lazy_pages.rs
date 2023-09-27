@@ -22,13 +22,13 @@ use core::mem::size_of;
 
 use ::alloc::{collections::BTreeSet, format};
 use common::ProgramStorage;
+use core_processor::Ext;
 use frame_support::codec::MaxEncodedLen;
-use gear_backend_common::lazy_pages::Status;
 use gear_core::{
     memory::MemoryInterval,
     pages::{PageNumber, PageU32Size},
 };
-use gear_lazy_pages_common as lazy_pages;
+use gear_lazy_pages_common::Status;
 use rand::{Rng, SeedableRng};
 
 use super::*;
@@ -308,12 +308,9 @@ where
 
             let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
 
-            let notes = core_processor::process::<ExecutionEnvironment>(
-                &exec.block_config,
-                exec.context,
-                exec.random_data,
-            )
-            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            let notes =
+                core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
             let mut gas_burned = 0;
             for note in notes.into_iter() {
@@ -384,12 +381,9 @@ where
                 .page_costs
                 .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
 
-            let notes = core_processor::process::<ExecutionEnvironment>(
-                &exec.block_config,
-                exec.context,
-                exec.random_data,
-            )
-            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            let notes =
+                core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
             let mut gas_burned = 0;
             for note in notes.into_iter() {
@@ -543,12 +537,9 @@ where
 
         exec.block_config.page_costs = Default::default();
 
-        let notes = core_processor::process::<ExecutionEnvironment>(
-            &exec.block_config,
-            exec.context,
-            exec.random_data,
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+        let notes =
+            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         let mut gas_burned = None;
         for note in notes.into_iter() {
@@ -586,12 +577,9 @@ where
             ..Default::default()
         };
 
-        let notes = core_processor::process::<ExecutionEnvironment>(
-            &exec.block_config,
-            exec.context,
-            exec.random_data,
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+        let notes =
+            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {
@@ -606,7 +594,7 @@ where
             }
         }
 
-        assert_ne!(lazy_pages::get_status(), Status::Normal);
+        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
     };
 
     // Check gas allowance exceeded.
@@ -627,12 +615,9 @@ where
             ..Default::default()
         };
 
-        let notes = core_processor::process::<ExecutionEnvironment>(
-            &exec.block_config,
-            exec.context,
-            exec.random_data,
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+        let notes =
+            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {
@@ -643,6 +628,6 @@ where
             }
         }
 
-        assert_ne!(lazy_pages::get_status(), Status::Normal);
+        assert_ne!(gear_lazy_pages_interface::get_status(), Status::Normal);
     };
 }

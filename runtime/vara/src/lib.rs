@@ -142,7 +142,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1000,
+    spec_version: 1010,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -637,7 +637,6 @@ impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Runtime {
 }
 
 parameter_types! {
-    pub const PostUnbondPoolsWindow: u32 = 4;
     pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
     pub const MaxPointsToBalance: u8 = 10;
 }
@@ -664,9 +663,10 @@ impl pallet_nomination_pools::Config for Runtime {
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
     type Staking = Staking;
-    type PostUnbondingPoolsWindow = PostUnbondPoolsWindow;
+    type PostUnbondingPoolsWindow = ConstU32<4>;
     type MaxMetadataLen = ConstU32<256>;
-    type MaxUnbonding = ConstU32<8>;
+    // we use the same number of allowed unlocking chunks as with staking.
+    type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
     type PalletId = NominationPoolsPalletId;
     type MaxPointsToBalance = MaxPointsToBalance;
 }

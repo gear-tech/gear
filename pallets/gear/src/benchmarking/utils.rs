@@ -114,7 +114,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         ProgramStorageOf::<T>::pages_final_prefix()
     ));
 
@@ -128,7 +128,7 @@ where
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate(CodeId::generate(code), b"bench_salt");
+            let program_id = ProgramId::generate_from_user(CodeId::generate(code), b"bench_salt");
 
             let schedule = T::Schedule::get();
             let code = Code::try_new(
@@ -165,7 +165,7 @@ where
             )
         }
         HandleKind::InitByHash(code_id) => {
-            let program_id = ProgramId::generate(code_id, b"bench_salt");
+            let program_id = ProgramId::generate_from_user(code_id, b"bench_salt");
 
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
