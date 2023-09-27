@@ -22,7 +22,7 @@ BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
-ONE_TIME_EXTRINSICS=$(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
+mapfile -t ONE_TIME_EXTRINSICS < <(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
 
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
@@ -183,7 +183,7 @@ for PALLET in "${PALLETS[@]}"; do
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
         --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
         --pallet="$PALLET" \
-        --extrinsic="$(IFS=, ; echo "${ONE_TIME_EXTRINSICS[*]}")" \
+        --extrinsic="$(IFS=', '; echo "${ONE_TIME_EXTRINSICS[*]}")" \
         --execution=wasm \
         --wasm-execution=compiled \
         --heap-pages=4096 \
