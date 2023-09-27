@@ -24,7 +24,8 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
+    InvocableSysCall, PointerWrite, PointerWritesConfig, SysCallParamAllowedValues, SysCallsConfig,
+    SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -33,7 +34,9 @@ use gear_wasm_instrument::{
 };
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap},
+    fmt::{self, Display},
     iter,
+    mem::size_of,
 };
 
 #[derive(Debug)]
@@ -46,12 +49,15 @@ pub(crate) enum ProcessedSysCallParams {
         allowed_values: Option<SysCallParamAllowedValues>,
     },
     MemoryArray,
-    MemoryPtrValue,
+    MemoryPtrValue {
+        ptr_writes: Vec<PointerWrite>,
+    },
 }
 
 pub(crate) fn process_sys_call_params(
     params: &[ParamType],
     params_config: &SysCallsParamsConfig,
+    pointer_writes_config: &PointerWritesConfig,
 ) -> Vec<ProcessedSysCallParams> {
     let mut res = Vec::with_capacity(params.len());
     let mut skip_next_param = false;
@@ -75,7 +81,11 @@ pub(crate) fn process_sys_call_params(
 
                 ProcessedSysCallParams::MemoryArray
             }
-            ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
+            ParamType::Ptr(ptr_info) => ProcessedSysCallParams::MemoryPtrValue {
+                ptr_writes: pointer_writes_config
+                    .get_rule(ptr_info.ty)
+                    .unwrap_or_default(),
+            },
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -133,36 +143,53 @@ impl<'a, 'b>
     }
 }
 
-/// Newtype used to mark that some instruction is used to push values to stack before syscall execution.
-#[derive(Clone)]
-struct ParamSetter(Instruction);
+#[derive(Clone, Debug)]
+struct PtrDataSetter {
+    offset: usize,
+    data: i32,
+}
+
+#[derive(Clone, Debug)]
+enum ParamSetter {
+    I32(i32),
+    I64(i64),
+    Ptr {
+        address: i32,
+        data: Vec<PtrDataSetter>,
+    },
+}
 
 impl ParamSetter {
-    fn new_i32(value: i32) -> Self {
-        Self(Instruction::I32Const(value))
-    }
-
-    fn new_i64(value: i64) -> Self {
-        Self(Instruction::I64Const(value))
-    }
-
-    fn into_ix(self) -> Instruction {
-        self.0
-    }
-
-    fn as_i32(&self) -> Option<i32> {
-        if let Instruction::I32Const(value) = self.0 {
-            Some(value)
-        } else {
-            None
+    fn into_ixs(self) -> Vec<Instruction> {
+        match self {
+            Self::I32(value) => vec![Instruction::I32Const(value)],
+            Self::I64(value) => vec![Instruction::I64Const(value)],
+            Self::Ptr { address, data } => data
+                .into_iter()
+                .flat_map(|PtrDataSetter { offset, data }| {
+                    [
+                        Instruction::I32Const(address),
+                        Instruction::I32Const(data),
+                        Instruction::I32Store(2, offset as u32),
+                    ]
+                })
+                .chain(iter::once(Instruction::I32Const(address)))
+                .collect(),
         }
     }
+}
 
-    fn get_value(&self) -> i64 {
-        match self.0 {
-            Instruction::I32Const(value) => value as i64,
-            Instruction::I64Const(value) => value,
-            _ => unimplemented!("Incorrect instruction found"),
+impl Display for ParamSetter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::I32(val) => write!(f, "set value: {val}"),
+            Self::I64(val) => write!(f, "set value: {val}"),
+            Self::Ptr { address, data } if data.is_empty() => {
+                write!(f, "set pointer {address}")
+            }
+            Self::Ptr { address, data } => {
+                write!(f, "set pointer {address} and write {data:?} to it")
+            }
         }
     }
 }
@@ -455,7 +482,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mut instructions: Vec<_> = param_setters
             .iter()
             .cloned()
-            .map(ParamSetter::into_ix)
+            .flat_map(ParamSetter::into_ixs)
             .collect();
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
@@ -492,7 +519,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
         let mut setters = Vec::with_capacity(params.len());
-        for processed_param in process_sys_call_params(params, self.config.params_config()) {
+        for processed_param in process_sys_call_params(
+            params,
+            self.config.params_config(),
+            self.config.pointer_writes_config(),
+        ) {
             match processed_param {
                 ProcessedSysCallParams::Alloc { allowed_values } => {
                     let pages_to_alloc = if let Some(allowed_values) = allowed_values {
@@ -504,7 +535,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");
 
-                    setters.push(ParamSetter::new_i32(pages_to_alloc));
+                    setters.push(ParamSetter::I32(pages_to_alloc));
                 }
                 ProcessedSysCallParams::Value {
                     value_type,
@@ -519,17 +550,17 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     };
                     let setter = if let Some(allowed_values) = allowed_values {
                         if is_i32 {
-                            ParamSetter::new_i32(allowed_values.get_i32(self.unstructured)?)
+                            ParamSetter::I32(allowed_values.get_i32(self.unstructured)?)
                         } else {
-                            ParamSetter::new_i64(allowed_values.get_i64(self.unstructured)?)
+                            ParamSetter::I64(allowed_values.get_i64(self.unstructured)?)
                         }
                     } else if is_i32 {
-                        ParamSetter::new_i32(self.unstructured.arbitrary()?)
+                        ParamSetter::I32(self.unstructured.arbitrary()?)
                     } else {
-                        ParamSetter::new_i64(self.unstructured.arbitrary()?)
+                        ParamSetter::I64(self.unstructured.arbitrary()?)
                     };
 
-                    log::trace!("  ----  Pointer value - {}", setter.get_value());
+                    log::trace!("  ----  Pointer value - {}", setter);
 
                     setters.push(setter);
                 }
@@ -541,15 +572,43 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     log::trace!("  ----  Memory array {offset}, {length}");
 
-                    setters.push(ParamSetter::new_i32(offset));
-                    setters.push(ParamSetter::new_i32(length));
+                    setters.push(ParamSetter::Ptr {
+                        address: offset,
+                        data: vec![],
+                    });
+                    setters.push(ParamSetter::I32(length));
                 }
-                ProcessedSysCallParams::MemoryPtrValue => {
+                ProcessedSysCallParams::MemoryPtrValue { ptr_writes } => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
-                    let setter = ParamSetter::new_i32(offset);
+                    let word_writes = ptr_writes
+                        .into_iter()
+                        .map(|ptr_write| {
+                            Ok((
+                                ptr_write.offset,
+                                ptr_write.data.get_words(&mut self.unstructured)?,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    let data = word_writes
+                        .into_iter()
+                        .flat_map(|(offset, words)| {
+                            words.into_iter().enumerate().map(move |(word_id, data)| {
+                                PtrDataSetter {
+                                    offset: offset + word_id * size_of::<i32>(),
+                                    data,
+                                }
+                            })
+                        })
+                        .collect();
+
+                    let setter = ParamSetter::Ptr {
+                        address: offset,
+                        data,
+                    };
                     log::trace!("  ----  Memory pointer value - {offset}");
 
                     setters.push(setter);
@@ -577,14 +636,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         signature: SysCallSignature,
         param_setters: &[ParamSetter],
     ) -> Vec<Instruction> {
-        // TODO: #3129.
-        // Assume here that all the errors returned from syscalls
-        // contain `ErrorCode` in the start of memory where pointer points.
-
         static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
         assert_eq!(gsys::ErrorCode::default(), 0);
 
         let params = signature.params;
+        assert_eq!(params.len(), param_setters.len());
 
         let last_param = params
             .last()
@@ -596,15 +652,15 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             _ => panic!("The last argument of fallible syscall must be a pointer to error code"),
         }
 
-        assert_eq!(params.len(), param_setters.len());
-
-        if let Some(ptr) = param_setters
+        // TODO: #3129.
+        // Assume here that all the errors returned from syscalls
+        // contain `ErrorCode` in the start of memory where pointer points.
+        if let ParamSetter::Ptr { address, .. } = param_setters
             .last()
-            .expect("At least one argument in fallible syscall")
-            .as_i32()
+            .expect("At least one param setter in fallible syscall")
         {
             vec![
-                Instruction::I32Const(ptr),
+                Instruction::I32Const(*address),
                 Instruction::I32Load(2, 0),
                 Instruction::I32Const(0),
                 Instruction::I32Ne,

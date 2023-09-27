@@ -21,6 +21,7 @@
 
 mod amount;
 mod param;
+mod pointer_write;
 mod precise;
 
 use gear_utils::NonEmpty;
@@ -30,6 +31,7 @@ use std::{collections::HashSet, ops::RangeInclusive};
 
 pub use amount::*;
 pub use param::*;
+pub use pointer_write::*;
 pub use precise::*;
 
 use crate::InvocableSysCall;
@@ -44,6 +46,7 @@ impl SysCallsConfigBuilder {
         Self(SysCallsConfig {
             injection_amounts,
             params_config: SysCallsParamsConfig::default(),
+            pointer_writes_config: PointerWritesConfig::default(),
             precise_syscalls_config: PreciseSysCallsConfig::default(),
             sys_call_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
@@ -54,6 +57,16 @@ impl SysCallsConfigBuilder {
     /// Set config for sys-calls params.
     pub fn with_params_config(mut self, params_config: SysCallsParamsConfig) -> Self {
         self.0.params_config = params_config;
+
+        self
+    }
+
+    /// Set config for pointer writes.
+    pub fn with_pointer_writes_config(
+        mut self,
+        pointer_writes_config: PointerWritesConfig,
+    ) -> Self {
+        self.0.pointer_writes_config = pointer_writes_config;
 
         self
     }
@@ -152,6 +165,7 @@ impl ErrorProcessingConfig {
 pub struct SysCallsConfig {
     injection_amounts: SysCallsInjectionAmounts,
     params_config: SysCallsParamsConfig,
+    pointer_writes_config: PointerWritesConfig,
     precise_syscalls_config: PreciseSysCallsConfig,
     sys_call_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
@@ -181,6 +195,11 @@ impl SysCallsConfig {
     /// Get sys-calls params config.
     pub fn params_config(&self) -> &SysCallsParamsConfig {
         &self.params_config
+    }
+
+    /// Get pointer writes config.
+    pub fn pointer_writes_config(&self) -> &PointerWritesConfig {
+        &self.pointer_writes_config
     }
 
     /// Get precise sys-calls config.
