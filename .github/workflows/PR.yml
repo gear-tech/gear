@@ -72,7 +72,7 @@ jobs:
   build:
     needs: status
     if: >-
-      contains(github.event.pull_request.title, "[depbot]") || (
+      contains(github.event.pull_request.title, '[depbot]') || (
       needs.status.outputs.skip-ci != '1' && (
         contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
         || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
