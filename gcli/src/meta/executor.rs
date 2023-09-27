@@ -43,68 +43,30 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     let mut linker = <Linker<HostState>>::new();
 
     // Execution environment
-    //
-    // (import "env" "memory" (memory (;0;) 17))
-    // (import "env" "gr_read" (func (;0;) (type 5)))
-    // (import "env" "alloc" (func (;1;) (type 6)))
-    // (import "env" "free" (func (;2;) (type 6)))
-    // (import "env" "gr_size" (func (;3;) (type 4)))
-    // (import "env" "gr_reply" (func (;4;) (type 5)))
-    // (import "env" "gr_panic" (func (;5;) (type 0)))
-    // (import "env" "gr_oom_panic" (func (;6;) (type 7)))
     {
         let memory = Memory::new(store.as_context_mut(), MemoryType::new(256, None)).unwrap();
-        linker
-            .define("env", "memory", Extern::Memory(memory))
-            .unwrap();
-
-        linker
-            .define("env", "gr_read", funcs::gr_read(&mut store, memory))
-            .unwrap();
-
-        linker
-            .define("env", "alloc", funcs::alloc(&mut store, memory))
-            .unwrap();
-
-        linker
-            .define("env", "free", funcs::free(&mut store))
-            .unwrap();
-
-        linker
-            .define("env", "gr_size", funcs::gr_size(&mut store, memory))
-            .unwrap();
-
-        linker
-            .define("env", "gr_reply", funcs::gr_reply(&mut store, memory))
-            .unwrap();
-
-        linker
-            .define("env", "gr_panic", funcs::gr_panic(&mut store, memory))
-            .unwrap();
-
-        linker
-            .define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))
-            .unwrap();
-
-        linker
-            .define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))
-            .unwrap();
+        linker.define("env", "memory", Extern::Memory(memory))?;
+        linker.define("env", "gr_read", funcs::gr_read(&mut store, memory))?;
+        linker.define("env", "alloc", funcs::alloc(&mut store, memory))?;
+        linker.define("env", "free", funcs::free(&mut store))?;
+        linker.define("env", "gr_size", funcs::gr_size(&mut store, memory))?;
+        linker.define("env", "gr_reply", funcs::gr_reply(&mut store, memory))?;
+        linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
+        linker.define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))?;
+        linker.define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))?;
     }
 
     let instance = linker
         .instantiate(&mut store, &module)
         .unwrap()
-        .start(&mut store)
-        .unwrap();
+        .start(&mut store)?;
 
     let metadata = instance
         .get_export(&store, method)
         .and_then(Extern::into_func)
-        .ok_or_else(|| anyhow!("could not find function \"metadata\""))
-        .unwrap()
-        .typed::<(), (), _>(&mut store)
-        .unwrap();
+        .ok_or_else(|| anyhow!("could not find function \"metadata\""))?
+        .typed::<(), (), _>(&mut store)?;
 
-    metadata.call(&mut store, ()).unwrap();
+    metadata.call(&mut store, ())?;
     Ok(store.state().msg.clone())
 }

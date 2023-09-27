@@ -65,6 +65,8 @@ pub enum Error {
     InvalidWasm,
     #[error("Wasm execution error {0}")]
     WasmExecution(String),
+    #[error("Wasmi execution error {0}")]
+    Wasmi(wasmi::Error),
     #[error(transparent)]
     Etc(#[from] etc::Error),
     #[error("Metadata parsing error {0:?}")]
