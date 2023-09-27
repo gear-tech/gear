@@ -23,20 +23,11 @@ use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, St
 const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
 
 /// HostState for the WASM executor
+#[derive(Default)]
 pub struct HostState {
     pub msg: Vec<u8>,
     pub timestamp: u64,
     pub height: u64,
-}
-
-impl Default for HostState {
-    fn default() -> Self {
-        Self {
-            msg: Vec::with_capacity(256),
-            timestamp: 0,
-            height: 0,
-        }
-    }
 }
 
 /// Executes the WASM code.
@@ -93,6 +84,10 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
 
         linker
             .define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))
+            .unwrap();
+
+        linker
+            .define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))
             .unwrap();
     }
 

@@ -115,9 +115,11 @@ impl Meta {
         )?;
         let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
 
-        Ok(Self::Wasm(MetawasmData::decode(
-            &mut executor::execute(code.code(), "metadata")?.as_ref(),
-        )?))
+        let result = executor::execute(code.code(), "metadata")?;
+
+        println!("result: {:?}", result);
+
+        Ok(Self::Wasm(MetawasmData::decode(&mut result.as_ref())?))
     }
 
     /// Decode metadata from hex bytes.

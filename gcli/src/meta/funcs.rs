@@ -113,12 +113,11 @@ pub fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
 pub fn gr_reply(ctx: &mut Store<HostState>) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, HostState>,
-              _ptr: u32,
-              _len: i32,
-              _val: i32,
-              _delay: i32,
-              _msg: i32| Ok(()),
+        move |mut _caller: Caller<'_, HostState>, _gas: u32, _ptr: i32, _len: i32, _value: i32| {
+            // TODO: process payload from here.
+
+            Ok(())
+        },
     ))
 }
 
@@ -142,5 +141,12 @@ pub fn gr_size(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
 
             Ok(())
         },
+    ))
+}
+
+pub fn gr_out_of_gas(ctx: &mut Store<HostState>) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |_caller: Caller<'_, HostState>| Ok(()),
     ))
 }
