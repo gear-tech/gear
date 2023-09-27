@@ -52,62 +52,77 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            #[cfg(not(feature = "dev"))]
-            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
-            #[cfg(all(feature = "gear-native", feature = "dev"))]
-            "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(all(feature = "vara-native", feature = "dev"))]
-            "vara-dev" => Box::new(chain_spec::vara::development_config()?),
-            #[cfg(feature = "gear-native")]
-            "local" | "gear-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-local` in `dev` mode");
-                Box::new(chain_spec::gear::local_testnet_config()?)
-            }
+            // Common "dev" chain. `vara-runtime` is prioritized.
             #[cfg(feature = "vara-native")]
+            "dev" => Box::new(chain_spec::vara::development_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "dev" => Box::new(chain_spec::gear::development_config()?),
+            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            "dev" => return Err("No runtimes specified to compile."),
+
+            // Specific "dev" chains.
+            #[cfg(feature = "gear-native")]
+            "gear-dev" => Box::new(chain_spec::gear::development_config()?),
+            #[cfg(feature = "vara-native")]
+            "vara-dev" => Box::new(chain_spec::vara::development_config()?),
+
+            // Common "local" chain. `vara-runtime` is prioritized.
+            #[cfg(feature = "vara-native")]
+            "local" => Box::new(chain_spec::vara::local_testnet_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "local" => Box::new(chain_spec::gear::local_testnet_config()?),
+            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            "local" => return Err("No runtimes specified to compile."),
+
+            // Specific "local" chains.
+            #[cfg(feature = "gear-native")]
+            "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
+            #[cfg(feature = "vara-native")]
+            "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
+
+            // Production chains.
             "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/vara.json")[..],
             )?),
-            #[cfg(feature = "vara-native")]
-            "vara-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `vara-local` in `dev` mode");
-                Box::new(chain_spec::vara::local_testnet_config()?)
-            }
-            #[cfg(feature = "gear-native")]
-            "staging" | "gear-staging" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-staging` in `dev` mode");
-                Box::new(chain_spec::gear::staging_testnet_config()?)
-            }
-            "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/staging.json")[..],
+
+            // Common "testnet" chain. `vara-runtime` is prioritized (currently the only available).
+            "testnet" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
             )?),
+
+            // Specific "testnet" chains.
+            "vara-testnet" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
+            )?),
+
+            // Empty (default) chain.
+            "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
+            )?),
+
+            // Custom chain spec.
             path => {
                 let path = std::path::PathBuf::from(path);
 
                 let chain_spec = Box::new(chain_spec::RawChainSpec::from_json_file(path.clone())?)
                     as Box<dyn ChainSpec>;
 
-                if chain_spec.is_dev() {
-                    #[cfg(not(feature = "dev"))]
-                    return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into());
-                }
+                match (chain_spec.is_gear(), chain_spec.is_vara()) {
+                    // Corner cases.
+                    (true, true) => unreachable!("Chain spec couldn't be both of gear and vara runtime"),
+                    (false, false) => return Err("Unable to identify chain spec as gear or vara runtime".into()),
 
-                // When `force_*` is provide or the file name starts with the name of a known chain,
-                // we use the chain spec for the specific chain.
-                if self.run.force_vara || chain_spec.is_vara() {
-                    #[cfg(feature = "vara-native")]
-                    return Ok(Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?));
+                    // Gear specs.
+                    #[cfg(feature = "gear-runtime")]
+                    (true, ..) => Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?),
+                    #[cfg(not(feature = "gear-runtime"))]
+                    (true, ..) => return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into()),
 
-                    #[cfg(not(feature = "vara-native"))]
-                    return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into());
-                } else {
-                    #[cfg(feature = "gear-native")]
-                    return Ok(Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?));
-
-                    #[cfg(not(feature = "gear-native"))]
-                    return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into());
+                    // Vara specs.
+                    #[cfg(feature = "vara-runtime")]
+                    (.., true) => Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?),
+                    #[cfg(not(feature = "vara-runtime"))]
+                    (.., true) => return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into()),
                 }
             }
         })
