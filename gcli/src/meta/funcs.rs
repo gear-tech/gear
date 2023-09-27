@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::executor::HostState;
-use wasmi::{core::memory_units::Pages, AsContextMut, Caller, Extern, Func, Memory, Store};
+use wasmi::{
+    core::memory_units::Pages, AsContext, AsContextMut, Caller, Extern, Func, Memory, Store,
+};
 
 pub fn alloc(store: &mut Store<HostState>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
@@ -110,12 +112,18 @@ pub fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
 /// # NOTE
 ///
 /// Just for the compatibility with the program metadata
-pub fn gr_reply(ctx: &mut Store<HostState>) -> Extern {
+pub fn gr_reply(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, HostState>, _gas: u32, _ptr: i32, _len: i32, _value: i32| {
+        move |mut caller: Caller<'_, HostState>, ptr: u32, len: i32, _value: i32, _err: i32| {
             // TODO: process payload from here.
+            let len = len as usize;
+            let mut result = vec![0; len];
+            memory
+                .read(caller.as_context(), ptr as usize, &mut result)
+                .unwrap();
 
+            caller.host_data_mut().msg = result;
             Ok(())
         },
     ))

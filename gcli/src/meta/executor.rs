@@ -75,7 +75,7 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
             .unwrap();
 
         linker
-            .define("env", "gr_reply", funcs::gr_reply(&mut store))
+            .define("env", "gr_reply", funcs::gr_reply(&mut store, memory))
             .unwrap();
 
         linker
