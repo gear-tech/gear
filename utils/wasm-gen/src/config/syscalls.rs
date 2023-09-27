@@ -114,7 +114,7 @@ impl SysCallsConfigBuilder {
     }
 
     /// Setup fallible syscalls error processing options.
-    pub fn set_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
+    pub fn with_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
         self.0.error_processing_config = config;
 
         self

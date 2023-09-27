@@ -558,35 +558,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 ProcessedSysCallParams::MemoryPtrValue { ptr_writes } => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
-                    let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
+                    let address = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
-                    let word_writes = ptr_writes
-                        .into_iter()
-                        .map(|ptr_write| {
-                            Ok((
-                                ptr_write.offset,
-                                ptr_write.data.generate_data_to_write(self.unstructured)?,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>>>()?;
+                    let setter = self.ptr_writes_into_param_setter(address, ptr_writes)?;
 
-                    let data = word_writes
-                        .into_iter()
-                        .flat_map(|(offset, words)| {
-                            words.into_iter().enumerate().map(move |(word_id, data)| {
-                                PtrDataSetter {
-                                    offset: offset + word_id * size_of::<i32>(),
-                                    data,
-                                }
-                            })
-                        })
-                        .collect();
-
-                    let setter = ParamSetter::Ptr {
-                        address: offset,
-                        data,
-                    };
-                    log::trace!("  ----  Memory pointer value - {offset}");
+                    log::trace!("  ----  Memory pointer value - {address}");
 
                     setters.push(setter);
                 }
@@ -601,6 +577,37 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         assert_eq!(setters.len(), params.len());
 
         Ok(setters)
+    }
+
+    fn ptr_writes_into_param_setter(
+        &mut self,
+        address: i32,
+        ptr_writes: Vec<PointerWrite>,
+    ) -> Result<ParamSetter> {
+        let word_writes = ptr_writes
+            .into_iter()
+            .map(|ptr_write| {
+                Ok((
+                    ptr_write.offset,
+                    ptr_write.data.generate_data_to_write(self.unstructured)?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let data = word_writes
+            .into_iter()
+            .flat_map(|(offset, words)| {
+                words
+                    .into_iter()
+                    .enumerate()
+                    .map(move |(word_id, data)| PtrDataSetter {
+                        offset: offset + word_id * size_of::<i32>(),
+                        data,
+                    })
+            })
+            .collect();
+
+        Ok(ParamSetter::Ptr { address, data })
     }
 
     fn build_result_processing_ignored(signature: SysCallSignature) -> Vec<Instruction> {

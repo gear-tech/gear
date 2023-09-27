@@ -288,9 +288,10 @@ impl SysCallName {
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
-                    length_param_id: 1,
-                })),
+                // FIXME: Actually it's a BufferStart pointer with length_param_id = 1
+                // but we're assuming that length param follows BufferStart pointer
+                // in gear-wasm-gen.
+                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([

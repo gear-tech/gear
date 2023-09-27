@@ -20,6 +20,7 @@ use super::*;
 use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
+    gas::ValueCounter,
     ids::{CodeId, ProgramId},
     memory::Memory,
     message::{
@@ -30,7 +31,7 @@ use gear_core::{
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
-    error::{TerminationReason, TrapExplanation},
+    error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
@@ -40,6 +41,7 @@ use gear_wasm_instrument::{
         elements::{Instruction, Module},
     },
     rules::CustomConstantCostRules,
+    syscalls::PtrType,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -175,9 +177,52 @@ fn injecting_addresses_works() {
 }
 
 #[test]
-fn error_processing_works_for_fallible_syscalls() {
-    use gear_core_backend::error::ActorTerminationReason;
+fn ptr_setters_work() {
+    const INITIAL_VALUE: u128 = 10_000;
+    const REPLY_VALUE: u128 = 1_000;
 
+    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SysCallsParamsConfig::default();
+    let mut pointer_writes_config = PointerWritesConfig::empty();
+    pointer_writes_config.set_rule(
+        PtrType::Value,
+        vec![PointerWrite {
+            offset: 0,
+            data: PointerWriteData::U128(REPLY_VALUE..=REPLY_VALUE),
+        }],
+    );
+
+    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
+    injection_amounts.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
+    let sys_calls_config = SysCallsConfigBuilder::new(injection_amounts)
+        .with_params_config(params_config)
+        .with_pointer_writes_config(pointer_writes_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        sys_calls_config,
+        None,
+        1,
+        false,
+        INITIAL_VALUE,
+    );
+
+    assert_eq!(
+        backend_report.ext.context.value_counter.left(),
+        INITIAL_VALUE - REPLY_VALUE
+    );
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
+#[test]
+fn error_processing_works_for_fallible_syscalls() {
     gear_utils::init_default_logger();
 
     // We create Unstructured from zeroes here as we just need any.
@@ -209,12 +254,14 @@ fn error_processing_works_for_fallible_syscalls() {
             &mut unstructured,
             sys_calls_config_builder
                 .clone()
-                .set_error_processing_config(ErrorProcessingConfig::All)
+                .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             initial_memory_write.clone(),
             0,
             true,
-        );
+            0,
+        )
+        .termination_reason;
 
         assert_eq!(
             termination_reason,
@@ -230,7 +277,9 @@ fn error_processing_works_for_fallible_syscalls() {
             initial_memory_write.clone(),
             0,
             true,
-        );
+            0,
+        )
+        .termination_reason;
 
         assert_eq!(
             termination_reason,
@@ -275,14 +324,17 @@ fn precise_syscalls_works() {
             &mut unstructured,
             SysCallsConfigBuilder::new(injection_amounts)
                 .with_params_config(param_config)
+                .with_pointer_writes_config(PointerWritesConfig::empty())
                 .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3))
                 .with_source_msg_dest()
-                .set_error_processing_config(ErrorProcessingConfig::All)
+                .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             None,
             1024,
             false,
-        );
+            0,
+        )
+        .termination_reason;
 
         assert_eq!(
             termination_reason,
@@ -326,7 +378,8 @@ fn execute_wasm_with_custom_configs(
     initial_memory_write: Option<MemoryWrite>,
     outgoing_limit: u32,
     imitate_reply: bool,
-) -> TerminationReason {
+    value: u128,
+) -> BackendReport<gear_core_processor::Ext> {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
 
@@ -376,6 +429,7 @@ fn execute_wasm_with_custom_configs(
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
         program_id,
+        value_counter: ValueCounter::new(value),
         ..ProcessorContext::new_mock()
     };
 
@@ -389,31 +443,24 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    let report = env
-        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
-            gear_core_processor::Ext::lazy_pages_init_for_program(
-                mem,
-                program_id,
-                Some(mem.size()),
-                globals_config,
-                Default::default(),
-            );
+    env.execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+        gear_core_processor::Ext::lazy_pages_init_for_program(
+            mem,
+            program_id,
+            Some(mem.size()),
+            globals_config,
+            Default::default(),
+        );
 
-            if let Some(mem_write) = initial_memory_write {
-                return mem
-                    .write(mem_write.offset, &mem_write.content)
-                    .map_err(|_| 1);
-            };
+        if let Some(mem_write) = initial_memory_write {
+            return mem
+                .write(mem_write.offset, &mem_write.content)
+                .map_err(|_| 1);
+        };
 
-            Ok(())
-        })
-        .expect("Failed to execute WASM module");
-
-    let BackendReport {
-        termination_reason, ..
-    } = report;
-
-    termination_reason
+        Ok(())
+    })
+    .expect("Failed to execute WASM module")
 }
 
 proptest! {

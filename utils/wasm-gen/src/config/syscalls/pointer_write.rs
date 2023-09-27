@@ -33,6 +33,10 @@ pub use gear_wasm_instrument::syscalls::ParamType;
 /// some data (generated in [`PointerWriteData::generate_data_to_write`])
 /// into all the pointers of type `*const/*mut Value` among syscall
 /// parameters.
+///
+/// # Note
+///
+/// This config will not work for [`PtrType::BufferStart`].
 #[derive(Debug, Clone)]
 pub struct PointerWritesConfig(HashMap<PtrType, Vec<PointerWrite>>);
 
@@ -79,6 +83,10 @@ impl PointerWritesConfig {
 
     /// Set the `PointerWrite`s for the specified pointer type.
     pub fn set_rule(&mut self, ptr_type: PtrType, pointer_writes: Vec<PointerWrite>) {
+        if matches!(ptr_type, PtrType::BufferStart { .. }) {
+            panic!("PtrType::BufferStart is not supported");
+        }
+
         self.0.insert(ptr_type, pointer_writes);
     }
 
