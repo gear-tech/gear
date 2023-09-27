@@ -27,7 +27,7 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
-use sp_core::ConstU128;
+use sp_core::ConstBool;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
@@ -36,8 +36,8 @@ use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type AccountId = u64;
-type BlockNumber = u64;
+pub type AccountId = u64;
+pub type BlockNumber = u64;
 type Balance = u128;
 
 pub const BLOCK_AUTHOR: AccountId = 255;
@@ -125,12 +125,6 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = ();
@@ -142,17 +136,18 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const BankAddress: AccountId = 15082001;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
 
 impl pallet_gear_bank::Config for Test {
     type Currency = Balances;
     type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
-    type GasPrice = GasConverter;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
@@ -171,6 +166,8 @@ impl pallet_gear::Config for Test {
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
     type ProgramResumeSessionDuration = ResumeSessionDuration;
+    type ProgramRentEnabled = ConstBool<false>;
+    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 impl pallet_gear_messenger::Config for Test {

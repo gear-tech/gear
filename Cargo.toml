@@ -1,9 +1,9 @@
 [workspace.package]
-version = "0.3.2"
+version = "1.0.1"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
-homepage = "https://www.gear-tech.io"
+homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [workspace]
@@ -15,7 +15,8 @@ members = [
     "common",
     "common/codegen",
     "core",
-    "core-backend/*",
+    "core-backend",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -23,6 +24,7 @@ members = [
     "examples/async-init",
     "examples/async-signal-entry",
     "examples/async-tester",
+    "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
     "examples/compose",
@@ -89,22 +91,22 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.70"
+anyhow = "1.0.75"
 arbitrary = "1.3.0"
-async-recursion = "1.0.4"
-async-trait = "0.1.68"
-base64 = "0.21.0"
+async-recursion = "1.0.5"
+async-trait = "0.1.73"
+base64 = "0.21.3"
 byteorder = { version = "1.4.3", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.3.21" }
+clap = { version = "4.4.2" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
 const-str = "0.5"
 derive_more = "0.99.17"
 dirs = "4.0.0"
-dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "9135baa", default-features = false }
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git" }
 dyn-clonable = "0.9.0"
 enum-iterator = "1.4.0"
 env_logger = "0.10"
@@ -128,7 +130,7 @@ primitive-types = { version = "0.12.1", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.1.0"
 quick-xml = "0.28"
-quote = { version = "1.0.26", default-features = false }
+quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
 rayon = "1.7"
 regex = "^1.9"
@@ -156,11 +158,11 @@ static_assertions = "1"
 subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-syn = "2.0.28"
-thiserror = "1.0.44"
+syn = "2.0.31"
+thiserror = "1.0.48"
 tokio = { version = "1.27.0" }
-url = "2.3.1"
-wat = "1.0.69"
+url = "2.4.1"
+wat = "1.0.71"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -194,9 +196,8 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-backend-codegen = { path = "core-backend/codegen" }
-gear-backend-common = { path = "core-backend/common" }
-gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
+gear-core-backend-codegen = { path = "core-backend/codegen" }
+gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
@@ -204,7 +205,8 @@ gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
+gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
+gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
@@ -220,21 +222,22 @@ gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
-pallet-airdrop = { path = "pallets/airdrop", default-features = false }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
-pallet-gear-payment = { version = "0.1.0", path = "pallets/payment", default-features = false }
+pallet-gear-payment = { path = "pallets/payment", default-features = false }
 pallet-gear-program = { path = "pallets/gear-program", default-features = false }
 pallet-gear-rpc = { path = "pallets/gear/rpc" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api", default-features = false }
+pallet-gear-rpc-runtime-api = { path = "pallets/gear/rpc/runtime-api", default-features = false }
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
-pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
-pallet-gear-voucher = { version = "1.0.0", path = "pallets/gear-voucher", default-features = false }
-pallet-gear-bank = { version = "1.0.0", path = "pallets/gear-bank", default-features = false }
+pallet-gear-staking-rewards = { path = "pallets/staking-rewards", default-features = false }
+pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
+pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
+pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
-runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
+runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
@@ -371,7 +374,7 @@ demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
 demo-custom = { path = "examples/custom" }
 demo-compose = { path = "examples/compose" }
-demo-constructor = { path = "examples/constructor" }
+demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
@@ -379,7 +382,7 @@ demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
-demo-init-wait = { path = "examples/init-wait" }
+demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
 demo-messager = { path = "examples/messager" }
 demo-meta-io = { path = "examples/new-meta/io" }
@@ -394,9 +397,9 @@ demo-program-generator = { path = "examples/program-generator" }
 demo-proxy = { path = "examples/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
-demo-read-big-state = { path = "examples/read-big-state" }
+demo-read-big-state = { path = "examples/read-big-state", default-features = false }
 demo-reservation-manager = { path = "examples/reservation-manager" }
-demo-reserve-gas = { path = "examples/reserve-gas" }
+demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
@@ -404,7 +407,7 @@ demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
 demo-wait = { path = "examples/wait" }
-demo-waiter = { path = "examples/waiter" }
+demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
@@ -425,7 +428,7 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.34", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
-nix = "0.26.2"                                                            # gear-lazy-pages
+nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
@@ -436,7 +439,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.3"                                                            # utils/wasm-builder
+toml = "0.7.7"                                                            # utils/wasm-builder
 tracing = "0.1.37"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
@@ -449,6 +452,7 @@ scale-value = "^0.10"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
+directories = "5.0.1"                                                     # utils/key-finder
 
 [profile.release]
 panic = "unwind"

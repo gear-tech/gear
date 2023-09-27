@@ -332,6 +332,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_reply_push,
                     gr_reply_push_per_byte,
                     gr_reply_to,
+                    gr_signal_code,
                     gr_signal_from,
                     gr_reply_push_input,
                     gr_reply_push_input_per_byte,

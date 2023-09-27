@@ -8,11 +8,12 @@ license.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-backend-common.workspace = true
-gear-backend-sandbox = { workspace = true, features = ["std"] }
-core-processor.workspace = true
+core-processor = { workspace = true, features = ["std"] }
+gear-lazy-pages-interface = { workspace = true, features = ["std"] }
 gear-wasm-builder.workspace = true
 gear-utils.workspace = true
+
+sp-io = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }
@@ -30,3 +31,4 @@ demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true
+demo-meta-io.workspace = true

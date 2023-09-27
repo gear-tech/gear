@@ -23,12 +23,13 @@ use crate::{
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
 use gear_core::{
     self,
     memory::MemoryInterval,
     pages::{GearPage, PageDynSize, PageNumber},
 };
+use gear_lazy_pages_common::{ProcessAccessError, Status};
+use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 
 pub struct MemoryIntervalPageIterator<'a> {

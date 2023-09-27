@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::Runtime;
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
+use gear_lazy_pages_common::LazyPagesWeights;
 use pallet_gear::{InstructionWeights, MemoryWeights};
 use runtime_common::weights::{check_instructions_weights, check_pages_weights};
 
@@ -142,10 +142,10 @@ fn page_costs_heuristic_test() {
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
         lazy_pages_host_func_write_after_read: 10_687_730.into(),
-        load_page_data: 8_700_000.into(),
+        load_page_data: 9_700_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 306_170.into(),
+        mem_grow: 906_170.into(),
         parachain_load_heuristic: 0.into(),
     };
 
@@ -156,7 +156,7 @@ fn page_costs_heuristic_test() {
         host_func_read: 29_000_000.into(),
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
-        load_page_storage_data: 8_700_000.into(),
+        load_page_storage_data: 9_700_000.into(),
     };
 
     check_pages_weights(

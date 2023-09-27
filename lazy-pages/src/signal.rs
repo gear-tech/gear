@@ -24,8 +24,8 @@ use crate::{
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_backend_common::lazy_pages::Status;
 use gear_core::pages::{GearPage, PageDynSize};
+use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;
 
 pub(crate) trait UserSignalHandler {

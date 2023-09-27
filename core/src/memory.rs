@@ -500,4 +500,122 @@ mod tests {
         test(1238, 3498);
         test(0, 64444);
     }
+
+    mod property_tests {
+        use super::*;
+        use crate::{memory::HostPointer, pages::PageError};
+        use proptest::{
+            arbitrary::any,
+            collection::size_range,
+            prop_oneof, proptest,
+            strategy::{Just, Strategy},
+            test_runner::Config as ProptestConfig,
+        };
+
+        struct TestMemory(WasmPage);
+
+        impl Memory for TestMemory {
+            type GrowError = PageError;
+
+            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+                self.0 = self.0.add(pages)?;
+                Ok(())
+            }
+
+            fn size(&self) -> WasmPage {
+                self.0
+            }
+
+            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+                unimplemented!()
+            }
+
+            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+                unimplemented!()
+            }
+
+            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+                unimplemented!()
+            }
+        }
+
+        #[derive(Debug, Clone)]
+        enum Action {
+            Alloc { pages: WasmPage },
+            Free { page: WasmPage },
+        }
+
+        fn actions() -> impl Strategy<Value = Vec<Action>> {
+            let action = wasm_page_number().prop_flat_map(|page| {
+                prop_oneof![
+                    Just(Action::Alloc { pages: page }),
+                    Just(Action::Free { page })
+                ]
+            });
+            proptest::collection::vec(action, 0..1024)
+        }
+
+        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
+            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
+        }
+
+        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
+            any::<u16>().prop_map(WasmPage::from)
+        }
+
+        fn proptest_config() -> ProptestConfig {
+            ProptestConfig {
+                cases: 1024,
+                ..Default::default()
+            }
+        }
+
+        #[track_caller]
+        fn assert_alloc_error(err: AllocError) {
+            match err {
+                AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds => {}
+                err => Err(err).unwrap(),
+            }
+        }
+
+        #[track_caller]
+        fn assert_free_error(err: AllocError) {
+            match err {
+                AllocError::InvalidFree(_) => {}
+                err => Err(err).unwrap(),
+            }
+        }
+
+        proptest! {
+            #![proptest_config(proptest_config())]
+            #[test]
+            fn alloc(
+                static_pages in wasm_page_number(),
+                allocations in allocations(),
+                max_pages in wasm_page_number(),
+                mem_size in wasm_page_number(),
+                actions in actions(),
+            ) {
+                let _ = env_logger::try_init();
+
+                let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
+                let mut mem = TestMemory(mem_size);
+
+                for action in actions {
+                    match action {
+                        Action::Alloc { pages } => {
+                            if let Err(err) = ctx.alloc::<NoopGrowHandler>(pages, &mut mem, |_| Ok(())) {
+                                assert_alloc_error(err);
+                            }
+                        }
+                        Action::Free { page } => {
+                            if let Err(err) = ctx.free(page) {
+                                assert_free_error(err);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

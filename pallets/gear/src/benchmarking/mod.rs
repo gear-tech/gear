@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod tasks;
 mod utils;
 use syscalls::Benches;
 
@@ -57,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -68,6 +69,7 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
+    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
@@ -75,7 +77,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -83,8 +85,6 @@ use frame_support::{
     traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_backend_common::Environment;
-use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
@@ -93,6 +93,10 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    env::Environment,
+    memory::{ExecutorMemory, MemoryWrap},
 };
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
@@ -232,15 +236,35 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-        exec.memory_pages,
-    )
-    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
+fn get_last_session_id<T: Config>() -> Option<SessionId> {
+    find_latest_event::<T, _, _>(|event| match event {
+        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
+        _ => None,
+    })
+}
+
+pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
+where
+    T: Config,
+    F: Fn(Event<T>) -> Option<R>,
+{
+    SystemPallet::<T>::events()
+        .into_iter()
+        .rev()
+        .filter_map(|event_record| {
+            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+            let event: Result<Event<T>, _> = event.try_into();
+
+            event.ok()
+        })
+        .find_map(mapping_filter)
+}
+
+#[track_caller]
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -261,14 +285,6 @@ where
     )
     .expect("failed to start resume session");
 
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    let session_id = match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
-        _ => unreachable!(),
-    };
-
     let memory_pages = {
         let mut pages = Vec::with_capacity(c as usize);
         for i in 0..c {
@@ -278,7 +294,7 @@ where
         pages
     };
 
-    (session_id, memory_pages)
+    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -320,7 +336,7 @@ where
         let value = CurrencyOf::<T>::minimum_balance();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -350,7 +366,6 @@ pub struct Exec<T: Config> {
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 }
 
 benchmarks! {
@@ -361,24 +376,30 @@ benchmarks! {
     }
 
     #[extra]
-    check_all {
-        syscalls_integrity::main_test::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+    read_big_state {
+        syscalls_integrity::read_big_state::<T>();
     } : {}
 
     #[extra]
+    check_all {
+        syscalls_integrity::main_test::<T>();
+        tests::check_stack_overflow::<T>();
+
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+    } : {}
+
+    #[extra]
+    check_stack_overflow {
+        tests::check_stack_overflow::<T>();
+    }: {}
+
+    #[extra]
     check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -388,19 +409,16 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging_special::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
@@ -440,7 +458,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -453,8 +471,9 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
+        GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
@@ -480,7 +499,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         let block_count = 1_000u32.into();
@@ -500,7 +519,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -525,7 +544,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -561,7 +580,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
         init_block::<T>(None);
@@ -698,8 +717,9 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas::<T::GasPrice>(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
+        GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
+        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
@@ -755,7 +775,7 @@ benchmarks! {
     reinstrument_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
-        let code = Code::new_raw(code, 1, None, false, true).unwrap();
+        let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
@@ -1317,6 +1337,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_signal_code {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_signal_code(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_signal_from {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -1622,8 +1653,8 @@ benchmarks! {
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::new(None);
-        let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_backend_common::mock::MockExt>::new(mem, store);
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(1.into()).unwrap();
@@ -2726,6 +2757,89 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
+    }
+
+    tasks_remove_resume_session {
+        let session_id = tasks::remove_resume_session::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_resume_session(session_id);
+    }
+
+    tasks_remove_gas_reservation {
+        let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_gas_reservation(program_id, reservation_id);
+    }
+
+    tasks_send_user_message_to_mailbox {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, true);
+    }
+
+    tasks_send_user_message {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, false);
+    }
+
+    tasks_send_dispatch {
+        let message_id = tasks::send_dispatch::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_dispatch(message_id);
+    }
+
+    tasks_wake_message {
+        let (program_id, message_id) = tasks::wake_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(program_id, message_id);
+    }
+
+    tasks_wake_message_no_wake {
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(Default::default(), Default::default());
+    }
+
+    tasks_remove_from_waitlist {
+        let (program_id, message_id) = tasks::remove_from_waitlist::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_waitlist(program_id, message_id);
+    }
+
+    tasks_remove_from_mailbox {
+        let (user, message_id) = tasks::remove_from_mailbox::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+    }
+
+    tasks_pause_program {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_uninited {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

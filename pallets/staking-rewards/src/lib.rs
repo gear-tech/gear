@@ -41,9 +41,9 @@
 #![allow(clippy::items_after_test_module)]
 
 pub mod extension;
-mod inflation;
-pub mod migration;
 pub mod weights;
+
+mod inflation;
 
 #[cfg(test)]
 mod mock;
@@ -59,6 +59,8 @@ use frame_support::{
     PalletId,
 };
 use pallet_staking::EraPayout;
+use parity_scale_codec::{Decode, Encode};
+pub use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup},
     PerThing, Perquintill,
@@ -79,6 +81,16 @@ pub type NegativeImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Cu
 >>::NegativeImbalance;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
 
+/// Token economics related details.
+#[derive(Clone, Decode, Encode, Eq, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, serde::Deserialize, serde::Serialize))]
+pub struct InflationInfo {
+    /// Inflation
+    pub inflation: Perquintill,
+    /// ROI
+    pub roi: Perquintill,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -86,7 +98,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     /// The current storage version.
-    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
@@ -333,10 +345,38 @@ pub mod pallet {
                 .saturating_sub(T::Currency::minimum_balance())
         }
 
+        /// Return the current total stakeable tokens amount.
+        ///
+        /// This value is not calculated but rather updated manually in line with tokenomics model.
         pub fn total_stakeable_tokens() -> BalanceOf<T> {
             // Should never be 0 but in theory could
             (Self::non_stakeable_share().left_from_one() * T::Currency::total_issuance())
                 .saturating_sub(Self::pool())
+        }
+
+        /// Calculate actual infaltion and ROI parameters.
+        pub fn inflation_info() -> InflationInfo {
+            let total_staked = pallet_staking::Pallet::<T>::eras_total_stake(
+                pallet_staking::Pallet::<T>::current_era().unwrap_or(0),
+            );
+            let total_issuance = T::Currency::total_issuance();
+
+            let (payout, _) = inflation::compute_total_payout(
+                total_staked,
+                Self::total_stakeable_tokens(),
+                total_issuance,
+                Self::ideal_staking_ratio(),
+                T::MinInflation::get(),
+                Self::target_inflation(),
+                T::Falloff::get(),
+                T::MaxROI::get(),
+                Perquintill::one(),
+            );
+
+            let inflation = Perquintill::from_rational(payout, total_issuance);
+            let roi = Perquintill::from_rational(payout, total_staked);
+
+            InflationInfo { inflation, roi }
         }
     }
 }
@@ -367,19 +407,22 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
     fn on_nonzero_unbalanced(minted: PositiveImbalanceOf<T>) {
         let amount = minted.peek();
 
-        let burned = T::Currency::withdraw(
+        if let Ok(burned) = T::Currency::withdraw(
             &Self::account_id(),
             amount,
             WithdrawReasons::TRANSFER,
             ExistenceRequirement::KeepAlive,
-        )
-        .unwrap_or_else(|_| NegativeImbalanceOf::<T>::zero());
+        ) {
+            // Offsetting rewards against rewards pool until the latter is not depleted.
+            // After that the positive imbalance is dropped adding up to the total supply.
+            let _ = minted.offset(burned);
 
-        // Offsetting rewards against rewards pool until the latter is not depleted.
-        // After that the positive imbalance is dropped adding up to the total supply.
-        let _ = minted.offset(burned);
-
-        Self::deposit_event(Event::Burned { amount });
+            Self::deposit_event(Event::Burned { amount });
+        } else {
+            log::warn!(
+                "Staking rewards pool has insufficient balance to burn minted rewards. The currency total supply may grow."
+            );
+        };
     }
 }
 

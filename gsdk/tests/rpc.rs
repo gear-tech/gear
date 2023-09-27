@@ -19,42 +19,14 @@
 //! Requires node to be built in release mode
 
 use gear_core::ids::{CodeId, ProgramId};
-use gsdk::{
-    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
-    testing::Node,
-    Api, Error, Result,
-};
+use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr};
 use subxt::{config::Header, error::RpcError, Error as SubxtError};
+use utils::{alice_account_id, dev_node, node_uri};
 
-fn dev_node() -> Node {
-    // Use release build because of performance reasons.
-    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
-
-    #[cfg(not(feature = "vara-testing"))]
-    let args = vec!["--tmp", "--dev"];
-    #[cfg(feature = "vara-testing")]
-    let args = vec![
-        "--tmp",
-        "--chain=vara-dev",
-        "--alice",
-        "--validator",
-        "--reserved-only",
-    ];
-
-    Node::try_from_path(bin_path, args)
-        .expect("Failed to start node: Maybe it isn't built with --release flag?")
-}
-
-fn node_uri(node: &Node) -> String {
-    format!("ws://{}", &node.address())
-}
-
-fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap()
-}
+mod utils;
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
@@ -109,7 +81,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -150,8 +122,9 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let alice: [u8; 32] = *alice_account_id().as_ref();
 
     let salt = vec![];
-    let pid = ProgramId::generate(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
-    let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
+
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
+    let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -294,7 +267,7 @@ async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     let signer = Api::new(Some(&node_uri(&node)))
         .await?

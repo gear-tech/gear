@@ -23,19 +23,20 @@ use frame_support::{
     traits::{Currency, GenesisBuild},
 };
 use frame_system::GenesisConfig as SystemConfig;
-use gear_common::GasPrice;
 use gear_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
-use pallet_gear::Config as GearConfig;
+use pallet_gear_bank::Config as GearBankConfig;
 use sp_io::TestExternalities;
 
 pub use account::{account, alice};
 pub use block::{default_gas_limit, run_to_block, run_to_next_block};
+pub use mailbox::get_mailbox_messages;
 
 mod account;
 mod block;
+mod mailbox;
 
 /// Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> TestExternalities {
@@ -95,7 +96,8 @@ pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
     BalancesPallet::<Runtime>::set_balance(
         RuntimeOrigin::root(),
         who.into(),
-        <Runtime as GearConfig>::GasPrice::gas_price(account::acc_max_balance() as u64),
+        <Runtime as GearBankConfig>::GasMultiplier::get()
+            .gas_to_value(account::acc_max_balance() as u64),
         new_reserved,
     )
 }

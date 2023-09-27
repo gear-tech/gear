@@ -19,7 +19,8 @@
 //! Common structures for processing.
 
 use crate::{
-    executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
+    context::SystemReservationContext, executor::SystemPrepareMemoryError,
+    precharge::PreChargeGasOperation, ActorPrepareMemoryError,
 };
 use actor_system_error::actor_system_error;
 use alloc::{
@@ -27,7 +28,6 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -38,6 +38,10 @@ use gear_core::{
     pages::{GearPage, WasmPage},
     program::Program,
     reservation::{GasReservationMap, GasReserver},
+};
+use gear_core_backend::{
+    env::SystemEnvironmentError,
+    error::{SystemTerminationReason, TrapExplanation},
 };
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
@@ -492,7 +496,7 @@ pub enum SystemExecutionError {
     PrepareMemory(SystemPrepareMemoryError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
-    Environment(String),
+    Environment(SystemEnvironmentError),
     /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
@@ -545,8 +549,6 @@ pub struct WasmExecutionContext {
     pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,
-    /// Memory pages with initial data.
-    pub pages_initial_data: BTreeMap<GearPage, PageBuf>,
     /// Size of the memory block.
     pub memory_size: WasmPage,
 }

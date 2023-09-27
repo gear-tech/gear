@@ -622,9 +622,12 @@ test_gas_counter_injection! {
 #[test]
 fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
-    use gear_backend_common::{mock::MockExt, ActorTerminationReason, BackendReport, Environment};
-    use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::message::DispatchKind;
+    use gear_core_backend::{
+        env::{BackendReport, Environment},
+        error::ActorTerminationReason,
+        mock::MockExt,
+    };
     use parity_wasm::builder;
 
     // Make module with one empty function.
@@ -657,8 +660,8 @@ fn test_sys_calls_table() {
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let env = SandboxEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into())
-        .unwrap();
+    let env =
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
     let report = env
         .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
         .unwrap();

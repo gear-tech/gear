@@ -13,4 +13,4 @@ You can do it with the following command:
 
 Otherwise, you can open the [`build.rs`](build.rs) file to learn how the code generation process works. In that case use
 command `GSDK_API_GEN=1 cargo build --package gsdk --release` to start it. In case of any errors, follow the
-instructions in the error message. 
+instructions in the error message.
