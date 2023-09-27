@@ -120,7 +120,7 @@ impl SubstrateCli for Cli {
 
                     // Vara specs.
                     #[cfg(feature = "vara-runtime")]
-                    (.., true) => Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?),
+                    (.., true) => Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?),
                     #[cfg(not(feature = "vara-runtime"))]
                     (.., true) => return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into()),
                 }
