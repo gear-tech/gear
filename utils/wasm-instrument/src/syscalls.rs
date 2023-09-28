@@ -288,9 +288,7 @@ impl SysCallName {
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                // FIXME: Actually it's a BufferStart pointer with length_param_id = 1
-                // but we're assuming that length param follows BufferStart pointer
-                // in gear-wasm-gen.
+                // TODO #3375, the PtrType::BlockNumber is incorrect here.
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
@@ -489,7 +487,7 @@ impl SysCallName {
             }
             Self::Random => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(
-                    PtrType::Hash, /*Actually the hash is read here*/
+                    PtrType::Hash, /*Actually the type is *const Hash here (signature in gsys says *const BufferStart)*/
                 )),
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumberWithHash)),
             ]),
