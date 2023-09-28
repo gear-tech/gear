@@ -45,4 +45,8 @@ done < "$MAIN_FILE" > "$MAIN_FILE.tmp"
 # Rename the temporary file to the original file
 mv "$MAIN_FILE.tmp" "$MAIN_FILE"
 
+for FILE in "${ADDITIONAL_FILES[@]}"; do
+  rm "$FILE"
+done
+
 echo "[+] Merged pallet_gear functions into $MAIN_FILE"

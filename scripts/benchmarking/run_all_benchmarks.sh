@@ -125,7 +125,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
 
-  # Get all the extrinsics for the pallet if the pallet is "pallet_gear"
+  # Get all the extrinsics for the pallet if the pallet is "pallet_gear".
   if [ "$PALLET" == "pallet_gear" ]
   then
     IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet --list \
