@@ -81,7 +81,7 @@ jobs:
             chore(runtime): update weights
           file_pattern: "pallets/gear/src/ runtime/gear/src/weights/ runtime/vara/src/weights/"
 
-      - name: Create pull Request
+      - name: Create Pull Request
         if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v5
         with:
