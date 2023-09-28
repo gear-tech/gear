@@ -35,6 +35,8 @@ while IFS= read -r line; do
       echo "$def_line"
     done
   elif [[ "$line" =~ ^impl.*WeightInfo\ for.*\{$ ]]; then
+    # Insert a tab (4 spaces) for the first line
+    echo -n '    '
     # Insert the weights array here
     for weight in "${weights[@]}"; do
       echo "$weight"
@@ -44,5 +46,9 @@ done < "$MAIN_FILE" > "$MAIN_FILE.tmp"
 
 # Rename the temporary file to the original file
 mv "$MAIN_FILE.tmp" "$MAIN_FILE"
+
+for FILE in "${ADDITIONAL_FILES[@]}"; do
+  rm "$FILE"
+done
 
 echo "[+] Merged pallet_gear functions into $MAIN_FILE"
