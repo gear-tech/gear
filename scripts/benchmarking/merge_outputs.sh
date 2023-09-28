@@ -35,6 +35,8 @@ while IFS= read -r line; do
       echo "$def_line"
     done
   elif [[ "$line" =~ ^impl.*WeightInfo\ for.*\{$ ]]; then
+    # Insert a tab (4 spaces) for the first line
+    echo -n '    '
     # Insert the weights array here
     for weight in "${weights[@]}"; do
       echo "$weight"
