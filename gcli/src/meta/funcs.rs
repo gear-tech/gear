@@ -140,3 +140,17 @@ pub fn gr_out_of_gas(ctx: &mut Store<HostState>) -> Extern {
         move |_caller: Caller<'_, HostState>| Ok(()),
     ))
 }
+
+pub fn gr_block_height(ctx: &mut Store<HostState>) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |_caller: Caller<'_, HostState>, _height: u32| Ok(()),
+    ))
+}
+
+pub fn gr_block_timestamp(ctx: &mut Store<HostState>) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |_caller: Caller<'_, HostState>, _timestamp: u32| Ok(()),
+    ))
+}
