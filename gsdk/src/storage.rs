@@ -319,8 +319,12 @@ impl Api {
 
         for page in &program.pages_with_data {
             let addr = Self::storage(
-                GearProgramStorage::MemoryPageStorage,
-                vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
+                GearProgramStorage::MemoryPageStorage2,
+                vec![
+                    Value::from_bytes(program_id),
+                    Value::u128(program.memory_infix as u128),
+                    Value::u128(page.0 as u128),
+                ],
             );
 
             let metadata = self.metadata();

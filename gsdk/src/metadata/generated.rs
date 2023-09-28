@@ -594,6 +594,7 @@ pub mod runtime_types {
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
                     pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
+                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
                     pub code_hash: runtime_types::gear_core::ids::CodeId,
                     pub end_block: _1,
                 }
@@ -637,7 +638,7 @@ pub mod runtime_types {
                             runtime_types::gear_core::ids::ReservationId,
                         ),
                         #[codec(index = 9)]
-                        RemoveResumeSession(::core::primitive::u128),
+                        RemoveResumeSession(::core::primitive::u32),
                     }
                 }
             }
@@ -671,6 +672,7 @@ pub mod runtime_types {
             pub struct ActiveProgram<_0> {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                pub memory_infix: _0,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
                     runtime_types::gear_core::reservation::GasReservationSlot,
@@ -2574,7 +2576,7 @@ pub mod runtime_types {
                     #[doc = "- `session_id`: id of the resume session."]
                     #[doc = "- `memory_pages`: program memory (or its part) before it was paused."]
                     resume_session_push {
-                        session_id: ::core::primitive::u128,
+                        session_id: ::core::primitive::u32,
                         memory_pages: ::std::vec::Vec<(
                             runtime_types::gear_core::pages::GearPage,
                             runtime_types::gear_core::memory::PageBuf,
@@ -2589,7 +2591,7 @@ pub mod runtime_types {
                     #[doc = "- `session_id`: id of the resume session."]
                     #[doc = "- `block_count`: the specified period of rent."]
                     resume_session_commit {
-                        session_id: ::core::primitive::u128,
+                        session_id: ::core::primitive::u32,
                         block_count: ::core::primitive::u32,
                     },
                 }
@@ -2751,7 +2753,7 @@ pub mod runtime_types {
                     #[codec(index = 9)]
                     #[doc = "Program resume session has been started."]
                     ProgramResumeSessionStarted {
-                        session_id: ::core::primitive::u128,
+                        session_id: ::core::primitive::u32,
                         account_id: ::subxt::utils::AccountId32,
                         program_id: runtime_types::gear_core::ids::ProgramId,
                         session_end_block: ::core::primitive::u32,
@@ -10191,12 +10193,11 @@ pub mod storage {
         OriginalCodeStorage,
         MetadataStorage,
         ProgramStorage,
-        MemoryPageStorage,
+        MemoryPageStorage2,
         WaitingInitStorage,
         PausedProgramStorage,
         ResumeSessionsNonce,
         ResumeSessions,
-        SessionMemoryPages,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -10207,12 +10208,11 @@ pub mod storage {
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
                 Self::ProgramStorage => "ProgramStorage",
-                Self::MemoryPageStorage => "MemoryPageStorage",
+                Self::MemoryPageStorage2 => "MemoryPageStorage2",
                 Self::WaitingInitStorage => "WaitingInitStorage",
                 Self::PausedProgramStorage => "PausedProgramStorage",
                 Self::ResumeSessionsNonce => "ResumeSessionsNonce",
                 Self::ResumeSessions => "ResumeSessions",
-                Self::SessionMemoryPages => "SessionMemoryPages",
             }
         }
     }

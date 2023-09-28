@@ -138,14 +138,16 @@ impl SignerStorage {
     pub async fn set_gpages(
         &self,
         program_id: ProgramId,
+        memory_infix: u32,
         program_pages: &GearPages,
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
             let addr = Api::storage(
-                GearProgramStorage::MemoryPageStorage,
+                GearProgramStorage::MemoryPageStorage2,
                 vec![
                     subxt::dynamic::Value::from_bytes(program_id),
+                    subxt::dynamic::Value::u128(memory_infix as u128),
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
                 ],
             );
