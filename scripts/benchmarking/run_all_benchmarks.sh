@@ -11,13 +11,13 @@
 # Should be run from the root of the repo.
 
 # Steps and repeats for main benchmark.
-BENCHMARK_STEPS=5
-BENCHMARK_REPEAT=1
+BENCHMARK_STEPS=50
+BENCHMARK_REPEAT=20
 
 # Steps and repeats for benchmarking so called "one-time extrinsics",
 # which may be called only once and require a different benchmarking approach with more repeats.
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
-BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1
+BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
