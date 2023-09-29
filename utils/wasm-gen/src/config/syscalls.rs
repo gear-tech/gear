@@ -26,7 +26,7 @@ mod precise;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::{Hash, HashWithValue};
-use std::{collections::HashSet, ops::RangeInclusive};
+use std::collections::HashSet;
 
 pub use amount::*;
 pub use param::*;
@@ -154,7 +154,7 @@ pub struct SysCallsConfig {
 
 impl SysCallsConfig {
     /// Get possible number of times (range) the sys-call can be injected in the wasm.
-    pub fn injection_amounts(&self, name: InvocableSysCall) -> InjectionType<RangeInclusive<u32>> {
+    pub fn injection_amounts(&self, name: InvocableSysCall) -> InjectionType {
         self.injection_amounts.get(name)
     }
 

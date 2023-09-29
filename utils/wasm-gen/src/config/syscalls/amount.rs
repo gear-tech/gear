@@ -27,18 +27,18 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 /// Possible injection type.
 #[derive(Debug, Clone)]
-pub enum InjectionType<T> {
+pub enum InjectionType {
     /// Don't modify anything at all.
     None,
     /// Inject import into wasm module.
     Import,
     /// Inject import and function call into wasm module.
-    Function(T),
+    Function(RangeInclusive<u32>),
 }
 
 /// Possible injection types for each sys-call.
 #[derive(Debug, Clone)]
-pub struct SysCallsInjectionAmounts(HashMap<InvocableSysCall, InjectionType<RangeInclusive<u32>>>);
+pub struct SysCallsInjectionAmounts(HashMap<InvocableSysCall, InjectionType>);
 
 impl SysCallsInjectionAmounts {
     /// Instantiate a sys-calls map, where each gear sys-call is injected into wasm-module only once.
@@ -52,7 +52,7 @@ impl SysCallsInjectionAmounts {
     }
 
     /// Instantiate a sys-calls map with given injection type.
-    fn new_with_injection_type(injection_type: InjectionType<RangeInclusive<u32>>) -> Self {
+    fn new_with_injection_type(injection_type: InjectionType) -> Self {
         let sys_calls = SysCallName::instrumentable();
         Self(
             sys_calls
@@ -68,7 +68,7 @@ impl SysCallsInjectionAmounts {
     }
 
     /// Gets injection type for given sys-call.
-    pub fn get(&self, name: InvocableSysCall) -> InjectionType<RangeInclusive<u32>> {
+    pub fn get(&self, name: InvocableSysCall) -> InjectionType {
         self.0
             .get(&name)
             .cloned()
