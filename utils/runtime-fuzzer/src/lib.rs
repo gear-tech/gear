@@ -29,12 +29,12 @@ use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
-use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 use sha1::*;
 use std::fmt::Debug;
 use utils::default_generator_set;
+use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 
 /// This is a wrapper over random bytes provided from fuzzer.
 ///

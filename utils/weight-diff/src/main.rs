@@ -81,7 +81,8 @@ enum WeightsKind {
 
 #[derive(Debug, Serialize)]
 struct SerializableDump {
-    gear_schedule: Schedule<gear_runtime::Runtime>,
+    // TODO (breathx): remove gear runtime from here.
+    gear_schedule: Schedule<vara_runtime::Runtime>,
     vara_schedule: Schedule<vara_runtime::Runtime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,

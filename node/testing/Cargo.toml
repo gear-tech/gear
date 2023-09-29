@@ -22,7 +22,6 @@ scale-info = { workspace = true, features = ["derive"] }
 runtime-primitives.workspace = true
 common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
-gear-runtime = { workspace = true, optional = true, features = ["dev"] }
 vara-runtime = { workspace = true, optional = true, features = ["dev"] }
 gear-runtime-interface.workspace = true
 service.workspace = true
@@ -70,8 +69,6 @@ std = [
     "frame-system/std",
     "frame-support/std",
     "frame-benchmarking/std",
-    "gear-runtime?/std",
     "vara-runtime?/std",
 ]
-gear-native = ["gear-runtime", "service/gear-native"]
 vara-native = ["vara-runtime", "service/vara-native"]

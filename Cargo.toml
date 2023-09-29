@@ -208,7 +208,6 @@ gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
-gear-runtime = { path = "runtime/gear", default-features = false }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
