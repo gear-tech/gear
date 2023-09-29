@@ -18,14 +18,14 @@
 
 //! Lazy-pages structures for common usage.
 
-use std::{collections::BTreeSet, fmt, mem::size_of, num::NonZeroU32};
-
 use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::{
+    ids::ProgramId,
     pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
+use std::{collections::BTreeSet, fmt, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -138,8 +138,7 @@ pub(crate) struct LazyPagesRuntimeContext {
 
 impl LazyPagesRuntimeContext {
     pub fn page_has_data_in_storage(&self, prefix: &mut PagePrefix, page: GearPage) -> bool {
-        let key = prefix.calc_key_for_page(page);
-        self.program_storage.page_exists(&key)
+        self.program_storage.page_exists(prefix, page)
     }
 
     pub fn load_page_data_from_storage(
@@ -148,20 +147,20 @@ impl LazyPagesRuntimeContext {
         page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, Error> {
-        let key = prefix.calc_key_for_page(page);
         self.program_storage
-            .load_page(&self.page_sizes, &key, buffer)
+            .load_page(&self.page_sizes, prefix, page, buffer)
             .map_err(Error::PagesStorage)
     }
 }
 
 pub trait LazyPagesPagesStorage: fmt::Debug {
-    fn page_exists(&self, key: &[u8]) -> bool;
+    fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool;
 
     fn load_page(
         &mut self,
         page_sizes: &PageSizes,
-        key: &[u8],
+        prefix: &PagePrefix,
+        page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, String>;
 }
@@ -246,25 +245,34 @@ impl LazyPagesExecutionContext {
 /// First part is always the same, so we can copy it to buffer
 /// once and then use it for all pages.
 #[derive(Debug)]
-pub(crate) struct PagePrefix {
-    buffer: Vec<u8>,
+pub struct PagePrefix {
+    storage_prefix: Vec<u8>,
+    program_id: ProgramId,
 }
 
 impl PagePrefix {
     /// New page prefix from program prefix
-    pub fn new_from_program_prefix(mut program_prefix: Vec<u8>) -> Self {
-        program_prefix.extend_from_slice(&u32::MAX.to_le_bytes());
+    pub(crate) fn new_from_program_prefix(storage_prefix: Vec<u8>, program_id: ProgramId) -> Self {
         Self {
-            buffer: program_prefix,
+            storage_prefix,
+            program_id,
         }
     }
 
+    /// Program ID which is part of page prefix.
+    pub fn program_id(&self) -> ProgramId {
+        self.program_id
+    }
+
     /// Returns key in storage for `page`.
-    fn calc_key_for_page(&mut self, page: GearPage) -> Vec<u8> {
-        let len = self.buffer.len();
+    pub fn key_for_page(&self, page: GearPage) -> Vec<u8> {
         let page_no: u32 = page.into();
-        self.buffer[len - size_of::<u32>()..len].copy_from_slice(page_no.to_le_bytes().as_slice());
-        self.buffer.clone()
+        [
+            self.storage_prefix.as_slice(),
+            self.program_id.as_ref(),
+            page_no.to_le_bytes().as_slice(),
+        ]
+        .concat()
     }
 }
 

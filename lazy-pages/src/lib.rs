@@ -42,16 +42,19 @@ mod utils;
 mod tests;
 
 pub use crate::common::LazyPagesPagesStorage;
-pub use common::{LazyPagesVersion, PageSizes};
+pub use common::{LazyPagesVersion, PagePrefix, PageSizes};
 pub use host_func::pre_process_memory_accesses;
 
 use crate::{
-    common::{ContextError, LazyPagesContext, PagePrefix, WeightNo, Weights},
+    common::{ContextError, LazyPagesContext, WeightNo, Weights},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_core::pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage};
+use gear_core::{
+    ids::ProgramId,
+    pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage},
+};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
@@ -108,7 +111,7 @@ pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: u32,
     stack_end: Option<u32>,
-    program_id: Vec<u8>,
+    program_id: ProgramId,
     globals_config: Option<GlobalsAccessConfig>,
     weights: Vec<u64>,
 ) -> Result<(), Error> {
@@ -153,12 +156,8 @@ pub fn initialize_for_program(
             wasm_mem_addr,
             wasm_mem_size,
             program_storage_prefix: PagePrefix::new_from_program_prefix(
-                runtime_ctx
-                    .pages_storage_prefix
-                    .iter()
-                    .chain(program_id.iter())
-                    .copied()
-                    .collect(),
+                runtime_ctx.pages_storage_prefix.clone(),
+                program_id,
             ),
             accessed_pages: Default::default(),
             write_accessed_pages: Default::default(),

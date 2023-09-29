@@ -27,12 +27,13 @@ use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_core::{
     gas::GasLeft,
+    ids::ProgramId,
     memory::{HostPointer, MemoryInterval},
     pages::{GearPage, PageDynSize},
     str::LimitedStr,
 };
 #[cfg(feature = "std")]
-use gear_lazy_pages::{LazyPagesPagesStorage, PageSizes};
+use gear_lazy_pages::{LazyPagesPagesStorage, PagePrefix, PageSizes};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -126,17 +127,20 @@ struct SpIoProgramStorage;
 
 #[cfg(feature = "std")]
 impl LazyPagesPagesStorage for SpIoProgramStorage {
-    fn page_exists(&self, key: &[u8]) -> bool {
-        sp_io::storage::exists(key)
+    fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
+        let key = prefix.key_for_page(page);
+        sp_io::storage::exists(&key)
     }
 
     fn load_page(
         &mut self,
         page_sizes: &PageSizes,
-        key: &[u8],
+        prefix: &PagePrefix,
+        page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, String> {
-        if let Some(size) = sp_io::storage::read(key, buffer, 0) {
+        let key = prefix.key_for_page(page);
+        if let Some(size) = sp_io::storage::read(&key, buffer, 0) {
             if size != GearPage::size(page_sizes) {
                 return Err(SpIoProgramStorageError::InvalidPageDataSize {
                     expected: GearPage::size(page_sizes),
@@ -256,7 +260,7 @@ pub trait GearRI {
             wasm_mem_addr,
             ctx.wasm_mem_size,
             ctx.stack_end,
-            ctx.program_id,
+            ProgramId::from(ctx.program_id.as_slice()),
             Some(ctx.globals_config),
             ctx.weights,
         )

@@ -30,7 +30,7 @@ use gear_core::{
     message::Dispatch,
     pages::GearPage,
 };
-use gear_lazy_pages::{LazyPagesPagesStorage, LazyPagesVersion, PageSizes};
+use gear_lazy_pages::{LazyPagesPagesStorage, LazyPagesVersion, PagePrefix, PageSizes};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{
@@ -39,7 +39,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     env, fs,
     io::Write,
-    mem,
     path::Path,
     rc::Rc,
     thread,
@@ -92,40 +91,20 @@ struct PagesStorage {
     pages_data: PagesData,
 }
 
-impl PagesStorage {
-    fn parse_key(key: &[u8]) -> (ProgramId, GearPage) {
-        let prefix_len = System::PAGE_STORAGE_PREFIX.len();
-        let program_id_len = mem::size_of::<ProgramId>();
-
-        let prefix = &key[0..prefix_len];
-        assert_eq!(prefix, System::PAGE_STORAGE_PREFIX);
-
-        let program_id = &key[prefix_len..prefix_len + program_id_len];
-        let program_id = ProgramId::from(program_id);
-
-        let page_no = &key[prefix_len + mem::size_of::<ProgramId>()
-            ..prefix_len + program_id_len + mem::size_of::<u32>()];
-        let page_no: [u8; 4] = page_no.try_into().unwrap();
-        let page_no = u32::from_le_bytes(page_no) as u16;
-        let page = GearPage::from(page_no);
-
-        (program_id, page)
-    }
-}
-
 impl LazyPagesPagesStorage for PagesStorage {
-    fn page_exists(&self, key: &[u8]) -> bool {
-        let (program_id, page) = Self::parse_key(key);
+    fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
+        let program_id = prefix.program_id();
         self.pages_data.get_page(program_id, page).is_some()
     }
 
     fn load_page(
         &mut self,
         _page_sizes: &PageSizes,
-        key: &[u8],
+        prefix: &PagePrefix,
+        page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, String> {
-        let (program_id, page) = Self::parse_key(key);
+        let program_id = prefix.program_id();
         let Some(page_buf) = self.pages_data.get_page(program_id, page) else {
             return Ok(false);
         };
