@@ -4789,7 +4789,8 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-interface",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
  "gear-utils",
  "gear-wasm-builder",
  "gear-wasm-instrument",
@@ -4798,7 +4799,6 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
- "sp-io 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox)",
 ]
 
 [[package]]

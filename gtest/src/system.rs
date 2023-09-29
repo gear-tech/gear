@@ -24,15 +24,66 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{ids::CodeId, message::Dispatch};
+use gear_core::{
+    ids::{CodeId, ProgramId},
+    memory::PageBuf,
+    message::Dispatch,
+    pages::GearPage,
+};
+use gear_lazy_pages::{LazyPagesPagesStorage, LazyPagesVersion, PageSizes};
+use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{
+    borrow::Cow, cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, rc::Rc,
+    thread,
+};
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct PagesData(Rc<RefCell<HashMap<Vec<u8>, PageBuf>>>);
+
+impl PagesData {
+    pub fn insert(&mut self, program_id: ProgramId, page: GearPage, page_data: PageBuf) {
+        let page_no: u32 = page.into();
+        let prefix = [
+            System::PAGE_STORAGE_PREFIX.as_slice(),
+            program_id.into_bytes().as_slice(),
+            page_no.to_le_bytes().as_slice(),
+        ]
+        .concat();
+        self.0.borrow_mut().insert(prefix, page_data);
+    }
+}
+
+#[derive(Debug)]
+struct PagesStorage {
+    pages_data: PagesData,
+}
+
+impl LazyPagesPagesStorage for PagesStorage {
+    fn page_exists(&self, key: &[u8]) -> bool {
+        self.pages_data.0.borrow().contains_key(key)
+    }
+
+    fn load_page(
+        &mut self,
+        _page_sizes: &PageSizes,
+        key: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<bool, String> {
+        let data = self.pages_data.0.borrow();
+        let Some(page_buf) = data.get(key) else {
+            return Ok(false);
+        };
+        buffer.copy_from_slice(page_buf);
+        Ok(true)
+    }
+}
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
     fn default() -> Self {
-        Self(RefCell::new(ExtManager::new()))
+        Self::new()
     }
 }
 
@@ -41,10 +92,18 @@ impl System {
 
     /// Create a new system.
     pub fn new() -> Self {
-        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-            Self::PAGE_STORAGE_PREFIX
-        ));
-        Default::default()
+        let ext_manager = ExtManager::new();
+
+        let pages_data = ext_manager.pages_data.clone();
+        let pages_storage = PagesStorage { pages_data };
+        gear_lazy_pages::init(
+            LazyPagesVersion::Version1,
+            LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+            pages_storage,
+        )
+        .expect("Failed to init lazy-pages");
+
+        Self(RefCell::new(ext_manager))
     }
 
     /// Init logger with "gwasm" target set to `debug` level.

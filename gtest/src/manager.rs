@@ -19,7 +19,8 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    Result, System, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    system::PagesData,
+    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
@@ -44,12 +45,9 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
-use sp_io::TestExternalities;
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
-    rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -214,7 +212,7 @@ pub(crate) struct ExtManager {
     pub(crate) gas_limits: BTreeMap<MessageId, u64>,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
 
-    pub(crate) externalities: Rc<RefCell<TestExternalities>>,
+    pub(crate) pages_data: PagesData,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -322,26 +320,14 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn with_externalities<F, R>(&mut self, f: F) -> R
-    where
-        F: FnOnce(&mut Self) -> R,
-    {
-        let externalities = self.externalities.clone();
-        let mut externalities = externalities.borrow_mut();
-        externalities.execute_with(|| f(self))
-    }
-
-    fn update_storage_pages(program_id: ProgramId, memory_pages: &BTreeMap<GearPage, PageBuf>) {
+    fn update_storage_pages(
+        &mut self,
+        program_id: ProgramId,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
+    ) {
         // write pages into storage so lazy-pages can access them
         for (page, buf) in memory_pages {
-            let page_no: u32 = (*page).into();
-            let prefix = [
-                System::PAGE_STORAGE_PREFIX.as_slice(),
-                program_id.into_bytes().as_slice(),
-                page_no.to_le_bytes().as_slice(),
-            ]
-            .concat();
-            sp_io::storage::set(&prefix, buf);
+            self.pages_data.insert(program_id, page, buf)
         }
     }
 
@@ -382,7 +368,7 @@ impl ExtManager {
 
     pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.validate_dispatch(&dispatch);
-        self.with_externalities(|this| this.run_dispatch(dispatch))
+        self.run_dispatch(dispatch)
     }
 
     #[track_caller]
@@ -613,7 +599,7 @@ impl ExtManager {
             Program::Mock(_) => panic!("Can't read memory of mock program"),
         }
 
-        self.with_externalities(|_this| Self::update_storage_pages(*program_id, &memory_pages))
+        self.update_storage_pages(*program_id, memory_pages)
     }
 
     #[track_caller]
@@ -1011,14 +997,14 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         mut pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
+        self.update_storage_pages(program_id, pages_data.clone());
+
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
         if let Some(actor_pages_data) = actor.get_pages_data_mut() {
-            Self::update_storage_pages(program_id, &pages_data);
-
             actor_pages_data.append(&mut pages_data);
         } else {
             unreachable!("No pages data found for program")
