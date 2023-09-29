@@ -119,7 +119,9 @@ impl InvocableSysCall {
     }
 
     /// Returns the required imports to build precise sys-call.
-    fn required_imports_for_sys_call(sys_call: SysCallName) -> Option<&'static [SysCallName]> {
+    pub(crate) fn required_imports_for_sys_call(
+        sys_call: SysCallName,
+    ) -> Option<&'static [SysCallName]> {
         // NOTE: the last sys-call must be pattern itself
         Some(match sys_call {
             SysCallName::ReservationSend => {
