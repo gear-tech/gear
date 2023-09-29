@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-#![cfg(not(feature = "vara-testing"))]
+
 use crate::common::{
     self, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, MESSAGER_SENT_VALUE,
 };

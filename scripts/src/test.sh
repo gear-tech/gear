@@ -42,20 +42,16 @@ workspace_test() {
 gsdk_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gsdk --no-fail-fast "$@"
-    $CARGO test -p gsdk --no-fail-fast --features vara-testing "$@"
   else
     cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
 gcli_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gcli --no-fail-fast "$@"
-    $CARGO test -p gcli --features vara-testing --no-fail-fast "$@"
   else
     cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
