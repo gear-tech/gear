@@ -68,7 +68,6 @@ enum Commands {
 
 #[derive(Debug, Copy, Clone, ValueEnum)]
 enum Runtime {
-    Gear,
     Vara,
 }
 
@@ -81,8 +80,6 @@ enum WeightsKind {
 
 #[derive(Debug, Serialize)]
 struct SerializableDump {
-    // TODO (breathx): remove gear runtime from here.
-    gear_schedule: Schedule<vara_runtime::Runtime>,
     vara_schedule: Schedule<vara_runtime::Runtime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,
@@ -90,7 +87,6 @@ struct SerializableDump {
 
 #[derive(Debug, Deserialize)]
 struct DeserializableDump {
-    gear_schedule: DeserializableSchedule,
     vara_schedule: DeserializableSchedule,
     label: Option<String>,
 }
@@ -198,7 +194,6 @@ fn main() {
             serde_json::to_writer_pretty(
                 writer,
                 &SerializableDump {
-                    gear_schedule: Default::default(),
                     vara_schedule: Default::default(),
                     label,
                 },
@@ -219,7 +214,6 @@ fn main() {
                 serde_json::from_str(&fs::read_to_string(output_path2).unwrap()).unwrap();
 
             let (schedule1, schedule2) = match runtime {
-                Runtime::Gear => (dump1.gear_schedule, dump2.gear_schedule),
                 Runtime::Vara => (dump1.vara_schedule, dump2.vara_schedule),
             };
 
