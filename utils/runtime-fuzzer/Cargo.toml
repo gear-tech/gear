@@ -26,8 +26,7 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-# TODO (breathx): add fuzz feature to vara runtime
-vara-runtime = { workspace = true, features = ["std", "dev"] }
+vara-runtime = { workspace = true, features = ["std", "dev", "fuzz"] }
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
 
