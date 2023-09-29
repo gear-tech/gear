@@ -19,7 +19,7 @@
 //! Lazy-pages memory accesses processing main logic.
 
 use crate::{
-    common::{Error, LazyPagesExecutionContext},
+    common::{Error, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     mprotect,
 };
 use gear_core::pages::{GearPage, PageDynSize};
@@ -82,29 +82,30 @@ pub(crate) trait AccessHandler {
 /// program's wasm memory.
 /// 3) Charge gas for access and data loading.
 pub(crate) fn process_lazy_pages<H: AccessHandler>(
-    ctx: &mut LazyPagesExecutionContext,
+    rt_ctx: &mut LazyPagesRuntimeContext,
+    exec_ctx: &mut LazyPagesExecutionContext,
     mut handler: H,
     pages: H::Pages,
 ) -> Result<H::Output, Error> {
-    let wasm_mem_size = ctx.wasm_mem_size.offset(ctx);
+    let wasm_mem_size = exec_ctx.wasm_mem_size.offset(exec_ctx);
     unsafe {
         if let Some(last_page) = H::last_page(&pages) {
             // Check that all pages are inside wasm memory.
-            if last_page.end_offset(ctx) >= wasm_mem_size {
+            if last_page.end_offset(exec_ctx) >= wasm_mem_size {
                 return Err(Error::OutOfWasmMemoryAccess);
             }
         } else {
             // Accessed pages are empty - nothing to do.
-            return handler.into_output(ctx);
+            return handler.into_output(exec_ctx);
         }
 
-        if ctx.status != Status::Normal {
+        if exec_ctx.status != Status::Normal {
             H::check_status_is_gas_exceeded()?;
-            return handler.into_output(ctx);
+            return handler.into_output(exec_ctx);
         }
 
-        let stack_end = ctx.stack_end;
-        let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+        let stack_end = exec_ctx.stack_end;
+        let wasm_mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
         // Returns `true` if new status is not `Normal`.
         let update_status = |ctx: &mut LazyPagesExecutionContext, status| {
@@ -126,33 +127,33 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             }
         };
 
-        let page_size = GearPage::size(ctx) as usize;
+        let page_size = GearPage::size(exec_ctx) as usize;
 
         let process_one = |page: GearPage| {
-            let page_offset = page.offset(ctx);
+            let page_offset = page.offset(exec_ctx);
             let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page_offset as usize);
 
             let protect_page = |prot_write| {
                 mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
             };
 
-            if page_offset < stack_end.offset(ctx) {
+            if page_offset < stack_end.offset(exec_ctx) {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 H::check_stack_memory_access()?;
-            } else if ctx.is_write_accessed(page) {
+            } else if exec_ctx.is_write_accessed(page) {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 H::check_write_accessed_memory_access()?;
-            } else if ctx.is_accessed(page) {
+            } else if exec_ctx.is_accessed(page) {
                 if handler.is_write() {
                     // Charges for page write access
                     let status = handler.charge_for_page_access(page, true)?;
-                    if update_status(ctx, status)? {
+                    if update_status(exec_ctx, status)? {
                         return Ok(());
                     }
 
                     // Sets read/write protection access for page and add page to write accessed
                     protect_page(true)?;
-                    ctx.set_write_accessed(page)?;
+                    exec_ctx.set_write_accessed(page)?;
                 } else {
                     // Nothing to do, page has read accesses and data is in correct state.
                     H::check_read_from_accessed_memory()?;
@@ -160,14 +161,16 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             } else {
                 // Charge for page access.
                 let status = handler.charge_for_page_access(page, false)?;
-                if update_status(ctx, status)? {
+                if update_status(exec_ctx, status)? {
                     return Ok(());
                 }
 
-                let unprotected = if ctx.page_has_data_in_storage(page) {
+                let unprotected = if rt_ctx
+                    .page_has_data_in_storage(&mut exec_ctx.program_storage_prefix, page)
+                {
                     // Charge for page data loading from storage.
                     let status = handler.charge_for_page_data_loading()?;
-                    if update_status(ctx, status)? {
+                    if update_status(exec_ctx, status)? {
                         return Ok(());
                     }
 
@@ -176,7 +179,11 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
 
                     // Load and write data to memory.
                     let buffer_as_slice = slice::from_raw_parts_mut(page_buffer_ptr, page_size);
-                    if !ctx.load_page_data_from_storage(page, buffer_as_slice)? {
+                    if !rt_ctx.load_page_data_from_storage(
+                        &mut exec_ctx.program_storage_prefix,
+                        page,
+                        buffer_as_slice,
+                    )? {
                         unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
                     }
                     true
@@ -184,12 +191,12 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                     false
                 };
 
-                ctx.set_accessed(page);
+                exec_ctx.set_accessed(page);
                 if handler.is_write() {
                     if !unprotected {
                         protect_page(true)?;
                     }
-                    ctx.set_write_accessed(page)?;
+                    exec_ctx.set_write_accessed(page)?;
                 } else {
                     // Set only read access for page.
                     protect_page(false)?;
@@ -201,6 +208,6 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
 
         H::process_pages(pages, process_one)?;
 
-        handler.into_output(ctx)
+        handler.into_output(exec_ctx)
     }
 }

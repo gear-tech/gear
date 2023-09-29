@@ -17,14 +17,46 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
-    UserSignalHandler,
+    common::{Error, PageSizes},
+    init_with_handler, mprotect,
+    signal::ExceptionInfo,
+    LazyPagesPagesStorage, LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::{
     pages::{GearPage, PageDynSize, PageU32Size, WasmPage},
     str::LimitedStr,
 };
+use gear_lazy_pages_common::LazyPagesInitContext;
 use region::Protection;
+
+#[derive(Debug)]
+struct NoopStorage;
+
+impl LazyPagesPagesStorage for NoopStorage {
+    fn page_exists(&self, _key: &[u8]) -> bool {
+        unreachable!()
+    }
+
+    fn load_page(
+        &mut self,
+        _page_sizes: &PageSizes,
+        _key: &[u8],
+        _buffer: &mut [u8],
+    ) -> Result<bool, String> {
+        unreachable!()
+    }
+}
+
+fn init_ctx() -> LazyPagesInitContext {
+    LazyPagesInitContext {
+        page_sizes: vec![
+            <WasmPage as PageU32Size>::size(),
+            <GearPage as PageU32Size>::size(),
+        ],
+        global_names: vec![LimitedStr::from_small_str("gear_gas")],
+        pages_storage_prefix: Default::default(),
+    }
+}
 
 fn handler_tester<F: FnOnce()>(f: F) {
     crate::reset_init_flag();
@@ -77,16 +109,8 @@ fn read_write_flag_works() {
         }
     }
 
-    init_with_handler::<TestHandler>(
-        LazyPagesVersion::Version1,
-        vec![
-            <WasmPage as PageU32Size>::size(),
-            <GearPage as PageU32Size>::size(),
-        ],
-        vec![LimitedStr::from_small_str("gear_gas")],
-        Default::default(),
-    )
-    .unwrap();
+    init_with_handler::<TestHandler, _>(LazyPagesVersion::Version1, init_ctx(), NoopStorage)
+        .unwrap();
 
     let page_size = region::page::size();
     let addr = region::alloc(page_size, Protection::NONE).unwrap();
@@ -135,16 +159,8 @@ fn test_mprotect_pages() {
 
     env_logger::init();
 
-    init_with_handler::<TestHandler>(
-        LazyPagesVersion::Version1,
-        vec![
-            <WasmPage as PageU32Size>::size(),
-            <GearPage as PageU32Size>::size(),
-        ],
-        vec![LimitedStr::from_small_str("gear_gas")],
-        Default::default(),
-    )
-    .unwrap();
+    init_with_handler::<TestHandler, _>(LazyPagesVersion::Version1, init_ctx(), NoopStorage)
+        .unwrap();
 
     let mut v = vec![0u8; 3 * <WasmPage as PageU32Size>::size() as usize];
     let buff = v.as_mut_ptr() as usize;

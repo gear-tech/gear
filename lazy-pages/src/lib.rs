@@ -28,11 +28,6 @@
 
 #![allow(clippy::items_after_test_module)]
 
-use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
-use sp_std::vec::Vec;
-use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
-
 mod common;
 mod globals;
 mod host_func;
@@ -43,22 +38,25 @@ mod signal;
 mod sys;
 mod utils;
 
-use crate::{
-    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
-    globals::{GlobalNo, GlobalsContext},
-    init_flag::InitializationFlag,
-};
-
 #[cfg(test)]
 mod tests;
 
-pub use common::LazyPagesVersion;
-use gear_core::str::LimitedStr;
-use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
+pub use crate::common::LazyPagesPagesStorage;
+pub use common::{LazyPagesVersion, PageSizes};
 pub use host_func::pre_process_memory_accesses;
 
+use crate::{
+    common::{ContextError, LazyPagesContext, PagePrefix, WeightNo, Weights},
+    globals::{GlobalNo, GlobalsContext},
+    init_flag::InitializationFlag,
+};
+use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
+use gear_core::pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
+use sp_std::vec::Vec;
+use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
@@ -381,13 +379,18 @@ pub(crate) fn reset_init_flag() {
 }
 
 /// Initialize lazy-pages for current thread.
-fn init_with_handler<H: UserSignalHandler>(
+fn init_with_handler<H: UserSignalHandler, S: LazyPagesPagesStorage + 'static>(
     _version: LazyPagesVersion,
-    page_sizes: Vec<u32>,
-    global_names: Vec<LimitedStr<'static>>,
-    pages_storage_prefix: Vec<u8>,
+    ctx: LazyPagesInitContext,
+    pages_storage: S,
 ) -> Result<(), InitError> {
     use InitError::*;
+
+    let LazyPagesInitContext {
+        page_sizes,
+        global_names,
+        pages_storage_prefix,
+    } = ctx;
 
     // Check that sizes are not zero
     let page_sizes = page_sizes
@@ -397,13 +400,13 @@ fn init_with_handler<H: UserSignalHandler>(
         .map_err(|_| ZeroPageSize)?;
 
     let page_sizes: PageSizes = match page_sizes.try_into() {
-        Ok(sizes) => sizes,
+        Ok(sizes) => PageSizes(sizes),
         Err(sizes) => return Err(WrongSizesAmount(sizes.len(), PageSizeNo::Amount as usize)),
     };
 
     // Check sizes suitability
-    let wasm_page_size = page_sizes[PageSizeNo::WasmSizeNo as usize];
-    let gear_page_size = page_sizes[PageSizeNo::GearSizeNo as usize];
+    let wasm_page_size = page_sizes.size_non_zero::<WasmPage>();
+    let gear_page_size = page_sizes.size_non_zero::<GearPage>();
     let native_page_size = region::page::size();
     if wasm_page_size < gear_page_size
         || (gear_page_size.get() as usize) < native_page_size
@@ -430,6 +433,7 @@ fn init_with_handler<H: UserSignalHandler>(
                 page_sizes,
                 global_names,
                 pages_storage_prefix,
+                program_storage: Box::new(pages_storage),
             })
     });
 
@@ -440,16 +444,10 @@ fn init_with_handler<H: UserSignalHandler>(
     Ok(())
 }
 
-pub fn init(
+pub fn init<S: LazyPagesPagesStorage + 'static>(
     version: LazyPagesVersion,
-    page_sizes: Vec<u32>,
-    global_names: Vec<LimitedStr<'static>>,
-    pages_storage_prefix: Vec<u8>,
+    ctx: LazyPagesInitContext,
+    pages_storage: S,
 ) -> Result<(), InitError> {
-    init_with_handler::<DefaultUserSignalHandler>(
-        version,
-        page_sizes,
-        global_names,
-        pages_storage_prefix,
-    )
+    init_with_handler::<DefaultUserSignalHandler, S>(version, ctx, pages_storage)
 }

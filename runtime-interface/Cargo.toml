@@ -11,6 +11,8 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
+gear-lazy-pages = { workspace = true, optional = true }
+gear-sandbox-host = { workspace = true, optional = true }
 
 log = { workspace = true, optional = true }
 libc.workspace = true
@@ -18,12 +20,11 @@ sp-allocator.workspace = true
 sp-runtime-interface.workspace = true
 sp-std.workspace = true
 sp-wasm-interface.workspace = true
-gear-lazy-pages = { workspace = true, optional = true }
+sp-io.workspace = true
 codec = { workspace = true }
 derive_more.workspace = true
 static_assertions.workspace = true
 region = { workspace = true, optional = true }
-gear-sandbox-host = { workspace = true, optional = true }
 byteorder.workspace = true
 
 [target.'cfg(windows)'.dependencies]

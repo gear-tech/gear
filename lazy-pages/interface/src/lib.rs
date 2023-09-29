@@ -29,12 +29,10 @@ use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
-    str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
-use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
-use gear_wasm_instrument::GLOBAL_NAME_GAS;
-use sp_std::{mem, vec, vec::Vec};
+use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
+use sp_std::{mem, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
     if mem.get_buffer_host_addr().is_none() {
@@ -47,13 +45,7 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
-    let ctx = LazyPagesRuntimeContext {
-        page_sizes: vec![WasmPage::size(), GearPage::size()],
-        global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
-        pages_storage_prefix: prefix.to_vec(),
-    };
-
-    gear_ri::init_lazy_pages(ctx)
+    gear_ri::init_lazy_pages(gear_lazy_pages_common::LazyPagesInitContext::new(prefix).into())
 }
 
 /// Protect and save storage keys for pages which has no data
