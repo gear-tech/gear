@@ -356,7 +356,11 @@ impl<'a> Program<'a> {
         Self::program_with_id(
             system,
             id,
-            InnerProgram::new(program, code_id, Default::default(), Default::default()),
+            InnerProgram::Genuine {
+                program,
+                code_id,
+                gas_reservation_map: Default::default(),
+            },
         )
     }
 

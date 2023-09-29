@@ -34,23 +34,56 @@ use gear_lazy_pages::{LazyPagesPagesStorage, LazyPagesVersion, PageSizes};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{
-    borrow::Cow, cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, rc::Rc,
+    borrow::Cow,
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    env, fs,
+    io::Write,
+    mem,
+    path::Path,
+    rc::Rc,
     thread,
 };
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct PagesData(Rc<RefCell<HashMap<Vec<u8>, PageBuf>>>);
+pub(crate) struct PagesData(Rc<RefCell<HashMap<ProgramId, BTreeMap<GearPage, PageBuf>>>>);
 
 impl PagesData {
     pub fn insert(&mut self, program_id: ProgramId, page: GearPage, page_data: PageBuf) {
-        let page_no: u32 = page.into();
-        let prefix = [
-            System::PAGE_STORAGE_PREFIX.as_slice(),
-            program_id.into_bytes().as_slice(),
-            page_no.to_le_bytes().as_slice(),
-        ]
-        .concat();
-        self.0.borrow_mut().insert(prefix, page_data);
+        self.0
+            .borrow_mut()
+            .entry(program_id)
+            .or_default()
+            .insert(page, page_data);
+    }
+
+    pub fn remove(&mut self, program_id: ProgramId, page: GearPage) {
+        self.0.borrow_mut().entry(program_id).and_modify(|set| {
+            set.remove(&page);
+        });
+    }
+
+    pub fn get(&self, program_id: ProgramId) -> BTreeMap<GearPage, PageBuf> {
+        self.0.borrow_mut().entry(program_id).or_default().clone()
+    }
+
+    pub fn get_page(&self, program_id: ProgramId, page: GearPage) -> Option<PageBuf> {
+        self.0
+            .borrow_mut()
+            .entry(program_id)
+            .or_default()
+            .get(&page)
+            .cloned()
+    }
+
+    pub fn pages_keys(&self, program_id: ProgramId) -> BTreeSet<GearPage> {
+        self.0
+            .borrow_mut()
+            .entry(program_id)
+            .or_default()
+            .keys()
+            .copied()
+            .collect()
     }
 }
 
@@ -59,9 +92,31 @@ struct PagesStorage {
     pages_data: PagesData,
 }
 
+impl PagesStorage {
+    fn parse_key(key: &[u8]) -> (ProgramId, GearPage) {
+        let prefix_len = System::PAGE_STORAGE_PREFIX.len();
+        let program_id_len = mem::size_of::<ProgramId>();
+
+        let prefix = &key[0..prefix_len];
+        assert_eq!(prefix, System::PAGE_STORAGE_PREFIX);
+
+        let program_id = &key[prefix_len..prefix_len + program_id_len];
+        let program_id = ProgramId::from(program_id);
+
+        let page_no = &key[prefix_len + mem::size_of::<ProgramId>()
+            ..prefix_len + program_id_len + mem::size_of::<u32>()];
+        let page_no: [u8; 4] = page_no.try_into().unwrap();
+        let page_no = u32::from_le_bytes(page_no) as u16;
+        let page = GearPage::from(page_no);
+
+        (program_id, page)
+    }
+}
+
 impl LazyPagesPagesStorage for PagesStorage {
     fn page_exists(&self, key: &[u8]) -> bool {
-        self.pages_data.0.borrow().contains_key(key)
+        let (program_id, page) = Self::parse_key(key);
+        self.pages_data.get_page(program_id, page).is_some()
     }
 
     fn load_page(
@@ -70,11 +125,11 @@ impl LazyPagesPagesStorage for PagesStorage {
         key: &[u8],
         buffer: &mut [u8],
     ) -> Result<bool, String> {
-        let data = self.pages_data.0.borrow();
-        let Some(page_buf) = data.get(key) else {
+        let (program_id, page) = Self::parse_key(key);
+        let Some(page_buf) = self.pages_data.get_page(program_id, page) else {
             return Ok(false);
         };
-        buffer.copy_from_slice(page_buf);
+        buffer.copy_from_slice(&page_buf);
         Ok(true)
     }
 }

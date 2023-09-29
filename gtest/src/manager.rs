@@ -97,16 +97,6 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
-        match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
-                Some(pages_data)
-            }
-            _ => None,
-        }
-    }
-
     // Takes ownership over mock program, putting `None` value instead of it.
     fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
@@ -117,11 +107,13 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
-        let (program, pages_data, code_id, gas_reservation_map) = match self {
+    fn get_executable_actor_data(
+        &self,
+        pages_data: &PagesData,
+    ) -> Option<(ExecutableActorData, CoreProgram)> {
+        let (program, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
-                pages_data,
                 code_id,
                 gas_reservation_map,
                 ..
@@ -130,17 +122,11 @@ impl TestActor {
                 _,
                 Some(Program::Genuine {
                     program,
-                    pages_data,
                     code_id,
                     gas_reservation_map,
                     ..
                 }),
-            ) => (
-                program.clone(),
-                pages_data.clone(),
-                code_id,
-                gas_reservation_map.clone(),
-            ),
+            ) => (program.clone(), code_id, gas_reservation_map.clone()),
             _ => return None,
         };
 
@@ -151,7 +137,7 @@ impl TestActor {
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
                 initialized: program.is_initialized(),
-                pages_with_data: pages_data.keys().copied().collect(),
+                pages_with_data: pages_data.pages_keys(program.id()),
                 gas_reservation_map,
             },
             program,
@@ -164,7 +150,6 @@ pub(crate) enum Program {
     Genuine {
         program: CoreProgram,
         code_id: CodeId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
         gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
@@ -172,20 +157,6 @@ pub(crate) enum Program {
 }
 
 impl Program {
-    pub(crate) fn new(
-        program: CoreProgram,
-        code_id: CodeId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-        gas_reservation_map: GasReservationMap,
-    ) -> Self {
-        Program::Genuine {
-            program,
-            code_id,
-            pages_data,
-            gas_reservation_map,
-        }
-    }
-
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
         Program::Mock(Some(Box::new(mock)))
     }
@@ -415,7 +386,8 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, program)) = actor.get_executable_actor_data() {
+            } else if let Some((data, program)) = actor.get_executable_actor_data(&self.pages_data)
+            {
                 self.process_normal(balance, data, program.code().clone(), dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
@@ -451,7 +423,7 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some((_, program)) = actor.get_executable_actor_data() {
+        if let Some((_, program)) = actor.get_executable_actor_data(&self.pages_data) {
             core_processor::informational::execute_for_reply::<Ext, _>(
                 String::from("state"),
                 program.code().clone(),
@@ -557,7 +529,7 @@ impl ExtManager {
     }
 
     #[track_caller]
-    pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> &BTreeMap<GearPage, PageBuf> {
+    pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
         let program = &self
             .actors
             .get(program_id)
@@ -570,10 +542,11 @@ impl ExtManager {
             TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
         };
 
-        match program {
-            Program::Genuine { pages_data, .. } => pages_data,
-            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        if let Program::Mock(_) = program {
+            panic!("Can't read memory of mock program");
         }
+
+        self.pages_data.get(*program_id)
     }
 
     #[track_caller]
@@ -594,9 +567,8 @@ impl ExtManager {
             TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
         };
 
-        match program {
-            Program::Genuine { pages_data, .. } => *pages_data = memory_pages.clone(),
-            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        if let Program::Mock(_) = program {
+            panic!("Can't read memory of mock program");
         }
 
         self.update_storage_pages(*program_id, memory_pages)
@@ -995,20 +967,9 @@ impl JournalHandler for ExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<GearPage, PageBuf>,
+        pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        self.update_storage_pages(program_id, pages_data.clone());
-
-        let (actor, _) = self
-            .actors
-            .get_mut(&program_id)
-            .expect("Can't find existing program");
-
-        if let Some(actor_pages_data) = actor.get_pages_data_mut() {
-            actor_pages_data.append(&mut pages_data);
-        } else {
-            unreachable!("No pages data found for program")
-        }
+        self.update_storage_pages(program_id, pages_data);
     }
 
     #[track_caller]
@@ -1019,25 +980,14 @@ impl JournalHandler for ExtManager {
             .expect("Can't find existing program");
 
         match actor {
-            TestActor::Initialized(Program::Genuine {
-                program,
-                pages_data,
-                ..
-            })
-            | TestActor::Uninitialized(
-                _,
-                Some(Program::Genuine {
-                    program,
-                    pages_data,
-                    ..
-                }),
-            ) => {
+            TestActor::Initialized(Program::Genuine { program, .. })
+            | TestActor::Uninitialized(_, Some(Program::Genuine { program, .. })) => {
                 program
                     .allocations()
                     .difference(&allocations)
                     .flat_map(PageU32Size::to_pages_iter)
-                    .for_each(|ref page| {
-                        pages_data.remove(page);
+                    .for_each(|page| {
+                        self.pages_data.remove(program_id, page);
                     });
                 program.set_allocations(allocations);
             }
@@ -1087,7 +1037,11 @@ impl JournalHandler for ExtManager {
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate, code_id, Default::default(), Default::default()),
+                        Program::Genuine {
+                            program: candidate,
+                            code_id,
+                            gas_reservation_map: Default::default(),
+                        },
                         Some(init_message_id),
                     );
                 } else {
