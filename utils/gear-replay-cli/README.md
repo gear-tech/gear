@@ -107,7 +107,7 @@ In order to use the native runtime build make sure the node is built with the Ru
 General command format and available subcommand are:
 
 ```bash
-    gear-replay-cli -h 
+    gear-replay-cli -h
     Commands of `gear-replay` CLI
 
     Usage: gear-replay-cli [OPTIONS] <COMMAND>
@@ -166,14 +166,12 @@ In order to enable native runtime, use one of the following:
 
 ```bash
 make gear-replay-vara-native
-make gear-replay-gear-native
 ```
 
 or
 
 ```bash
 ./scripts/gear.sh build gear-replay --release --no-default-features --features=vara-native
-./scripts/gear.sh build gear-replay --release --no-default-features --features=gear-native
 ```
 
 The `--uri` parameter must match the native runtime you've built the tool with, while the Runtime version should be the same as the on-chain one. If it does not, the Wasm executor will be used as a fallback.
