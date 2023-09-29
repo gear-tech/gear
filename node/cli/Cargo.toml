@@ -69,15 +69,17 @@ vara-native = [
 	"pallet-gear-staking-rewards",
 ]
 runtime-benchmarks = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks-checkers",
 ]
-# TODO (breathx): fix me, vara runtime dep.
 try-runtime = [
+	"vara-runtime?/try-runtime",
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
 ]
