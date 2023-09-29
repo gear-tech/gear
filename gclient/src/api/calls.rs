@@ -34,7 +34,6 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
-        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::{
@@ -48,6 +47,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
+        vara_runtime::RuntimeCall,
         Convert, Event,
     },
     Error as GsdkError, GearGasNode, GearGasNodeId,

@@ -22,8 +22,8 @@ use crate::{
     config::GearConfig,
     metadata::{
         calls::{BalancesCall, GearCall, SudoCall, UtilityCall},
-        gear_runtime::RuntimeCall,
         runtime_types::sp_weights::weight_v2::Weight,
+        vara_runtime::RuntimeCall,
     },
     Error, Result, TxInBlock,
 };

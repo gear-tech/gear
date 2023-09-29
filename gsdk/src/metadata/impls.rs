@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    gear_runtime::{RuntimeCall, RuntimeEvent},
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
         gear_common::{
@@ -30,6 +29,7 @@ use super::{
         pallet_gear::pallet::Call as GearCall,
         pallet_sudo::pallet::Call as SudoCall,
     },
+    vara_runtime::{RuntimeCall, RuntimeEvent},
 };
 use core::ops::{Index, IndexMut};
 use gear_core::{ids, message, message::UserMessage};

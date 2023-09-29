@@ -65,7 +65,6 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "GEAR_SPEC=$(cat runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
           echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
 
       - name: "Environment: Make `artifact` directory"
@@ -88,14 +87,11 @@ jobs:
       - name: "Build: Production node with development runtimes"
         run: cargo build -p gear-cli --profile production
 
-      - name: "Test: Development runtimes"
-        run: |
-          ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/gear_runtime.wasm
-          ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
+      - name: "Test: Development runtime"
+        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
 
-      - name: "Artifact: Production node and development runtimes"
+      - name: "Artifact: Production node and development runtime"
         run: |
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm "artifact/gear_devruntime_v$GEAR_SPEC.wasm"
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_devruntime_v$VARA_SPEC.wasm"
           cp target/production/gear artifact/gear
           strip artifact/gear || true

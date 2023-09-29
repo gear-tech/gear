@@ -149,7 +149,7 @@ Currently supported cases include:
 
 The `gear-replay-cli` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
 
-The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
+The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
 This is the default way of building the tool:
 
 ```bash

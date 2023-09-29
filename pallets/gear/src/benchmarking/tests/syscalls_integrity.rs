@@ -903,7 +903,7 @@ where
         let next_mid = utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let (random, expected_bn) = T::Randomness::random(next_mid.as_ref());
 
-        // If we use gear-runtime, current epoch starts at block 0,
+        // If we use vara-runtime, current epoch starts at block 0,
         // But mock runtime will reference currently proceeding block number,
         // so we add to currently got value.
         #[cfg(feature = "std")]
