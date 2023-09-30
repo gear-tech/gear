@@ -249,11 +249,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             .injection_amounts(InvocableSysCall::Loose(sys_call));
 
         let sys_call_amount = match sys_call_injection_type {
-            InjectionType::None => return Ok(None),
             InjectionType::Import => 0,
             InjectionType::Function(sys_call_amount_range) => {
                 self.unstructured.int_in_range(sys_call_amount_range)?
             }
+            _ => return Ok(None),
         };
 
         let call_indexes_handle = self.insert_sys_call_import(sys_call);
