@@ -18,7 +18,6 @@
 
 //! Program metadata parser
 mod executor;
-mod funcs;
 mod registry;
 #[cfg(test)]
 mod tests;

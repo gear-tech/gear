@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::funcs;
 use anyhow::{anyhow, Result};
 use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
 
@@ -70,9 +69,150 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     let metadata = instance
         .get_export(&store, method)
         .and_then(Extern::into_func)
-        .ok_or_else(|| anyhow!("could not find function \"metadata\""))?
+        .ok_or_else(|| anyhow!("could not find function \"{}\"", method))?
         .typed::<(), (), _>(&mut store)?;
 
     metadata.call(&mut store, ())?;
     Ok(store.state().msg.clone())
+}
+
+mod funcs {
+    use super::HostState;
+    use wasmi::{
+        core::{memory_units::Pages, Trap, TrapCode},
+        AsContext, AsContextMut, Caller, Extern, Func, Memory, Store,
+    };
+
+    pub fn alloc(store: &mut Store<HostState>, memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            store,
+            move |mut caller: Caller<'_, HostState>, pages: i32| {
+                memory
+                    .clone()
+                    .grow(caller.as_context_mut(), Pages(pages as usize))
+                    .map_or_else(
+                        |err| {
+                            log::error!("{err:?}");
+                            u32::MAX as i32
+                        },
+                        |pages| pages.0 as i32,
+                    )
+            },
+        ))
+    }
+
+    pub fn free(ctx: impl AsContextMut) -> Extern {
+        Extern::Func(Func::wrap(ctx, |_: i32| 0))
+    }
+
+    pub fn gr_panic(ctx: &mut Store<HostState>, _memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |mut _caller: Caller<'_, HostState>, _ptr: u32, _len: i32| {},
+        ))
+    }
+
+    pub fn gr_oom_panic(ctx: impl AsContextMut) -> Extern {
+        Extern::Func(Func::wrap(ctx, || {
+            log::error!("OOM panic occurred");
+            Ok(())
+        }))
+    }
+
+    pub fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |mut caller: Caller<'_, HostState>, at: u32, len: i32, buff: i32, err: i32| {
+                let (at, len, buff, err) = (at as _, len as _, buff as _, err as _);
+
+                let msg = &caller.host_data().msg;
+                let mut payload = vec![0; len];
+                if at + len <= msg.len() {
+                    payload.copy_from_slice(&msg[at..(at + len)]);
+                } else {
+                    return Err(Trap::Code(TrapCode::MemoryAccessOutOfBounds));
+                }
+
+                let len: u32 = memory
+                    .clone()
+                    .write(caller.as_context_mut(), buff, &payload)
+                    .map_err(|e| log::error!("{:?}", e))
+                    .is_err()
+                    .into();
+
+                memory
+                    .clone()
+                    .write(caller.as_context_mut(), err, &len.to_le_bytes())
+                    .map_err(|e| {
+                        log::error!("{:?}", e);
+                        Trap::Code(TrapCode::MemoryAccessOutOfBounds)
+                    })?;
+
+                Ok(())
+            },
+        ))
+    }
+
+    pub fn gr_reply(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |mut caller: Caller<'_, HostState>, ptr: u32, len: i32, _value: i32, _err: i32| {
+                let mut result = vec![0; len as usize];
+
+                memory
+                    .read(caller.as_context(), ptr as usize, &mut result)
+                    .map_err(|e| {
+                        log::error!("{:?}", e);
+                        Trap::Code(TrapCode::MemoryAccessOutOfBounds)
+                    })?;
+                caller.host_data_mut().msg = result;
+
+                Ok(())
+            },
+        ))
+    }
+
+    pub fn gr_size(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |mut caller: Caller<'_, HostState>, size_ptr: u32| {
+                let size = caller.host_data().msg.len() as u32;
+
+                memory
+                    .clone()
+                    .write(
+                        caller.as_context_mut(),
+                        size_ptr as usize,
+                        &size.to_le_bytes(),
+                    )
+                    .map_err(|e| {
+                        log::error!("{:?}", e);
+                        Trap::Code(TrapCode::MemoryAccessOutOfBounds)
+                    })?;
+
+                Ok(())
+            },
+        ))
+    }
+
+    pub fn gr_out_of_gas(ctx: &mut Store<HostState>) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |_caller: Caller<'_, HostState>| Ok(()),
+        ))
+    }
+
+    pub fn gr_block_height(ctx: &mut Store<HostState>) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |_caller: Caller<'_, HostState>, _height: u32| Ok(()),
+        ))
+    }
+
+    pub fn gr_block_timestamp(ctx: &mut Store<HostState>) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |_caller: Caller<'_, HostState>, _timestamp: u32| Ok(()),
+        ))
+    }
 }
