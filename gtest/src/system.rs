@@ -63,26 +63,23 @@ impl PagesData {
     }
 
     pub fn get(&self, program_id: ProgramId) -> BTreeMap<GearPage, PageBuf> {
-        self.0.borrow_mut().entry(program_id).or_default().clone()
+        self.0
+            .borrow()
+            .get(&program_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub fn get_page(&self, program_id: ProgramId, page: GearPage) -> Option<PageBuf> {
-        self.0
-            .borrow_mut()
-            .entry(program_id)
-            .or_default()
-            .get(&page)
-            .cloned()
+        self.0.borrow().get(&program_id)?.get(&page).cloned()
     }
 
     pub fn pages_keys(&self, program_id: ProgramId) -> BTreeSet<GearPage> {
         self.0
-            .borrow_mut()
-            .entry(program_id)
-            .or_default()
-            .keys()
-            .copied()
-            .collect()
+            .borrow()
+            .get(&program_id)
+            .map(|map| map.keys().copied().collect())
+            .unwrap_or_default()
     }
 }
 
