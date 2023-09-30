@@ -13,6 +13,7 @@ gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-wasm-builder.workspace = true
 gear-utils.workspace = true
+gear-wasm-instrument.workspace = true
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }
@@ -22,7 +23,6 @@ derive_more = { workspace = true, features = ["add", "add_assign", "display", "m
 env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
-gear-wasm-instrument.workspace = true
 log.workspace = true
 
 [dev-dependencies]
