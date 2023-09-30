@@ -452,7 +452,7 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     let mut res: BlockNumberWithHash = Default::default();
 
-    unsafe { gsys::gr_random(subject.as_ptr(), res.as_mut_ptr()) };
+    unsafe { gsys::gr_random(&subject, res.as_mut_ptr()) };
 
     Ok((res.hash, res.bn))
 }

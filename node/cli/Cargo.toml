@@ -33,8 +33,8 @@ pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
 # Gear Runtimes
-gear-runtime = { workspace = true, optional = true, features = ["std"] }
-vara-runtime = { workspace = true, optional = true, features = ["std"] }
+gear-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate client
 sc-cli.workspace = true
@@ -65,12 +65,12 @@ substrate-build-script-utils.workspace = true
 [features]
 default = ["gear-native", "vara-native"]
 gear-native = [
-	"service/gear-native",
 	"gear-runtime",
+	"service/gear-native",
 ]
 vara-native = [
-	"service/vara-native",
 	"vara-runtime",
+	"service/vara-native",
 	"pallet-gear-staking-rewards",
 ]
 runtime-benchmarks = [
@@ -80,11 +80,6 @@ runtime-benchmarks = [
 ]
 runtime-benchmarks-checkers = [
 	"service/runtime-benchmarks-checkers",
-]
-dev = [
-	"service/dev",
-	"gear-runtime?/dev",
-	"vara-runtime?/dev",
 ]
 try-runtime = [
 	"service/try-runtime",

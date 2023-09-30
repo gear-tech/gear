@@ -180,4 +180,4 @@ try-runtime = [
 	"validator-set/try-runtime",
 	"runtime-common/try-runtime",
 ]
-dev = ["pallet-gear-debug", "pallet-gear-program/dev"]
+dev = ["pallet-gear-debug"]

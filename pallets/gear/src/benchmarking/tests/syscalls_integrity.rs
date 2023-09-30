@@ -207,7 +207,7 @@ where
             )]
             .encode(),
         )
-        .with_value(10_000_000_000);
+        .with_value(50_000_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -492,7 +492,8 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = u16::MAX as u128;
+        let sending_value = 10_000_000_000_000;
+
         let mp = MessageParamsBuilder::new(vec![Kind::Value(sending_value)].encode())
             .with_value(sending_value);
 
@@ -506,11 +507,10 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = 10_000;
-        // Program sends 2000
-        let mp =
-            MessageParamsBuilder::new(vec![Kind::ValueAvailable(sending_value - 2000)].encode())
-                .with_value(sending_value);
+        let sending_value = 20_000_000_000_000;
+        // Program sends 10_000_000_000_000
+        let mp = MessageParamsBuilder::new(vec![Kind::ValueAvailable(10_000_000_000_000)].encode())
+            .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
