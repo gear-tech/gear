@@ -26,10 +26,6 @@ pub struct RunCmd {
     #[command(flatten)]
     pub base: sc_cli::RunCmd,
 
-    /// Force using Vara native runtime.
-    #[arg(long = "force-vara")]
-    pub force_vara: bool,
-
     /// The upper limit for the amount of gas a validator can burn in one block.
     #[arg(long)]
     pub max_gas: Option<u64>,
