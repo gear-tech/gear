@@ -213,7 +213,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         for (sys_call, generate_method) in sys_calls {
             let sys_call_injection_type = self
                 .config
-                .injection_amounts(InvocableSysCall::Precise(sys_call));
+                .injection_types(InvocableSysCall::Precise(sys_call));
             if let InjectionType::Function(sys_call_amount_range) = sys_call_injection_type {
                 let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
                 for _ in 0..sys_call_amount {
@@ -246,7 +246,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
         let sys_call_injection_type = self
             .config
-            .injection_amounts(InvocableSysCall::Loose(sys_call));
+            .injection_types(InvocableSysCall::Loose(sys_call));
 
         let sys_call_amount = match sys_call_injection_type {
             InjectionType::Import => 0,

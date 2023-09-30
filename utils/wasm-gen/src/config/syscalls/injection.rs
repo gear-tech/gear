@@ -38,9 +38,9 @@ pub enum InjectionType {
 
 /// Possible injection types for each sys-call.
 #[derive(Debug, Clone)]
-pub struct SysCallsInjectionAmounts(HashMap<InvocableSysCall, InjectionType>);
+pub struct SysCallsInjectionTypes(HashMap<InvocableSysCall, InjectionType>);
 
-impl SysCallsInjectionAmounts {
+impl SysCallsInjectionTypes {
     /// Instantiate a sys-calls map, where each gear sys-call is injected into wasm-module only once.
     pub fn all_once() -> Self {
         Self::new_with_injection_type(InjectionType::Function(1..=1))
@@ -97,7 +97,7 @@ impl SysCallsInjectionAmounts {
         }
     }
 
-    /// Same as [`SysCallsInjectionAmounts::set`], but sets amount ranges for multiple sys-calls.
+    /// Same as [`SysCallsInjectionTypes::set`], but sets amount ranges for multiple sys-calls.
     pub fn set_multiple(
         &mut self,
         sys_calls_freqs: impl Iterator<Item = (InvocableSysCall, RangeInclusive<u32>)>,
@@ -109,7 +109,7 @@ impl SysCallsInjectionAmounts {
     }
 }
 
-impl Default for SysCallsInjectionAmounts {
+impl Default for SysCallsInjectionTypes {
     fn default() -> Self {
         Self::all_once()
     }
