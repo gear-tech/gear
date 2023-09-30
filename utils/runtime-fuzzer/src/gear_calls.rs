@@ -430,7 +430,7 @@ fn config(
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         existing_addresses,
         log_info,
         params_config,

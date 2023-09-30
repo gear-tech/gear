@@ -236,7 +236,7 @@ pub fn get_wasm_gen_config(
         log_info: Some(format!("Gear program seed = '{seed}'")),
         existing_addresses: NonEmpty::collect(existing_programs),
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         params_config,
         initial_pages: initial_pages as u32,
         unreachable_enabled: false,
