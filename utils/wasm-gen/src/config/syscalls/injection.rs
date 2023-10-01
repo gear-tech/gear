@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Entities describing possible injection types for each sys-call.
+//! These entities allows to configure which sys-calls to insert into
+//! code section of wasm module and which ones to simply import.
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
@@ -25,14 +27,16 @@ use crate::InvocableSysCall;
 use gear_wasm_instrument::syscalls::SysCallName;
 use std::{collections::HashMap, ops::RangeInclusive};
 
-/// Possible injection type.
+/// This enum defines how the sys-call should be injected into wasm module.
 #[derive(Debug, Clone)]
 pub enum InjectionType {
-    /// Don't modify anything at all.
+    /// Don't modify wasm module at all.
     None,
-    /// Inject import into wasm module.
+    /// Sys-call import will be injected into import section of wasm module,
+    /// but the `wasm-gen` generators will not call that sys-call.
     Import,
-    /// Inject import and function call into wasm module.
+    /// Sys-call import will be injected into import section of wasm module,
+    /// and the `wasm-gen` generators will insert invoke instructions for that sys-call.
     Function(RangeInclusive<u32>),
 }
 
