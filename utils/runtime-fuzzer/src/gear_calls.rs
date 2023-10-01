@@ -43,6 +43,14 @@ use gear_wasm_gen::{
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
+/// Maximum salt size for the fuzzer - 512 bytes.
+///
+/// There's no need in large salts as we have only 35 extrinsics
+/// for one run. Also small salt will make overall size of the
+/// corpus smaller.
+const MAX_SALT_SIZE: usize = 512;
+static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
 /// from mailbox, for example [`UploadProgramGenerator`] and
 /// [`ClaimValueGenerator`] use it.
@@ -238,8 +246,8 @@ impl UploadProgramGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 1024 KiB for payload and salt and 50 KiB for code.
-        1080 * 1024
+        // 512 KiB for payload, 50 KiB for code and 512 bytes for salt.
+        572 * 1024 + 512
     }
 }
 
@@ -377,7 +385,7 @@ fn arbitrary_message_id_from_mailbox(
 }
 
 fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
-    arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
+    arbitrary_limited_bytes(u, MAX_SALT_SIZE)
 }
 
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
@@ -400,10 +408,10 @@ fn config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
-            (SysCallName::Send, 20..=30),
+            (SysCallName::Send, 3..=4),
             (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 20..=30),
-            (SysCallName::Free, 20..=30),
+            (SysCallName::Alloc, 1..=3),
+            (SysCallName::Free, 1..=3),
         ]
         .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
@@ -411,10 +419,7 @@ fn config(
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(
-        ParamType::Free,
-        (initial_pages..=initial_pages + 250).into(),
-    );
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
 
     let existing_addresses = NonEmpty::collect(
         programs
