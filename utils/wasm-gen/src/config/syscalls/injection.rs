@@ -29,7 +29,7 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 /// This enum defines how the sys-call should be injected into wasm module.
 #[derive(Debug, Clone)]
-pub enum InjectionType {
+pub enum SysCallInjectionType {
     /// Don't modify wasm module at all.
     None,
     /// Sys-call import will be injected into import section of wasm module,
@@ -42,21 +42,21 @@ pub enum InjectionType {
 
 /// Possible injection types for each sys-call.
 #[derive(Debug, Clone)]
-pub struct SysCallsInjectionTypes(HashMap<InvocableSysCall, InjectionType>);
+pub struct SysCallsInjectionTypes(HashMap<InvocableSysCall, SysCallInjectionType>);
 
 impl SysCallsInjectionTypes {
     /// Instantiate a sys-calls map, where each gear sys-call is injected into wasm-module only once.
     pub fn all_once() -> Self {
-        Self::new_with_injection_type(InjectionType::Function(1..=1))
+        Self::new_with_injection_type(SysCallInjectionType::Function(1..=1))
     }
 
     /// Instantiate a sys-calls map, where no gear sys-call is ever injected into wasm-module.
     pub fn all_never() -> Self {
-        Self::new_with_injection_type(InjectionType::None)
+        Self::new_with_injection_type(SysCallInjectionType::None)
     }
 
     /// Instantiate a sys-calls map with given injection type.
-    fn new_with_injection_type(injection_type: InjectionType) -> Self {
+    fn new_with_injection_type(injection_type: SysCallInjectionType) -> Self {
         let sys_calls = SysCallName::instrumentable();
         Self(
             sys_calls
@@ -72,7 +72,7 @@ impl SysCallsInjectionTypes {
     }
 
     /// Gets injection type for given sys-call.
-    pub fn get(&self, name: InvocableSysCall) -> InjectionType {
+    pub fn get(&self, name: InvocableSysCall) -> SysCallInjectionType {
         self.0
             .get(&name)
             .cloned()
@@ -81,7 +81,8 @@ impl SysCallsInjectionTypes {
 
     /// Sets possible amount range for the the sys-call.
     pub fn set(&mut self, name: InvocableSysCall, min: u32, max: u32) {
-        self.0.insert(name, InjectionType::Function(min..=max));
+        self.0
+            .insert(name, SysCallInjectionType::Function(min..=max));
 
         if let InvocableSysCall::Precise(sys_call) = name {
             let Some(required_imports) = InvocableSysCall::required_imports_for_sys_call(sys_call) else {
@@ -96,8 +97,8 @@ impl SysCallsInjectionTypes {
 
     /// Enables given sys-call.
     pub(crate) fn enable_sys_call(&mut self, name: InvocableSysCall) {
-        if let Some(injection_type @ InjectionType::None) = self.0.get_mut(&name) {
-            *injection_type = InjectionType::Import;
+        if let Some(injection_type @ SysCallInjectionType::None) = self.0.get_mut(&name) {
+            *injection_type = SysCallInjectionType::Import;
         }
     }
 

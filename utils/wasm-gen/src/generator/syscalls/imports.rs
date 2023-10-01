@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InjectionType, InvocableSysCall, SysCallsConfig,
+    InvocableSysCall, SysCallInjectionType, SysCallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -214,7 +214,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             let sys_call_injection_type = self
                 .config
                 .injection_types(InvocableSysCall::Precise(sys_call));
-            if let InjectionType::Function(sys_call_amount_range) = sys_call_injection_type {
+            if let SysCallInjectionType::Function(sys_call_amount_range) = sys_call_injection_type {
                 let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
                 for _ in 0..sys_call_amount {
                     log::trace!(
@@ -249,8 +249,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             .injection_types(InvocableSysCall::Loose(sys_call));
 
         let sys_call_amount = match sys_call_injection_type {
-            InjectionType::Import => 0,
-            InjectionType::Function(sys_call_amount_range) => {
+            SysCallInjectionType::Import => 0,
+            SysCallInjectionType::Function(sys_call_amount_range) => {
                 self.unstructured.int_in_range(sys_call_amount_range)?
             }
             _ => return Ok(None),

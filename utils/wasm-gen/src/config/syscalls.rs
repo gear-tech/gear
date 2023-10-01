@@ -154,7 +154,7 @@ pub struct SysCallsConfig {
 
 impl SysCallsConfig {
     /// Get possible number of times (range) the sys-call can be injected in the wasm.
-    pub fn injection_types(&self, name: InvocableSysCall) -> InjectionType {
+    pub fn injection_types(&self, name: InvocableSysCall) -> SysCallInjectionType {
         self.injection_types.get(name)
     }
 
