@@ -91,7 +91,7 @@ impl SysCallsInjectionTypes {
     }
 
     /// Enables given sys-call.
-    pub fn enable_sys_call(&mut self, name: InvocableSysCall) {
+    pub(crate) fn enable_sys_call(&mut self, name: InvocableSysCall) {
         if let Some(injection_type @ InjectionType::None) = self.0.get_mut(&name) {
             *injection_type = InjectionType::Import;
         }
