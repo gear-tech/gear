@@ -219,10 +219,10 @@ pub fn get_wasm_gen_config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
-            (SysCallName::Send, 20..=30),
+            (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 5..=10),
-            (SysCallName::Free, 5..=10),
+            (SysCallName::Alloc, 3..=6),
+            (SysCallName::Free, 3..=6),
         ]
         .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
@@ -230,7 +230,7 @@ pub fn get_wasm_gen_config(
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (1..=10).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 25).into());
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 50).into());
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),
