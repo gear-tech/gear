@@ -73,7 +73,7 @@ impl SysCallsConfigBuilder {
         self.0.sys_call_destination = SysCallDestination::Source;
         self.0
             .injection_types
-            .enable_sys_call(InvocableSysCall::Loose(SysCallName::Source));
+            .enable_sys_call_import(InvocableSysCall::Loose(SysCallName::Source));
 
         self
     }
@@ -99,7 +99,7 @@ impl SysCallsConfigBuilder {
         self.0.log_info = Some(log);
         self.0
             .injection_types
-            .enable_sys_call(InvocableSysCall::Loose(SysCallName::Debug));
+            .enable_sys_call_import(InvocableSysCall::Loose(SysCallName::Debug));
 
         self
     }
