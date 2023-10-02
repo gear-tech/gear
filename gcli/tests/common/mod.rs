@@ -42,7 +42,6 @@ mod prelude {
     pub use scale_info::scale::Encode;
 
     pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-    pub const MESSAGER_SENT_VALUE: u128 = 5_000_000_000_000_000;
 }
 
 #[cfg(not(feature = "vara-testing"))]
