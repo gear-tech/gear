@@ -83,7 +83,7 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                     // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                        length_param_id: 2,
+                        length_param_idx: 2,
                     })),
                     // Size of the payload
                     ParamType::Size,
@@ -101,7 +101,7 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
                     // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                        length_param_id: 2,
+                        length_param_idx: 2,
                     })),
                     // Size of the payload
                     ParamType::Size,
@@ -119,7 +119,7 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
                     // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                        length_param_id: 2,
+                        length_param_idx: 2,
                     })),
                     // Size of the payload
                     ParamType::Size,
