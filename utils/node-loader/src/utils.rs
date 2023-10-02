@@ -219,10 +219,10 @@ pub fn get_wasm_gen_config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
-            (SysCallName::Send, 2..=3),
+            (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 1..=3),
-            (SysCallName::Free, 1..=3),
+            (SysCallName::Alloc, 3..=6),
+            (SysCallName::Free, 3..=6),
         ]
         .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
         .into_iter(),
