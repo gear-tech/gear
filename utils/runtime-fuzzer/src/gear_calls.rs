@@ -246,8 +246,11 @@ impl UploadProgramGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload, 50 KiB for code and 512 bytes for salt.
-        572 * 1024 + 512
+        // Max code size - 50 KiB.
+        const MAX_CODE_SIZE: usize = 50 * 1024;
+        const AUXILIARY_SIZE: usize = 512;
+
+        MAX_CODE_SIZE + MAX_PAYLOAD_SIZE + MAX_SALT_SIZE + AUXILIARY_SIZE
     }
 }
 
