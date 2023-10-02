@@ -73,12 +73,12 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
-    #[cfg(not(feature = "vara-testing"))]
-    let args = vec!["--tmp", "--dev"];
     #[cfg(feature = "vara-testing")]
+    let args = vec!["--tmp", "--dev"];
+    #[cfg(not(feature = "vara-testing"))]
     let args = vec![
         "--tmp",
-        "--chain=vara-dev",
+        "--chain=gear-dev",
         "--alice",
         "--validator",
         "--reserved-only",
@@ -102,7 +102,7 @@ pub fn login_as_alice() -> Result<()> {
 
 /// Generate program id from code id and salt
 pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-    ProgramId::generate(CodeId::generate(bin), salt)
+    ProgramId::generate_from_user(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`

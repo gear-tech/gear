@@ -20,11 +20,8 @@
 
 use crate::common::{Error, GlobalNames};
 use core::any::Any;
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    LimitedStr,
-};
-use gear_core::memory::HostPointer;
+use gear_core::{memory::HostPointer, str::LimitedStr};
+use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 

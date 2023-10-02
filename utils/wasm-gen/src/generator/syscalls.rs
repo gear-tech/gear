@@ -61,7 +61,7 @@ pub enum InvocableSysCall {
 }
 
 impl InvocableSysCall {
-    fn to_str(self) -> &'static str {
+    pub(crate) fn to_str(self) -> &'static str {
         match self {
             InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
             InvocableSysCall::Precise(sys_call) => match sys_call {
@@ -149,6 +149,19 @@ impl InvocableSysCall {
             .expect("failed to find required imports for sys-call")
             .try_into()
             .expect("failed to convert slice")
+    }
+
+    /// Returns the index of the destination param.
+    fn has_destination_param(&self) -> Option<usize> {
+        use InvocableSysCall::*;
+        use SysCallName::*;
+
+        match *self {
+            Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
+            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Some(0),
+            Loose(SendCommit | SendCommitWGas) => Some(1),
+            _ => None,
+        }
     }
 
     // If syscall changes from fallible into infallible or vice versa in future,

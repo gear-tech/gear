@@ -187,7 +187,7 @@ fn process(syscall_kind: Kind) {
             );
         }
         Kind::ValueAvailable(expected_value) => {
-            let _ = msg::send_delayed(msg::source(), b"payload", 2000, 0);
+            let _ = msg::send_delayed(msg::source(), b"payload", 10_000_000_000_000, 0);
             let actual_value = exec::value_available();
             assert_eq!(
                 expected_value, actual_value,

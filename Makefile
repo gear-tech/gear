@@ -46,11 +46,11 @@ examples-proc: wasm-proc-release
 
 .PHONY: node
 node:
-	@ ./scripts/gear.sh build node -F dev
+	@ ./scripts/gear.sh build node
 
 .PHONY: node-release
 node-release:
-	@ ./scripts/gear.sh build node -F dev --release
+	@ ./scripts/gear.sh build node --release
 
 .PHONY: vara
 vara:
@@ -175,11 +175,11 @@ purge-chain-release:
 
 .PHONY: purge-dev-chain
 purge-dev-chain:
-	@ ./scripts/gear.sh run purge-dev-chain -F dev
+	@ ./scripts/gear.sh run purge-dev-chain
 
 .PHONY: purge-dev-chain-release
 purge-dev-chain-release:
-	@ ./scripts/gear.sh run purge-dev-chain --release -F dev
+	@ ./scripts/gear.sh run purge-dev-chain --release
 
 # Test section
 .PHONY: test # \
@@ -249,7 +249,7 @@ test-syscalls-integrity-release:
 .PHONY: doc
 doc:
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
-		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
+		-p galloc -p gclient -p gcore -p gear-core-backend \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
 		-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \

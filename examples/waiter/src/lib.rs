@@ -107,7 +107,7 @@ pub enum Command {
     ReplyAndWait(WaitSubcommand),
     SleepFor(Vec<BlockCount>, SleepForWaitType),
     WakeUp([u8; 32]),
-    MxLock(BlockCount, MxLockContinuation),
+    MxLock(Option<BlockCount>, MxLockContinuation),
     MxLockStaticAccess(LockStaticAccessSubcommand),
     RwLock(RwLockType, RwLockContinuation),
     RwLockStaticAccess(RwLockType, LockStaticAccessSubcommand),

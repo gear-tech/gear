@@ -52,62 +52,77 @@ impl SubstrateCli for Cli {
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
         Ok(match id {
-            #[cfg(not(feature = "dev"))]
-            "dev" | "gear-dev" | "vara-dev" => return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into()),
-            #[cfg(all(feature = "gear-native", feature = "dev"))]
-            "dev" | "gear-dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(all(feature = "vara-native", feature = "dev"))]
-            "vara-dev" => Box::new(chain_spec::vara::development_config()?),
-            #[cfg(feature = "gear-native")]
-            "local" | "gear-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-local` in `dev` mode");
-                Box::new(chain_spec::gear::local_testnet_config()?)
-            }
+            // Common "dev" chain. `vara-runtime` is prioritized.
             #[cfg(feature = "vara-native")]
+            "dev" => Box::new(chain_spec::vara::development_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "dev" => Box::new(chain_spec::gear::development_config()?),
+            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            "dev" => return Err("No runtimes specified to compile."),
+
+            // Specific "dev" chains.
+            #[cfg(feature = "gear-native")]
+            "gear-dev" => Box::new(chain_spec::gear::development_config()?),
+            #[cfg(feature = "vara-native")]
+            "vara-dev" => Box::new(chain_spec::vara::development_config()?),
+
+            // Common "local" chain. `vara-runtime` is prioritized.
+            #[cfg(feature = "vara-native")]
+            "local" => Box::new(chain_spec::vara::local_testnet_config()?),
+            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
+            "local" => Box::new(chain_spec::gear::local_testnet_config()?),
+            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            "local" => return Err("No runtimes specified to compile."),
+
+            // Specific "local" chains.
+            #[cfg(feature = "gear-native")]
+            "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
+            #[cfg(feature = "vara-native")]
+            "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
+
+            // Production chains.
             "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
                 &include_bytes!("../../res/vara.json")[..],
             )?),
-            #[cfg(feature = "vara-native")]
-            "vara-local" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `vara-local` in `dev` mode");
-                Box::new(chain_spec::vara::local_testnet_config()?)
-            }
-            #[cfg(feature = "gear-native")]
-            "staging" | "gear-staging" => {
-                #[cfg(feature = "dev")]
-                log::warn!("Running `gear-staging` in `dev` mode");
-                Box::new(chain_spec::gear::staging_testnet_config()?)
-            }
-            "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/staging.json")[..],
+
+            // Common "testnet" chain. `vara-runtime` is prioritized (currently the only available).
+            "testnet" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
             )?),
+
+            // Specific "testnet" chains.
+            "vara-testnet" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
+            )?),
+
+            // Empty (default) chain.
+            "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara_testnet.json")[..],
+            )?),
+
+            // Custom chain spec.
             path => {
                 let path = std::path::PathBuf::from(path);
 
                 let chain_spec = Box::new(chain_spec::RawChainSpec::from_json_file(path.clone())?)
                     as Box<dyn ChainSpec>;
 
-                if chain_spec.is_dev() {
-                    #[cfg(not(feature = "dev"))]
-                    return Err("Development runtimes are not available. Please compile the node with `-F dev` to enable it.".into());
-                }
+                match (chain_spec.is_gear(), chain_spec.is_vara()) {
+                    // Corner cases.
+                    (true, true) => unreachable!("Chain spec couldn't be both of gear and vara runtime"),
+                    (false, false) => return Err("Unable to identify chain spec as gear or vara runtime".into()),
 
-                // When `force_*` is provide or the file name starts with the name of a known chain,
-                // we use the chain spec for the specific chain.
-                if self.run.force_vara || chain_spec.is_vara() {
-                    #[cfg(feature = "vara-native")]
-                    return Ok(Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?));
+                    // Gear specs.
+                    #[cfg(feature = "gear-runtime")]
+                    (true, ..) => Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?),
+                    #[cfg(not(feature = "gear-runtime"))]
+                    (true, ..) => return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into()),
 
-                    #[cfg(not(feature = "vara-native"))]
-                    return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into());
-                } else {
-                    #[cfg(feature = "gear-native")]
-                    return Ok(Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?));
-
-                    #[cfg(not(feature = "gear-native"))]
-                    return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into());
+                    // Vara specs.
+                    #[cfg(feature = "vara-runtime")]
+                    (.., true) => Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?),
+                    #[cfg(not(feature = "vara-runtime"))]
+                    (.., true) => return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into()),
                 }
             }
         })
@@ -152,13 +167,34 @@ pub fn run() -> sc_cli::Result<()> {
         _ = std::fs::rename(old_base.path(), new_base.path());
     }
 
+    let base = &mut cli.run.base;
+
     // Force setting `Wasm` as default execution strategy.
-    cli.run
-        .base
+    let execution_strategy = base
         .import_params
         .execution_strategies
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
+
+    // Checking if node supposed to be validator (explicitly or by shortcuts).
+    let is_validator = base.validator
+        || base.shared_params.dev
+        || base.alice
+        || base.bob
+        || base.charlie
+        || base.dave
+        || base.eve
+        || base.ferdie
+        || base.one
+        || base.two;
+
+    // Denying ability to validate blocks with non-wasm execution.
+    if is_validator && *execution_strategy != ExecutionStrategy::Wasm {
+        return Err(
+            "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
+                .into(),
+        );
+    }
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
@@ -169,28 +205,44 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::CheckBlock(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, import_queue, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
         Some(Subcommand::ExportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, config.database), task_manager))
             })
         }
         Some(Subcommand::ExportState(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, config.chain_spec), task_manager))
             })
         }
         Some(Subcommand::ImportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, _, import_queue, task_manager) = service::new_chain_ops(&config)?;
+                let (client, _, import_queue, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -201,7 +253,11 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Revert(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
-                let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
+                let (client, backend, _, task_manager) = service::new_chain_ops(
+                    &config,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )?;
                 let aux_revert = Box::new(|client, backend, blocks| {
                     service::revert_backend(client, backend, blocks, config)
                         .map_err(|err| sc_cli::Error::Application(err.into()))
@@ -246,7 +302,11 @@ pub fn run() -> sc_cli::Result<()> {
                         }
                     }
                     BenchmarkCmd::Block(cmd) => {
-                        let (client, _, _, _) = service::new_chain_ops(&config)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
 
                         unwrap_client!(client, cmd.run(client.clone()))
                     }
@@ -257,7 +317,11 @@ pub fn run() -> sc_cli::Result<()> {
                     ),
                     #[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
-                        let (client, backend, _, _) = service::new_chain_ops(&config)?;
+                        let (client, backend, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         let db = backend.expose_db();
                         let storage = backend.expose_storage();
 
@@ -268,7 +332,11 @@ pub fn run() -> sc_cli::Result<()> {
                             sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
 
-                        let (client, _, _, _) = service::new_chain_ops(&config)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         let ext_builder = RemarkBuilder::new(client.clone());
 
                         unwrap_client!(
@@ -286,7 +354,11 @@ pub fn run() -> sc_cli::Result<()> {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
                             sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
-                        let (client, _, _, _) = service::new_chain_ops(&config)?;
+                        let (client, _, _, _) = service::new_chain_ops(
+                            &config,
+                            cli.run.rpc_calculations_multiplier,
+                            cli.run.rpc_max_batch_size,
+                        )?;
                         // Register the *Remark* and *TKA* builders.
                         let ext_factory = ExtrinsicFactory(vec![
                             Box::new(RemarkBuilder::new(client.clone())),
@@ -377,8 +449,14 @@ pub fn run() -> sc_cli::Result<()> {
             };
 
             runner.run_node_until_exit(|config| async move {
-                service::new_full(config, cli.no_hardware_benchmarks, cli.run.max_gas)
-                    .map_err(sc_cli::Error::Service)
+                service::new_full(
+                    config,
+                    cli.no_hardware_benchmarks,
+                    cli.run.max_gas,
+                    cli.run.rpc_calculations_multiplier,
+                    cli.run.rpc_max_batch_size,
+                )
+                .map_err(sc_cli::Error::Service)
             })
         }
     }

@@ -15,7 +15,8 @@ members = [
     "common",
     "common/codegen",
     "core",
-    "core-backend/*",
+    "core-backend",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -92,7 +93,7 @@ members = [
 [workspace.dependencies]
 anyhow = "1.0.75"
 arbitrary = "1.3.0"
-async-recursion = "1.0.4"
+async-recursion = "1.0.5"
 async-trait = "0.1.73"
 base64 = "0.21.3"
 byteorder = { version = "1.4.3", default-features = false }
@@ -158,7 +159,7 @@ subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 syn = "2.0.31"
-thiserror = "1.0.44"
+thiserror = "1.0.48"
 tokio = { version = "1.27.0" }
 url = "2.4.1"
 wat = "1.0.71"
@@ -195,9 +196,8 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-backend-codegen = { path = "core-backend/codegen" }
-gear-backend-common = { path = "core-backend/common" }
-gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
+gear-core-backend-codegen = { path = "core-backend/codegen" }
+gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
@@ -205,9 +205,10 @@ gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
+gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
+gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
-gear-runtime = { path = "runtime/gear" }
+gear-runtime = { path = "runtime/gear", default-features = false }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
@@ -239,7 +240,7 @@ runtime-common = { package = "gear-runtime-common", path = "runtime/common", def
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
-vara-runtime = { path = "runtime/vara" }
+vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary-no-sandbox', default-features = false }
 
@@ -451,6 +452,7 @@ scale-value = "^0.10"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
+directories = "5.0.1"                                                     # utils/key-finder
 
 [profile.release]
 panic = "unwind"
