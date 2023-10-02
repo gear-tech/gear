@@ -37,14 +37,14 @@ async fn test_command_transfer_works() -> Result<()> {
     let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
 
     // Run command transfer
-    let value = 1_000_000_000u128;
+    let value = 1_000_000_000_000_000u128;
     let _ = node.run(
         Args::new("transfer")
             .destination(ADDRESS)
             .amount(value.to_string()),
     )?;
 
-    let after = signer.api().get_balance(ADDRESS).await?;
+    let after = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
     assert_eq!(
         after.saturating_sub(before),
         value,
