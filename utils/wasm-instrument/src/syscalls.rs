@@ -242,13 +242,13 @@ impl SysCallName {
             Self::Free => SysCallSignature::system([Free], [I32]),
             Self::Debug => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 1,
+                    length_param_idx: 1,
                 })),
                 Size,
             ]),
             Self::Panic => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 1,
+                    length_param_idx: 1,
                 })),
                 Size,
             ]),
@@ -289,12 +289,16 @@ impl SysCallName {
                 MessagePosition,
                 Size,
                 // TODO #3375, the PtrType::BlockNumber is incorrect here.
+                // Should be:
+                // Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
+                //     length_param_idx: 1,
+                // }))
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 1,
+                    length_param_idx: 1,
                 })),
                 Size,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
@@ -308,7 +312,7 @@ impl SysCallName {
             ]),
             Self::ReplyWGas => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 1,
+                    length_param_idx: 1,
                 })),
                 Size,
                 Gas,
@@ -334,7 +338,7 @@ impl SysCallName {
             Self::ReservationReply => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash)),
@@ -345,7 +349,7 @@ impl SysCallName {
             ]),
             Self::ReplyPush => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 1,
+                    length_param_idx: 1,
                 })),
                 Size,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
@@ -362,7 +366,7 @@ impl SysCallName {
             Self::Send => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Delay,
@@ -378,7 +382,7 @@ impl SysCallName {
             Self::SendWGas => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Gas,
@@ -412,7 +416,7 @@ impl SysCallName {
             Self::SendPush => SysCallSignature::gr([
                 Handler,
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
@@ -426,7 +430,7 @@ impl SysCallName {
             Self::ReservationSend => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::TwoHashesWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Delay,
@@ -444,11 +448,11 @@ impl SysCallName {
             Self::CreateProgram => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 4,
+                    length_param_idx: 4,
                 })),
                 Size,
                 Delay,
@@ -457,11 +461,11 @@ impl SysCallName {
             Self::CreateProgramWGas => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue)),
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 2,
+                    length_param_idx: 2,
                 })),
                 Size,
                 Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
-                    length_param_id: 4,
+                    length_param_idx: 4,
                 })),
                 Size,
                 Gas,
@@ -486,9 +490,7 @@ impl SysCallName {
                 SysCallSignature::gr([Gas, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
             }
             Self::Random => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(
-                    PtrType::Hash, /*Actually the type is *const Hash here (signature in gsys says *const BufferStart)*/
-                )),
+                Ptr(PtrInfo::new_immutable(PtrType::Hash)),
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumberWithHash)),
             ]),
             other => panic!("Unknown syscall: '{:?}'", other),
@@ -550,7 +552,7 @@ impl PtrInfo {
 pub enum PtrType {
     BlockNumber,
     BlockTimestamp,
-    BufferStart { length_param_id: usize },
+    BufferStart { length_param_idx: usize },
     Hash,
     Gas,
     Length,

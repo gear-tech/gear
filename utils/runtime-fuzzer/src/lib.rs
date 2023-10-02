@@ -134,7 +134,7 @@ fn execute_gear_call(
         GearCall::UploadProgram(args) => {
             let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
 
-            let value = u128::min(allowed_to_spend_value, value);
+            let value = allowed_to_spend_value.min(value);
 
             Gear::upload_program(
                 RuntimeOrigin::signed(sender),
@@ -148,7 +148,7 @@ fn execute_gear_call(
         GearCall::SendMessage(args) => {
             let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
 
-            let value = u128::min(allowed_to_spend_value, value);
+            let value = allowed_to_spend_value.min(value);
 
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
@@ -162,7 +162,7 @@ fn execute_gear_call(
         GearCall::SendReply(args) => {
             let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
 
-            let value = u128::min(allowed_to_spend_value, value);
+            let value = allowed_to_spend_value.min(value);
 
             Gear::send_reply(
                 RuntimeOrigin::signed(sender),
