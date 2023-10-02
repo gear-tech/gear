@@ -186,8 +186,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     ) -> Result<(DisabledSysCallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =
             SysCallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
-        let (syscalls_imports_gen, frozen_gear_wasm_gen) =
-            syscalls_imports_gen_instantiator.into();
+        let (syscalls_imports_gen, frozen_gear_wasm_gen) = syscalls_imports_gen_instantiator.into();
         let syscalls_imports_gen_res = syscalls_imports_gen.generate()?;
 
         let ad_injector = AdditionalDataInjector::from(syscalls_imports_gen_res);

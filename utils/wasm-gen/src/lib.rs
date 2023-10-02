@@ -74,9 +74,7 @@ pub fn generate_gear_program_module(
     GearWasmGenerator::new_with_config(wasm_module, u, gear_wasm_generator_config).generate()
 }
 
-
 // TODO
-// 1. Rename all syscalls and syscalls to syscalls
 // 2. clean-up in SysCallsImportsGenerator
 // 3. clean-up after 3242, 3196
 // 4. Check all other code
