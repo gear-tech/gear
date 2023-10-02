@@ -24,8 +24,8 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, PointerWrite, PointerWritesConfig, SysCallParamAllowedValues, SysCallsConfig,
-    SysCallsParamsConfig,
+    InvocableSysCall, PointerWriteGenerator, PointerWritesConfig, SysCallParamAllowedValues,
+    SysCallsConfig, SysCallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -50,7 +50,7 @@ pub(crate) enum ProcessedSysCallParams {
     },
     MemoryArray,
     MemoryPtrValue {
-        ptr_writes: Vec<PointerWrite>,
+        ptr_writes: Vec<PointerWriteGenerator>,
     },
 }
 
@@ -582,7 +582,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     fn ptr_writes_into_param_setter(
         &mut self,
         address: i32,
-        ptr_writes: Vec<PointerWrite>,
+        ptr_writes: Vec<PointerWriteGenerator>,
     ) -> Result<ParamSetter> {
         let word_writes = ptr_writes
             .into_iter()
@@ -638,7 +638,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         // TODO: #3129.
         // Assume here that all the errors returned from syscalls
-        // contain `ErrorCode` in the start of memory where pointer points.
+        // contain `ErrorCode` in the start of memory at pointer address.
         if let ParamSetter::Ptr { address, .. } = param_setters
             .last()
             .expect("At least one param setter in fallible syscall")

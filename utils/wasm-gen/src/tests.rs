@@ -188,9 +188,9 @@ fn ptr_setters_work() {
     let mut pointer_writes_config = PointerWritesConfig::empty();
     pointer_writes_config.set_rule(
         PtrType::Value,
-        vec![PointerWrite {
+        vec![PointerWriteGenerator {
             offset: 0,
-            data: PointerWriteData::U128(REPLY_VALUE..=REPLY_VALUE),
+            data: PointerWriteDataGenerator::U128(REPLY_VALUE..=REPLY_VALUE),
         }],
     );
 
