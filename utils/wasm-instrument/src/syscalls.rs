@@ -513,12 +513,8 @@ impl SysCallName {
 
 /// Syscall param type.
 ///
-/// `Ptr` is usually used to point to the beginning of the array in memory.
-/// In order to distinguish between pointer to the memory array and pointer
-/// to some value, `Ptr` was defined as a tuple-like struct that owns an
-/// optional index of the memory array size parameter. So if current sys-call
-/// doesn't accept any memory array as an argument, then pointer parameter will
-/// be `Ptr(None)`.
+/// `Ptr` variant contains additional data about the type this pointer
+/// belongs to. See [`PtrInfo`] and [`PtrType`] for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
@@ -548,6 +544,10 @@ impl PtrInfo {
     }
 }
 
+/// Pointer type.
+///
+/// Used to distinguish between different pointer types in the syscall signatures.
+/// Basically it responds to different types from `gsys`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PtrType {
     BlockNumber,
