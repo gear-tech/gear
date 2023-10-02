@@ -193,7 +193,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         use SysCallName::*;
 
         #[allow(clippy::type_complexity)]
-        let syscalls: [(
+        let precise_syscalls: [(
             SysCallName,
             fn(&mut Self, SysCallName) -> Result<(), PreciseSysCallError>,
         ); 4] = [
@@ -203,18 +203,17 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             (SendCommitWGas, Self::generate_send_commit_with_gas),
         ];
 
-        for (syscall, generate_method) in syscalls {
-            let syscall_amount_range = self
-                .config
-                .injection_amounts(InvocableSysCall::Precise(syscall));
-            let syscall_amount = self.unstructured.int_in_range(syscall_amount_range)?;
+        for (precise_syscall, generate_precise_syscall) in precise_syscalls {
+            let syscall_amount = self.produce_syscall_injection_amount(precise_syscall, false)?;
             for _ in 0..syscall_amount {
                 log::trace!(
                     "Constructing {name} syscall...",
-                    name = InvocableSysCall::Precise(syscall).to_str()
+                    name = InvocableSysCall::Precise(precise_syscall).to_str()
                 );
 
-                if let Err(PreciseSysCallError::Arbitrary(err)) = generate_method(self, syscall) {
+                if let Err(PreciseSysCallError::Arbitrary(err)) =
+                    generate_precise_syscall(self, precise_syscall)
+                {
                     return Err(err);
                 }
             }
@@ -232,10 +231,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         &mut self,
         syscall: SysCallName,
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
-        let syscall_amount_range = self
-            .config
-            .injection_amounts(InvocableSysCall::Loose(syscall));
-        let syscall_amount = self.unstructured.int_in_range(syscall_amount_range)?;
+        let syscall_amount = self.produce_syscall_injection_amount(syscall, true)?;
         Ok((syscall_amount != 0).then(|| {
             let call_indexes_handle = self.insert_syscall_import(syscall);
             log::trace!(
@@ -283,92 +279,31 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
         call_indexes_handle
     }
+
+    /// Produces amount of time that syscall invocations will be injected for underlying "random"
+    /// `unstructured` bytes.
+    ///
+    /// # Note
+    /// Calling that > 2 times gives different results depending on bytes of the unerlyinh `unstrucutred`.
+    fn produce_syscall_injection_amount(
+        &mut self,
+        syscall: SysCallName,
+        is_loose: bool,
+    ) -> Result<u32> {
+        use InvocableSysCall::*;
+
+        let invocable_syscall = is_loose
+            .then_some(Loose(syscall))
+            .unwrap_or(Precise(syscall));
+        let syscall_amount_range = self.config.injection_amounts(invocable_syscall);
+
+        self.unstructured.int_in_range(syscall_amount_range)
+    }
 }
 
 impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// The amount of memory used to create a precise syscall.
     const PRECISE_SYS_CALL_MEMORY_SIZE: u32 = 100;
-
-    /// Returns the indexes of invocable syscalls.
-    fn invocable_syscalls_indexes<const N: usize>(
-        &mut self,
-        syscalls: &'static [SysCallName; N],
-    ) -> [usize; N] {
-        let mut indexes = [0; N];
-
-        for (index, &syscall) in indexes.iter_mut().zip(syscalls.iter()) {
-            *index = self
-                .syscalls_imports
-                .get(&InvocableSysCall::Loose(syscall))
-                .map(|&(_, call_indexes_handle)| call_indexes_handle)
-                .unwrap_or_else(|| {
-                    // insert required import when we can't find it
-                    let call_indexes_handle = self.insert_syscall_import(syscall);
-                    self.syscalls_imports
-                        .insert(InvocableSysCall::Loose(syscall), (0, call_indexes_handle));
-                    call_indexes_handle
-                })
-        }
-
-        indexes
-    }
-
-    /// Generates a function which calls "properly" the given syscall.
-    fn generate_proper_syscall_invocation(
-        &mut self,
-        syscall: SysCallName,
-        func_instructions: Instructions,
-    ) {
-        let invocable_syscall = InvocableSysCall::Precise(syscall);
-        let signature = invocable_syscall.into_signature();
-
-        let func_ty = signature.func_type();
-        let func_signature = builder::signature()
-            .with_params(func_ty.params().iter().copied())
-            .with_results(func_ty.results().iter().copied())
-            .build_sig();
-
-        let func_idx = self.module.with(|module| {
-            let mut module_builder = builder::from_module(module);
-            let idx = module_builder.push_function(
-                builder::function()
-                    .with_signature(func_signature)
-                    .body()
-                    .with_instructions(func_instructions)
-                    .build()
-                    .build(),
-            );
-
-            (module_builder.build(), idx)
-        });
-
-        log::trace!(
-            "Built proper call to {precise_syscall_name}",
-            precise_syscall_name = invocable_syscall.to_str()
-        );
-
-        let call_indexes_handle = self.call_indexes.len();
-        self.call_indexes.add_func(func_idx.signature as usize);
-
-        self.syscalls_imports
-            .insert(invocable_syscall, (1, call_indexes_handle));
-    }
-
-    /// Returns the size of the memory in bytes that can be used to build precise syscall.
-    fn memory_size_in_bytes(&self) -> u32 {
-        let initial_mem_size: WasmPageCount = self
-            .module
-            .initial_mem_size()
-            .expect("generator is instantiated with a mem import generation proof")
-            .into();
-        initial_mem_size.memory_size()
-    }
-
-    /// Reserves enough memory build precise syscall.
-    fn reserve_memory(&self) -> i32 {
-        self.memory_size_in_bytes()
-            .saturating_sub(Self::PRECISE_SYS_CALL_MEMORY_SIZE) as i32
-    }
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(
@@ -735,6 +670,87 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         self.generate_proper_syscall_invocation(syscall, func_instructions);
 
         Ok(())
+    }
+
+    /// Returns the indexes of invocable syscalls.
+    fn invocable_syscalls_indexes<const N: usize>(
+        &mut self,
+        syscalls: &'static [SysCallName; N],
+    ) -> [usize; N] {
+        let mut indexes = [0; N];
+
+        for (index, &syscall) in indexes.iter_mut().zip(syscalls.iter()) {
+            *index = self
+                .syscalls_imports
+                .get(&InvocableSysCall::Loose(syscall))
+                .map(|&(_, call_indexes_handle)| call_indexes_handle)
+                .unwrap_or_else(|| {
+                    // insert required import when we can't find it
+                    let call_indexes_handle = self.insert_syscall_import(syscall);
+                    self.syscalls_imports
+                        .insert(InvocableSysCall::Loose(syscall), (0, call_indexes_handle));
+                    call_indexes_handle
+                })
+        }
+
+        indexes
+    }
+
+    /// Reserves enough memory build precise syscall.
+    fn reserve_memory(&self) -> i32 {
+        self.memory_size_in_bytes()
+            .saturating_sub(Self::PRECISE_SYS_CALL_MEMORY_SIZE) as i32
+    }
+
+    /// Returns the size of the memory in bytes that can be used to build precise syscall.
+    fn memory_size_in_bytes(&self) -> u32 {
+        let initial_mem_size: WasmPageCount = self
+            .module
+            .initial_mem_size()
+            .expect("generator is instantiated with a mem import generation proof")
+            .into();
+        initial_mem_size.memory_size()
+    }
+
+    /// Generates a function which calls "properly" the given syscall.
+    fn generate_proper_syscall_invocation(
+        &mut self,
+        syscall: SysCallName,
+        func_instructions: Instructions,
+    ) {
+        let invocable_syscall = InvocableSysCall::Precise(syscall);
+        let signature = invocable_syscall.into_signature();
+
+        let func_ty = signature.func_type();
+        let func_signature = builder::signature()
+            .with_params(func_ty.params().iter().copied())
+            .with_results(func_ty.results().iter().copied())
+            .build_sig();
+
+        let func_idx = self.module.with(|module| {
+            let mut module_builder = builder::from_module(module);
+            let idx = module_builder.push_function(
+                builder::function()
+                    .with_signature(func_signature)
+                    .body()
+                    .with_instructions(func_instructions)
+                    .build()
+                    .build(),
+            );
+
+            (module_builder.build(), idx)
+        });
+
+        log::trace!(
+            "Built proper call to {precise_syscall_name}",
+            precise_syscall_name = invocable_syscall.to_str()
+        );
+
+        let call_indexes_handle = self.call_indexes.len();
+        self.call_indexes.add_func(func_idx.signature as usize);
+
+        self.syscalls_imports
+            .insert(invocable_syscall, (1, call_indexes_handle));
     }
 }
 

@@ -118,6 +118,14 @@ impl InvocableSysCall {
         Self::required_imports_for_syscall(syscall).is_some()
     }
 
+    /// Returns the required imports to build precise syscall, but of a fixed size.
+    fn required_imports<const N: usize>(syscall: SysCallName) -> &'static [SysCallName; N] {
+        Self::required_imports_for_syscall(syscall)
+            .expect("failed to find required imports for syscall")
+            .try_into()
+            .expect("failed to convert slice")
+    }
+
     /// Returns the required imports to build precise syscall.
     fn required_imports_for_syscall(syscall: SysCallName) -> Option<&'static [SysCallName]> {
         // NOTE: the last syscall must be pattern itself
@@ -141,14 +149,6 @@ impl InvocableSysCall {
             ],
             _ => return None,
         })
-    }
-
-    /// Returns the required imports to build precise syscall, but of a fixed size.
-    fn required_imports<const N: usize>(syscall: SysCallName) -> &'static [SysCallName; N] {
-        Self::required_imports_for_syscall(syscall)
-            .expect("failed to find required imports for syscall")
-            .try_into()
-            .expect("failed to convert slice")
     }
 
     /// Returns the index of the destination param.
