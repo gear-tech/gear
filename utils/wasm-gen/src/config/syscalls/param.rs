@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing sys-call param, more precisely, it's allowed values.
+//! Entities describing syscall param, more precisely, it's allowed values.
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
@@ -29,7 +29,7 @@ pub use gear_wasm_instrument::syscalls::ParamType;
 /// Sys-calls params config.
 ///
 /// This is basically a map, which creates a relationship between each kind of
-/// param, that a sys-call can have, and allowed values ("rules") for each of
+/// param, that a syscall can have, and allowed values ("rules") for each of
 /// the params.
 ///
 /// # Note:
@@ -103,7 +103,7 @@ impl Default for SysCallsParamsConfig {
     }
 }
 
-/// Range of allowed values for the sys-call param.
+/// Range of allowed values for the syscall param.
 #[derive(Debug, Clone)]
 pub struct SysCallParamAllowedValues(RangeInclusive<i64>);
 

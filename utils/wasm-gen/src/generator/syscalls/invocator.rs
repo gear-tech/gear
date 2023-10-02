@@ -49,7 +49,7 @@ pub(crate) enum ProcessedSysCallParams {
     MemoryPtrValue,
 }
 
-pub(crate) fn process_sys_call_params(
+pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SysCallsParamsConfig,
 ) -> Vec<ProcessedSysCallParams> {
@@ -88,13 +88,13 @@ pub(crate) fn process_sys_call_params(
 
 /// Sys-calls invocator.
 ///
-/// Inserts sys-calls invokes randomly into internal functions.
+/// Inserts syscalls invokes randomly into internal functions.
 ///
 /// This type is instantiated from disable additional data injector and
 /// data injection outcome ([`AddressesInjectionOutcome`]). The latter was introduced
 /// to give additional guarantees for config and generators consistency. Otherwise,
 /// if there wasn't any addresses injection outcome, which signals that there was a try to
-/// inject addresses, sys-calls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
+/// inject addresses, syscalls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
 /// to random value. For example, existing addresses could have been defined in the config, but
 /// additional data injector was disabled, before injecting addresses from the config. As a result,
 /// invocator would set un-intended by config values as messages destination. To avoid such
@@ -105,7 +105,7 @@ pub struct SysCallsInvocator<'a, 'b> {
     module: WasmModule,
     config: SysCallsConfig,
     offsets: Option<AddressesOffsets>,
-    sys_call_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    syscall_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -126,7 +126,7 @@ impl<'a, 'b>
             module: disabled_gen.module,
             config: disabled_gen.config,
             offsets: outcome.offsets,
-            sys_call_imports: disabled_gen.sys_calls_imports,
+            syscall_imports: disabled_gen.syscalls_imports,
         }
     }
 }
@@ -168,20 +168,20 @@ impl ParamSetter {
 pub type SysCallInvokeInstructions = Vec<Instruction>;
 
 impl<'a, 'b> SysCallsInvocator<'a, 'b> {
-    /// Insert sys-calls invokes.
+    /// Insert syscalls invokes.
     ///
-    /// The method builds instructions, which describe how each sys-call is called, and then
+    /// The method builds instructions, which describe how each syscall is called, and then
     /// insert these instructions into any random function. In the end, all call indexes are resolved.
     pub fn insert_invokes(mut self) -> Result<DisabledSysCallsInvocator> {
         log::trace!(
-            "Random data before inserting all sys-calls invocations - {}",
+            "Random data before inserting all syscalls invocations - {}",
             self.unstructured.len()
         );
 
-        self.insert_sys_calls()?;
+        self.insert_syscalls()?;
 
         log::trace!(
-            "Random data after inserting all sys-calls invocations - {}",
+            "Random data after inserting all syscalls invocations - {}",
             self.unstructured.len()
         );
 
@@ -193,9 +193,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         })
     }
 
-    fn insert_sys_calls(&mut self) -> Result<()> {
+    fn insert_syscalls(&mut self) -> Result<()> {
         log::trace!(
-            "Random data before inserting sys-calls invoke instructions - {}",
+            "Random data before inserting syscalls invoke instructions - {}",
             self.unstructured.len()
         );
 
@@ -205,7 +205,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .collect();
 
         let syscalls_to_insert =
-            self.sys_call_imports
+            self.syscall_imports
                 .clone()
                 .into_iter()
                 .flat_map(|(syscall, (amount, _))| {
@@ -218,11 +218,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.build_syscalls_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
 
         for (insert_into_fn, syscalls) in insertion_mapping {
-            self.insert_sys_calls_into_fn(insert_into_fn, syscalls)?;
+            self.insert_syscalls_into_fn(insert_into_fn, syscalls)?;
         }
 
         log::trace!(
-            "Random data after inserting sys-calls invoke instructions - {}",
+            "Random data after inserting syscalls invoke instructions - {}",
             self.unstructured.len()
         );
 
@@ -257,13 +257,13 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(insertion_mapping)
     }
 
-    fn insert_sys_calls_into_fn(
+    fn insert_syscalls_into_fn(
         &mut self,
         insert_into_fn: usize,
         syscalls: Vec<InvocableSysCall>,
     ) -> Result<()> {
         log::trace!(
-            "Random data before inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            "Random data before inserting syscalls invoke instructions into function {insert_into_fn} - {}",
             self.unstructured.len()
         );
 
@@ -287,11 +287,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         for (pos, syscall) in insertion_positions.zip(syscalls) {
             let call_indexes_handle = self
-                .sys_call_imports
+                .syscall_imports
                 .get(&syscall)
                 .map(|(_, call_indexes_handle)| *call_indexes_handle)
-                .expect("Syscall presented in sys_call_imports");
-            let instructions = self.build_sys_call_invoke_instructions(
+                .expect("Syscall presented in syscall_imports");
+            let instructions = self.build_syscall_invoke_instructions(
                 syscall,
                 syscall.into_signature(),
                 call_indexes_handle,
@@ -315,28 +315,28 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         }
 
         log::trace!(
-            "Random data after inserting sys-calls invoke instructions into function {insert_into_fn} - {}",
+            "Random data after inserting syscalls invoke instructions into function {insert_into_fn} - {}",
             self.unstructured.len()
         );
 
         Ok(())
     }
 
-    fn build_sys_call_invoke_instructions(
+    fn build_syscall_invoke_instructions(
         &mut self,
         invocable: InvocableSysCall,
         signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<SysCallInvokeInstructions> {
         log::trace!(
-            "Random data before building {} sys-call invoke instructions - {}",
+            "Random data before building {} syscall invoke instructions - {}",
             invocable.to_str(),
             self.unstructured.len()
         );
 
         if let Some(argument_index) = invocable.has_destination_param() {
             log::trace!(
-                " -- Generating build call for {} sys-call with destination",
+                " -- Generating build call for {} syscall with destination",
                 invocable.to_str()
             );
 
@@ -348,7 +348,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             )
         } else {
             log::trace!(
-                " -- Generating build call for common sys-call {}",
+                " -- Generating build call for common syscall {}",
                 invocable.to_str()
             );
 
@@ -368,11 +368,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mut original_instructions =
             self.build_call(invocable, signature, call_indexes_handle)?;
 
-        let destination_instructions = if self.config.sys_call_destination().is_source() {
+        let destination_instructions = if self.config.syscall_destination().is_source() {
             log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
-                .sys_call_imports
+                .syscall_imports
                 .get(&InvocableSysCall::Loose(SysCallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
@@ -399,13 +399,13 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         } else {
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
-                    assert!(self.config.sys_call_destination().is_existing_addresses());
+                    assert!(self.config.syscall_destination().is_existing_addresses());
                     log::trace!(" -- Sys-call destination is an existing program address");
 
                     offsets.next_offset()
                 }
                 None => {
-                    assert!(self.config.sys_call_destination().is_random());
+                    assert!(self.config.syscall_destination().is_random());
                     log::trace!(" -- Sys-call destination is a random address");
 
                     self.unstructured.arbitrary()?
@@ -467,7 +467,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
         let mut setters = Vec::with_capacity(params.len());
-        for processed_param in process_sys_call_params(params, self.config.params_config()) {
+        for processed_param in process_syscall_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSysCallParams::Alloc { allowed_values } => {
                     let pages_to_alloc = if let Some(allowed_values) = allowed_values {
@@ -687,20 +687,20 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     }
 }
 
-/// Disabled sys-calls invocator.
+/// Disabled syscalls invocator.
 ///
-/// This type signals that sys-calls imports generation, additional data injection and
-/// sys-calls invocation (with further call indexes resolution) is done.
+/// This type signals that syscalls imports generation, additional data injection and
+/// syscalls invocation (with further call indexes resolution) is done.
 pub struct DisabledSysCallsInvocator {
     module: WasmModule,
     call_indexes: CallIndexes,
 }
 
 impl From<DisabledSysCallsInvocator> for ModuleWithCallIndexes {
-    fn from(disabled_sys_calls_invocator: DisabledSysCallsInvocator) -> Self {
+    fn from(disabled_syscalls_invocator: DisabledSysCallsInvocator) -> Self {
         ModuleWithCallIndexes {
-            module: disabled_sys_calls_invocator.module,
-            call_indexes: disabled_sys_calls_invocator.call_indexes,
+            module: disabled_syscalls_invocator.module,
+            call_indexes: disabled_syscalls_invocator.call_indexes,
         }
     }
 }

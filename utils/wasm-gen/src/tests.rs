@@ -121,7 +121,7 @@ fn injecting_addresses_works() {
             upper_limit: None,
             stack_end_page: Some(stack_end_page),
         })
-        .with_sys_calls_config(
+        .with_syscalls_config(
             SysCallsConfigBuilder::new(Default::default())
                 .with_data_offset_msg_dest(addresses)
                 .build(),
@@ -193,7 +193,7 @@ fn error_processing_works_for_fallible_syscalls() {
         });
 
     for syscall in fallible_syscalls {
-        // Prepare sys-calls config & context settings for test case.
+        // Prepare syscalls config & context settings for test case.
         let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(syscall);
 
         const INJECTED_SYSCALLS: u32 = 8;
@@ -201,13 +201,13 @@ fn error_processing_works_for_fallible_syscalls() {
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
         injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
-        let sys_calls_config_builder =
+        let syscalls_config_builder =
             SysCallsConfigBuilder::new(injection_amounts).with_params_config(params_config);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
-            sys_calls_config_builder
+            syscalls_config_builder
                 .clone()
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
@@ -226,7 +226,7 @@ fn error_processing_works_for_fallible_syscalls() {
         // Assert that syscall results will be ignored.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured2,
-            sys_calls_config_builder.build(),
+            syscalls_config_builder.build(),
             initial_memory_write.clone(),
             0,
             true,
@@ -261,7 +261,7 @@ fn precise_syscalls_works() {
         });
 
     for syscall in precise_syscalls {
-        // Prepare sys-calls config & context settings for test case.
+        // Prepare syscalls config & context settings for test case.
         const INJECTED_SYSCALLS: u32 = 1;
 
         let mut injection_amounts = SysCallsInjectionAmounts::all_never();
@@ -322,7 +322,7 @@ fn get_params_for_syscall_to_fail(
 
 fn execute_wasm_with_custom_configs(
     unstructured: &mut Unstructured,
-    sys_calls_config: SysCallsConfig,
+    syscalls_config: SysCallsConfig,
     initial_memory_write: Option<MemoryWrite>,
     outgoing_limit: u32,
     imitate_reply: bool,
@@ -340,7 +340,7 @@ fn execute_wasm_with_custom_configs(
                 initial_size: INITIAL_PAGES as u32,
                 ..MemoryPagesConfig::default()
             })
-            .with_sys_calls_config(sys_calls_config)
+            .with_syscalls_config(syscalls_config)
             .with_entry_points_config(EntryPointsSet::Init)
             .build(),
         SelectableParams {

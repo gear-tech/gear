@@ -58,7 +58,7 @@ impl AddressesOffsets {
 /// The config, which contains additional data types and values is received from [`DisabledSysCallsImportsGenerator`].
 ///
 /// The generator is instantiated only with having [`SysCallsImportsGenerationProof`], which gives a guarantee. that
-/// if log info should be injected, than `gr_debug` sys-call import is generated.
+/// if log info should be injected, than `gr_debug` syscall import is generated.
 pub struct AdditionalDataInjector<'a, 'b> {
     unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
@@ -66,7 +66,7 @@ pub struct AdditionalDataInjector<'a, 'b> {
     last_offset: u32,
     module: WasmModule,
     addresses_offsets: Vec<u32>,
-    sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -76,7 +76,7 @@ impl<'a, 'b>
     )> for AdditionalDataInjector<'a, 'b>
 {
     fn from(
-        (disabled_gen, _sys_calls_gen_proof): (
+        (disabled_gen, _syscalls_gen_proof): (
             DisabledSysCallsImportsGenerator<'a, 'b>,
             SysCallsImportsGenerationProof,
         ),
@@ -91,7 +91,7 @@ impl<'a, 'b>
             last_offset: data_offset as u32,
             module: disabled_gen.module,
             addresses_offsets: Vec::new(),
-            sys_calls_imports: disabled_gen.sys_calls_imports,
+            syscalls_imports: disabled_gen.syscalls_imports,
             call_indexes: disabled_gen.call_indexes,
         }
     }
@@ -122,7 +122,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
         DisabledAdditionalDataInjector {
             module: self.module,
             call_indexes: self.call_indexes,
-            sys_calls_imports: self.sys_calls_imports,
+            syscalls_imports: self.syscalls_imports,
             config: self.config,
             unstructured: self.unstructured,
         }
@@ -140,7 +140,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             ));
         }
 
-        let SysCallDestination::ExistingAddresses(existing_addresses) = self.config.sys_call_destination() else {
+        let SysCallDestination::ExistingAddresses(existing_addresses) = self.config.syscall_destination() else {
             return None;
         };
 
@@ -213,10 +213,10 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             .expect("impossible to have no gear export");
 
         let debug_call_indexes_handle = self
-            .sys_calls_imports
+            .syscalls_imports
             .get(&InvocableSysCall::Loose(SysCallName::Debug))
             .map(|&(_, handle)| handle as u32)
-            .expect("impossible by configs generation to have log info printing without debug sys-call generated");
+            .expect("impossible by configs generation to have log info printing without debug syscall generated");
 
         self.module.with(|module| {
             let log_bytes_len = log_bytes.len() as u32;
@@ -271,7 +271,7 @@ pub struct DisabledAdditionalDataInjector<'a, 'b> {
     pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) module: WasmModule,
     pub(super) call_indexes: CallIndexes,
-    pub(super) sys_calls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    pub(super) syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
     pub(super) config: SysCallsConfig,
 }
 

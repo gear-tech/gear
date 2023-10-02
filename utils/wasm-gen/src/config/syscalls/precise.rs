@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing configuration for precise sys-calls.
+//! Entities describing configuration for precise syscalls.
 
 use std::ops::RangeInclusive;
 
-/// Represents the configuration for building some parts of precise sys-calls.
+/// Represents the configuration for building some parts of precise syscalls.
 /// Can be used to write unit tests so you don't have to rely on randomness.
 #[derive(Debug, Clone)]
 pub struct PreciseSysCallsConfig {
@@ -28,14 +28,14 @@ pub struct PreciseSysCallsConfig {
 }
 
 impl PreciseSysCallsConfig {
-    /// Creates a new configuration for precise sys-calls, filled with the given values.
+    /// Creates a new configuration for precise syscalls, filled with the given values.
     pub fn new(range_of_send_push_calls: RangeInclusive<usize>) -> Self {
         Self {
             range_of_send_push_calls,
         }
     }
 
-    /// Get the range of `send_push*` sys-calls.
+    /// Get the range of `send_push*` syscalls.
     pub fn range_of_send_push_calls(&self) -> RangeInclusive<usize> {
         self.range_of_send_push_calls.clone()
     }
