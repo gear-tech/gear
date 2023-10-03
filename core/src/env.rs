@@ -23,6 +23,7 @@ use crate::{
     memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
     pages::WasmPage,
+    percent::Percent,
 };
 use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
@@ -202,6 +203,9 @@ pub trait Externalities {
 
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError>;
+
+    /// Get current performance multiplier.
+    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::FallibleError>;

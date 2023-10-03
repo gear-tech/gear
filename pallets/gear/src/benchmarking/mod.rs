@@ -92,6 +92,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    percent::Percent,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -187,6 +188,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
+        performance_multiplier: Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,

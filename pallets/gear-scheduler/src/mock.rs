@@ -121,6 +121,7 @@ impl pallet_gear_program::Config for Test {
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
+    pub const PerformanceMultiplier: u32 = 100;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
@@ -142,6 +143,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
