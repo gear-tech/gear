@@ -629,12 +629,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let last_param = params
             .last()
             .expect("The fallible syscall expected to have at least one argument");
-        match last_param {
-            ParamType::Ptr(ptr_info) => {
-                assert!(ptr_info.ty.is_error() && ptr_info.mutable);
-            }
-            _ => panic!("The last argument of fallible syscall must be a pointer to error code"),
-        }
+
+        assert!(
+            matches!(
+                last_param,
+                ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error(),
+            ),
+            "The last argument of fallible syscall must be a pointer to error code"
+        );
 
         // TODO: #3129.
         // Assume here that all the errors returned from syscalls
