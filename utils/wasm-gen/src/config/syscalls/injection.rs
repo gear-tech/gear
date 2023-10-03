@@ -34,9 +34,16 @@ pub enum SysCallInjectionType {
     None,
     /// Sys-call import will be injected into import section of wasm module,
     /// but the `wasm-gen` generators will not call that sys-call.
+    ///
+    /// It should be used in cases where you don't need to invoke an actual sys-call.
+    /// For example, `precision_gr_reservation_send` sys-call uses `gr_reserve_gas` under
+    /// the hood. In this case, `gr_reserve_gas` will be imported but will not be called.
     Import,
     /// Sys-call import will be injected into import section of wasm module,
     /// and the `wasm-gen` generators will insert invoke instructions for that sys-call.
+    ///
+    /// It also has `sys_call_amount_range: RangeInclusive<u32>` - the range from which
+    /// amount of sys-calls will be generated for injection into code section of wasm module.
     Function(RangeInclusive<u32>),
 }
 
