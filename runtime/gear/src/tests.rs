@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::Runtime;
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
+use gear_lazy_pages_common::LazyPagesWeights;
 use pallet_gear::{InstructionWeights, MemoryWeights};
 use runtime_common::weights::{check_instructions_weights, check_pages_weights};
 

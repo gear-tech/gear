@@ -1,16 +1,18 @@
-use super::*;
 use crate::{
-    memory::*,
+    memory::{
+        MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
+        WasmMemoryWrite, WasmMemoryWriteAs,
+    },
     mock::{MockExt, MockMemory},
 };
-
+use codec::{self, Decode, Encode, MaxEncodedLen};
 use core::{fmt::Debug, marker::PhantomData};
 use gear_core::{memory::Memory, pages::WASM_PAGE_SIZE};
-use scale_info::scale::{self, Decode, Encode, MaxEncodedLen};
 
 const GAS_COUNTER: u64 = u64::MAX;
 
 #[derive(Encode, Decode, MaxEncodedLen)]
+#[codec(crate = codec)]
 struct ZeroSizeStruct;
 
 #[test]
@@ -150,7 +152,7 @@ fn test_read_with_empty_memory_access() {
 #[test]
 fn test_read_decoded_with_valid_encoded_data() {
     #[derive(Encode, Decode, Debug, PartialEq)]
-    #[codec(crate = scale)]
+    #[codec(crate = codec)]
     struct MockEncodeData {
         data: u64,
     }
@@ -182,13 +184,13 @@ fn test_read_decoded_with_invalid_encoded_data() {
     struct InvalidDecode {}
 
     impl Decode for InvalidDecode {
-        fn decode<T>(_input: &mut T) -> Result<Self, scale_info::scale::Error> {
+        fn decode<T>(_input: &mut T) -> Result<Self, codec::Error> {
             Err("Invalid decoding".into())
         }
     }
 
     impl Encode for InvalidDecode {
-        fn encode_to<T: scale_info::scale::Output + ?Sized>(&self, _dest: &mut T) {}
+        fn encode_to<T: codec::Output + ?Sized>(&self, _dest: &mut T) {}
     }
 
     impl MaxEncodedLen for InvalidDecode {
@@ -491,7 +493,7 @@ fn test_register_read_as_with_zero_size() {
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
-#[codec(crate = scale)]
+#[codec(crate = codec)]
 struct TestStruct {
     a: u32,
     b: u64,

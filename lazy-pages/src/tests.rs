@@ -20,8 +20,10 @@ use crate::{
     common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
     UserSignalHandler,
 };
-use gear_backend_common::LimitedStr;
-use gear_core::pages::{GearPage, PageDynSize, PageU32Size, WasmPage};
+use gear_core::{
+    pages::{GearPage, PageDynSize, PageU32Size, WasmPage},
+    str::LimitedStr,
+};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {

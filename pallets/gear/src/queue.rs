@@ -137,7 +137,7 @@ where
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
-        let journal = core_processor::process::<ExecutionEnvironment>(
+        let journal = core_processor::process::<Ext>(
             block_config,
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),

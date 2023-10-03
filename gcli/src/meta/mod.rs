@@ -109,15 +109,12 @@ impl Meta {
 
     /// Execute meta method.
     fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
             Self::PAGE_STORAGE_PREFIX
         ));
 
         sp_io::TestExternalities::default().execute_with(|| {
-            core_processor::informational::execute_for_reply::<
-                gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
-                String,
-            >(
+            core_processor::informational::execute_for_reply::<core_processor::Ext, String>(
                 method.into(),
                 wasm,
                 None,

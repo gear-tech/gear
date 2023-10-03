@@ -19,12 +19,12 @@
 //! Configurations.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
     pages::{GearPage, WasmPage},
     percent::Percent,
 };
+use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 

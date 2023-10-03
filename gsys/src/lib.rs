@@ -467,9 +467,9 @@ extern "C" {
     /// Infallible `gr_random` calculate syscall.
     ///
     /// Arguments type:
-    /// - `subject`: `const ptr` for the begging of the payload buffer.
+    /// - `subject`: `const ptr` for the subject.
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
-    pub fn gr_random(subject: *const BufferStart, bn_random: *mut BlockNumberWithHash);
+    pub fn gr_random(subject: *const Hash, bn_random: *mut BlockNumberWithHash);
 
     // TODO: issue #1859
     /// Fallible `gr_read` get syscall.

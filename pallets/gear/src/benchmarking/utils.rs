@@ -115,7 +115,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         ProgramStorageOf::<T>::pages_final_prefix()
     ));
 

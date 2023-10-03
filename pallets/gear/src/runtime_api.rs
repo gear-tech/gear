@@ -37,6 +37,12 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
+    fn update_gas_allowance(gas_allowance: u64) {
+        GasAllowanceOf::<T>::put(gas_allowance);
+        QueueProcessingOf::<T>::allow();
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn calculate_gas_info_impl(
         source: H256,
         kind: HandleKind,
@@ -45,6 +51,7 @@ where
         value: u128,
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
+        allowance_multiplier: Option<u64>,
     ) -> Result<GasInfo, Vec<u8>> {
         Self::enable_lazy_pages();
 
@@ -110,8 +117,11 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT);
-        QueueProcessingOf::<T>::allow();
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -273,6 +283,7 @@ where
         function: impl Into<String>,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         Self::enable_lazy_pages();
 
@@ -300,20 +311,30 @@ where
 
         let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
-        payload.append(&mut Self::read_state_impl(program_id, payload_arg)?);
+        payload.append(&mut Self::read_state_impl(
+            program_id,
+            payload_arg,
+            allowance_multiplier,
+        )?);
 
         let block_info = BlockInfo {
             height: Self::block_number().unique_saturated_into(),
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
+
+        core_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
             None,
             None,
             payload,
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
     }
@@ -321,6 +342,7 @@ where
     pub(crate) fn read_state_impl(
         program_id: ProgramId,
         payload: Vec<u8>,
+        allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
         Self::enable_lazy_pages();
 
@@ -336,18 +358,27 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
+
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
             Some(allocations),
             Some(program_id),
             payload,
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
     }
 
-    pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
+    pub(crate) fn read_metahash_impl(
+        program_id: ProgramId,
+        allowance_multiplier: Option<u64>,
+    ) -> Result<H256, String> {
         Self::enable_lazy_pages();
 
         log::debug!("Reading metahash of {program_id:?}");
@@ -362,13 +393,19 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
+        let gas_allowance = allowance_multiplier
+            .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
+            .saturating_mul(BlockGasLimitOf::<T>::get());
+
+        Self::update_gas_allowance(gas_allowance);
+
+        core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
             Some(allocations),
             Some(program_id),
             Default::default(),
-            BlockGasLimitOf::<T>::get() * RUNTIME_API_BLOCK_LIMITS_COUNT,
+            gas_allowance,
             block_info,
         )
         .and_then(|bytes| {

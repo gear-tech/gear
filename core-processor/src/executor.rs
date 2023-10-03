@@ -31,15 +31,10 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights},
-    ActorTerminationReason, BackendExternalities, BackendReport, BackendSyscallError, Environment,
-    EnvironmentError, TerminationReason,
-};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
-    gas::{CountersOwner, GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory},
     message::{
@@ -51,6 +46,16 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
+use gear_core_backend::{
+    env::{BackendReport, Environment, EnvironmentError},
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TerminationReason,
+    },
+    memory::MemoryWrap,
+    BackendExternalities,
+};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -136,7 +141,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<E>(
+pub fn execute_wasm<Ext>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -144,9 +149,11 @@ pub fn execute_wasm<E>(
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError>
 where
-    E: Environment,
-    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -220,11 +227,11 @@ where
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
-    let ext = E::Ext::new(context);
+    let ext = Ext::new(context);
 
     // Execute program in backend env.
     let execute = || {
-        let env = E::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             kind,
@@ -233,7 +240,7 @@ where
         )
         .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<E::Ext, E::Memory>(
+            prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
                 program_id,
                 static_pages,
@@ -259,18 +266,16 @@ where
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
-            E::Ext::lazy_pages_post_execution_actions(&mut memory);
+            Ext::lazy_pages_post_execution_actions(&mut memory);
 
-            if !E::Ext::lazy_pages_status().is_normal() {
+            if !Ext::lazy_pages_status().is_normal() {
                 termination = ext.current_counter_type().into()
             }
 
             (termination, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(
-                e.to_string(),
-            )))
+            return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
         }
         Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
@@ -340,7 +345,7 @@ where
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
 #[allow(clippy::too_many_arguments)]
-pub fn execute_for_reply<E, EP>(
+pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     allocations: Option<BTreeSet<WasmPage>>,
@@ -350,9 +355,11 @@ pub fn execute_for_reply<E, EP>(
     block_info: BlockInfo,
 ) -> Result<Vec<u8>, String>
 where
-    E: Environment<EP>,
-    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
@@ -416,11 +423,11 @@ where
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
-    let ext = E::Ext::new(context);
+    let ext = Ext::new(context);
 
     // Execute program in backend env.
     let f = || {
-        let env = E::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             function,
@@ -429,7 +436,7 @@ where
         )
         .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<E::Ext, E::Memory>(
+            prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
                 program.id(),
                 static_pages,
@@ -496,51 +503,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::lazy_pages::Status;
-    use gear_core::pages::WasmPage;
-
-    struct TestExt;
-    struct LazyTestExt;
-
-    impl ProcessorExternalities for TestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn lazy_pages_init_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) {
-        }
-
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
-        }
-    }
-
-    impl ProcessorExternalities for LazyTestExt {
-        fn new(_context: ProcessorContext) -> Self {
-            Self
-        }
-
-        fn lazy_pages_init_for_program(
-            _mem: &mut impl Memory,
-            _prog_id: ProgramId,
-            _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsAccessConfig,
-            _lazy_pages_weights: LazyPagesWeights,
-        ) {
-        }
-
-        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Status {
-            Status::Normal
-        }
-    }
 
     #[test]
     fn check_memory_insufficient() {

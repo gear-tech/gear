@@ -74,7 +74,6 @@ use gear_core::{
     pages::{GearPage, WasmPage},
     percent::Percent,
 };
-use gear_lazy_pages_common as lazy_pages;
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
@@ -86,8 +85,6 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
-
-type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -678,26 +675,41 @@ pub mod pallet {
             fn_name: Vec<u8>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
+            gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, payload, fn_name, wasm, argument)
-                .map_err(String::into_bytes)
+            Self::read_state_using_wasm_impl(
+                program_id,
+                payload,
+                fn_name,
+                wasm,
+                argument,
+                gas_allowance,
+            )
+            .map_err(String::into_bytes)
         }
 
-        pub fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+        pub fn read_state(
+            program_id: H256,
+            payload: Vec<u8>,
+            gas_allowance: Option<u64>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_impl(program_id, payload).map_err(String::into_bytes)
+            Self::read_state_impl(program_id, payload, gas_allowance).map_err(String::into_bytes)
         }
 
-        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+        pub fn read_metahash(
+            program_id: H256,
+            gas_allowance: Option<u64>,
+        ) -> Result<H256, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id, gas_allowance).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -708,6 +720,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
             initial_gas: Option<u64>,
+            gas_allowance: Option<u64>,
         ) -> Result<GasInfo, Vec<u8>> {
             Self::calculate_gas_info_impl(
                 source,
@@ -717,6 +730,7 @@ pub mod pallet {
                 value,
                 allow_other_panics,
                 false,
+                gas_allowance,
             )
         }
 
@@ -746,6 +760,7 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                     allow_skip_zero_replies,
+                    None,
                 );
                 GasAllowanceOf::<T>::put(gas_allowance);
                 if queue_processing {
@@ -1001,7 +1016,7 @@ pub mod pallet {
 
         pub(crate) fn enable_lazy_pages() {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+            if !gear_lazy_pages_interface::try_to_enable_lazy_pages(prefix) {
                 unreachable!("By some reasons we cannot run lazy-pages on this machine");
             }
         }

@@ -1,9 +1,12 @@
 [package]
-name = "gear-lazy-pages-common"
-version = "0.1.0"
+name = "gear-lazy-pages-interface"
+description = "Gear lazy-pages actual interface"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 derive_more.workspace = true
@@ -11,8 +14,8 @@ log.workspace = true
 byteorder.workspace = true
 
 gear-core.workspace = true
-gear-backend-common.workspace = true
 gear-common.workspace = true
+gear-lazy-pages-common.workspace = true
 gear-runtime-interface.workspace = true
 gear-wasm-instrument.workspace = true
 

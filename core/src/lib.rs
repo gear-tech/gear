@@ -40,6 +40,7 @@ pub mod program;
 pub mod reservation;
 
 pub mod buffer;
+pub mod str;
 
 use core::mem::size_of;
 use static_assertions::const_assert;

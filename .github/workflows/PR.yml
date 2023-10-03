@@ -19,20 +19,12 @@ jobs:
   status:
     runs-on: ubuntu-latest
     outputs:
+      skip-ci: ${{ steps.check-commit-message.outputs.skip-ci }}
       cache: ${{ steps.check-commit-message.outputs.cache }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-
-      - uses: actions/github-script@v6
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TITLE: ${{ github.event.pull_request.title }}
-        with:
-          script: |
-            const script = require('./.github/actions/label/skip.js');
-            await script({ github, core });
 
       - name: Check Commit Message
         id: check-commit-message
@@ -43,8 +35,23 @@ jobs:
             CACHE=""
           fi
 
+          if [[ $MESSAGE == *"[skip-ci]"* ]]; then
+            echo "skip-ci: 1"
+            echo "skip-ci=1" >> $GITHUB_OUTPUT
+          fi
+
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
+
+      - uses: actions/github-script@v6
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+          SKIP_CI: ${{ steps.check-commit-message.outputs.skip-ci }}
+        with:
+          script: |
+            const script = require('./.github/actions/label/skip.js');
+            await script({ github, core });
 
       - name: Set sccache path
         if: ${{ steps.check-commit-message.outputs.cache }}
@@ -54,7 +61,10 @@ jobs:
 
   check:
     needs: status
-    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
+    if: >-
+      !contains(github.event.pull_request.title, '[skip-ci]')
+      && needs.status.outputs.skip-ci != '1'
+
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
@@ -62,9 +72,14 @@ jobs:
   build:
     needs: status
     if: >-
-      contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
-      || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
-      || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+      needs.status.outputs.skip-ci != '1'
+      && (
+        contains(github.event.pull_request.title, '[depbot]')
+        || (
+          contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
+          || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
+          || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
+        ))
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
