@@ -30,6 +30,7 @@ use crate::{
     Error, TxInBlock, TxStatus,
 };
 use anyhow::anyhow;
+use parking_lot::Mutex;
 use scale_value::Composite;
 use sp_core::H256;
 use std::sync::Arc;
@@ -46,7 +47,7 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let signer_rpc = SignerRpc(Arc::new(Mutex::new(self.clone())));
         let after = before.saturating_sub(signer_rpc.get_balance().await?);
         log::info!("	Balance spent: {after}");
 
@@ -81,7 +82,7 @@ impl Inner {
     pub async fn process<'a>(&self, tx: DynamicPayload) -> Result<TxInBlock> {
         use subxt::tx::TxStatus::*;
 
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let signer_rpc = SignerRpc(Arc::new(Mutex::new(self.clone())));
         let before = signer_rpc.get_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&tx).await?;

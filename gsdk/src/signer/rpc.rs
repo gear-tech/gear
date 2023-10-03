@@ -20,25 +20,26 @@
 
 use crate::{result::Result, signer::Inner, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use parking_lot::Mutex;
 use sp_core::H256;
 use std::sync::Arc;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
-pub struct SignerRpc(pub(crate) Arc<Inner>);
+pub struct SignerRpc(pub(crate) Arc<Mutex<Inner>>);
 
 impl SignerRpc {
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
+        AsRef::<[u8; 32]>::as_ref(self.0.lock().account_id()).into()
     }
 
     /// Get self balance.
     pub async fn get_balance(&self) -> Result<u128> {
         self.0
-            .as_ref()
+            .lock()
             .api()
-            .get_balance(&self.0.as_ref().address())
+            .get_balance(&self.0.lock().address())
             .await
     }
 
@@ -53,6 +54,7 @@ impl SignerRpc {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .lock()
             .api
             .calculate_create_gas(
                 origin.unwrap_or_else(|| self.source()),
@@ -76,6 +78,7 @@ impl SignerRpc {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .lock()
             .api
             .calculate_upload_gas(
                 origin.unwrap_or_else(|| self.source()),
@@ -99,6 +102,7 @@ impl SignerRpc {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .lock()
             .api
             .calculate_handle_gas(
                 origin.unwrap_or_else(|| self.source()),
@@ -122,6 +126,7 @@ impl SignerRpc {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
+            .lock()
             .api
             .calculate_reply_gas(
                 origin.unwrap_or_else(|| self.source()),

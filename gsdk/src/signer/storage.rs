@@ -39,6 +39,7 @@ use gear_core::{
 };
 use hex::ToHex;
 use parity_scale_codec::Encode;
+use parking_lot::Mutex;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::{
@@ -50,13 +51,13 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerStorage(pub(crate) Arc<Inner>);
+pub struct SignerStorage(pub(crate) Arc<Mutex<Inner>>);
 
 // pallet-system
 impl SignerStorage {
     /// Sets storage values via calling sudo pallet
     pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> EventsResult {
-        let metadata = self.0.api().metadata();
+        let metadata = self.0.lock().api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
             let item_key = storage_address_bytes(&item.0, &metadata)?;
@@ -71,6 +72,7 @@ impl SignerStorage {
         }
 
         self.0
+            .lock()
             .sudo(RuntimeCall::System(Call::set_storage {
                 items: items_to_set,
             }))

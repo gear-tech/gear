@@ -28,6 +28,7 @@ use crate::{
     Error, Result, TxInBlock,
 };
 use gear_core::ids::*;
+use parking_lot::Mutex;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::{blocks::ExtrinsicEvents, dynamic::Value};
@@ -36,13 +37,14 @@ type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
-pub struct SignerCalls(pub(crate) Arc<Inner>);
+pub struct SignerCalls(pub(crate) Arc<Mutex<Inner>>);
 
 // pallet-balances
 impl SignerCalls {
     /// `pallet_balances::transfer`
     pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 BalancesCall::Transfer,
                 vec![
@@ -66,6 +68,7 @@ impl SignerCalls {
         value: u128,
     ) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 GearCall::CreateProgram,
                 vec![
@@ -82,6 +85,7 @@ impl SignerCalls {
     /// `pallet_gear::claim_value`
     pub async fn claim_value(&self, message_id: MessageId) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
             .await
     }
@@ -96,6 +100,7 @@ impl SignerCalls {
         prepaid: bool,
     ) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 GearCall::SendMessage,
                 vec![
@@ -119,6 +124,7 @@ impl SignerCalls {
         prepaid: bool,
     ) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 GearCall::SendReply,
                 vec![
@@ -135,6 +141,7 @@ impl SignerCalls {
     /// `pallet_gear::upload_code`
     pub async fn upload_code(&self, code: Vec<u8>) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
             .await
     }
@@ -149,6 +156,7 @@ impl SignerCalls {
         value: u128,
     ) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 GearCall::UploadProgram,
                 vec![
@@ -168,6 +176,7 @@ impl SignerCalls {
     /// `pallet_utility::force_batch`
     pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> Result<TxInBlock> {
         self.0
+            .lock()
             .run_tx(
                 UtilityCall::ForceBatch,
                 vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
@@ -181,6 +190,7 @@ impl SignerCalls {
     /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         self.0
+            .lock()
             .sudo_run_tx(
                 SudoCall::SudoUncheckedWeight,
                 // As `call` implements conversion to `Value`.

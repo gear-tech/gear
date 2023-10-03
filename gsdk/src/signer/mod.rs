@@ -25,8 +25,8 @@ use crate::{
     Api,
 };
 use calls::SignerCalls;
-use core::ops::Deref;
 pub use pair_signer::PairSigner;
+use parking_lot::Mutex;
 use rpc::SignerRpc;
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
@@ -46,7 +46,7 @@ mod utils;
 /// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
 pub struct Signer {
-    signer: Arc<Inner>,
+    signer: Arc<Mutex<Inner>>,
     /// Calls that get or set storage.
     pub storage: SignerStorage,
     /// Calls for interaction with on-chain programs.
@@ -68,7 +68,7 @@ pub struct Inner {
 impl Signer {
     /// Get backtrace of the signer.
     pub fn backtrace(&self) -> Backtrace {
-        self.calls.0.backtrace.clone()
+        self.calls.0.lock().backtrace.clone()
     }
 
     /// New signer api.
@@ -82,10 +82,10 @@ impl Signer {
             backtrace: Default::default(),
         };
 
-        Ok(Self::from_inner(signer))
+        Ok(Self::from_inner(Mutex::new(signer)))
     }
 
-    fn from_inner(signer: Inner) -> Self {
+    fn from_inner(signer: Mutex<Inner>) -> Self {
         let signer = Arc::new(signer);
 
         Self {
@@ -96,42 +96,18 @@ impl Signer {
         }
     }
 
-    fn replace_inner(&mut self, mut inner: Inner) {
-        let backtrace = self.backtrace();
-        inner.backtrace = backtrace;
-
-        let Signer {
-            signer,
-            storage,
-            calls,
-            rpc,
-        } = self;
-
-        *signer = Arc::new(inner);
-        *storage = SignerStorage(signer.clone());
-        *calls = SignerCalls(signer.clone());
-        *rpc = SignerRpc(signer.clone());
-    }
-
     /// Change inner signer.
-    pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+    pub fn change(self, suri: &str, passwd: Option<&str>) -> Result<Self> {
         let signer =
             PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
 
-        self.replace_inner(Inner {
-            signer,
-            ..self.signer.as_ref().clone()
-        });
-
+        self.signer.lock().signer = signer;
         Ok(self)
     }
 
     /// Set nonce of the signer
     pub fn set_nonce(&mut self, nonce: u32) {
-        self.replace_inner(Inner {
-            nonce: Some(nonce),
-            ..self.signer.as_ref().clone()
-        });
+        self.signer.lock().nonce = Some(nonce);
     }
 }
 
@@ -161,14 +137,6 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
             backtrace: Backtrace::default(),
         };
 
-        Self::from_inner(signer)
-    }
-}
-
-impl Deref for Signer {
-    type Target = Inner;
-
-    fn deref(&self) -> &Inner {
-        self.signer.as_ref()
+        Self::from_inner(Mutex::new(signer))
     }
 }
