@@ -70,7 +70,7 @@ function start_container_post {
 		rustup component add llvm-tools-preview && \
 		rustup component add --toolchain nightly llvm-tools-preview && \
 		cargo fuzz coverage --release --sanitizer=none main /corpus/main -- \
-        -rss_limit_mb=8192 -max_len=35000000 -len_control=0 && \
+        -rss_limit_mb=8192 -max_len=20000000 -len_control=0 && \
 		cargo cov -- show target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
         --format=text \
         --show-line-counts \
@@ -90,7 +90,7 @@ function start_container_post {
     # Clear folder with corpus
     rm -rf $WORK_DIR/corpus/*
     # Generate new first seed
-    dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=27000000
+    dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=16000000
 }
 
 # Function to start the container and wait for it to stop

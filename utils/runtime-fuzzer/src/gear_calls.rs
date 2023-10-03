@@ -38,6 +38,7 @@ use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionAmounts, SysCallsParamsConfig,
 };
+use std::mem;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -50,6 +51,10 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
 static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
+const ID_SIZE: usize = mem::size_of::<ProgramId>();
+const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+const AUXILIARY_SIZE: usize = 512;
 
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
 /// from mailbox, for example [`UploadProgramGenerator`] and
@@ -248,9 +253,8 @@ impl UploadProgramGenerator {
     const fn unstructured_size_hint(&self) -> usize {
         // Max code size - 50 KiB.
         const MAX_CODE_SIZE: usize = 50 * 1024;
-        const AUXILIARY_SIZE: usize = 512;
 
-        MAX_CODE_SIZE + MAX_PAYLOAD_SIZE + MAX_SALT_SIZE + AUXILIARY_SIZE
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -289,8 +293,7 @@ impl SendMessageGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -336,8 +339,7 @@ impl SendReplyGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -361,8 +363,7 @@ impl ClaimValueGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 32 bytes for message id.
-        100
+        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
