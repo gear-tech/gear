@@ -75,7 +75,5 @@ pub fn generate_gear_program_module(
 }
 
 // TODO
-// 2. clean-up in SysCallsImportsGenerator
-// 3. clean-up after 3242, 3196
-// 4. Check all other code
-// 5. Check logs after merging @mertwole's changes. Make it more clear.
+// 3. clean-up invocator
+// 4. Check logs.

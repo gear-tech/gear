@@ -292,11 +292,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         syscall: SysCallName,
         is_loose: bool,
     ) -> Result<u32> {
-        use InvocableSysCall::*;
-
-        let invocable_syscall = is_loose
-            .then_some(Loose(syscall))
-            .unwrap_or(Precise(syscall));
+        let invocable_syscall = if is_loose {
+            InvocableSysCall::Loose(syscall)
+        } else {
+            InvocableSysCall::Precise(syscall)
+        };
         let syscall_amount_range = self.config.injection_amounts(invocable_syscall);
 
         self.unstructured.int_in_range(syscall_amount_range)

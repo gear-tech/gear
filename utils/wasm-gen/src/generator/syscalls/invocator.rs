@@ -201,24 +201,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let code_funcs = self.module.count_code_funcs();
-        let insert_into_funcs: Vec<_> = (0..code_funcs)
-            .filter(|idx| !self.call_indexes.is_custom_func(*idx))
-            .collect();
-
-        let syscalls_to_insert =
-            self.syscalls_imports
-                .clone()
-                .into_iter()
-                .flat_map(|(syscall, (amount, _))| {
-                    iter::repeat(syscall)
-                        .take(amount as usize)
-                        .collect::<Vec<_>>()
-                });
-
-        let insertion_mapping =
-            self.build_syscalls_insertion_mapping(syscalls_to_insert, &insert_into_funcs)?;
-
+        let insertion_mapping = self.build_syscalls_insertion_mapping()?;
         for (insert_into_fn, syscalls) in insertion_mapping {
             self.insert_syscalls_into_fn(insert_into_fn, syscalls)?;
         }
@@ -234,24 +217,28 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Distributes provided syscalls among provided function ids.
     ///
     /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`.
-    fn build_syscalls_insertion_mapping<I>(
+    fn build_syscalls_insertion_mapping(
         &mut self,
-        syscalls: I,
-        insert_into_funcs: &[usize],
-    ) -> Result<BTreeMap<usize, Vec<InvocableSysCall>>>
-    where
-        I: Iterator<Item = InvocableSysCall>,
-    {
-        let mut insertion_mapping: BTreeMap<_, Vec<_>> = BTreeMap::new();
-        for syscall in syscalls {
-            let insert_into = *self.unstructured.choose(insert_into_funcs)?;
+    ) -> Result<BTreeMap<usize, Vec<InvocableSysCall>>> {
+        let insert_into_funcs = self.call_indexes.predefined_funcs_indexes();
+        let syscalls = self
+            .syscalls_imports
+            .clone()
+            .into_iter()
+            .map(|(syscall, (amount, _))| (syscall, amount));
 
-            match insertion_mapping.entry(insert_into) {
-                Entry::Occupied(mut entry) => {
-                    entry.get_mut().push(syscall);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(vec![syscall]);
+        let mut insertion_mapping: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        for (syscall, amount) in syscalls {
+            for _ in 0..amount {
+                let insert_into = self.unstructured.int_in_range(insert_into_funcs.clone())?;
+
+                match insertion_mapping.entry(insert_into) {
+                    Entry::Occupied(mut entry) => {
+                        entry.get_mut().push(syscall);
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(vec![syscall]);
+                    }
                 }
             }
         }

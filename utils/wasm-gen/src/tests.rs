@@ -43,7 +43,7 @@ use gear_wasm_instrument::{
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::mem;
+use std::{mem, num::NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -347,8 +347,8 @@ fn execute_wasm_with_custom_configs(
             call_indirect_enabled: false,
             allowed_instructions: vec![],
             max_instructions: 0,
-            min_funcs: 1,
-            max_funcs: 1,
+            min_funcs: NonZeroUsize::new(1).unwrap(),
+            max_funcs: NonZeroUsize::new(1).unwrap(),
             unreachable_enabled: true,
         },
     );

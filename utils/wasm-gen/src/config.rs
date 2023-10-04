@@ -22,6 +22,7 @@
 //! 1. From scratch by settings fields to corresponding values sometimes using
 //! related to these fields builders. For example, wasm module configs:
 //! ```rust
+//! # use std::num::NonZeroUsize;
 //! use gear_wasm_gen::*;
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
@@ -38,8 +39,8 @@
 //!             InstructionKind::Control,
 //!         ],
 //!         max_instructions: 100_000,
-//!         min_funcs: 15,
-//!         max_funcs: 30,
+//!         min_funcs: NonZeroUsize::new(15).unwrap(),
+//!         max_funcs: NonZeroUsize::new(30).unwrap(),
 //!         unreachable_enabled: true,
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
