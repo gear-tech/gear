@@ -105,7 +105,7 @@ pub struct SysCallsInvocator<'a, 'b> {
     module: WasmModule,
     config: SysCallsConfig,
     offsets: Option<AddressesOffsets>,
-    syscall_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -126,7 +126,7 @@ impl<'a, 'b>
             module: disabled_gen.module,
             config: disabled_gen.config,
             offsets: outcome.offsets,
-            syscall_imports: disabled_gen.syscalls_imports,
+            syscalls_imports: disabled_gen.syscalls_imports,
         }
     }
 }
@@ -205,7 +205,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .collect();
 
         let syscalls_to_insert =
-            self.syscall_imports
+            self.syscalls_imports
                 .clone()
                 .into_iter()
                 .flat_map(|(syscall, (amount, _))| {
@@ -287,7 +287,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         for (pos, syscall) in insertion_positions.zip(syscalls) {
             let call_indexes_handle = self
-                .syscall_imports
+                .syscalls_imports
                 .get(&syscall)
                 .map(|(_, call_indexes_handle)| *call_indexes_handle)
                 .expect("Syscall presented in syscall_imports");
@@ -372,7 +372,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             log::trace!(" -- Sys-call destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
-                .syscall_imports
+                .syscalls_imports
                 .get(&InvocableSysCall::Loose(SysCallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
