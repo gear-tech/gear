@@ -51,7 +51,6 @@ const UNSTRUCTURED_SIZE: usize = 1_000_000;
 fn instrument_recursions() {
     let wat1 = r#"
     (module
-        (func $import0 (import "env" "gr_leave"))
         (memory $memory0 (import "env" "memory") 16)
         (export "handle" (func $handle))
         (func $handle

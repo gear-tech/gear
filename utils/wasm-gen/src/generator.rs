@@ -141,7 +141,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
 
         Ok(if config.remove_recursions {
             log::trace!("Removing recursions");
-            utils::remove_recursion(module)
+            utils::instrument_recursion(module)
         } else {
             log::trace!("Leaving recursions");
             module
