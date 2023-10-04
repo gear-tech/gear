@@ -48,6 +48,39 @@ use std::mem;
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
 #[test]
+fn instrument_recursions() {
+    let wat1 = r#"
+    (module
+        (func $import0 (import "env" "gr_leave"))
+        (memory $memory0 (import "env" "memory") 16)
+        (export "handle" (func $handle))
+        (func $handle
+            call $f
+            drop
+        )
+        (func $f (result i64)
+            call $f
+        )
+    )"#;
+
+    let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
+    let limited_recursions_module = utils::instrument_recursion(module);
+
+    let wasm_bytes = limited_recursions_module
+        .into_bytes()
+        .expect("invalid pw module");
+    assert!(wasmparser::validate(&wasm_bytes).is_ok());
+
+    let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
+    println!("wat = {wat}");
+
+    let code_res = Code::try_new(wasm_bytes, 1, |_| CustomConstantCostRules::default(), None);
+    assert!(code_res.is_ok());
+}
+
+#[test]
 fn remove_trivial_recursions() {
     let wat1 = r#"
     (module

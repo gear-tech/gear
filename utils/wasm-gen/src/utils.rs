@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::PageCount as WasmPageCount;
 use gear_wasm_instrument::parity_wasm::{
     builder,
-    elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
+    elements::{
+        self, BlockType, External, FuncBody, ImportCountType, Instruction, Module, Type, ValueType,
+    },
 };
 use gsys::HashWithValue;
 use std::{
@@ -213,6 +216,73 @@ fn find_recursion_impl<Callback>(
 
     colored.insert(call_index, Color::Black);
     path.pop();
+}
+
+pub fn instrument_recursion(mut module: Module) -> Module {
+    let Some(mem_size) = module
+        .import_section()
+        .and_then(|section| {
+            section
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                    _ => None,
+                })
+        })
+        .map(Into::<WasmPageCount>::into).map(|page_count| page_count.memory_size()) else {
+            return module;
+        };
+
+    let call_depth_ptr = mem_size - mem::size_of::<u32>() as u32;
+
+    let Some(code_section) = module.code_section_mut() else {
+        return module;
+    };
+
+    for func_body in code_section.bodies_mut() {
+        let instructions = func_body.code_mut().elements_mut();
+
+        instructions.splice(
+            0..0,
+            [
+                //if call_depth > 256 { call_depth = 0; gr_leave(); }
+                Instruction::I32Const(0),
+                Instruction::I32Load(2, call_depth_ptr),
+                Instruction::I32Const(256),
+                Instruction::I32GtU,
+                Instruction::If(BlockType::NoResult),
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::I32Store(2, call_depth_ptr),
+                Instruction::Unreachable, //TODO: Instruction::Call(gr_leave_index),
+                Instruction::End,
+                //call_depth += 1;
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::I32Load(2, call_depth_ptr),
+                Instruction::I32Const(1),
+                Instruction::I32Add,
+                Instruction::I32Store(2, call_depth_ptr),
+            ],
+        );
+
+        let last = instructions.len() - 1;
+        instructions.splice(
+            last..last,
+            [
+                //call_depth -= 1;
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::I32Load(2, call_depth_ptr),
+                Instruction::I32Const(-1),
+                Instruction::I32Add,
+                Instruction::I32Store(2, call_depth_ptr),
+            ],
+        );
+    }
+
+    module
 }
 
 pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
