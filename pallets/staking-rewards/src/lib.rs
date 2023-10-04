@@ -428,9 +428,11 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
 
 /// A type to be plugged into the Staking pallet as the `RewardRemainder` associated type.
 ///
-/// Implements the `OnUnbalanced<NegativeImbalance>` trait in a way that would try to offset
-/// the input negative imbalance against the staking rewards pool so that the total
-/// token supply is not affected by the rewards-in-excess that are sent to Treasury.
+/// Implements the `OnUnbalanced<NegativeImbalance>` trait in a way that would try to burn
+/// the amount equivalent to that provided in the input `NegativeImbalance` from the rewards
+/// pool in order to keep the token total supply intact. It is assumed that the subsequent
+/// `OnUnbalanced` handler (think Treasury) would `resolve` the imbalance and not drop it -
+/// otherwise the the total supply will decrease.
 pub struct RewardsStash<T, U>(sp_std::marker::PhantomData<(T, U)>);
 
 impl<T: Config, U> OnUnbalanced<NegativeImbalanceOf<T>> for RewardsStash<T, U>

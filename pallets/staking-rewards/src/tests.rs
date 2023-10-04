@@ -1234,6 +1234,121 @@ fn empty_rewards_pool_causes_inflation() {
     });
 }
 
+#[test]
+fn election_solution_rewards_add_up() {
+    use pallet_election_provider_multi_phase::{Config as MPConfig, RawSolution};
+    use sp_npos_elections::ElectionScore;
+
+    let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
+    // Solutions submitters
+    let accounts = (0_u64..5).map(|i| 100 + i).collect::<Vec<_>>();
+    let mut ext = ExtBuilder::default()
+        .initial_authorities(vec![
+            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+        ])
+        .stash(VALIDATOR_STAKE)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(accounts)
+        .total_supply(INITIAL_TOTAL_TOKEN_SUPPLY)
+        .non_stakeable(non_stakeable)
+        .pool_balance(pool_balance)
+        .ideal_stake(ideal_stake)
+        .target_inflation(target_inflation)
+        .build();
+    ext.execute_with(|| {
+        // Initial chain state
+        let (initial_total_issuance, _, initial_treasury_balance, initial_rewards_pool_balance) =
+            chain_state();
+        assert_eq!(initial_rewards_pool_balance, pool_balance);
+
+        // Running chain until the signing phase begins
+        roll_to_signed();
+        assert!(ElectionProviderMultiPhase::current_phase().is_signed());
+        assert_eq!(<Test as MPConfig>::SignedMaxRefunds::get(), 2_u32);
+        assert!(<Test as MPConfig>::SignedMaxSubmissions::get() > 3_u32);
+
+        // Submit 3 election solutions candidates:
+        // 2 good solutions and 1 incorrect one (with higher score, so that it is going to run
+        // through feasibility check as the best candidate but eventually be rejected and slashed).
+        let good_solution = RawSolution {
+            solution: TestNposSolution {
+                votes1: vec![(0, 0), (1, 1), (2, 2)],
+                ..Default::default()
+            },
+            score: ElectionScore {
+                minimal_stake: VALIDATOR_STAKE,
+                sum_stake: 3 * VALIDATOR_STAKE,
+                sum_stake_squared: 3 * VALIDATOR_STAKE * VALIDATOR_STAKE,
+            },
+            round: 1,
+        };
+        let bad_solution = RawSolution {
+            solution: TestNposSolution {
+                votes1: vec![(0, 0), (1, 1), (2, 2)],
+                ..Default::default()
+            },
+            score: ElectionScore {
+                minimal_stake: VALIDATOR_STAKE + 100_u128,
+                sum_stake: 3 * VALIDATOR_STAKE,
+                sum_stake_squared: 3 * VALIDATOR_STAKE * VALIDATOR_STAKE,
+            },
+            round: 1,
+        };
+        let solutions = vec![good_solution.clone(), bad_solution, good_solution];
+        for (i, s) in solutions.into_iter().enumerate() {
+            let account = 100_u64 + i as u64;
+            assert_ok!(ElectionProviderMultiPhase::submit(
+                RuntimeOrigin::signed(account),
+                Box::new(s)
+            ));
+            assert_eq!(
+                Balances::free_balance(account),
+                ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+            );
+        }
+
+        roll_to_unsigned();
+
+        // Measure current stats
+        let (total_issuance, _, treasury_balance, rewards_pool_balance) = chain_state();
+
+        // Check all balances consistency:
+        // 1. `total_issuance` hasn't change despite rewards having been minted
+        assert_eq!(total_issuance, initial_total_issuance);
+        // 2. the account whose solution was accepted got reward + tx fee rebate
+        assert_eq!(
+            Balances::free_balance(102),
+            ENDOWMENT
+                + <Test as MPConfig>::SignedRewardBase::get()
+                + <<Test as MPConfig>::EstimateCallFee as Get<u32>>::get() as u128
+        );
+        // 3. the account whose solution was rejected got slashed and lost the deposit and fee
+        assert_eq!(
+            Balances::free_balance(101),
+            ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+        );
+        // 4. the third account got deposit unreserved and tx fee returned
+        assert_eq!(
+            Balances::free_balance(100),
+            ENDOWMENT + <<Test as MPConfig>::EstimateCallFee as Get<u32>>::get() as u128
+        );
+        // 5. the slashed deposit went to `Treasury`
+        assert_eq!(
+            treasury_balance,
+            initial_treasury_balance + <Test as MPConfig>::SignedDepositBase::get()
+        );
+        // 6. the rewards offset pool's balanced decreased to compensate for reward and rebates.
+        assert_eq!(
+            rewards_pool_balance,
+            initial_rewards_pool_balance
+                - <Test as MPConfig>::SignedRewardBase::get()
+                - <<Test as MPConfig>::EstimateCallFee as Get<u32>>::get() as u128 * 2
+        );
+    });
+}
+
 fn sensible_defaults() -> (Perquintill, Perquintill, u128, Perquintill) {
     (
         Perquintill::from_rational(578_u64, 10_000_u64),
