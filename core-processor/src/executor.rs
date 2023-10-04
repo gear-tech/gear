@@ -42,6 +42,7 @@ use gear_core::{
         WasmEntryPoint,
     },
     pages::{PageU32Size, WasmPage},
+    percent::Percent,
     program::Program,
     reservation::GasReserver,
 };
@@ -205,6 +206,7 @@ where
         allocations_context,
         message_context,
         block_info: settings.block_info,
+        performance_multiplier: settings.performance_multiplier,
         max_pages: settings.max_pages,
         page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
@@ -399,6 +401,7 @@ where
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,
+        performance_multiplier: Percent::new(100),
         max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),

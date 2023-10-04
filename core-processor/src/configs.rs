@@ -22,6 +22,7 @@ use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
     pages::{GearPage, WasmPage},
+    percent::Percent,
 };
 use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -144,6 +145,8 @@ impl PageCosts {
 pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: Percent,
     /// Max amount of pages in program memory during execution.
     pub max_pages: WasmPage,
     /// Pages costs.
@@ -176,6 +179,8 @@ pub struct ExecutionSettings {
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: Percent,
     /// Max allowed page numbers for wasm program.
     pub max_pages: WasmPage,
     /// Allocations config.

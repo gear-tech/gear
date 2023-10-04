@@ -29,7 +29,7 @@ use crate::{
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
-    syscalls::{ParamType, SysCallName, SysCallSignature},
+    syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature},
 };
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap},
@@ -64,16 +64,18 @@ pub(crate) fn process_syscall_params(
             ParamType::Alloc => ProcessedSysCallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Ptr(maybe_idx) => maybe_idx
-                .map(|_| {
-                    // skipping next as we don't need the following `Size` param,
-                    // because it will be chosen in accordance to the wasm module
-                    // memory pages config.
-                    skip_next_param = true;
+            ParamType::Ptr(PtrInfo {
+                ty: PtrType::BufferStart { .. },
+                ..
+            }) => {
+                // skipping next as we don't need the following `Size` param,
+                // because it will be chosen in accordance to the wasm module
+                // memory pages config.
+                skip_next_param = true;
 
-                    ProcessedSysCallParams::MemoryArray
-                })
-                .unwrap_or(ProcessedSysCallParams::MemoryPtrValue),
+                ProcessedSysCallParams::MemoryArray
+            }
+            ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -565,7 +567,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             params
                 .last()
                 .expect("The last argument of fallible syscall must be pointer to error code"),
-            ParamType::Ptr(None)
+            ParamType::Ptr(_)
         ));
         assert_eq!(params.len(), param_setters.len());
 

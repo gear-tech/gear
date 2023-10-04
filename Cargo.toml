@@ -453,6 +453,7 @@ heck = "0.4.1"                                                            # gsdk
 etc = "0.1.16"                                                            # gcli
 scale-decode = "0.7.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
+num-traits = { version = "0.2", default-features = false }                # gear-core
 
 [profile.release]
 panic = "unwind"
