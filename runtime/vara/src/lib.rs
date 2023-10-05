@@ -555,8 +555,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();
     type SignedMaxWeight = MinerMaxWeight;
-    type SlashHandler = (); // burn slashes
-    type RewardHandler = (); // nothing to do upon rewards
+    type SlashHandler = Treasury;
+    type RewardHandler = StakingRewards;
     type DataProvider = Staking;
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
