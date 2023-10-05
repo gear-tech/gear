@@ -265,6 +265,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         };
 
         let call_indexes_handle = self.insert_syscall_import(syscall);
+        todo!("ZERO amount must be inserted");
         Ok((syscall_amount != 0).then(|| {
             log::trace!(
                 " -- Generated {} amount of {} syscall",
