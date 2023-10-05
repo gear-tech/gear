@@ -572,14 +572,13 @@ pub mod pallet {
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_and_id.code_id(),
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1174,14 +1173,13 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> Result<InitPacket, DispatchError> {
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );

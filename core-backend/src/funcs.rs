@@ -1249,11 +1249,11 @@ where
 
         ctx.ext_mut()
             .create_program(
-                InitPacket::maybe_with_gas(
+                InitPacket::new_from_program(
                     code_id.into(),
                     salt,
                     payload,
-                    Some(message_id),
+                    message_id,
                     gas_limit,
                     value,
                 ),
