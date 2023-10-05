@@ -79,8 +79,7 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
 }
 
 pub(crate) fn default_fuzzing_config() -> FuzzingConfig {
-    let sender_balance =
-        (block_gas_cost() + MAX_VALUE_SENT as u128) * OVERALL_EXTRINSICS_COUNT as u128;
+    let sender_balance = (block_gas_cost() + MAX_VALUE_SENT) * OVERALL_EXTRINSICS_COUNT as u128;
 
     FuzzingConfig {
         initial_sender_balance: sender_balance..=sender_balance,

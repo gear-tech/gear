@@ -194,9 +194,9 @@ fn ptr_setters_work() {
         }],
     );
 
-    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
-    let sys_calls_config = SysCallsConfigBuilder::new(injection_amounts)
+    let mut injection_types = SysCallsInjectionTypes::all_never();
+    injection_types.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
+    let sys_calls_config = SysCallsConfigBuilder::new(injection_types)
         .with_params_config(params_config)
         .with_pointer_writes_config(pointer_writes_config)
         .with_error_processing_config(ErrorProcessingConfig::All)
