@@ -97,7 +97,6 @@ impl SysCallsInjectionTypes {
             };
 
             for &syscall_import in required_imports {
-                println!("IMPORT REQUIRED {}", syscall_import.to_str());
                 self.enable_syscall_import(InvocableSysCall::Loose(syscall_import));
             }
         }
@@ -107,8 +106,6 @@ impl SysCallsInjectionTypes {
     pub(crate) fn enable_syscall_import(&mut self, name: InvocableSysCall) {
         if let Some(injection_type @ SysCallInjectionType::None) = self.0.get_mut(&name) {
             *injection_type = SysCallInjectionType::Import;
-        } else {
-            todo!("!!!");
         }
     }
 

@@ -265,16 +265,15 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         };
 
         let call_indexes_handle = self.insert_syscall_import(syscall);
-        todo!("ZERO amount must be inserted");
-        Ok((syscall_amount != 0).then(|| {
-            log::trace!(
-                " -- Generated {} amount of {} syscall",
-                syscall_amount,
-                syscall.to_str()
-            );
+        log::trace!(
+            " -- Generated {} amount of {} sys-call",
+            syscall_amount,
+            syscall.to_str()
+        );
 
-            (syscall_amount, call_indexes_handle)
-        }))
+        todo!("zero amount must not be set");
+
+        Ok(Some((syscall_amount, call_indexes_handle)))
     }
 
     /// Inserts gear syscall defined by the `syscall` param.
