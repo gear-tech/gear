@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    block_gas_cost,
     gear_calls::{
         ExtrinsicGeneratorSet, MailboxProvider, RepeatedGenerator, SendMessageGenerator,
         SendReplyGenerator, UploadProgramGenerator,
     },
-    runtime::{self, acc_max_balance, default_gas_limit, get_mailbox_messages},
+    runtime::{self, default_gas_limit, get_mailbox_messages},
     FuzzingConfig,
 };
 use gear_core::ids::MessageId;
@@ -33,21 +34,22 @@ pub fn min_unstructured_input_size() -> usize {
     generators.unstructured_size_hint()
 }
 
+const UPLOAD_PROGRAM_CALLS: usize = 10;
+const SEND_MESSAGE_CALLS: usize = 15;
+const SEND_REPLY_CALLS: usize = 1;
+const OVERALL_EXTRINSICS_COUNT: usize =
+    UPLOAD_PROGRAM_CALLS + SEND_MESSAGE_CALLS + SEND_REPLY_CALLS;
+
+const MIN_VALUE_SENT: u128 = 0;
+const MAX_VALUE_SENT: u128 = 100_000;
+
 pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGeneratorSet {
-    const UPLOAD_PROGRAM_CALLS: usize = 10;
-    const SEND_MESSAGE_CALLS: usize = 15;
-    const SEND_REPLY_CALLS: usize = 1;
-
-    let min_value_sent = 0;
-    let max_value_sent =
-        acc_max_balance() / (UPLOAD_PROGRAM_CALLS + SEND_MESSAGE_CALLS + SEND_REPLY_CALLS) as u128;
-
     ExtrinsicGeneratorSet::new(vec![
         RepeatedGenerator::new(
             UPLOAD_PROGRAM_CALLS,
             UploadProgramGenerator {
                 gas: default_gas_limit(),
-                value: min_value_sent..=max_value_sent,
+                value: MIN_VALUE_SENT..=MAX_VALUE_SENT,
                 test_input_id,
             }
             .into(),
@@ -56,7 +58,7 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
             SEND_MESSAGE_CALLS,
             SendMessageGenerator {
                 gas: default_gas_limit(),
-                value: min_value_sent..=max_value_sent,
+                value: MIN_VALUE_SENT..=MAX_VALUE_SENT,
                 prepaid: false,
             }
             .into(),
@@ -68,7 +70,7 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
                     account_id: runtime::account(runtime::alice()),
                 }),
                 gas: default_gas_limit(),
-                value: min_value_sent..=max_value_sent,
+                value: MIN_VALUE_SENT..=MAX_VALUE_SENT,
                 prepaid: false,
             }
             .into(),
@@ -77,11 +79,11 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
 }
 
 pub(crate) fn default_fuzzing_config() -> FuzzingConfig {
-    let min_sender_balance = acc_max_balance() / 2;
-    let max_sender_balance = acc_max_balance();
+    let sender_balance =
+        (block_gas_cost() + MAX_VALUE_SENT as u128) * OVERALL_EXTRINSICS_COUNT as u128;
 
     FuzzingConfig {
-        initial_sender_balance: min_sender_balance..=max_sender_balance,
+        initial_sender_balance: sender_balance..=sender_balance,
         allow_exceed_sender_balance: false,
     }
 }

@@ -127,7 +127,7 @@ fn execute_gear_call(
     let allowed_to_spend_value = if fuzzing_config.allow_exceed_sender_balance {
         u128::MAX
     } else {
-        get_account_balance(&sender)
+        get_account_balance(&sender).saturating_sub(block_gas_cost())
     };
 
     match call {

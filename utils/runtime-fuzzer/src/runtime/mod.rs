@@ -27,11 +27,12 @@ use gear_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
+use pallet_gear::BlockGasLimitOf;
 use pallet_gear_bank::Config as GearBankConfig;
 use runtime_primitives::Balance;
 use sp_io::TestExternalities;
 
-pub use account::{acc_max_balance, account, alice, get_account_balance};
+pub use account::{account, alice, get_account_balance};
 pub use block::{default_gas_limit, run_to_block, run_to_next_block};
 pub use mailbox::get_mailbox_messages;
 
@@ -46,7 +47,10 @@ pub fn new_test_ext() -> TestExternalities {
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
     let balances = vec![
-        (account(account::alice()), account::acc_max_balance()),
+        (
+            account(account::alice()),
+            block_gas_cost().saturating_mul(20),
+        ),
         (BankAddress::get(), Balances::minimum_balance()),
     ];
 
@@ -97,7 +101,12 @@ pub fn set_account_balance(account: AccountId, balance: Balance) -> DispatchResu
     BalancesPallet::<Runtime>::set_balance(
         RuntimeOrigin::root(),
         account.into(),
-        <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(balance as u64),
+        balance,
         new_reserved,
     )
+}
+
+pub fn block_gas_cost() -> Balance {
+    let block_gas_limit = BlockGasLimitOf::<Runtime>::get();
+    <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(block_gas_limit)
 }
