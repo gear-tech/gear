@@ -203,6 +203,7 @@ where
     }
 }
 
+// implement [`SysCallBuilder`] for functions with different amount of arguments
 macro_rules! impl_syscall_builder {
     ($($generic:ident),+) => {
         #[allow(non_snake_case)]
