@@ -36,7 +36,7 @@ use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionAmounts, SysCallsParamsConfig,
+    SysCallsInjectionTypes, SysCallsParamsConfig,
 };
 
 /// Maximum payload size for the fuzzer - 512 KiB.
@@ -405,8 +405,8 @@ fn config(
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    injection_amounts.set_multiple(
+    let mut injection_types = SysCallsInjectionTypes::all_once();
+    injection_types.set_multiple(
         [
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
@@ -438,7 +438,7 @@ fn config(
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         existing_addresses,
         log_info,
         params_config,

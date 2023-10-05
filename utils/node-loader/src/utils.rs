@@ -8,7 +8,7 @@ use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionAmounts, SysCallsParamsConfig,
+    SysCallsInjectionTypes, SysCallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -213,8 +213,8 @@ pub fn get_wasm_gen_config(
     existing_programs: impl Iterator<Item = ProgramId>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    injection_amounts.set_multiple(
+    let mut injection_types = SysCallsInjectionTypes::all_once();
+    injection_types.set_multiple(
         [
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
@@ -236,7 +236,7 @@ pub fn get_wasm_gen_config(
         log_info: Some(format!("Gear program seed = '{seed}'")),
         existing_addresses: NonEmpty::collect(existing_programs),
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         params_config,
         initial_pages: initial_pages as u32,
         unreachable_enabled: false,

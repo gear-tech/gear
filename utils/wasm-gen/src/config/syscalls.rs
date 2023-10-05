@@ -19,16 +19,16 @@
 //! Configuration for the syscalls imports generator, additional data injector
 //! and syscalls invocations generator.
 
-mod amount;
+mod injection;
 mod param;
 mod precise;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::{Hash, HashWithValue};
-use std::{collections::HashSet, ops::RangeInclusive};
+use std::collections::HashSet;
 
-pub use amount::*;
+pub use injection::*;
 pub use param::*;
 pub use precise::*;
 
@@ -40,9 +40,9 @@ pub struct SysCallsConfigBuilder(SysCallsConfig);
 
 impl SysCallsConfigBuilder {
     /// Create a new builder with defined injection amounts for all syscalls.
-    pub fn new(injection_amounts: SysCallsInjectionAmounts) -> Self {
+    pub fn new(injection_types: SysCallsInjectionTypes) -> Self {
         Self(SysCallsConfig {
-            injection_amounts,
+            injection_types,
             params_config: SysCallsParamsConfig::default(),
             precise_syscalls_config: PreciseSysCallsConfig::default(),
             syscall_destination: SysCallDestination::default(),
@@ -71,7 +71,9 @@ impl SysCallsConfigBuilder {
     /// Set whether `gr_send*` and `gr_exit` syscalls must use `gr_source` result for syscall destination.
     pub fn with_source_msg_dest(mut self) -> Self {
         self.0.syscall_destination = SysCallDestination::Source;
-        self.enable_syscall(InvocableSysCall::Loose(SysCallName::Source));
+        self.0
+            .injection_types
+            .enable_syscall_import(InvocableSysCall::Loose(SysCallName::Source));
 
         self
     }
@@ -95,7 +97,9 @@ impl SysCallsConfigBuilder {
     /// Choosing gear export to log data is done from best `init` to worse `handle`.
     pub fn with_log_info(mut self, log: String) -> Self {
         self.0.log_info = Some(log);
-        self.enable_syscall(InvocableSysCall::Loose(SysCallName::Debug));
+        self.0
+            .injection_types
+            .enable_syscall_import(InvocableSysCall::Loose(SysCallName::Debug));
 
         self
     }
@@ -105,16 +109,6 @@ impl SysCallsConfigBuilder {
         self.0.error_processing_config = config;
 
         self
-    }
-
-    fn enable_syscall(&mut self, name: InvocableSysCall) {
-        let range = self.0.injection_amounts.get(name);
-
-        let range_start = *range.start();
-        if range_start == 0 {
-            let max = *range.end().max(&1);
-            self.0.injection_amounts.set(name, 1, max);
-        }
     }
 
     /// Build the [`SysCallsConfig`].
@@ -150,7 +144,7 @@ impl ErrorProcessingConfig {
 /// United config for all entities in syscalls generator module.
 #[derive(Debug, Clone, Default)]
 pub struct SysCallsConfig {
-    injection_amounts: SysCallsInjectionAmounts,
+    injection_types: SysCallsInjectionTypes,
     params_config: SysCallsParamsConfig,
     precise_syscalls_config: PreciseSysCallsConfig,
     syscall_destination: SysCallDestination,
@@ -160,8 +154,8 @@ pub struct SysCallsConfig {
 
 impl SysCallsConfig {
     /// Get possible number of times (range) the syscall can be injected in the wasm.
-    pub fn injection_amounts(&self, name: InvocableSysCall) -> RangeInclusive<u32> {
-        self.injection_amounts.get(name)
+    pub fn injection_types(&self, name: InvocableSysCall) -> SysCallInjectionType {
+        self.injection_types.get(name)
     }
 
     /// Get defined syscall destination for `gr_send*` and `gr_exit` syscalls.
