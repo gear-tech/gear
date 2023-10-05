@@ -431,7 +431,7 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
 /// Implements the `OnUnbalanced<NegativeImbalance>` trait in a way that would try to burn
 /// the amount equivalent to that provided in the input `NegativeImbalance` from the rewards
 /// pool in order to keep the token total supply intact. It is assumed that the subsequent
-/// `OnUnbalanced` handler (think Treasury) would `resolve` the imbalance and not drop it -
+/// `OnUnbalanced` handler (e.g. Treasury) would `resolve` the imbalance and not drop it -
 /// otherwise the the total supply will decrease.
 pub struct RewardsStash<T, U>(sp_std::marker::PhantomData<(T, U)>);
 

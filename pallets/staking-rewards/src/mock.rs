@@ -706,7 +706,7 @@ pub(crate) fn run_for_n_blocks(n: u64) {
     }
 }
 
-pub fn roll_to_unsigned() {
+pub fn run_to_unsigned() {
     while !matches!(
         ElectionProviderMultiPhase::current_phase(),
         multi_phase::Phase::Unsigned(_)
@@ -714,7 +714,8 @@ pub fn roll_to_unsigned() {
         run_to_block(System::block_number() + 1);
     }
 }
-pub fn roll_to_signed() {
+
+pub fn run_to_signed() {
     while !matches!(
         ElectionProviderMultiPhase::current_phase(),
         multi_phase::Phase::Signed

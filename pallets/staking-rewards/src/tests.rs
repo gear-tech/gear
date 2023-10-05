@@ -1264,7 +1264,7 @@ fn election_solution_rewards_add_up() {
         assert_eq!(initial_rewards_pool_balance, pool_balance);
 
         // Running chain until the signing phase begins
-        roll_to_signed();
+        run_to_signed();
         assert!(ElectionProviderMultiPhase::current_phase().is_signed());
         assert_eq!(<Test as MPConfig>::SignedMaxRefunds::get(), 2_u32);
         assert!(<Test as MPConfig>::SignedMaxSubmissions::get() > 3_u32);
@@ -1309,7 +1309,7 @@ fn election_solution_rewards_add_up() {
             );
         }
 
-        roll_to_unsigned();
+        run_to_unsigned();
 
         // Measure current stats
         let (total_issuance, _, treasury_balance, rewards_pool_balance) = chain_state();
