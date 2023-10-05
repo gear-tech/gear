@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallsConfig,
+    InvocableSysCall, SysCallInjectionType, SysCallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -57,9 +57,16 @@ pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
     ),
 );
 
+/// The set of sys-calls that need to be imported to create precise sys-call.
+#[derive(thiserror::Error, Debug)]
+#[error("The following sys-calls must be imported: {0:?}")]
+pub struct RequiredSysCalls(&'static [SysCallName]);
+
 /// An error that occurs when generating precise sys-call.
 #[derive(thiserror::Error, Debug)]
 pub enum PreciseSysCallError {
+    #[error("{0}")]
+    RequiredImports(#[from] RequiredSysCalls),
     #[error("{0}")]
     Arbitrary(#[from] ArbitraryError),
 }
@@ -204,18 +211,23 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         ];
 
         for (sys_call, generate_method) in sys_calls {
-            let sys_call_amount_range = self
+            let sys_call_injection_type = self
                 .config
-                .injection_amounts(InvocableSysCall::Precise(sys_call));
-            let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
-            for _ in 0..sys_call_amount {
-                log::trace!(
-                    "Constructing {name} sys-call...",
-                    name = InvocableSysCall::Precise(sys_call).to_str()
-                );
+                .injection_types(InvocableSysCall::Precise(sys_call));
+            if let SysCallInjectionType::Function(sys_call_amount_range) = sys_call_injection_type {
+                let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
+                for _ in 0..sys_call_amount {
+                    log::trace!(
+                        "Constructing {name} sys-call...",
+                        name = InvocableSysCall::Precise(sys_call).to_str()
+                    );
 
-                if let Err(PreciseSysCallError::Arbitrary(err)) = generate_method(self, sys_call) {
-                    return Err(err);
+                    if let Err(err) = generate_method(self, sys_call) {
+                        match err {
+                            PreciseSysCallError::RequiredImports(err) => log::trace!("{err}"),
+                            PreciseSysCallError::Arbitrary(err) => return Err(err),
+                        }
+                    }
                 }
             }
         }
@@ -232,20 +244,26 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         &mut self,
         sys_call: SysCallName,
     ) -> Result<Option<(u32, CallIndexesHandle)>> {
-        let sys_call_amount_range = self
+        let sys_call_injection_type = self
             .config
-            .injection_amounts(InvocableSysCall::Loose(sys_call));
-        let sys_call_amount = self.unstructured.int_in_range(sys_call_amount_range)?;
-        Ok((sys_call_amount != 0).then(|| {
-            let call_indexes_handle = self.insert_sys_call_import(sys_call);
-            log::trace!(
-                " -- Generated {} amount of {} sys-call",
-                sys_call_amount,
-                sys_call.to_str()
-            );
+            .injection_types(InvocableSysCall::Loose(sys_call));
 
-            (sys_call_amount, call_indexes_handle)
-        }))
+        let sys_call_amount = match sys_call_injection_type {
+            SysCallInjectionType::Import => 0,
+            SysCallInjectionType::Function(sys_call_amount_range) => {
+                self.unstructured.int_in_range(sys_call_amount_range)?
+            }
+            _ => return Ok(None),
+        };
+
+        let call_indexes_handle = self.insert_sys_call_import(sys_call);
+        log::trace!(
+            " -- Generated {} amount of {} sys-call",
+            sys_call_amount,
+            sys_call.to_str()
+        );
+
+        Ok(Some((sys_call_amount, call_indexes_handle)))
     }
 
     /// Inserts gear sys-call defined by the `sys_call` param.
@@ -291,9 +309,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
     /// Returns the indexes of invocable sys-calls.
     fn invocable_sys_calls_indexes<const N: usize>(
-        &mut self,
+        &self,
         sys_calls: &'static [SysCallName; N],
-    ) -> [usize; N] {
+    ) -> Result<[usize; N], RequiredSysCalls> {
         let mut indexes = [0; N];
 
         for (index, &sys_call) in indexes.iter_mut().zip(sys_calls.iter()) {
@@ -301,16 +319,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 .sys_calls_imports
                 .get(&InvocableSysCall::Loose(sys_call))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle)
-                .unwrap_or_else(|| {
-                    // insert required import when we can't find it
-                    let call_indexes_handle = self.insert_sys_call_import(sys_call);
-                    self.sys_calls_imports
-                        .insert(InvocableSysCall::Loose(sys_call), (0, call_indexes_handle));
-                    call_indexes_handle
-                })
+                .ok_or_else(|| RequiredSysCalls(&sys_calls[..]))?;
         }
 
-        indexes
+        Ok(indexes)
     }
 
     /// Generates a function which calls "properly" the given sys-call.
@@ -376,7 +388,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         sys_call: SysCallName,
     ) -> Result<(), PreciseSysCallError> {
         let [reserve_gas_idx, reservation_send_idx] =
-            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call));
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_pid_value_ptr = self.reserve_memory();
@@ -467,7 +479,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         sys_call: SysCallName,
     ) -> Result<(), PreciseSysCallError> {
         let [reserve_gas_idx, reservation_reply_idx] =
-            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call));
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_value_ptr = self.reserve_memory();
@@ -536,7 +548,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_send_commit`.
     fn generate_send_commit(&mut self, sys_call: SysCallName) -> Result<(), PreciseSysCallError> {
         let [send_init_idx, send_push_idx, send_commit_idx] =
-            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call));
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
@@ -636,7 +648,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         sys_call: SysCallName,
     ) -> Result<(), PreciseSysCallError> {
         let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] =
-            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call));
+            self.invocable_sys_calls_indexes(InvocableSysCall::required_imports(sys_call))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
