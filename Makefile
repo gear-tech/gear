@@ -46,11 +46,11 @@ examples-proc: wasm-proc-release
 
 .PHONY: node
 node:
-	@ ./scripts/gear.sh build node -F dev
+	@ ./scripts/gear.sh build node
 
 .PHONY: node-release
 node-release:
-	@ ./scripts/gear.sh build node -F dev --release
+	@ ./scripts/gear.sh build node --release
 
 .PHONY: vara
 vara:
@@ -175,11 +175,11 @@ purge-chain-release:
 
 .PHONY: purge-dev-chain
 purge-dev-chain:
-	@ ./scripts/gear.sh run purge-dev-chain -F dev
+	@ ./scripts/gear.sh run purge-dev-chain
 
 .PHONY: purge-dev-chain-release
 purge-dev-chain-release:
-	@ ./scripts/gear.sh run purge-dev-chain --release -F dev
+	@ ./scripts/gear.sh run purge-dev-chain --release
 
 # Test section
 .PHONY: test # \

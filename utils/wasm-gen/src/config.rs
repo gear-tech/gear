@@ -55,7 +55,7 @@
 //!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionAmounts::all_once())
+//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionTypes::all_once())
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
@@ -145,7 +145,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// during wasm generation.
     pub call_indirect_enabled: bool,
     /// Injection amount ranges for each sys-call.
-    pub injection_amounts: SysCallsInjectionAmounts,
+    pub injection_types: SysCallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
     /// Initial wasm memory pages.
@@ -166,7 +166,7 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
             existing_addresses: None,
             remove_recursion: false,
             call_indirect_enabled: true,
-            injection_amounts: SysCallsInjectionAmounts::all_once(),
+            injection_types: SysCallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
             initial_pages: DEFAULT_INITIAL_SIZE,
             stack_end_page: None,
@@ -183,7 +183,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             existing_addresses,
             remove_recursion,
             call_indirect_enabled,
-            injection_amounts,
+            injection_types,
             entry_points_set,
             initial_pages,
             stack_end_page,
@@ -197,7 +197,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             ..SelectableParams::default()
         };
 
-        let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_amounts);
+        let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             sys_calls_config_builder = sys_calls_config_builder.with_log_info(log_info);
         }

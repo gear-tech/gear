@@ -23,7 +23,7 @@ dd if=/dev/urandom of=fuzz/corpus/main/fuzzer-seed-corpus bs=1 count=27000000
 
 # Run fuzzer for at least 20 minutes and then press Ctrl-C to stop fuzzing.
 # You can also remove RUST_LOG to avoid printing tons of logs on terminal.
-RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
+RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace \
 cargo fuzz run \
     --release \
     --sanitizer=none \
