@@ -350,7 +350,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         invocable: InvocableSysCall,
         signature: SysCallSignature,
         call_indexes_handle: CallIndexesHandle,
-        argument_index: usize,
+        destination_arg_idx: usize,
     ) -> Result<Vec<Instruction>> {
         // The value for the destination param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
@@ -404,7 +404,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             vec![Instruction::I32Const(address_offset as i32)]
         };
 
-        original_instructions.splice(argument_index..argument_index + 1, destination_instructions);
+        original_instructions.splice(
+            destination_arg_idx..destination_arg_idx + 1,
+            destination_instructions,
+        );
 
         Ok(original_instructions)
     }
