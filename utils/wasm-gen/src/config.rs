@@ -145,7 +145,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Flag which signals whether `call_indirect` instruction must be used
     /// during wasm generation.
     pub call_indirect_enabled: bool,
-    /// Injection amount ranges for each syscall.
+    /// Injection type for each syscall.
     pub injection_types: SysCallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
