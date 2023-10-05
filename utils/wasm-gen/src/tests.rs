@@ -243,11 +243,11 @@ fn error_processing_works_for_fallible_syscalls() {
 
         const INJECTED_SYSCALLS: u32 = 8;
 
-        let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-        injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let sys_calls_config_builder =
-            SysCallsConfigBuilder::new(injection_amounts).with_params_config(params_config);
+            SysCallsConfigBuilder::new(injection_types).with_params_config(params_config);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -313,8 +313,8 @@ fn precise_syscalls_works() {
         // Prepare sys-calls config & context settings for test case.
         const INJECTED_SYSCALLS: u32 = 1;
 
-        let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-        injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let mut param_config = SysCallsParamsConfig::default();
         param_config.add_rule(ParamType::Gas, (0..=0).into());
@@ -322,7 +322,7 @@ fn precise_syscalls_works() {
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
-            SysCallsConfigBuilder::new(injection_amounts)
+            SysCallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
                 .with_pointer_writes_config(PointerWritesConfig::empty())
                 .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3))

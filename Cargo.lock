@@ -3909,6 +3909,7 @@ dependencies = [
  "hashbrown 0.14.0",
  "hex",
  "log",
+ "num-traits",
  "parity-scale-codec",
  "paste",
  "proptest",
