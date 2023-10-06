@@ -555,8 +555,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();
     type SignedMaxWeight = MinerMaxWeight;
-    type SlashHandler = (); // burn slashes
-    type RewardHandler = (); // nothing to do upon rewards
+    type SlashHandler = Treasury;
+    type RewardHandler = StakingRewards;
     type DataProvider = Staking;
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
@@ -954,6 +954,8 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 parameter_types! {
@@ -974,6 +976,7 @@ impl pallet_gear::Config for Runtime {
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
@@ -1353,6 +1356,36 @@ impl_runtime_apis_plus_common! {
 
     }
 
+    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+        Block,
+        AccountId,
+        Balance,
+    > for Runtime {
+        fn pending_rewards(member: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(member).unwrap_or_default()
+        }
+
+        fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+            NominationPools::api_points_to_balance(pool_id, points)
+        }
+
+        fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+            NominationPools::api_balance_to_points(pool_id, new_funds)
+        }
+    }
+
+    impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+        fn nominations_quota(balance: Balance) -> u32 {
+            Staking::api_nominations_quota(balance)
+        }
+    }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            StakingRewards::inflation_info()
+        }
+    }
+
     #[cfg(feature = "try-runtime")]
     impl frame_try_runtime::TryRuntime<Block> for Runtime {
         fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
@@ -1380,12 +1413,6 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
-        }
-    }
-
-    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
-        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
-            StakingRewards::inflation_info()
         }
     }
 }

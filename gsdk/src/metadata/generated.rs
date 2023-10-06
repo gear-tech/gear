@@ -916,6 +916,17 @@ pub mod runtime_types {
                 )]
                 pub struct WasmPage(pub ::core::primitive::u32);
             }
+            pub mod percent {
+                use super::runtime_types;
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct Percent(pub ::core::primitive::u32);
+            }
             pub mod reservation {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]

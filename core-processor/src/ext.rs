@@ -40,6 +40,7 @@ use gear_core::{
         MessageContext, Packet, ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
+    percent::Percent,
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -76,6 +77,8 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -136,6 +139,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
+            performance_multiplier: Percent::new(100),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
@@ -727,6 +731,10 @@ impl Externalities for Ext {
 
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(self.context.block_info.timestamp)
+    }
+
+    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
+        Ok(self.context.performance_multiplier)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::FallibleError> {
