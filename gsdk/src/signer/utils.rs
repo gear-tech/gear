@@ -108,7 +108,7 @@ impl Inner {
                     hash = Some(b.extrinsic_hash());
                     self.backtrace.append(
                         b.extrinsic_hash(),
-                        BacktraceStatus::InBlock {
+                        BacktraceStatus::InBestBlock {
                             block_hash: b.block_hash(),
                             extrinsic_hash: b.extrinsic_hash(),
                         },
