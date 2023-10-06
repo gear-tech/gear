@@ -329,7 +329,7 @@ impl Api {
             let encoded_page = self
                 .get_storage(block_hash)
                 .await?
-                .fetch_raw(&lookup_bytes)
+                .fetch_raw(lookup_bytes)
                 .await?
                 .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
             pages.insert(page.0, encoded_page);
