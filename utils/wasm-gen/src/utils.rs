@@ -23,8 +23,8 @@ use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{
-            self, BlockType, External, FuncBody, ImportCountType, Instruction, Module, Type,
-            ValueType,
+            self, BlockType, External, FuncBody, ImportCountType, Instruction, Instructions,
+            Module, Type, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -104,7 +104,7 @@ pub fn remove_recursion(module: Module) -> Module {
                     .with_results(signature.results().to_vec())
                     .build()
                     .body()
-                    .with_instructions(elements::Instructions::new(body))
+                    .with_instructions(Instructions::new(body))
                     .build()
                     .build(),
             )
@@ -257,30 +257,22 @@ pub fn instrument_recursion(module: Module) -> Module {
     );
 
     // back to plain module
-    let mut module = mbuilder.build();
+    let module = mbuilder.build();
 
     let import_count = module.import_count(ImportCountType::Function);
     let gr_leave_index @ inserted_index = import_count as u32 - 1;
     let inserted_count = 1;
 
-    let Some(code_section) = module.code_section_mut() else {
-        return module;
-    };
+    let prolog_index = module.functions_space();
+    let epilog_index = prolog_index + 1;
 
-    for func_body in code_section.bodies_mut() {
-        let instructions = func_body.code_mut().elements_mut();
+    let mut mbuilder = builder::from_module(module);
 
-        for instruction in instructions.iter_mut() {
-            if let Instruction::Call(call_index) = instruction {
-                if *call_index >= inserted_index {
-                    *call_index += inserted_count
-                }
-            }
-        }
-
-        instructions.splice(
-            0..0,
-            [
+    // prolog function
+    mbuilder.push_function(
+        builder::function()
+            .body()
+            .with_instructions(Instructions::new(vec![
                 //if call_depth > 256 { call_depth = 0; gr_leave(); }
                 Instruction::I32Const(0),
                 Instruction::I32Load(2, call_depth_ptr),
@@ -299,13 +291,17 @@ pub fn instrument_recursion(module: Module) -> Module {
                 Instruction::I32Const(1),
                 Instruction::I32Add,
                 Instruction::I32Store(2, call_depth_ptr),
-            ],
-        );
+                Instruction::End,
+            ]))
+            .build()
+            .build(),
+    );
 
-        let last = instructions.len() - 1;
-        instructions.splice(
-            last..last,
-            [
+    // epilog function
+    mbuilder.push_function(
+        builder::function()
+            .body()
+            .with_instructions(Instructions::new(vec![
                 //call_depth -= 1;
                 Instruction::I32Const(0),
                 Instruction::I32Const(0),
@@ -313,8 +309,40 @@ pub fn instrument_recursion(module: Module) -> Module {
                 Instruction::I32Const(-1),
                 Instruction::I32Add,
                 Instruction::I32Store(2, call_depth_ptr),
-            ],
-        );
+                Instruction::End,
+            ]))
+            .build()
+            .build(),
+    );
+
+    // back to plain module
+    let mut module = mbuilder.build();
+
+    let Some(code_section) = module.code_section_mut() else {
+        return module;
+    };
+
+    for (i, func_body) in code_section.bodies_mut().iter_mut().enumerate() {
+        if i + import_count >= prolog_index {
+            continue;
+        }
+
+        let instructions = func_body.code_mut().elements_mut();
+
+        for instruction in instructions.iter_mut() {
+            if let Instruction::Call(call_index) = instruction {
+                if *call_index >= inserted_index {
+                    *call_index += inserted_count
+                }
+            }
+        }
+
+        instructions.insert(0, Instruction::Call(prolog_index as u32));
+
+        if let Some(end @ Instruction::End) = instructions.pop() {
+            instructions.push(Instruction::Call(epilog_index as u32));
+            instructions.push(end);
+        }
     }
 
     let sections = module.sections_mut();
