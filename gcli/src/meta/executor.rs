@@ -114,6 +114,7 @@ mod funcs {
                     Trap::Code(TrapCode::MemoryAccessOutOfBounds)
                 })?;
 
+                log::error!("Panic: {}", String::from_utf8_lossy(&buff));
                 Ok(())
             },
         ))
