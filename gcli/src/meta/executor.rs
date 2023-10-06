@@ -55,6 +55,12 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
         linker.define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))?;
         linker.define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))?;
+        linker.define("env", "gr_block_height", funcs::gr_block_height(&mut store))?;
+        linker.define(
+            "env",
+            "gr_block_timestamp",
+            funcs::gr_block_timestamp(&mut store),
+        )?;
     }
 
     let instance = linker
