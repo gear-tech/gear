@@ -18,21 +18,16 @@
 
 //! GSdk Results
 use crate::TxStatus;
-use sp_core::H256;
 
 /// Transaction Errors
 #[derive(Debug, thiserror::Error)]
 pub enum TxError {
-    #[error("Transaction Retracted( {0} )")]
-    Retracted(H256),
-    #[error("Transaction Timeout( {0} )")]
-    FinalityTimeout(H256),
-    #[error("Transaction Usurped( {0} )")]
-    Usurped(H256),
-    #[error("Transaction Dropped")]
-    Dropped,
-    #[error("Transaction Invalid")]
-    Invalid,
+    #[error("Transaction Error( {0} )")]
+    Error(String),
+    #[error("Transaction Invalid( {0} )")]
+    Invalid(String),
+    #[error("Transaction Dropped( {0} )")]
+    Dropped(String),
     #[error("Not an error, this will never be reached.")]
     None,
 }
@@ -40,11 +35,9 @@ pub enum TxError {
 impl From<TxStatus> for Error {
     fn from(status: TxStatus) -> Self {
         match status {
-            TxStatus::Retracted(h) => TxError::Retracted(h),
-            TxStatus::FinalityTimeout(h) => TxError::FinalityTimeout(h),
-            TxStatus::Usurped(h) => TxError::Usurped(h),
-            TxStatus::Invalid => TxError::Invalid,
-            TxStatus::Dropped => TxError::Dropped,
+            TxStatus::Error { message } => TxError::Error(message),
+            TxStatus::Invalid { message } => TxError::Invalid(message),
+            TxStatus::Dropped { message } => TxError::Dropped(message),
             unreachable => {
                 log::info!("Not an error tx status occurred {unreachable:?}");
                 TxError::None

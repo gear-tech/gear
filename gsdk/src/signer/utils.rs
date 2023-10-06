@@ -56,24 +56,22 @@ impl Inner {
     /// Propagates log::info for given status.
     pub(crate) fn log_status(status: &TxStatus) {
         match status {
-            TxStatus::Future => log::info!("	Status: Future"),
-            TxStatus::Ready => log::info!("	Status: Ready"),
-            TxStatus::Broadcast(v) => log::info!("	Status: Broadcast( {v:?} )"),
-            TxStatus::InBlock(b) => log::info!(
-                "	Status: InBlock( block hash: {}, extrinsic hash: {} )",
+            TxStatus::Validated => log::info!("	Status: Validated"),
+            TxStatus::Broadcasted { num_peers } => log::info!("	Status: Broadcast( {num_peers} )"),
+            TxStatus::NoLongerInBestBlock => log::info!("	Status: NoLongerInBestBlock"),
+            TxStatus::InBestBlock(b) => log::info!(
+                "	Status: InBestBlock( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Retracted(h) => log::warn!("	Status: Retracted( {h} )"),
-            TxStatus::FinalityTimeout(h) => log::error!("	Status: FinalityTimeout( {h} )"),
-            TxStatus::Finalized(b) => log::info!(
+            TxStatus::InFinalizedBlock(b) => log::info!(
                 "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Usurped(h) => log::error!("	Status: Usurped( {h} )"),
-            TxStatus::Dropped => log::error!("	Status: Dropped"),
-            TxStatus::Invalid => log::error!("	Status: Invalid"),
+            TxStatus::Error { message: e } => log::error!("	Status: Error( {e} )"),
+            TxStatus::Dropped { message: e } => log::error!("	Status: Dropped( {e} )"),
+            TxStatus::Invalid { message: e } => log::error!("	Status: Invalid( {e} )"),
         }
     }
 
@@ -92,7 +90,7 @@ impl Inner {
         let mut queue: Vec<BacktraceStatus> = Default::default();
         let mut hash: Option<H256> = None;
 
-        while let Some(status) = process.next_item().await {
+        while let Some(status) = process.next().await {
             let status = status?;
             Self::log_status(&status);
 
