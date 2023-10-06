@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! The WASM executor in this module is just for parsing the state types
+//! of gear programs, some of the host functions are missing logics that
+//! is because they are for the on-chain environment data.
+
 use anyhow::{anyhow, Result};
 use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
 
@@ -25,7 +29,6 @@ const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
 #[derive(Default)]
 pub struct HostState {
     pub msg: Vec<u8>,
-    pub height: u64,
 }
 
 /// Executes the WASM code.
@@ -52,12 +55,6 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
         linker.define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))?;
         linker.define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))?;
-        linker.define("env", "gr_block_height", funcs::gr_block_height(&mut store))?;
-        linker.define(
-            "env",
-            "gr_block_timestamp",
-            funcs::gr_block_timestamp(&mut store),
-        )?;
     }
 
     let instance = linker
