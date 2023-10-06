@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use color_eyre::eyre::Result;
-use frame_metadata::RuntimeMetadataPrefixed;
 use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::{Ident, Span, TokenStream};
@@ -70,10 +69,8 @@ fn main() -> Result<()> {
     }
 
     // NOTE: [4..] here for removing the magic number.
-    let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
-        .expect("decode metadata failed");
-
-    let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
+    let metadata =
+        Metadata::decode(&mut encoded[4..].as_ref()).expect("Failed to convert metadata");
     let calls = generate_calls(&metadata);
     let storage = generate_storage(&metadata);
     let impls = generate_impls(&metadata);
@@ -137,7 +134,7 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
             parse_quote!(Debug),
             parse_quote!(crate::gp::Encode),
             parse_quote!(crate::gp::Decode),
-            parse_quote!(crate::gp::DecodeAsType),
+            // parse_quote!(crate::gp::DecodeAsType),
         ],
         [],
     );
@@ -260,6 +257,7 @@ fn generate_storage(metadata: &Metadata) -> ItemMod {
         let storage = pallet.storage().map(|storage| {
             storage
                 .entries()
+                .iter()
                 .map(|entry| entry.name().into())
                 .collect::<Vec<_>>()
         });
@@ -389,22 +387,22 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
         pub mod impls {
             use crate::metadata::Event;
 
-            impl subxt::events::RootEvent for Event {
-                fn root_event(
-                    pallet_bytes: &[u8],
-                    pallet_name: &str,
-                    pallet_ty: u32,
-                    metadata: &subxt::Metadata
-                ) -> Result<Self, subxt::Error> {
-                    use subxt::metadata::DecodeWithMetadata;
-
-                    #( #root_event_if_arms )*
-
-                    Err(subxt::ext::scale_decode::Error::custom(
-                        format!("Pallet name '{}' not found in root Event enum", pallet_name)
-                    ).into())
-                }
-            }
+            // impl subxt::events::RootEvent for Event {
+            //     fn root_event(
+            //         pallet_bytes: &[u8],
+            //         pallet_name: &str,
+            //         pallet_ty: u32,
+            //         metadata: &subxt::Metadata
+            //     ) -> Result<Self, subxt::Error> {
+            //         use subxt::metadata::DecodeWithMetadata;
+            //
+            //         #( #root_event_if_arms )*
+            //
+            //         Err(subxt::ext::scale_decode::Error::custom(
+            //             format!("Pallet name '{}' not found in root Event enum", pallet_name)
+            //         ).into())
+            //     }
+            // }
         }
 
         pub mod exports {

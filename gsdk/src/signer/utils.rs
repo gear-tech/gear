@@ -105,8 +105,8 @@ impl Inner {
             }
 
             match status {
-                Future | Ready | Broadcast(_) | Retracted(_) => (),
-                InBlock(b) => {
+                Validated | Broadcasted { .. } | NoLongerInBestBlock => (),
+                InBestBlock(b) => {
                     hash = Some(b.extrinsic_hash());
                     self.backtrace.append(
                         b.extrinsic_hash(),
@@ -116,7 +116,7 @@ impl Inner {
                         },
                     );
                 }
-                Finalized(b) => {
+                InFinalizedBlock(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
                         pallet,

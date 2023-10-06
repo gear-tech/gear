@@ -18,7 +18,6 @@
 
 use crate::{client::RpcClient, config::GearConfig, signer::Signer, Blocks, Events, Result};
 use core::ops::{Deref, DerefMut};
-use std::sync::Arc;
 use subxt::OnlineClient;
 
 /// Gear api wrapper.
@@ -40,8 +39,7 @@ impl Api {
         Ok(Self {
             // Retry our failed RPC requests for 5 times by default.
             retry: 5,
-            client: OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?))
-                .await?,
+            client: OnlineClient::from_rpc_client(RpcClient::new(url, timeout).await?).await?,
         })
     }
 

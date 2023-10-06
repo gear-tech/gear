@@ -31,8 +31,10 @@ use jsonrpsee::{
 };
 use std::{result::Result as StdResult, time::Duration};
 use subxt::{
+    backend::rpc::{
+        RawRpcFuture as RpcFuture, RawRpcSubscription as RpcSubscription, RawValue, RpcClientT,
+    },
     error::RpcError,
-    rpc::{RawValue, RpcClientT, RpcFuture, RpcSubscription},
 };
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara-network.io:443";
