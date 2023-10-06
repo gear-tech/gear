@@ -25,7 +25,6 @@ const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
 #[derive(Default)]
 pub struct HostState {
     pub msg: Vec<u8>,
-    pub timestamp: u64,
     pub height: u64,
 }
 
@@ -105,10 +104,18 @@ mod funcs {
         Extern::Func(Func::wrap(ctx, |_: i32| 0))
     }
 
-    pub fn gr_panic(ctx: &mut Store<HostState>, _memory: Memory) -> Extern {
+    pub fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
         Extern::Func(Func::wrap(
             ctx,
-            move |mut _caller: Caller<'_, HostState>, _ptr: u32, _len: i32| {},
+            move |caller: Caller<'_, HostState>, ptr: u32, len: i32| {
+                let mut buff = Vec::with_capacity(len as usize);
+                memory.read(caller, ptr as usize, &mut buff).map_err(|e| {
+                    log::error!("{e:?}");
+                    Trap::Code(TrapCode::MemoryAccessOutOfBounds)
+                })?;
+
+                Ok(())
+            },
         ))
     }
 
@@ -123,15 +130,14 @@ mod funcs {
         Extern::Func(Func::wrap(
             ctx,
             move |mut caller: Caller<'_, HostState>, at: u32, len: i32, buff: i32, err: i32| {
-                let (at, len, buff, err) = (at as _, len as _, buff as _, err as _);
+                let (at, len, buff, err) = (at as _, len as usize, buff as _, err as _);
 
                 let msg = &caller.host_data().msg;
-                let mut payload = vec![0; len];
-                if at + len <= msg.len() {
-                    payload.copy_from_slice(&msg[at..(at + len)]);
+                let payload = if at + len <= msg.len() {
+                    msg[at..(at + len)].to_vec()
                 } else {
                     return Err(Trap::Code(TrapCode::MemoryAccessOutOfBounds));
-                }
+                };
 
                 let len: u32 = memory
                     .clone()
