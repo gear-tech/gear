@@ -84,8 +84,8 @@ impl GearApi {
     pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
         self.0
             .api()
-            .backend()
-            .block_hash(Some(block_number.into()))
+            .rpc()
+            .chain_get_block_hash(Some(block_number.into()))
             .await?
             .ok_or(Error::BlockHashNotFound)
     }
