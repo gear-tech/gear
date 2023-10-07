@@ -68,6 +68,8 @@ pub enum Error {
     InvalidPublic,
     #[error("Invalid secret key")]
     InvalidSecret,
+    #[error("Invalid RPC params")]
+    InvalidRpcParams,
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

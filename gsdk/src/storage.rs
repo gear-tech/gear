@@ -373,16 +373,22 @@ impl Api {
             query_key.extend(account_id.encode());
         }
 
-        let keys = storage.fetch_keys(&query_key, count, None).await?;
-
+        let mut keys = storage.fetch_raw_keys(query_key).await?;
         let mut mailbox: Vec<(UserStoredMessage, Interval<u32>)> = vec![];
-        for key in keys {
-            if let Some(storage_data) = storage.fetch_raw(&key.0).await? {
+
+        let mut fetched_keys = 0;
+        while let Some(key) = keys.next().await {
+            if let Some(storage_data) = storage.fetch_raw(key?).await? {
                 if let Ok(value) =
                     <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
                 {
                     mailbox.push(value);
                 }
+            }
+
+            fetched_keys += 1;
+            if fetched_keys >= count {
+                break;
             }
         }
 

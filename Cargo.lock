@@ -4842,7 +4842,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "rand 0.8.5",
  "scale-decode 0.7.0",
- "scale-value 0.10.0",
+ "scale-value",
  "serde",
  "serde_json",
  "sp-core",
@@ -10945,7 +10945,6 @@ checksum = "8dd7aca73785181cc41f0bbe017263e682b585ca660540ba569133901d013ecf"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "serde",
 ]
 
 [[package]]
@@ -11017,19 +11016,6 @@ dependencies = [
 
 [[package]]
 name = "scale-encode"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0401b7cdae8b8aa33725f3611a051358d5b32887ecaa0fda5953a775b2d4d76"
-dependencies = [
- "parity-scale-codec",
- "scale-bits 0.3.0",
- "scale-info",
- "smallvec",
- "thiserror",
-]
-
-[[package]]
-name = "scale-encode"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d70cb4b29360105483fac1ed567ff95d65224a14dd275b6303ed0a654c78de5"
@@ -11084,26 +11070,6 @@ dependencies = [
 
 [[package]]
 name = "scale-value"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2096d36e94ce9bf87d8addb752423b6b19730dc88edd7cc452bb2b90573f7a7"
-dependencies = [
- "base58",
- "blake2",
- "either",
- "frame-metadata 15.1.0",
- "parity-scale-codec",
- "scale-bits 0.3.0",
- "scale-decode 0.7.0",
- "scale-encode 0.3.0",
- "scale-info",
- "serde",
- "thiserror",
- "yap 0.10.0",
-]
-
-[[package]]
-name = "scale-value"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6538d1cc1af9c0baf401c57da8a6d4730ef582db0d330d2efa56ec946b5b0283"
@@ -11116,10 +11082,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-bits 0.4.0",
  "scale-decode 0.9.0",
- "scale-encode 0.5.0",
+ "scale-encode",
  "scale-info",
  "serde",
- "yap 0.11.0",
+ "yap",
 ]
 
 [[package]]
@@ -12813,9 +12779,9 @@ dependencies = [
  "primitive-types",
  "scale-bits 0.4.0",
  "scale-decode 0.9.0",
- "scale-encode 0.5.0",
+ "scale-encode",
  "scale-info",
- "scale-value 0.12.0",
+ "scale-value",
  "serde",
  "serde_json",
  "sp-core-hashing 9.0.0",
@@ -15471,12 +15437,6 @@ name = "yansi"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
-
-[[package]]
-name = "yap"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2a7eb6d82a11e4d0b8e6bda8347169aff4ccd8235d039bba7c47482d977dcf7"
 
 [[package]]
 name = "yap"

@@ -21,7 +21,7 @@
 use crate::{result::Result, Api, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
-use subxt::rpc_params;
+use subxt::{ext::codec::Decode, rpc_params};
 
 impl Api {
     /// gear_calculateInitCreateGas
@@ -32,22 +32,31 @@ impl Api {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.rpc()
-            .request(
-                "gear_calculateInitCreateGas",
-                rpc_params![
-                    origin,
-                    H256(code_id.into()),
-                    hex::encode(payload),
-                    value,
-                    allow_other_panics,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![
+            origin,
+            H256(code_id.into()),
+            hex::encode(payload),
+            value,
+            allow_other_panics,
+            maybe_at
+        ]
+        .build()
+        .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_calculateInitCreateGas", params.as_deref(), at)
+            .await?;
+
+        GasInfo::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_calculateInitUploadGas
@@ -58,22 +67,31 @@ impl Api {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.rpc()
-            .request(
-                "gear_calculateInitUploadGas",
-                rpc_params![
-                    origin,
-                    hex::encode(code),
-                    hex::encode(payload),
-                    value,
-                    allow_other_panics,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![
+            origin,
+            hex::encode(code),
+            hex::encode(payload),
+            value,
+            allow_other_panics,
+            maybe_at
+        ]
+        .build()
+        .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_calculateInitUploadGas", params.as_deref(), at)
+            .await?;
+
+        GasInfo::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_calculateHandleGas
@@ -84,22 +102,31 @@ impl Api {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.rpc()
-            .request(
-                "gear_calculateHandleGas",
-                rpc_params![
-                    origin,
-                    H256(destination.into()),
-                    hex::encode(payload),
-                    value,
-                    allow_other_panics,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![
+            origin,
+            H256(destination.into()),
+            hex::encode(payload),
+            value,
+            allow_other_panics,
+            maybe_at
+        ]
+        .build()
+        .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_calculateHandleGas", params.as_deref(), at)
+            .await?;
+
+        GasInfo::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_calculateReplyGas
@@ -110,30 +137,51 @@ impl Api {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.rpc()
-            .request(
-                "gear_calculateReplyGas",
-                rpc_params![
-                    origin,
-                    H256(message_id.into()),
-                    hex::encode(payload),
-                    value,
-                    allow_other_panics,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![
+            origin,
+            H256(message_id.into()),
+            hex::encode(payload),
+            value,
+            allow_other_panics,
+            maybe_at
+        ]
+        .build()
+        .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_calculateReplyGas", params.as_deref(), at)
+            .await?;
+
+        GasInfo::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_meta_hash
-    pub async fn read_meta_hash(&self, pid: H256, at: Option<H256>) -> Result<H256> {
-        self.rpc()
-            .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
-            .await
-            .map_err(Into::into)
+    pub async fn read_meta_hash(&self, pid: H256, maybe_at: Option<H256>) -> Result<H256> {
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![H256(pid.into()), maybe_at]
+            .build()
+            .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_readMetahash", params.as_deref(), at)
+            .await?;
+
+        H256::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_readState
@@ -141,15 +189,23 @@ impl Api {
         &self,
         pid: H256,
         payload: Vec<u8>,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<String> {
-        self.rpc()
-            .request(
-                "gear_readState",
-                rpc_params![H256(pid.into()), hex::encode(payload), at],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![H256(pid.into()), hex::encode(payload), maybe_at]
+            .build()
+            .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_readState", params.as_deref(), at)
+            .await?;
+        String::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// gear_readStateUsingWasm
@@ -160,29 +216,50 @@ impl Api {
         method: &str,
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
-        at: Option<H256>,
+        maybe_at: Option<H256>,
     ) -> Result<String> {
-        self.rpc()
-            .request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    pid,
-                    hex::encode(payload),
-                    hex::encode(method),
-                    hex::encode(wasm),
-                    args.map(hex::encode),
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![
+            pid,
+            hex::encode(payload),
+            hex::encode(method),
+            hex::encode(wasm),
+            args.map(hex::encode),
+            maybe_at
+        ]
+        .build()
+        .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("gear_readStateUsingWasm", params.as_deref(), at)
+            .await?;
+
+        String::decode(&mut r.as_ref()).map_err(Into::into)
     }
 
     /// runtime_wasmBlobVersion
-    pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
-        self.rpc()
-            .request("runtime_wasmBlobVersion", rpc_params![at])
-            .await
-            .map_err(Into::into)
+    pub async fn runtime_wasm_blob_version(&self, maybe_at: Option<H256>) -> Result<String> {
+        let at = if let Some(at) = maybe_at {
+            at
+        } else {
+            self.backend().latest_finalized_block_ref().await?.hash()
+        };
+
+        let params = rpc_params![maybe_at]
+            .build()
+            .map(|p| p.get().as_bytes().to_vec());
+
+        let r = self
+            .backend()
+            .call("runtime_wasmBlobVersion", params.as_deref(), at)
+            .await?;
+
+        String::decode(&mut r.as_ref()).map_err(Into::into)
     }
 }
