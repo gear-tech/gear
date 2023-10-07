@@ -131,14 +131,14 @@ impl GearApi {
     /// identifier of the transaction sent by the current account. The nonce
     /// shows how many prior transactions have occurred from this account. This
     /// helps protect against replay attacks or accidental double-submissions.
-    pub fn set_nonce(&mut self, nonce: u32) {
+    pub fn set_nonce(&mut self, nonce: u64) {
         self.0.set_nonce(nonce)
     }
 
     /// Get the next number used once (`nonce`) from the node.
     ///
     /// Actually sends the `system_accountNextIndex` RPC to the node.
-    pub async fn rpc_nonce(&self) -> Result<u32> {
+    pub async fn rpc_nonce(&self) -> Result<u64> {
         self.0
             .api()
             .tx()

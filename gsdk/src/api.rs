@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{client::RpcClient, config::GearConfig, signer::Signer, Blocks, Events, Result};
+use crate::{client::Rpc, config::GearConfig, signer::Signer, Blocks, Events, Result};
 use core::ops::{Deref, DerefMut};
-use subxt::{backend::rpc::RpcClient as SubxtRpcClient, OnlineClient};
+use subxt::OnlineClient;
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -26,6 +26,9 @@ pub struct Api {
     /// How many times we'll retry when rpc requests failed.
     pub retry: u16,
     client: OnlineClient<GearConfig>,
+
+    /// Gear RPC client
+    rpc: Rpc,
 }
 
 impl Api {
@@ -34,15 +37,20 @@ impl Api {
         Self::new_with_timeout(url, None).await
     }
 
+    /// Gear RPC Client
+    pub fn rpc(&self) -> Rpc {
+        self.rpc.clone()
+    }
+
     /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+        let rpc = Rpc::new(url, timeout).await?;
+
         Ok(Self {
             // Retry our failed RPC requests for 5 times by default.
             retry: 5,
-            client: OnlineClient::from_rpc_client(SubxtRpcClient::new(
-                RpcClient::new(url, timeout).await?,
-            ))
-            .await?,
+            client: OnlineClient::from_rpc_client(rpc.client()).await?,
+            rpc,
         })
     }
 
