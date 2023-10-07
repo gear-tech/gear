@@ -19,15 +19,11 @@
 #![allow(dead_code)]
 
 use crate::wasm::PageCount as WasmPageCount;
-use gear_wasm_instrument::{
-    parity_wasm::{
-        builder,
-        elements::{
-            self, BlockType, External, FuncBody, ImportCountType, Instruction, Instructions,
-            Module, Type, ValueType,
-        },
+use gear_wasm_instrument::parity_wasm::{
+    builder,
+    elements::{
+        self, BlockType, External, FuncBody, ImportCountType, Instruction, Module, Type, ValueType,
     },
-    syscalls::SysCallName,
 };
 use gsys::HashWithValue;
 use std::{
@@ -104,7 +100,7 @@ pub fn remove_recursion(module: Module) -> Module {
                     .with_results(signature.results().to_vec())
                     .build()
                     .body()
-                    .with_instructions(Instructions::new(body))
+                    .with_instructions(elements::Instructions::new(body))
                     .build()
                     .build(),
             )
@@ -224,7 +220,7 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
-pub fn instrument_recursion(module: Module) -> Module {
+pub fn instrument_recursion(mut module: Module) -> Module {
     let Some(mem_size) = module
         .import_section()
         .and_then(|section| {
@@ -242,66 +238,70 @@ pub fn instrument_recursion(module: Module) -> Module {
 
     let call_depth_ptr = mem_size - mem::size_of::<u32>() as u32;
 
-    let mut mbuilder = builder::from_module(module);
+    let (Some(type_section), Some(function_section)) = (module.type_section(), module.function_section()) else {
+        return module;
+    };
 
-    // fn gr_leave() -> !;
-    let import_sig = mbuilder.push_signature(builder::signature().build_sig());
+    let types = type_section.types().to_vec();
+    let signature_entries = function_section.entries().to_vec();
 
-    mbuilder.push_import(
-        builder::import()
-            .module("env")
-            .field(SysCallName::Leave.to_str())
-            .external()
-            .func(import_sig)
-            .build(),
-    );
+    let Some(code_section) = module.code_section_mut() else {
+        return module;
+    };
 
-    // back to plain module
-    let module = mbuilder.build();
+    for (index, func_body) in code_section.bodies_mut().iter_mut().enumerate() {
+        let signature_index = &signature_entries[index];
+        let signature = &types[signature_index.type_ref() as usize];
+        let Type::Function(signature) = signature;
+        let results = signature.results();
+        let mut body = Vec::with_capacity(results.len() + 2);
+        for result in results {
+            let instruction = match result {
+                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
+            };
 
-    let import_count = module.import_count(ImportCountType::Function);
-    let gr_leave_index @ inserted_index = import_count as u32 - 1;
-    let inserted_count = 1;
+            body.push(instruction);
+        }
 
-    let prolog_index = module.functions_space();
-    let epilog_index = prolog_index + 1;
+        body.push(Instruction::Return);
+        body.push(Instruction::End);
 
-    let mut mbuilder = builder::from_module(module);
+        let instructions = func_body.code_mut().elements_mut();
 
-    // prolog function
-    mbuilder.push_function(
-        builder::function()
-            .body()
-            .with_instructions(Instructions::new(vec![
-                //if call_depth > 256 { call_depth = 0; gr_leave(); }
-                Instruction::I32Const(0),
-                Instruction::I32Load(2, call_depth_ptr),
-                Instruction::I32Const(256),
-                Instruction::I32GtU,
-                Instruction::If(BlockType::NoResult),
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::I32Store(2, call_depth_ptr),
-                Instruction::Call(gr_leave_index),
-                Instruction::End,
-                //call_depth += 1;
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::I32Load(2, call_depth_ptr),
-                Instruction::I32Const(1),
-                Instruction::I32Add,
-                Instruction::I32Store(2, call_depth_ptr),
-                Instruction::End,
-            ]))
-            .build()
-            .build(),
-    );
+        instructions.splice(
+            0..0,
+            [
+                vec![
+                    //if call_depth > 256 { call_depth = 0; return; }
+                    Instruction::I32Const(0),
+                    Instruction::I32Load(2, call_depth_ptr),
+                    Instruction::I32Const(256),
+                    Instruction::I32GtU,
+                    Instruction::If(BlockType::NoResult),
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(0),
+                    Instruction::I32Store(2, call_depth_ptr),
+                ],
+                body,
+                vec![
+                    //call_depth += 1;
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(0),
+                    Instruction::I32Load(2, call_depth_ptr),
+                    Instruction::I32Const(1),
+                    Instruction::I32Add,
+                    Instruction::I32Store(2, call_depth_ptr),
+                ],
+            ]
+            .concat(),
+        );
 
-    // epilog function
-    mbuilder.push_function(
-        builder::function()
-            .body()
-            .with_instructions(Instructions::new(vec![
+        let last = instructions.len() - 1;
+        instructions.splice(
+            last..last,
+            [
                 //call_depth -= 1;
                 Instruction::I32Const(0),
                 Instruction::I32Const(0),
@@ -309,73 +309,12 @@ pub fn instrument_recursion(module: Module) -> Module {
                 Instruction::I32Const(-1),
                 Instruction::I32Add,
                 Instruction::I32Store(2, call_depth_ptr),
-                Instruction::End,
-            ]))
-            .build()
-            .build(),
-    );
-
-    // back to plain module
-    let mut module = mbuilder.build();
-
-    let Some(code_section) = module.code_section_mut() else {
-        return module;
-    };
-
-    for (i, func_body) in code_section.bodies_mut().iter_mut().enumerate() {
-        if i + import_count >= prolog_index {
-            continue;
-        }
-
-        let instructions = func_body.code_mut().elements_mut();
-
-        for instruction in instructions.iter_mut() {
-            if let Instruction::Call(call_index) = instruction {
-                if *call_index >= inserted_index {
-                    *call_index += inserted_count
-                }
-            }
-        }
-
-        instructions.insert(0, Instruction::Call(prolog_index as u32));
-
-        if let Some(end @ Instruction::End) = instructions.pop() {
-            instructions.push(Instruction::Call(epilog_index as u32));
-            instructions.push(end);
-        }
+            ],
+        );
     }
 
     let sections = module.sections_mut();
     sections.retain(|section| !matches!(section, elements::Section::Custom(_)));
-
-    for section in sections {
-        match section {
-            elements::Section::Export(export_section) => {
-                for export in export_section.entries_mut() {
-                    if let elements::Internal::Function(func_index) = export.internal_mut() {
-                        if *func_index >= inserted_index {
-                            *func_index += inserted_count
-                        }
-                    }
-                }
-            }
-            elements::Section::Element(elements_section) => {
-                for segment in elements_section.entries_mut() {
-                    for func_index in segment.members_mut() {
-                        if *func_index >= inserted_index {
-                            *func_index += inserted_count
-                        }
-                    }
-                }
-            }
-            elements::Section::Start(start_idx) => {
-                if *start_idx >= inserted_index {
-                    *start_idx += inserted_count
-                }
-            }
-            _ => {}
-        }
-    }
 
     module
 }
