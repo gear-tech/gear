@@ -73,7 +73,3 @@ pub fn generate_gear_program_module(
 
     GearWasmGenerator::new_with_config(wasm_module, u, gear_wasm_generator_config).generate()
 }
-
-// TODO
-// 3. clean-up invocator
-// 4. Check logs.
