@@ -63,7 +63,9 @@ use pallet_grandpa::{
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+pub use pallet_transaction_payment::{
+    CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
+};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
