@@ -32,7 +32,7 @@ use std::{collections::HashMap, ops::RangeInclusive};
 pub enum SysCallInjectionType {
     /// Don't modify wasm module at all.
     None,
-    /// Sys-call import will be injected into import section of wasm module,
+    /// Syscall import will be injected into import section of wasm module,
     /// but the `wasm-gen` generators will not call that syscall.
     ///
     /// It should be used in cases where you don't need to invoke an actual syscall.

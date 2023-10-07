@@ -76,7 +76,7 @@ pub struct GearWasmGeneratorConfig {
     pub memory_config: MemoryPagesConfig,
     /// Entry points config.
     pub entry_points_config: EntryPointsSet,
-    /// Sys-calls generator module config.
+    /// Syscalls generator module config.
     pub syscalls_config: SysCallsConfig,
     /// Flag, signalizing whether recursions
     /// should be removed from resulting module.

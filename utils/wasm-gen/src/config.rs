@@ -153,7 +153,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub initial_pages: u32,
     /// Optional stack end pages.
     pub stack_end_page: Option<u32>,
-    /// Sys-calls params config
+    /// Syscalls params config
     pub params_config: SysCallsParamsConfig,
     /// Flag which signals whether `unreachable` instruction must be used
     /// during wasm generation.

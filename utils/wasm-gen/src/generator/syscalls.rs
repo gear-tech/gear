@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys-calls generators entities.
+//! Syscalls generators entities.
 //!
 //! Generators from this module form a state machine:
 //! ```text

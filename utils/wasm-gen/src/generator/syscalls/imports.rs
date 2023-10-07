@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys-calls imports generator module.
+//! Syscalls imports generator module.
 
 use crate::{
     generator::{
@@ -46,7 +46,7 @@ pub struct SysCallsImportsGenerator<'a, 'b> {
     syscalls_imports: BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
-/// Sys-calls imports generator instantiator.
+/// Syscalls imports generator instantiator.
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
 pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
@@ -218,7 +218,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 let precise_syscall_amount =
                     NonZeroU32::new(self.unstructured.int_in_range(syscall_amount_range)?);
                 log::trace!(
-                    "Constructing {name} syscall...",
+                    "Constructing `{name}` syscall...",
                     name = InvocableSysCall::Precise(precise_syscall).to_str()
                 );
 
@@ -278,9 +278,9 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         // if `SysCallInjectionType::Function(syscall_amount_range)` yielded zero.
         let call_indexes_handle = self.insert_syscall_import(syscall);
         log::trace!(
-            " -- Generated {} amount of {} syscall",
+            " -- Syscall `{}` will be invoked {} times",
+            syscall.to_str(),
             syscall_amount,
-            syscall.to_str()
         );
 
         Ok(Some((NonZeroU32::new(syscall_amount), call_indexes_handle)))

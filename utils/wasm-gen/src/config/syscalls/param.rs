@@ -26,7 +26,7 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::ParamType;
 
-/// Sys-calls params config.
+/// Syscalls params config.
 ///
 /// This is basically a map, which creates a relationship between each kind of
 /// param, that a syscall can have, and allowed values ("rules") for each of

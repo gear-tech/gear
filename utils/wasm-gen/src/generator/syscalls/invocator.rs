@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys-calls invocator module.
+//! Syscalls invocator module.
 
 use crate::{
     generator::{
@@ -32,7 +32,7 @@ use gear_wasm_instrument::{
     syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature},
 };
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BinaryHeap},
+    collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     iter,
     num::NonZeroU32,
 };
@@ -89,7 +89,7 @@ pub(crate) fn process_syscall_params(
     res
 }
 
-/// Sys-calls invocator.
+/// Syscalls invocator.
 ///
 /// Inserts syscalls invokes randomly into internal functions.
 ///
@@ -197,20 +197,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     }
 
     fn insert_syscalls(&mut self) -> Result<()> {
-        log::trace!(
-            "Random data before inserting syscalls invoke instructions - {}",
-            self.unstructured.len()
-        );
-
         let insertion_mapping = self.build_syscalls_insertion_mapping()?;
         for (insert_into_fn, syscalls) in insertion_mapping {
             self.insert_syscalls_into_fn(insert_into_fn, syscalls)?;
         }
-
-        log::trace!(
-            "Random data after inserting syscalls invoke instructions - {}",
-            self.unstructured.len()
-        );
 
         Ok(())
     }
@@ -253,7 +243,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         syscalls: Vec<InvocableSysCall>,
     ) -> Result<()> {
         log::trace!(
-            "Random data before inserting syscalls invoke instructions into function {insert_into_fn} - {}",
+            "Random data before inserting syscalls invoke instructions into function with index {insert_into_fn} - {}",
             self.unstructured.len()
         );
 
@@ -288,7 +278,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             )?;
 
             log::trace!(
-                " -- Inserting syscall {} into function {insert_into_fn} at position {pos}",
+                " -- Inserting syscall `{}` into function with index {insert_into_fn} at position {pos}",
                 syscall.to_str()
             );
 
@@ -319,14 +309,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<SysCallInvokeInstructions> {
         log::trace!(
-            "Random data before building {} syscall invoke instructions - {}",
+            "Random data before building `{}` syscall invoke instructions - {}",
             invocable.to_str(),
             self.unstructured.len()
         );
 
         if let Some(argument_index) = invocable.has_destination_param() {
             log::trace!(
-                " -- Generating build call for {} syscall with destination",
+                " -- Building call instructions for a `{}` syscall with destination",
                 invocable.to_str()
             );
 
@@ -338,7 +328,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             )
         } else {
             log::trace!(
-                " -- Generating build call for common syscall {}",
+                " -- Building call for a common syscall `{}`",
                 invocable.to_str()
             );
 
@@ -359,7 +349,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.build_call(invocable, signature, call_indexes_handle)?;
 
         let destination_instructions = if self.config.syscall_destination().is_source() {
-            log::trace!(" -- Sys-call destination is result of `gr_source`");
+            log::trace!("  ---  Syscall destination is result of `gr_source`");
 
             let gr_source_call_indexes_handle = self
                 .syscalls_imports
@@ -390,13 +380,13 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
                     assert!(self.config.syscall_destination().is_existing_addresses());
-                    log::trace!(" -- Sys-call destination is an existing program address");
+                    log::trace!("  ----  Syscall destination is an existing program address");
 
                     offsets.next_offset()
                 }
                 None => {
                     assert!(self.config.syscall_destination().is_random());
-                    log::trace!(" -- Sys-call destination is a random address");
+                    log::trace!("  ----  Syscall destination is a random address");
 
                     self.unstructured.arbitrary()?
                 }
@@ -447,7 +437,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_param_setters(&mut self, params: &[ParamType]) -> Result<Vec<ParamSetter>> {
         log::trace!(
-            "  ----  Random data before SysCallsInvocator::build_param_setters - {}",
+            "  -- Random data before building param setters - {}",
             self.unstructured.len()
         );
 
@@ -526,7 +516,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         }
 
         log::trace!(
-            "  ----  Random data after SysCallsInvocator::build_param_setters - {}",
+            "  -- Random data after building param setters - {}",
             self.unstructured.len()
         );
 
@@ -621,6 +611,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         log::trace!("Resolving calls indexes");
 
         let imports_num = self.module.count_import_funcs() as u32;
+        let mut logged = HashSet::with_capacity(self.call_indexes.len());
 
         self.module.with(|mut module| {
             let each_func_instructions = module
@@ -637,9 +628,19 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                         .expect("getting by handle of existing call");
                     match index_ty {
                         FunctionIndex::Func(idx) => {
-                            log::trace!(" -- Old function index - {idx}");
+                            let old_idx = *call_indexes_handle;
                             *call_indexes_handle = idx + imports_num;
-                            log::trace!(" -- New function index - {}", *call_indexes_handle);
+
+                            // Log only not changed indexes, because loop can receive repeted
+                            // call indexes.
+                            if !logged.contains(&*call_indexes_handle) {
+                                logged.insert(*call_indexes_handle);
+
+                                log::trace!(
+                                    " -- Old function index - {old_idx}, new index - {}",
+                                    *call_indexes_handle
+                                );
+                            }
                         }
                         FunctionIndex::Import(idx) => *call_indexes_handle = idx,
                     }
@@ -667,10 +668,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                         panic!("Export cannot be to the import function");
                     };
 
-                log::trace!(" -- Old export function index - {idx}");
+                let old_idx = *export_call_indexes_handle;
                 *export_call_indexes_handle = idx + imports_num;
+
                 log::trace!(
-                    " -- New export function index - {}",
+                    " -- Old export function index - {old_idx}, new index - {}",
                     *export_call_indexes_handle
                 );
             }

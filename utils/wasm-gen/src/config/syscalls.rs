@@ -188,7 +188,7 @@ impl SysCallsConfig {
     }
 }
 
-/// Sys-call destination choice.
+/// Syscall destination choice.
 ///
 /// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
 /// to different destination in accordance to the config.
