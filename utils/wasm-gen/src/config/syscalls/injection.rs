@@ -39,11 +39,15 @@ pub enum SysCallInjectionType {
     /// For example, `precision_gr_reservation_send` syscall uses `gr_reserve_gas` under
     /// the hood. In this case, `gr_reserve_gas` will be imported but will not be called.
     Import,
-    /// Sys-call import will be injected into import section of wasm module,
-    /// and the `wasm-gen` generators will insert invoke instructions for that syscall.
+    /// Syscall import will be injected into import section of wasm module,
+    /// and the `wasm-gen` generators can insert invoke instructions for that syscall.
     ///
-    /// It also has `syscall_amount_range: RangeInclusive<u32>` - the range from which
-    /// amount of syscalls will be generated for injection into code section of wasm module.
+    /// It wraps syscall amount range `RangeInclusive<u32>` - the range from which
+    /// amount of the syscall invocations will be generated.
+    ///
+    /// Setting range to `(0..=n)`, where `n >= 0` can imitate `SysCallInjectionType::Import`,
+    /// as in case if syscall amount range is zero, then syscall import will be injected, but
+    /// no invocations will be generated, which is pretty simillar to the other variant.
     Function(RangeInclusive<u32>),
 }
 
@@ -87,6 +91,8 @@ impl SysCallsInjectionTypes {
     }
 
     /// Sets possible amount range for the the syscall.
+    ///
+    /// Sets injection type for `name` syscall to `SysCallInjectionType::Function`.
     pub fn set(&mut self, name: InvocableSysCall, min: u32, max: u32) {
         self.0
             .insert(name, SysCallInjectionType::Function(min..=max));
@@ -102,7 +108,7 @@ impl SysCallsInjectionTypes {
         }
     }
 
-    /// Imports the given syscall if necessary.
+    /// Imports the given syscall, if necessary.
     pub(crate) fn enable_syscall_import(&mut self, name: InvocableSysCall) {
         if let Some(injection_type @ SysCallInjectionType::None) = self.0.get_mut(&name) {
             *injection_type = SysCallInjectionType::Import;

@@ -35,7 +35,7 @@ use gear_wasm_instrument::{
     syscalls::SysCallName,
 };
 use gsys::{Handle, Hash, Length};
-use std::{collections::BTreeMap, mem};
+use std::{collections::BTreeMap, mem, num::NonZeroU32};
 
 /// Gear syscalls imports generator.
 pub struct SysCallsImportsGenerator<'a, 'b> {
@@ -43,7 +43,7 @@ pub struct SysCallsImportsGenerator<'a, 'b> {
     call_indexes: CallIndexes,
     module: WasmModule,
     config: SysCallsConfig,
-    syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
 /// Sys-calls imports generator instantiator.
@@ -215,24 +215,32 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 .config
                 .injection_types(InvocableSysCall::Precise(precise_syscall));
             if let SysCallInjectionType::Function(syscall_amount_range) = syscall_injection_type {
-                let syscall_amount = self.unstructured.int_in_range(syscall_amount_range)?;
+                let precise_syscall_amount =
+                    NonZeroU32::new(self.unstructured.int_in_range(syscall_amount_range)?);
                 log::trace!(
                     "Constructing {name} syscall...",
                     name = InvocableSysCall::Precise(precise_syscall).to_str()
                 );
 
+                if precise_syscall_amount.is_none() {
+                    // Amount is zero.
+                    continue;
+                }
+
                 match generate_method(self, precise_syscall) {
                     Ok(call_indexes_handle) => {
                         self.syscalls_imports.insert(
                             InvocableSysCall::Precise(precise_syscall),
-                            (syscall_amount, call_indexes_handle),
+                            (precise_syscall_amount, call_indexes_handle),
                         );
                     }
                     Err(PreciseSysCallError::RequiredImports(err)) => {
                         // By syscalls injection types config all required syscalls for
                         // precise syscalls are set.
+                        // By generator's implementation, precise calls are generated after
+                        // generating syscalls imports.
                         panic!(
-                            "Invalid generators configuration: required syscalls aren't set: {err}"
+                            "Invalid generators configuration or implementation: required syscalls aren't set: {err}"
                         )
                     }
                     Err(PreciseSysCallError::Arbitrary(err)) => return Err(err),
@@ -245,13 +253,15 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
 
     /// Generate import of the gear syscall defined by `syscall` param.
     ///
-    /// Returns [`Option`] which wraps the tuple of amount of syscall further injections
-    /// and handle in the call indexes collection, if amount is not zero. Otherwise returns
-    /// None.
+    /// Returns [`Option`] which wraps the tuple of maybe non-zero amount of syscall further injections
+    /// and handle in the call indexes collection. The amount type is `NonZeroU32` in order to distiguish
+    /// between syscalls imports that must be generated without further invocation and ones,
+    /// that must be invoked along with the import generation.
+    /// If no import is required, `None` is returned.
     fn generate_syscall_import(
         &mut self,
         syscall: SysCallName,
-    ) -> Result<Option<(u32, CallIndexesHandle)>> {
+    ) -> Result<Option<(Option<NonZeroU32>, CallIndexesHandle)>> {
         let syscall_injection_type = self
             .config
             .injection_types(InvocableSysCall::Loose(syscall));
@@ -264,16 +274,16 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             _ => return Ok(None),
         };
 
+        // Insert import either for case of `SysCallInjectionType::Import`, or
+        // if `SysCallInjectionType::Function(syscall_amount_range)` yielded zero.
         let call_indexes_handle = self.insert_syscall_import(syscall);
         log::trace!(
-            " -- Generated {} amount of {} sys-call",
+            " -- Generated {} amount of {} syscall",
             syscall_amount,
             syscall.to_str()
         );
 
-        todo!("zero amount must not be set");
-
-        Ok(Some((syscall_amount, call_indexes_handle)))
+        Ok(Some((NonZeroU32::new(syscall_amount), call_indexes_handle)))
     }
 
     /// Inserts gear syscall defined by the `syscall` param.
@@ -772,7 +782,8 @@ pub struct DisabledSysCallsImportsGenerator<'a, 'b> {
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
     pub(super) config: SysCallsConfig,
-    pub(super) syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    pub(super) syscalls_imports:
+        BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
 impl<'a, 'b> From<DisabledSysCallsImportsGenerator<'a, 'b>> for ModuleWithCallIndexes {

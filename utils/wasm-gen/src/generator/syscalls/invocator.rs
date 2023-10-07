@@ -34,6 +34,7 @@ use gear_wasm_instrument::{
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap},
     iter,
+    num::NonZeroU32,
 };
 
 #[derive(Debug)]
@@ -107,7 +108,7 @@ pub struct SysCallsInvocator<'a, 'b> {
     module: WasmModule,
     config: SysCallsConfig,
     offsets: Option<AddressesOffsets>,
-    syscalls_imports: BTreeMap<InvocableSysCall, (u32, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
@@ -225,11 +226,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .syscalls_imports
             .clone()
             .into_iter()
-            .map(|(syscall, (amount, _))| (syscall, amount));
+            .filter_map(|(syscall, (amount, _))| amount.map(|a| (syscall, a)));
 
         let mut insertion_mapping: BTreeMap<_, Vec<_>> = BTreeMap::new();
         for (syscall, amount) in syscalls {
-            for _ in 0..amount {
+            for _ in 0..amount.get() {
                 let insert_into = self.unstructured.int_in_range(insert_into_funcs.clone())?;
 
                 match insertion_mapping.entry(insert_into) {
