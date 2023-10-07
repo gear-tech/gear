@@ -155,9 +155,9 @@ static_assertions = "1"
 #
 # 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
 # gathering them here for easy management.
-subxt = { version = "0.32.0" }
-subxt-metadata = { version = "0.32.0" }
-subxt-codegen = { version = "0.32.0" }
+subxt = { version = "0.32.1" }
+subxt-metadata = { version = "0.32.1" }
+subxt-codegen = { version = "0.32.1" }
 syn = "2.0.31"
 thiserror = "1.0.48"
 tokio = { version = "1.27.0" }
@@ -452,7 +452,7 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
-scale-decode = "0.7.0"                                                    # gsdk
+scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
 

@@ -134,7 +134,7 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
             parse_quote!(Debug),
             parse_quote!(crate::gp::Encode),
             parse_quote!(crate::gp::Decode),
-            // parse_quote!(crate::gp::DecodeAsType),
+            parse_quote!(crate::gp::DecodeAsType),
         ],
         [],
     );
