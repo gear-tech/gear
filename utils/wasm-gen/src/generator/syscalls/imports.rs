@@ -254,7 +254,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generate import of the gear syscall defined by `syscall` param.
     ///
     /// Returns [`Option`] which wraps the tuple of maybe non-zero amount of syscall further injections
-    /// and handle in the call indexes collection. The amount type is `NonZeroU32` in order to distiguish
+    /// and handle in the call indexes collection. The amount type is `NonZeroU32` in order to distinguish
     /// between syscalls imports that must be generated without further invocation and ones,
     /// that must be invoked along with the import generation.
     /// If no import is required, `None` is returned.

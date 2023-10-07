@@ -47,7 +47,7 @@ pub enum SysCallInjectionType {
     ///
     /// Setting range to `(0..=n)`, where `n >= 0` can imitate `SysCallInjectionType::Import`,
     /// as in case if syscall amount range is zero, then syscall import will be injected, but
-    /// no invocations will be generated, which is pretty simillar to the other variant.
+    /// no invocations will be generated, which is pretty similar to the other variant.
     Function(RangeInclusive<u32>),
 }
 
