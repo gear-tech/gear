@@ -313,9 +313,6 @@ pub fn instrument_recursion(mut module: Module) -> Module {
         );
     }
 
-    let sections = module.sections_mut();
-    sections.retain(|section| !matches!(section, elements::Section::Custom(_)));
-
     module
 }
 
