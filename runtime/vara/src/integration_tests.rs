@@ -57,23 +57,23 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
+    Treasury::on_initialize(new_block_number);
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
-    Treasury::on_initialize(new_block_number);
     // Session::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
-    Treasury::on_initialize(current_blk);
     Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
+    Treasury::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
     Grandpa::on_finalize(current_blk);
