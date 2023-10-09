@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-set -e
-
 SELF="$0"
 SCRIPTS="$(cd "$(dirname "$SELF")"/ && pwd)"
 
