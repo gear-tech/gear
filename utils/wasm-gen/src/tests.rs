@@ -60,6 +60,11 @@ fn instrument_recursions() {
         (func $f (result i64)
             call $f
         )
+        (func $g
+            (loop $my_loop
+                br $my_loop
+            )
+        )
     )"#;
 
     let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");

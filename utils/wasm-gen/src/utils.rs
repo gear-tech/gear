@@ -19,11 +19,15 @@
 #![allow(dead_code)]
 
 use crate::wasm::PageCount as WasmPageCount;
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{
-        self, BlockType, External, FuncBody, ImportCountType, Instruction, Module, Type, ValueType,
+use gear_wasm_instrument::{
+    parity_wasm::{
+        builder,
+        elements::{
+            BlockType, External, FuncBody, ImportCountType, Instruction, Instructions, Internal,
+            Module, Section, Type, ValueType,
+        },
     },
+    syscalls::SysCallName,
 };
 use gsys::HashWithValue;
 use std::{
@@ -100,7 +104,7 @@ pub fn remove_recursion(module: Module) -> Module {
                     .with_results(signature.results().to_vec())
                     .build()
                     .body()
-                    .with_instructions(elements::Instructions::new(body))
+                    .with_instructions(Instructions::new(body))
                     .build()
                     .build(),
             )
@@ -220,7 +224,7 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
-pub fn instrument_recursion(mut module: Module) -> Module {
+pub fn instrument_recursion(module: Module) -> Module {
     let Some(mem_size) = module
         .import_section()
         .and_then(|section| {
@@ -237,6 +241,48 @@ pub fn instrument_recursion(mut module: Module) -> Module {
         };
 
     let call_depth_ptr = mem_size - mem::size_of::<u32>() as u32;
+    let gas_ptr = call_depth_ptr - mem::size_of::<u64>() as u32;
+
+    let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
+        section
+            .entries()
+            .iter()
+            .filter(|entry| matches!(entry.external(), External::Function(_)))
+            .enumerate()
+            .find_map(|(i, entry)| {
+                (entry.module() == "env" && entry.field() == SysCallName::GasAvailable.to_str())
+                    .then_some(i as u32)
+            })
+    });
+    let rewrite_calls = maybe_gr_gas_available_index.is_none();
+
+    let (gr_gas_available_index, mut module) = match maybe_gr_gas_available_index {
+        Some(gr_gas_available_index) => (gr_gas_available_index, module),
+        None => {
+            let mut mbuilder = builder::from_module(module);
+
+            // fn gr_gas_available(gas: *mut u64);
+            let import_sig = mbuilder
+                .push_signature(builder::signature().with_param(ValueType::I32).build_sig());
+
+            mbuilder.push_import(
+                builder::import()
+                    .module("env")
+                    .field(SysCallName::GasAvailable.to_str())
+                    .external()
+                    .func(import_sig)
+                    .build(),
+            );
+
+            // back to plain module
+            let module = mbuilder.build();
+
+            let import_count = module.import_count(ImportCountType::Function);
+            let gr_gas_available_index = import_count as u32 - 1;
+
+            (gr_gas_available_index, module)
+        }
+    };
 
     let (Some(type_section), Some(function_section)) = (module.type_section(), module.function_section()) else {
         return module;
@@ -265,8 +311,7 @@ pub fn instrument_recursion(mut module: Module) -> Module {
             body.push(instruction);
         }
 
-        body.push(Instruction::Return);
-        body.push(Instruction::End);
+        body.extend([Instruction::Return, Instruction::End]);
 
         let instructions = func_body.code_mut().elements_mut();
 
@@ -274,17 +319,17 @@ pub fn instrument_recursion(mut module: Module) -> Module {
             0..0,
             [
                 vec![
-                    //if call_depth > 256 { call_depth = 0; return; }
+                    //if call_depth > 512 { call_depth = 0; return; }
                     Instruction::I32Const(0),
                     Instruction::I32Load(2, call_depth_ptr),
-                    Instruction::I32Const(256),
+                    Instruction::I32Const(512),
                     Instruction::I32GtU,
                     Instruction::If(BlockType::NoResult),
                     Instruction::I32Const(0),
                     Instruction::I32Const(0),
                     Instruction::I32Store(2, call_depth_ptr),
                 ],
-                body,
+                body.clone(),
                 vec![
                     //call_depth += 1;
                     Instruction::I32Const(0),
@@ -311,6 +356,71 @@ pub fn instrument_recursion(mut module: Module) -> Module {
                 Instruction::I32Store(2, call_depth_ptr),
             ],
         );
+
+        let original_instructions =
+            mem::replace(instructions, Vec::with_capacity(instructions.len()));
+        let new_instructions = instructions;
+
+        for instruction in original_instructions {
+            match instruction {
+                Instruction::Loop(_) => {
+                    new_instructions.push(instruction);
+
+                    new_instructions.extend([
+                        Instruction::I32Const(gas_ptr as i32),
+                        Instruction::Call(gr_gas_available_index),
+                        Instruction::I32Const(gas_ptr as i32),
+                        Instruction::I64Load(3, 0),
+                        Instruction::I64Const(1_000_000),
+                        Instruction::I64LeU,
+                        Instruction::If(BlockType::NoResult),
+                    ]);
+                    new_instructions.extend(body.clone());
+                }
+                Instruction::Call(call_index)
+                    if rewrite_calls && call_index >= gr_gas_available_index =>
+                {
+                    new_instructions.push(Instruction::Call(call_index + 1));
+                }
+                _ => {
+                    new_instructions.push(instruction);
+                }
+            }
+        }
+    }
+
+    if rewrite_calls {
+        let sections = module.sections_mut();
+        sections.retain(|section| !matches!(section, Section::Custom(_)));
+
+        for section in sections {
+            match section {
+                Section::Export(export_section) => {
+                    for export in export_section.entries_mut() {
+                        if let Internal::Function(func_index) = export.internal_mut() {
+                            if *func_index >= gr_gas_available_index {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+                Section::Element(elements_section) => {
+                    for segment in elements_section.entries_mut() {
+                        for func_index in segment.members_mut() {
+                            if *func_index >= gr_gas_available_index {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+                Section::Start(start_idx) => {
+                    if *start_idx >= gr_gas_available_index {
+                        *start_idx += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     module
