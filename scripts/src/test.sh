@@ -82,6 +82,8 @@ validators() {
 }
 
 run_fuzzer() {
+  . $(dirname "$SELF")/fuzzer_consts.sh
+
   ROOT_DIR="$1"
   CORPUS_DIR="$2"
   # Navigate to fuzzer dir
@@ -94,7 +96,7 @@ run_fuzzer() {
   fi
 
   # Run fuzzer
-  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
 test_fuzzer_reproduction() {
