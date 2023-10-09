@@ -164,7 +164,7 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
             existing_addresses: None,
-            remove_recursion: false,
+            remove_recursion: true,
             call_indirect_enabled: true,
             injection_types: SysCallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
