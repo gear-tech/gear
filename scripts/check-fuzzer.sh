@@ -5,7 +5,7 @@ set -e
 SELF="$0"
 SCRIPTS="$(cd "$(dirname "$SELF")"/ && pwd)"
 
-. "$SCRIPTS"/fuzzer_consts.sh
+INITIAL_INPUT_SIZE=${INITIAL_INPUT_SIZE:-'16000000'}
 
 main() {
     echo " >> Getting random bytes from /dev/urandom"

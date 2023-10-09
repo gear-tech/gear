@@ -2,6 +2,10 @@
 
 . $(dirname "$SELF")/src/common.sh
 
+INITIAL_INPUT_SIZE=${INITIAL_INPUT_SIZE:-'16000000'}
+MAX_LEN=${MAX_LEN:-'20000000'}
+RSS_LIMIT_MB=${RSS_LIMIT_MB:-'8192'}
+
 test_usage() {
   cat << EOF
 
@@ -82,7 +86,6 @@ validators() {
 }
 
 run_fuzzer() {
-  . $(dirname "$SELF")/fuzzer_consts.sh
 
   ROOT_DIR="$1"
   CORPUS_DIR="$2"

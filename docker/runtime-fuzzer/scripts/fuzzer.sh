@@ -9,14 +9,18 @@ ARCHIVE_PATH="/opt/download-archives/"
 # DOCKER PARAMS
 CONTAINER_NAME=node-fuzzer
 CONTAINER_NAME_GEAR=gear
-#IMAGE='node-fuzzer:0.0.0'
+# IMAGE='node-fuzzer:0.0.0'
 IMAGE='ghcr.io/gear-tech/gear-node-fuzzer:latest'
 DOCKER_EXIT_CODE=''
 # ALERTING PARAMS
 GROUP_ID='***'
 BOT_TOKEN='***'
-#HTTP
+# HTTP
 URL='***'
+# FUZZER PARAMS
+INITIAL_INPUT_SIZE=16000000
+MAX_LEN=20000000
+RSS_LIMIT_MB=8192
 
 # Function to check container was stopped manually
 function _check_stop_manually {
@@ -70,7 +74,7 @@ function start_container_post {
 		rustup component add llvm-tools-preview && \
 		rustup component add --toolchain nightly llvm-tools-preview && \
 		cargo fuzz coverage --release --sanitizer=none main /corpus/main -- \
-        -rss_limit_mb=8192 -max_len=20000000 -len_control=0 && \
+        -rss_limit_mb=${RSS_LIMIT_MB} -max_len=${MAX_LEN} -len_control=0 && \
 		cargo cov -- show target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/main \
         --format=text \
         --show-line-counts \
@@ -90,7 +94,7 @@ function start_container_post {
     # Clear folder with corpus
     rm -rf $WORK_DIR/corpus/*
     # Generate new first seed
-    dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=16000000
+    dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=$INITIAL_INPUT_SIZE
 }
 
 # Function to start the container and wait for it to stop
@@ -104,6 +108,8 @@ function start_container {
     	# run container
     	docker run -d --pull=always \
         	-e TERM=xterm-256color \
+		-e MAX_LEN=20000000 \
+		-e RSS_LIMIT_MB=8192 \
         	-v "${CORPUS_DIR}:/corpus/main" \
         	-v "${ARTIFACT_DIR}:/gear/utils/runtime-fuzzer/fuzz/artifactis/main" \
         	--name ${CONTAINER_NAME} ${IMAGE}
