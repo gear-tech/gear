@@ -216,7 +216,7 @@ struct CallIndexes {
     ///
     /// These are indexes of functions which aren't generated from
     /// `wasm-smith` but from the current crate generators. All gear
-    /// entry points ([`EntryPointsGenerator`]) and custom precuse syscalls
+    /// entry points ([`EntryPointsGenerator`]) and custom precise syscalls
     /// (generated in [`SysCallsImportsGenerator`]) are considered to be
     /// "custom" functions.
     ///
