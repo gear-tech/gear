@@ -12,7 +12,7 @@ main() {
     # Fuzzer expects a minimal input size of 25 MiB. Without providing a corpus of the same or larger
     # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.
     mkdir -p utils/runtime-fuzzer/fuzz/corpus/main
-    dd if=/dev/urandom of=./check-fuzzer-bytes bs=1 count="$INITIAL_INPUT_SIZE"
+    dd if=/dev/urandom of=utils/runtime-fuzzer/fuzz/corpus/main/check-fuzzer-bytes bs=1 count="$INITIAL_INPUT_SIZE"
 
     echo " >> Running fuzzer with failpoint"
     RUST_BACKTRACE=1 FAILPOINTS=fail_fuzzer=return ./scripts/gear.sh test fuzz "" wlogs > fuzz_run 2>&1
