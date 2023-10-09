@@ -368,9 +368,9 @@ impl Default for SelectableParams {
             allowed_instructions: vec![
                 Numeric, Reference, Parametric, Variable, Table, Memory, Control,
             ],
-            max_instructions: 100_000,
-            min_funcs: 15,
-            max_funcs: 30,
+            max_instructions: 500,
+            min_funcs: 3,
+            max_funcs: 5,
             unreachable_enabled: true,
         }
     }
