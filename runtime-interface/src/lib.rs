@@ -56,7 +56,9 @@ pub struct LazyPagesProgramContext {
     pub wasm_mem_size: u32,
     /// Wasm program stack end page.
     pub stack_end: Option<u32>,
-    /// Wasm program id.
+    /// The field contains prefix to a program's memory pages, i.e.
+    /// `program_id` + `memory_infix`.
+    /// For backward compatibility it has not been renamed.
     pub program_id: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
     pub globals_config: GlobalsAccessConfig,
