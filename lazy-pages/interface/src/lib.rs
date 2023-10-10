@@ -84,7 +84,7 @@ pub fn init_for_program(
         stack_end: stack_end.map(|p| p.raw()),
         program_id: {
             let program_id = <[u8; 32]>::from(program_id.into_origin());
-            let memory_infix = memory_infix.to_le_bytes();
+            let memory_infix = memory_infix.inner().to_le_bytes();
 
             let mut buffer = Vec::with_capacity(program_id.len() + memory_infix.len());
             buffer.extend_from_slice(&program_id);

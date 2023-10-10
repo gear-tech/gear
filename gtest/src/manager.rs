@@ -353,7 +353,7 @@ impl ExtManager {
             let prefix = [
                 System::PAGE_STORAGE_PREFIX.as_slice(),
                 program_id.into_bytes().as_slice(),
-                memory_infix.to_le_bytes().as_slice(),
+                memory_infix.inner().to_le_bytes().as_slice(),
                 page_no.to_le_bytes().as_slice(),
             ]
             .concat();

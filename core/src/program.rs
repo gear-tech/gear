@@ -20,10 +20,29 @@
 
 use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
 use alloc::collections::BTreeSet;
-use scale_info::scale::{Decode, Encode};
+use scale_info::{scale::{Decode, Encode}, TypeInfo};
 
-/// Type alias for infix of memory pages storage.
-pub type MemoryInfix = u32;
+/// Struct defines infix of memory pages storage.
+#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct MemoryInfix(u32);
+
+impl MemoryInfix {
+    /// Constructing function from u32 number.
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Return inner u32 value.
+    pub fn inner(&self) -> u32 {
+        self.0
+    }
+}
+
+impl From<u32> for MemoryInfix {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]

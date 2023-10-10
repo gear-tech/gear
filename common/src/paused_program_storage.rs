@@ -21,14 +21,13 @@ use crate::storage::{MapStorage, ValueStorage};
 use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
     pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-    program::MemoryInfix,
 };
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 
 const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
 
-pub type SessionId = MemoryInfix;
+pub type SessionId = u32;
 
 // The entity helps to calculate hash of program's data and memory pages.
 // Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
@@ -220,7 +219,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             session.page_count += memory_pages.len() as u32;
             for (page, page_buf) in memory_pages {
                 session.pages_with_data.insert(page);
-                Self::set_program_page_data(session.program_id, session_id, page, page_buf);
+                Self::set_program_page_data(session.program_id, session_id.into(), page, page_buf);
             }
 
             Ok(())
@@ -248,7 +247,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 };
 
                 // it means that the program has been already resumed within another session
-                Self::remove_program_pages(session.program_id, session_id);
+                Self::remove_program_pages(session.program_id, session_id.into());
                 *maybe_session = None;
 
                 return Ok(result);
@@ -265,7 +264,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
             let memory_pages = Self::get_program_data_for_pages(
                 session.program_id,
-                session_id,
+                session_id.into(),
                 session.pages_with_data.iter(),
             )
             .unwrap_or_default();
@@ -319,7 +318,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     fn remove_resume_session(session_id: SessionId) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
             Some(session) => {
-                Self::remove_program_pages(session.program_id, session_id);
+                Self::remove_program_pages(session.program_id, session_id.into());
 
                 Ok(())
             }

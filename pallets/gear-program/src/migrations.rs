@@ -37,7 +37,7 @@ use {
     sp_std::vec::Vec,
 };
 
-const MEMORY_INFIX: MemoryInfix = 0;
+const MEMORY_INFIX: MemoryInfix = MemoryInfix::new(0);
 
 pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
