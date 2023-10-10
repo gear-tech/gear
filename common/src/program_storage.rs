@@ -154,7 +154,7 @@ pub trait ProgramStorage {
         Ok(pages_data)
     }
 
-    /// Store a memory page buffer to be associated with the given keys `program_id` and `page` from the map.
+    /// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.
     fn set_program_page_data(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
@@ -164,7 +164,7 @@ pub trait ProgramStorage {
         Self::MemoryPageMap::insert(program_id, memory_infix, page, page_buf);
     }
 
-    /// Remove a memory page buffer under the given keys `program_id` and `page`.
+    /// Remove a memory page buffer under the given keys `program_id`, `memory_infix` and `page`.
     fn remove_program_page_data(
         program_id: ProgramId,
         memory_infix: MemoryInfix,
@@ -173,7 +173,7 @@ pub trait ProgramStorage {
         Self::MemoryPageMap::remove(program_id, memory_infix, page_num);
     }
 
-    /// Remove all memory page buffers under the given key `program_id`.
+    /// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
     fn remove_program_pages(program_id: ProgramId, memory_infix: MemoryInfix) {
         Self::MemoryPageMap::clear_prefix(program_id, memory_infix);
     }
