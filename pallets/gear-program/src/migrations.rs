@@ -34,6 +34,7 @@ use {
         codec::{Decode, Encode},
         traits::StorageVersion,
     },
+    sp_runtime::traits::Zero,
     sp_std::vec::Vec,
 };
 
@@ -329,8 +330,19 @@ mod test {
             )
             .unwrap();
 
+            // add another one
+            let session_id = pallet::Pallet::<Test>::resume_session_init(
+                USER_3,
+                33,
+                program_id,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
-            let _w = MigrateToV3::<Test>::on_runtime_upgrade();
+            let w = MigrateToV3::<Test>::on_runtime_upgrade();
+            assert!(!w.is_zero());
             MigrateToV3::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearProgram>(), 3);
