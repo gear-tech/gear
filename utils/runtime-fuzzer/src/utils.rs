@@ -37,8 +37,7 @@ pub fn min_unstructured_input_size() -> usize {
 const UPLOAD_PROGRAM_CALLS: usize = 10;
 const SEND_MESSAGE_CALLS: usize = 15;
 const SEND_REPLY_CALLS: usize = 1;
-const OVERALL_EXTRINSICS_COUNT: usize =
-    UPLOAD_PROGRAM_CALLS + SEND_MESSAGE_CALLS + SEND_REPLY_CALLS;
+const OVERALL_CALLS_COUNT: usize = UPLOAD_PROGRAM_CALLS + SEND_MESSAGE_CALLS + SEND_REPLY_CALLS;
 
 const MIN_VALUE_SENT: u128 = 0;
 const MAX_VALUE_SENT: u128 = 100_000;
@@ -79,11 +78,11 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
 }
 
 pub(crate) fn default_fuzzing_config() -> FuzzingConfig {
-    let sender_balance = (block_gas_cost() + MAX_VALUE_SENT) * OVERALL_EXTRINSICS_COUNT as u128;
+    let sender_balance = (block_gas_cost() + MAX_VALUE_SENT) * OVERALL_CALLS_COUNT as u128;
 
     FuzzingConfig {
         initial_sender_balance: sender_balance..=sender_balance,
-        allow_exceed_sender_balance: false,
+        allow_overspend: false,
     }
 }
 

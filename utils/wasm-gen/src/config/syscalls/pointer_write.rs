@@ -21,10 +21,9 @@
 //! syscall parameters that are passed as pointer to the data.
 
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::syscalls::PtrType;
 use std::{collections::HashMap, mem::size_of, ops::RangeInclusive};
 
-pub use gear_wasm_instrument::syscalls::ParamType;
+pub use gear_wasm_instrument::syscalls::PtrType;
 
 /// Pointer writes config.
 ///
@@ -121,7 +120,7 @@ pub enum PointerWriteDataGenerator {
 
 impl PointerWriteDataGenerator {
     /// Get the actual data that should be written into the memory.
-    pub fn generate_data_to_write(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
+    pub fn generate(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
         match self {
             Self::U128(range) => {
                 let value = unstructured.int_in_range(range.clone())?;

@@ -589,7 +589,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             .map(|ptr_write| {
                 Ok((
                     ptr_write.offset,
-                    ptr_write.data.generate_data_to_write(self.unstructured)?,
+                    ptr_write.data.generate(self.unstructured)?,
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -641,12 +641,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         // TODO: #3129.
         // Assume here that all the errors returned from syscalls
         // contain `ErrorCode` in the start of memory at pointer address.
-        if let ParamSetter::Ptr { address, .. } = param_setters
+        if let ParamSetter::Ptr {
+            address: error_ptr, ..
+        } = param_setters
             .last()
             .expect("At least one param setter in fallible syscall")
         {
             vec![
-                Instruction::I32Const(*address),
+                Instruction::I32Const(*error_ptr),
                 Instruction::I32Load(2, 0),
                 Instruction::I32Const(0),
                 Instruction::I32Ne,

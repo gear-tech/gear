@@ -64,7 +64,7 @@ impl Debug for RuntimeFuzzerInput<'_> {
 /// Contains some general configs for fuzzer.
 pub(crate) struct FuzzingConfig {
     initial_sender_balance: RangeInclusive<u128>,
-    allow_exceed_sender_balance: bool,
+    allow_overspend: bool,
 }
 
 /// Runs all the fuzz testing internal machinery.
@@ -124,7 +124,7 @@ fn execute_gear_call(
     call: GearCall,
     fuzzing_config: &FuzzingConfig,
 ) -> DispatchResultWithPostInfo {
-    let allowed_to_spend_value = if fuzzing_config.allow_exceed_sender_balance {
+    let allowed_to_spend_value = if fuzzing_config.allow_overspend {
         u128::MAX
     } else {
         get_account_balance(&sender).saturating_sub(block_gas_cost())
