@@ -65,8 +65,8 @@ impl MemoryInterval {
     /// `4..8` - `size`
     #[inline]
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
-        if bytes.len() != 8 {
-            return Err("Invalid byte array size. Expected 8 bytes.");
+        if bytes.len() != MEM_INTERVAL_SIZE {
+            return Err("Invalid byte array size. Expected MEM_INTERVAL_SIZE.");
         }
         let offset = LittleEndian::read_u32(&bytes[0..4]);
         let size = LittleEndian::read_u32(&bytes[4..8]);

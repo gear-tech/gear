@@ -29,7 +29,6 @@ use gear_core::{
     pages::{GearPage, PageDynSize, PageNumber},
 };
 use gear_lazy_pages_common::{ProcessAccessError, Status};
-use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 
 pub struct MemoryIntervalPageIterator<'a> {
