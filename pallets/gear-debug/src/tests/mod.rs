@@ -76,7 +76,6 @@ fn vec() {
             131072i32.encode(),
             10_000_000_000,
             0,
-            false,
         ));
 
         run_to_next_block(None);
@@ -226,7 +225,6 @@ fn debug_mode_works() {
             vec![],
             1_000_000_000_u64,
             0_u128,
-            false,
         )
         .expect("Failed to send message");
 
@@ -238,7 +236,6 @@ fn debug_mode_works() {
             vec![],
             1_000_000_000_u64,
             0_u128,
-            false,
         )
         .expect("Failed to send message");
 
@@ -565,7 +562,6 @@ fn check_not_allocated_pages() {
             vec![],
             5_000_000_000_u64,
             0_u128,
-            false,
         ));
 
         run_to_block(3, None);
@@ -798,7 +794,6 @@ fn check_changed_pages_in_storage() {
             vec![],
             5_000_000_000_u64,
             0_u128,
-            false,
         ));
 
         run_to_block(3, None);
@@ -958,7 +953,6 @@ fn disabled_program_rent() {
             .encode(),
             20_000_000_000,
             0,
-            false,
         ));
 
         run_to_next_block(None);

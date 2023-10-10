@@ -756,17 +756,16 @@ impl GearApi {
     /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128, bool)>,
+        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
     ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(destination, payload, gas_limit, value, prepaid)| {
+            .map(|(destination, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_message {
                     destination: destination.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
-                    prepaid,
                 })
             })
             .collect();
@@ -879,13 +878,9 @@ impl GearApi {
     /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128, bool)> + Clone,
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let message_ids: Vec<_> = args
-            .clone()
-            .into_iter()
-            .map(|(mid, _, _, _, _)| mid)
-            .collect();
+        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
@@ -900,13 +895,12 @@ impl GearApi {
 
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(reply_to_id, payload, gas_limit, value, prepaid)| {
+            .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
-                    prepaid,
                 })
             })
             .collect();

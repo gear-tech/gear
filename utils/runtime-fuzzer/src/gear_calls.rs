@@ -271,7 +271,6 @@ impl From<UploadProgramGenerator> for ExtrinsicGenerator {
 pub(crate) struct SendMessageGenerator {
     pub gas: u64,
     pub value: u128,
-    pub prepaid: bool,
 }
 
 impl SendMessageGenerator {
@@ -291,7 +290,7 @@ impl SendMessageGenerator {
         log::trace!("Payload (send_message) length {:?}", payload.len());
 
         Ok(Some(
-            SendMessageArgs((program_id, payload, self.gas, self.value, self.prepaid)).into(),
+            SendMessageArgs((program_id, payload, self.gas, self.value)).into(),
         ))
     }
 
@@ -312,7 +311,6 @@ pub(crate) struct SendReplyGenerator {
 
     pub gas: u64,
     pub value: u128,
-    pub prepaid: bool,
 }
 
 impl SendReplyGenerator {
@@ -334,9 +332,7 @@ impl SendReplyGenerator {
                 );
                 log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-                Some(
-                    SendReplyArgs((message_id, payload, self.gas, self.value, self.prepaid)).into(),
-                )
+                Some(SendReplyArgs((message_id, payload, self.gas, self.value)).into())
             }
         })
     }

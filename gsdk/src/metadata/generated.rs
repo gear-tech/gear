@@ -2505,7 +2505,6 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
-                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send reply on message in `Mailbox`."]
@@ -2532,7 +2531,6 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
-                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "Claim value from message in `Mailbox`."]

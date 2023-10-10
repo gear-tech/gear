@@ -346,7 +346,6 @@ fn tokens_locking_works() {
                     vec![],
                     10_000_000_000,
                     11 * UNITS,
-                    false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
