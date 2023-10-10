@@ -34,7 +34,6 @@ use {
         codec::{Decode, Encode},
         traits::StorageVersion,
     },
-    sp_runtime::traits::Zero,
     sp_std::vec::Vec,
 };
 
@@ -270,6 +269,7 @@ mod test {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
     use primitive_types::H256;
+    use sp_runtime::traits::Zero;
 
     #[test]
     fn migration_to_v3_works() {
@@ -331,7 +331,7 @@ mod test {
             .unwrap();
 
             // add another one
-            let session_id = pallet::Pallet::<Test>::resume_session_init(
+            let _session_id = pallet::Pallet::<Test>::resume_session_init(
                 USER_3,
                 33,
                 program_id,

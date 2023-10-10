@@ -20,7 +20,10 @@
 
 use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
 use alloc::collections::BTreeSet;
-use scale_info::{scale::{Decode, Encode}, TypeInfo};
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Struct defines infix of memory pages storage.
 #[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
