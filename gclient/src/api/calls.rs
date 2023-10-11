@@ -509,7 +509,7 @@ impl GearApi {
             .storage
             .set_gpages(
                 dest_program_id,
-                src_program.memory_infix,
+                src_program.memory_infix.0,
                 &src_program_pages,
             )
             .await?;
@@ -611,7 +611,7 @@ impl GearApi {
 
         self.0
             .storage
-            .set_gpages(program_id, program.memory_infix, &pages)
+            .set_gpages(program_id, program.memory_infix.0, &pages)
             .await?;
 
         Ok(())
