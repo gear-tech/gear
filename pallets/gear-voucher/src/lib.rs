@@ -63,7 +63,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::ProgramId;
+use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
@@ -98,6 +98,11 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        type CallsDispatcher: VoucherCallsDispatcher<
+            AccountId = Self::AccountId,
+            Balance = BalanceOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -170,6 +175,18 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Dispatch allowed with voucher call.
+        #[pallet::call_index(1)]
+        #[pallet::weight(T::CallsDispatcher::weight(call))]
+        pub fn call(
+            origin: OriginFor<T>,
+            call: VoucherCall<BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            T::CallsDispatcher::dispatch(origin, call)
+        }
     }
 }
 
@@ -190,4 +207,32 @@ impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet
     fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
         Self::voucher_account_id(&who, &program)
     }
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VoucherCall<Balance> {
+    SendMessage {
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+    },
+    SendReply {
+        reply_to_id: MessageId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+    },
+}
+
+pub trait VoucherCallsDispatcher {
+    type AccountId;
+    type Balance;
+
+    fn weight(call: &VoucherCall<Self::Balance>) -> Weight;
+
+    fn dispatch(
+        account_id: Self::AccountId,
+        call: VoucherCall<Self::Balance>,
+    ) -> DispatchResultWithPostInfo;
 }

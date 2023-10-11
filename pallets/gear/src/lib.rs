@@ -75,6 +75,7 @@ use gear_core::{
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
+use pallet_gear_voucher::{VoucherCall, VoucherCallsDispatcher};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{One, Saturating, UniqueSaturatedInto, Zero},
@@ -1985,6 +1986,54 @@ pub mod pallet {
             Self::deposit_event(event);
 
             Ok(().into())
+        }
+    }
+
+    impl<T: Config> VoucherCallsDispatcher for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type AccountId = AccountIdOf<T>;
+        type Balance = BalanceOf<T>;
+
+        fn weight(call: &VoucherCall<Self::Balance>) -> Weight {
+            match call {
+                VoucherCall::SendMessage { payload, .. } => {
+                    <T as Config>::WeightInfo::send_message(payload.len() as u32)
+                }
+                VoucherCall::SendReply { payload, .. } => {
+                    <T as Config>::WeightInfo::send_reply(payload.len() as u32)
+                }
+            }
+        }
+
+        fn dispatch(
+            account_id: Self::AccountId,
+            call: VoucherCall<Self::Balance>,
+        ) -> DispatchResultWithPostInfo {
+            match call {
+                VoucherCall::SendMessage {
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                } => Self::send_message_impl(
+                    account_id,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    true,
+                ),
+                VoucherCall::SendReply {
+                    reply_to_id,
+                    payload,
+                    gas_limit,
+                    value,
+                } => {
+                    Self::send_reply_impl(account_id, reply_to_id, payload, gas_limit, value, true)
+                }
+            }
         }
     }
 
