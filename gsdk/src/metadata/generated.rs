@@ -10773,9 +10773,6 @@ pub mod storage {
         }
     }
 }
-pub mod impls {
-    use crate::metadata::Event;
-}
 pub mod exports {
     use crate::metadata::runtime_types;
     pub mod system {
