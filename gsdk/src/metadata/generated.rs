@@ -3280,8 +3280,8 @@ pub mod runtime_types {
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "Transferred to the pool from an external account."]
-                    Refilled { amount: ::core::primitive::u128 },
+                    #[doc = "Deposited to the pool."]
+                    Deposited { amount: ::core::primitive::u128 },
                     #[codec(index = 1)]
                     #[doc = "Transferred from the pool to an external account."]
                     Withdrawn { amount: ::core::primitive::u128 },
