@@ -3315,6 +3315,13 @@ pub mod runtime_types {
                         program: runtime_types::gear_core::ids::ProgramId,
                         value: ::core::primitive::u128,
                     },
+                    #[codec(index = 1)]
+                    #[doc = "Dispatch allowed with voucher call."]
+                    call {
+                        call: runtime_types::pallet_gear_voucher::VoucherCall<
+                            ::core::primitive::u128,
+                        >,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -3335,6 +3342,23 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                 }
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum VoucherCall<_0> {
+                #[codec(index = 0)]
+                SendMessage {
+                    destination: runtime_types::gear_core::ids::ProgramId,
+                    payload: ::std::vec::Vec<::core::primitive::u8>,
+                    gas_limit: ::core::primitive::u64,
+                    value: _0,
+                },
+                #[codec(index = 1)]
+                SendReply {
+                    reply_to_id: runtime_types::gear_core::ids::MessageId,
+                    payload: ::std::vec::Vec<::core::primitive::u8>,
+                    gas_limit: ::core::primitive::u64,
+                    value: _0,
+                },
             }
         }
         pub mod pallet_grandpa {
@@ -9388,12 +9412,14 @@ pub mod calls {
     #[doc = "Calls of pallet `GearVoucher`."]
     pub enum GearVoucherCall {
         Issue,
+        Call,
     }
     impl CallInfo for GearVoucherCall {
         const PALLET: &'static str = "GearVoucher";
         fn call_name(&self) -> &'static str {
             match self {
                 Self::Issue => "issue",
+                Self::Call => "call",
             }
         }
     }
