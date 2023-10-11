@@ -204,6 +204,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
         rent_cost: 0,
+        gas_to_value_multiplier: Default::default(),
     }
 }
 
@@ -953,6 +954,17 @@ benchmarks! {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_exec_settings {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_exec_settings(r)?;
     }: {
         res.replace(run_process(exec));
     }

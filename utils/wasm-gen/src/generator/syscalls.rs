@@ -205,7 +205,8 @@ impl InvocableSysCall {
         };
 
         match underlying_syscall {
-            SysCallName::BlockHeight
+            SysCallName::ExecSettings
+            | SysCallName::BlockHeight
             | SysCallName::BlockTimestamp
             | SysCallName::Debug
             | SysCallName::Panic

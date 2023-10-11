@@ -172,6 +172,8 @@ pub struct ExecutionSettings {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Value per gas multiplier.
+    pub gas_to_value_multiplier: u128,
 }
 
 /// Stable parameters for the whole block across processing runs.
@@ -221,4 +223,6 @@ pub struct BlockConfig {
     pub code_instrumentation_byte_cost: u64,
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Value per gas multiplier.
+    pub gas_to_value_multiplier: u128,
 }

@@ -331,6 +331,13 @@ impl TwoHashesWithValue {
 
 #[allow(improper_ctypes)]
 extern "C" {
+    /// Infallible `gr_exec_settings` get syscall.
+    ///
+    /// Arguments type:
+    /// - `settings`: `mut ptr` for buffer to store requested version of settings.
+    /// - `version`: `u32` defining version of settings to get.
+    pub fn gr_exec_settings(settings: *mut BufferStart, version: u32);
+
     /// Infallible `gr_block_height` get syscall.
     ///
     /// Arguments type:

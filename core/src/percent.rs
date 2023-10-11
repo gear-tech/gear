@@ -34,7 +34,7 @@ impl Percent {
         Self(value)
     }
 
-    /// Returns the inner `u16` value.
+    /// Returns the inner `u32` value.
     pub fn value(self) -> u32 {
         self.0
     }

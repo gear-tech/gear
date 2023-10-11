@@ -26,8 +26,34 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use gsys::{
-    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, HashWithValue,
+    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, Gas,
+    HashWithValue, Value,
 };
+
+/// Current version of execution settings.
+///
+/// Backend maintains backward compatibility with previous versions of execution
+/// settings. This structure matches to the most recent version of execution
+/// settings supported by backend.
+#[repr(C, packed)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Settings {
+    /// Current value of performance multiplier in percents.
+    pub performance_multiplier_percent: u32,
+    /// Current value of existential deposit.
+    pub existential_deposit: Value,
+    /// Current value of mailbox threshold.
+    pub mailbox_threshold: Gas,
+    /// Current value of value per gas multiplier.
+    pub gas_to_value_multiplier: Value,
+}
+
+/// Get current version of execution settings.
+pub fn settings() -> Settings {
+    let mut settings = Settings::default();
+    unsafe { gsys::gr_exec_settings(&mut settings as *mut _ as *mut u8, 1) };
+    settings
+}
 
 /// Get the current block height.
 ///

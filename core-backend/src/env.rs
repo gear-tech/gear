@@ -277,6 +277,7 @@ where
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
+        builder.add_func(ExecSettings, wrap_common_func!(FuncsHandler::exec_settings, (3) -> ()));
         builder.add_func(BlockHeight, wrap_common_func!(FuncsHandler::block_height, (2) -> ()));
         builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (2) -> ()));
         builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (8) -> ()));

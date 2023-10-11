@@ -28,12 +28,12 @@ use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    exec_settings::{ExecSettings, ExecSettingsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    percent::Percent,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
@@ -115,14 +115,22 @@ impl Externalities for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
+    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::FallibleError> {
+        match version {
+            1 => Ok(ExecSettings::V1(ExecSettingsV1 {
+                performance_multiplier_percent: 100,
+                existential_deposit: 10,
+                mailbox_threshold: 20,
+                gas_to_value_multiplier: 30,
+            })),
+            _ => unreachable!("Unexpected version of execution settings"),
+        }
+    }
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)
     }
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
-    }
-    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
-        Ok(Percent::new(100))
     }
     fn send_init(&mut self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)

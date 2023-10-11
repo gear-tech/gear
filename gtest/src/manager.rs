@@ -22,7 +22,8 @@ use crate::{
     Result, System, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RENT_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -839,6 +840,7 @@ impl ExtManager {
             code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
             code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
             rent_cost: RENT_COST,
+            gas_to_value_multiplier: VALUE_PER_GAS,
         };
 
         let (actor_data, code) = match data {

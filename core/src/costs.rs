@@ -136,6 +136,9 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: u64,
 
+    /// Weight of calling `gr_exec_settings`.
+    pub gr_exec_settings: u64,
+
     /// Weight of calling `gr_block_height`.
     pub gr_block_height: u64,
 
@@ -349,6 +352,8 @@ pub enum RuntimeCosts {
     Read,
     /// Weight of calling `gr_read` per read buffer bytes number.
     ReadPerByte(u32),
+    /// Weight of calling `gr_exec_settings`.
+    ExecSettings,
     /// Weight of calling `gr_block_height`.
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
@@ -475,6 +480,7 @@ impl RuntimeCosts {
             Size => s.gr_size,
             Read => s.gr_read,
             ReadPerByte(len) => cost_per_byte(s.gr_read_per_byte, len),
+            ExecSettings => s.gr_exec_settings,
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,

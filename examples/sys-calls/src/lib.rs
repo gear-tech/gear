@@ -76,6 +76,13 @@ pub enum Kind {
     ReplyDetails(MessageId, [u8; 4]),
     SignalDetails,
     SignalDetailsWake,
+    // Expected values
+    ExecSettings {
+        performance_multiplier: u32,
+        existential_deposit: u128,
+        mailbox_threshold: u64,
+        gas_to_value_multiplier: u128,
+    },
     // Expected(block height)
     BlockHeight(u32),
     // Expected(block timestamp)

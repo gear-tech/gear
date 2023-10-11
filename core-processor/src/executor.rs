@@ -222,6 +222,7 @@ where
         reservation: settings.reservation,
         random_data: settings.random_data,
         rent_cost: settings.rent_cost,
+        gas_to_value_multiplier: settings.gas_to_value_multiplier,
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
@@ -418,6 +419,7 @@ where
         random_data: Default::default(),
         system_reservation: Default::default(),
         rent_cost: Default::default(),
+        gas_to_value_multiplier: Default::default(),
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();

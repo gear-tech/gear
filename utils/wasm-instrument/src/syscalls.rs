@@ -74,6 +74,7 @@ pub enum SysCallName {
     // Program execution related
     // --
     // Execution environmental data
+    ExecSettings,
     BlockHeight,
     BlockTimestamp,
     GasAvailable,
@@ -108,6 +109,7 @@ impl SysCallName {
     pub fn to_str(&self) -> &'static str {
         match self {
             SysCallName::Alloc => "alloc",
+            SysCallName::ExecSettings => "gr_exec_settings",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
@@ -285,6 +287,12 @@ impl SysCallName {
                 SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithSignalCode))])
             }
             Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash))]),
+            Self::ExecSettings => SysCallSignature::gr([
+                // The PtrType::BufferStart doesn't work here as it requires length_param_idx
+                // Should we introduce something like PtrType::Buffer
+                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
+                Size,
+            ]),
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,

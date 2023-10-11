@@ -27,6 +27,7 @@ use alloc::{
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    exec_settings::{ExecSettings, ExecSettingsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, Token, ValueCounter,
@@ -109,6 +110,8 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas to value multiplier.
+    pub gas_to_value_multiplier: u128,
 }
 
 #[cfg(any(feature = "mock", test))]
@@ -154,6 +157,7 @@ impl ProcessorContext {
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             rent_cost: 0,
+            gas_to_value_multiplier: Default::default(),
         }
     }
 }
@@ -721,16 +725,24 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
+    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
+        match version {
+            1 => Ok(ExecSettings::V1(ExecSettingsV1 {
+                performance_multiplier_percent: self.context.performance_multiplier.value(),
+                existential_deposit: self.context.existential_deposit,
+                mailbox_threshold: self.context.mailbox_threshold,
+                gas_to_value_multiplier: self.context.gas_to_value_multiplier,
+            })),
+            _ => Err(UnrecoverableExecutionError::UnexpectedExecSettingsVersion.into()),
+        }
+    }
+
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(self.context.block_info.height)
     }
 
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(self.context.block_info.timestamp)
-    }
-
-    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
-        Ok(self.context.performance_multiplier)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::FallibleError> {

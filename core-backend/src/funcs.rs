@@ -354,6 +354,22 @@ where
         Ok(res.is_err() as i32)
     }
 
+    #[host(cost = RuntimeCosts::ExecSettings)]
+    pub fn exec_settings(
+        ctx: &mut CallerWrap<'_, '_, Ext>,
+        gas: u64,
+        settings_ptr: u32,
+        settings_ver: u32,
+    ) -> Result<(u64, ()), HostError> {
+        let settings = ctx.ext_mut().exec_settings(settings_ver)?;
+        let settings_bytes = settings.to_bytes();
+        let settings_write = ctx
+            .manager
+            .register_write(settings_ptr, settings_bytes.len() as u32);
+        ctx.write(settings_write, settings_bytes)
+            .map_err(Into::into)
+    }
+
     #[host(cost = RuntimeCosts::BlockHeight)]
     pub fn block_height(
         ctx: &mut CallerWrap<'_, '_, Ext>,

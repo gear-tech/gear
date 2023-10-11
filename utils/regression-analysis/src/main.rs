@@ -319,6 +319,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_size,
                     gr_read,
                     gr_read_per_byte,
+                    gr_exec_settings,
                     gr_block_height,
                     gr_block_timestamp,
                     gr_random,

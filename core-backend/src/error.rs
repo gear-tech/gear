@@ -127,6 +127,8 @@ pub enum UnrecoverableExecutionError {
     TooBigReadLen,
     #[display(fmt = "Cannot take data in payload range from message with size")]
     ReadWrongRange,
+    #[display(fmt = "Unexpected version of execution settings encountered ")]
+    UnexpectedExecSettingsVersion,
 }
 
 /// Memory error in infallible sys-call.
