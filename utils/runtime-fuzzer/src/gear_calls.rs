@@ -426,7 +426,7 @@ fn config(
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 1).into());
 
     let existing_addresses = NonEmpty::collect(
         programs
