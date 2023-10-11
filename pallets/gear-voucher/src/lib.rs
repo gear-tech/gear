@@ -67,7 +67,7 @@ use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
-use sp_std::convert::TryInto;
+use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 
 pub use pallet::*;

@@ -569,12 +569,13 @@ fn fee_payer_replacement_works() {
         let program_id = ProgramId::from_origin(H256::random());
 
         let call: &<Test as frame_system::Config>::RuntimeCall =
-            &RuntimeCall::Gear(pallet_gear::Call::send_message {
-                destination: program_id,
-                payload: Default::default(),
-                gas_limit: 100_000,
-                value: 0,
-                // prepaid: true, TODO: breathx
+            &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::VoucherCall::SendMessage {
+                    destination: program_id,
+                    payload: Default::default(),
+                    gas_limit: 100_000,
+                    value: 0,
+                },
             });
 
         let len = 100usize;
@@ -658,12 +659,13 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         // Preparing a call
         let gas_limit = 100_000_u64;
         let call: &<Test as frame_system::Config>::RuntimeCall =
-            &RuntimeCall::Gear(pallet_gear::Call::send_reply {
-                reply_to_id: msg_id,
-                payload: vec![],
-                gas_limit,
-                value: 0,
-                // prepaid: true, TODO: breathx
+            &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::VoucherCall::SendReply {
+                    reply_to_id: msg_id,
+                    payload: vec![],
+                    gas_limit,
+                    value: 0,
+                },
             });
 
         let len = 100_usize;
