@@ -322,7 +322,7 @@ impl Api {
                 GearProgramStorage::MemoryPageStorage2,
                 vec![
                     Value::from_bytes(program_id),
-                    Value::u128(program.memory_infix as u128),
+                    Value::u128(program.memory_infix.0 as u128),
                     Value::u128(page.0 as u128),
                 ],
             );

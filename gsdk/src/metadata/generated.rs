@@ -672,7 +672,7 @@ pub mod runtime_types {
             pub struct ActiveProgram<_0> {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
-                pub memory_infix: _0,
+                pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
                     runtime_types::gear_core::reservation::GasReservationSlot,
@@ -926,6 +926,17 @@ pub mod runtime_types {
                     crate::gp::Encode,
                 )]
                 pub struct Percent(pub ::core::primitive::u32);
+            }
+            pub mod program {
+                use super::runtime_types;
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct MemoryInfix(pub ::core::primitive::u32);
             }
             pub mod reservation {
                 use super::runtime_types;
