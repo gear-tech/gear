@@ -115,7 +115,7 @@ impl Externalities for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::FallibleError> {
+    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
         match version {
             1 => Ok(ExecSettings::V1(ExecSettingsV1 {
                 performance_multiplier_percent: 100,
