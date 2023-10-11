@@ -22,6 +22,7 @@
 //! 1. From scratch by settings fields to corresponding values sometimes using
 //! related to these fields builders. For example, wasm module configs:
 //! ```rust
+//! # use std::num::NonZeroUsize;
 //! use gear_wasm_gen::*;
 //! use arbitrary::{Arbitrary, Result, Unstructured};
 //!
@@ -38,8 +39,8 @@
 //!             InstructionKind::Control,
 //!         ],
 //!         max_instructions: 100_000,
-//!         min_funcs: 15,
-//!         max_funcs: 30,
+//!         min_funcs: NonZeroUsize::new(15).unwrap(),
+//!         max_funcs: NonZeroUsize::new(30).unwrap(),
 //!         unreachable_enabled: true,
 //!     };
 //!     let arbitrary = ArbitraryParams::arbitrary(u)?;
@@ -55,7 +56,7 @@
 //!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let sys_calls_config = SysCallsConfigBuilder::new(SysCallsInjectionTypes::all_once())
+//! let syscalls_config = SysCallsConfigBuilder::new(SysCallsInjectionTypes::all_once())
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
@@ -64,7 +65,7 @@
 //!     memory_config: memory_pages_config,
 //!     entry_points_config: entry_points_set,
 //!     remove_recursions: true,
-//!     sys_calls_config,
+//!     syscalls_config,
 //! };
 //! ```
 //!
@@ -144,7 +145,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Flag which signals whether `call_indirect` instruction must be used
     /// during wasm generation.
     pub call_indirect_enabled: bool,
-    /// Injection amount ranges for each sys-call.
+    /// Injection type for each syscall.
     pub injection_types: SysCallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
@@ -152,7 +153,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub initial_pages: u32,
     /// Optional stack end pages.
     pub stack_end_page: Option<u32>,
-    /// Sys-calls params config
+    /// Syscalls params config
     pub params_config: SysCallsParamsConfig,
     /// Flag which signals whether `unreachable` instruction must be used
     /// during wasm generation.
@@ -197,17 +198,16 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             ..SelectableParams::default()
         };
 
-        let mut sys_calls_config_builder = SysCallsConfigBuilder::new(injection_types);
+        let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
-            sys_calls_config_builder = sys_calls_config_builder.with_log_info(log_info);
+            syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
         }
         if let Some(addresses) = existing_addresses {
-            sys_calls_config_builder =
-                sys_calls_config_builder.with_data_offset_msg_dest(addresses);
+            syscalls_config_builder = syscalls_config_builder.with_data_offset_msg_dest(addresses);
         } else {
-            sys_calls_config_builder = sys_calls_config_builder.with_source_msg_dest();
+            syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
-        sys_calls_config_builder = sys_calls_config_builder.with_params_config(params_config);
+        syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 
         let memory_pages_config = MemoryPagesConfig {
             initial_size: initial_pages,
@@ -216,7 +216,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
             .with_recursions_removed(remove_recursion)
-            .with_sys_calls_config(sys_calls_config_builder.build())
+            .with_syscalls_config(syscalls_config_builder.build())
             .with_entry_points_config(entry_points_set)
             .with_memory_config(memory_pages_config)
             .build();

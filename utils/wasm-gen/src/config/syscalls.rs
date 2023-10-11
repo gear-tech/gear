@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Configuration for the sys-calls imports generator, additional data injector
-//! and sys-calls invocations generator.
+//! Configuration for the syscalls imports generator, additional data injector
+//! and syscalls invocations generator.
 
 mod injection;
 mod param;
@@ -39,26 +39,26 @@ use crate::InvocableSysCall;
 pub struct SysCallsConfigBuilder(SysCallsConfig);
 
 impl SysCallsConfigBuilder {
-    /// Create a new builder with defined injection amounts for all sys-calls.
+    /// Create a new builder with defined injection amounts for all syscalls.
     pub fn new(injection_types: SysCallsInjectionTypes) -> Self {
         Self(SysCallsConfig {
             injection_types,
             params_config: SysCallsParamsConfig::default(),
             precise_syscalls_config: PreciseSysCallsConfig::default(),
-            sys_call_destination: SysCallDestination::default(),
+            syscall_destination: SysCallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
         })
     }
 
-    /// Set config for sys-calls params.
+    /// Set config for syscalls params.
     pub fn with_params_config(mut self, params_config: SysCallsParamsConfig) -> Self {
         self.0.params_config = params_config;
 
         self
     }
 
-    /// Set config for precise sys-calls.
+    /// Set config for precise syscalls.
     pub fn with_precise_syscalls_config(
         mut self,
         precise_syscalls_config: PreciseSysCallsConfig,
@@ -68,25 +68,25 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` sys-calls must use `gr_source` result for sys-call destination.
+    /// Set whether `gr_send*` and `gr_exit` syscalls must use `gr_source` result for syscall destination.
     pub fn with_source_msg_dest(mut self) -> Self {
-        self.0.sys_call_destination = SysCallDestination::Source;
+        self.0.syscall_destination = SysCallDestination::Source;
         self.0
             .injection_types
-            .enable_sys_call_import(InvocableSysCall::Loose(SysCallName::Source));
+            .enable_syscall_import(InvocableSysCall::Loose(SysCallName::Source));
 
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` sys-calls must use some address from `addresses` collection
-    /// as a sys-call destination.
+    /// Set whether `gr_send*` and `gr_exit` syscalls must use some address from `addresses` collection
+    /// as a syscall destination.
     pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
             hash: pid.into(),
             value: 0,
         }))
         .expect("collected from non empty");
-        self.0.sys_call_destination = SysCallDestination::ExistingAddresses(addresses);
+        self.0.syscall_destination = SysCallDestination::ExistingAddresses(addresses);
 
         self
     }
@@ -99,7 +99,7 @@ impl SysCallsConfigBuilder {
         self.0.log_info = Some(log);
         self.0
             .injection_types
-            .enable_sys_call_import(InvocableSysCall::Loose(SysCallName::Debug));
+            .enable_syscall_import(InvocableSysCall::Loose(SysCallName::Debug));
 
         self
     }
@@ -141,28 +141,28 @@ impl ErrorProcessingConfig {
     }
 }
 
-/// United config for all entities in sys-calls generator module.
+/// United config for all entities in syscalls generator module.
 #[derive(Debug, Clone, Default)]
 pub struct SysCallsConfig {
     injection_types: SysCallsInjectionTypes,
     params_config: SysCallsParamsConfig,
     precise_syscalls_config: PreciseSysCallsConfig,
-    sys_call_destination: SysCallDestination,
+    syscall_destination: SysCallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
 }
 
 impl SysCallsConfig {
-    /// Get possible number of times (range) the sys-call can be injected in the wasm.
+    /// Get possible number of times (range) the syscall can be injected in the wasm.
     pub fn injection_types(&self, name: InvocableSysCall) -> SysCallInjectionType {
         self.injection_types.get(name)
     }
 
-    /// Get defined sys-call destination for `gr_send*` and `gr_exit` sys-calls.
+    /// Get defined syscall destination for `gr_send*` and `gr_exit` syscalls.
     ///
     /// For more info, read [`SysCallDestination`].
-    pub fn sys_call_destination(&self) -> &SysCallDestination {
-        &self.sys_call_destination
+    pub fn syscall_destination(&self) -> &SysCallDestination {
+        &self.syscall_destination
     }
 
     /// Get defined log info.
@@ -172,12 +172,12 @@ impl SysCallsConfig {
         self.log_info.as_ref()
     }
 
-    /// Get sys-calls params config.
+    /// Get syscalls params config.
     pub fn params_config(&self) -> &SysCallsParamsConfig {
         &self.params_config
     }
 
-    /// Get precise sys-calls config.
+    /// Get precise syscalls config.
     pub fn precise_syscalls_config(&self) -> &PreciseSysCallsConfig {
         &self.precise_syscalls_config
     }
@@ -188,9 +188,9 @@ impl SysCallsConfig {
     }
 }
 
-/// Sys-call destination choice.
+/// Syscall destination choice.
 ///
-/// `gr_send*` and `gr_exit` sys-calls generated from this crate can be sent
+/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
 /// to different destination in accordance to the config.
 /// It's either to the message source, to some existing known address,
 /// or to some random, most probably non-existing, address.
@@ -203,17 +203,17 @@ pub enum SysCallDestination {
 }
 
 impl SysCallDestination {
-    /// Check whether sys-call destination is a result of `gr_source`.
+    /// Check whether syscall destination is a result of `gr_source`.
     pub fn is_source(&self) -> bool {
         matches!(&self, SysCallDestination::Source)
     }
 
-    /// Check whether sys-call destination is defined randomly.
+    /// Check whether syscall destination is defined randomly.
     pub fn is_random(&self) -> bool {
         matches!(&self, SysCallDestination::Random)
     }
 
-    /// Check whether sys-call destination is defined from a collection of existing addresses.
+    /// Check whether syscall destination is defined from a collection of existing addresses.
     pub fn is_existing_addresses(&self) -> bool {
         matches!(&self, SysCallDestination::ExistingAddresses(_))
     }
