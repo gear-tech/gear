@@ -30,8 +30,8 @@ use sp_core::{ed25519, sr25519, Pair};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{Digest, DigestItem};
 
-const ENDOWMENT: u128 = 100 * UNITS;
-const STASH: u128 = 10 * UNITS;
+const ENDOWMENT: u128 = 100_000 * UNITS;
+const STASH: u128 = 1_000 * UNITS;
 
 pub(crate) fn initialize_block(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
@@ -57,6 +57,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
+    Treasury::on_initialize(new_block_number);
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
@@ -72,6 +73,7 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     Gear::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
+    Treasury::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
     Grandpa::on_finalize(current_blk);
@@ -176,10 +178,11 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
+        #[cfg(feature = "dev")]
         SudoConfig { key: self.root }
             .assimilate_storage(&mut storage)
             .unwrap();
-
+        GenesisBuild::<Runtime>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
         GenesisBuild::<Runtime>::assimilate_storage(
             &VestingConfig {
                 vesting: self.vested_accounts,
@@ -289,18 +292,18 @@ fn tokens_locking_works() {
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![charlie.into(), dave.into(), eve.into(), ferdie.into()])
         .vested_accounts(vec![
-            (dave.into(), 10, 100, 10 * UNITS), // 1 TOKEN unlocked per block
-            (eve.into(), 10, 100, 10 * UNITS),
-            (ferdie.into(), 10, 100, 10 * UNITS),
+            (dave.into(), 10, 100, 10_000 * UNITS), // 1 TOKEN unlocked per block
+            (eve.into(), 10, 100, 10_000 * UNITS),
+            (ferdie.into(), 10, 100, 10_000 * UNITS),
         ])
         .root(alice.into())
         .build()
         .execute_with(|| {
             let acc_data = System::account(dave.to_account_id()).data;
-            // Free balance of vested accounts is still 100 TOKENS
-            assert_eq!(acc_data.free, 100 * UNITS);
+            // Free balance of vested accounts is still 100_000 TOKENS
+            assert_eq!(acc_data.free, 100_000 * UNITS);
             // Locked balance is 90 TOKENS
-            assert_eq!(acc_data.misc_frozen, 90 * UNITS);
+            assert_eq!(acc_data.misc_frozen, 90_000 * UNITS);
 
             // Locked  funds can't be reserved to pay for gas and/or value
             // Transaction should be invalidated when attempting to `reserve` currency:
@@ -313,7 +316,7 @@ fn tokens_locking_works() {
                     b"salt".to_vec(),
                     vec![],
                     10_000_000_000,
-                    10 * UNITS,
+                    10_000 * UNITS,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
@@ -321,7 +324,7 @@ fn tokens_locking_works() {
             // TODO: delete lines below (issue #3081).
             core::mem::drop(Balances::deposit_creating(
                 &alice.to_account_id(),
-                10 * UNITS,
+                10_000 * UNITS,
             ));
 
             // Locked funds can't be transferred to a program as a message `value`
@@ -345,10 +348,93 @@ fn tokens_locking_works() {
                     program_id.into(),
                     vec![],
                     10_000_000_000,
-                    11 * UNITS,
+                    11_000 * UNITS,
                     false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
+            );
+        });
+}
+
+#[test]
+fn treasury_surplus_halves_every_time() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+
+    let treasury_id = Treasury::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            // Treasury free balance is the ED in the beginning
+            let treasury_free = Balances::free_balance(&treasury_id);
+            assert_eq!(treasury_free, 10 * UNITS);
+
+            let initial_total_issuance = Balances::total_issuance();
+
+            // Top up treasury balace
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(treasury_id.clone()),
+                1_000 * UNITS,
+            ));
+            let treasury_free = Balances::free_balance(&treasury_id);
+            assert_eq!(treasury_free, 1_010 * UNITS);
+
+            // Run chain for a day so that `Treasury::spend_funds()` is triggered
+            run_to_block(DAYS);
+
+            // Treasury had a surplus, half of it should have been burned
+            let treasury_free = Balances::free_balance(&treasury_id);
+            assert_eq!(treasury_free, 510 * UNITS);
+
+            // The total issuance has simply dropped by what's been burned
+            assert_eq!(
+                initial_total_issuance.saturating_sub(Balances::total_issuance()),
+                500 * UNITS
+            );
+
+            let initial_total_issuance = Balances::total_issuance();
+
+            // Run chain until another `Treasury::spend_funds()` invocation
+            run_to_block(2 * DAYS);
+
+            // Treasury still has a surplus, half of is burned
+            let treasury_free = Balances::free_balance(&treasury_id);
+            assert_eq!(treasury_free, 260 * UNITS);
+
+            // The total issuance has simply dropped by what's been burned
+            assert_eq!(
+                initial_total_issuance.saturating_sub(Balances::total_issuance()),
+                250 * UNITS
             );
         });
 }
