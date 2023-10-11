@@ -384,27 +384,6 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
     }
 
     quote! {
-        pub mod impls {
-            use crate::metadata::Event;
-
-            // impl subxt::events::RootEvent for Event {
-            //     fn root_event(
-            //         pallet_bytes: &[u8],
-            //         pallet_name: &str,
-            //         pallet_ty: u32,
-            //         metadata: &subxt::Metadata
-            //     ) -> Result<Self, subxt::Error> {
-            //         use subxt::metadata::DecodeWithMetadata;
-            //
-            //         #( #root_event_if_arms )*
-            //
-            //         Err(subxt::ext::scale_decode::Error::custom(
-            //             format!("Pallet name '{}' not found in root Event enum", pallet_name)
-            //         ).into())
-            //     }
-            // }
-        }
-
         pub mod exports {
             use crate::metadata::runtime_types;
 
