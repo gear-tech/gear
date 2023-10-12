@@ -82,7 +82,7 @@ impl Api {
 
     /// Get the storage root address from storage info.
     pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Value> {
-        subxt::dynamic::storage_root(T::PALLET, storage.storage_name())
+        subxt::dynamic::storage(T::PALLET, storage.storage_name(), vec![])
     }
 }
 

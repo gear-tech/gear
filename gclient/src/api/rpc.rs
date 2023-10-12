@@ -432,7 +432,7 @@ impl GearApi {
     async fn rpc_request<T: gsdk::ext::sp_runtime::DeserializeOwned>(
         &self,
         method: &str,
-        params: subxt::rpc::RpcParams,
+        params: subxt::backend::rpc::RpcParams,
     ) -> Result<T> {
         self.0
             .api()

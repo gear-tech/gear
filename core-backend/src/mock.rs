@@ -33,6 +33,7 @@ use gear_core::{
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
+    percent::Percent,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
@@ -119,6 +120,9 @@ impl Externalities for MockExt {
     }
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
+    }
+    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
+        Ok(Percent::new(100))
     }
     fn send_init(&mut self) -> Result<u32, Self::UnrecoverableError> {
         Ok(0)

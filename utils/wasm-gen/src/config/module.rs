@@ -23,6 +23,8 @@
 //! can be arbitrary, but some must be constantly set. That's implemented with [`ArbitraryParams`]
 //! and [`ConstantParams`].
 
+use std::num::NonZeroUsize;
+
 use arbitrary::{Arbitrary, Result, Unstructured};
 pub use wasm_smith::InstructionKind;
 use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
@@ -87,6 +89,9 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_funcs,
             unreachable_enabled,
         } = selectable_params;
+
+        let min_funcs = min_funcs.get();
+        let max_funcs = max_funcs.get();
 
         let ArbitraryParams {
             available_imports,
@@ -352,10 +357,10 @@ pub struct SelectableParams {
     pub max_instructions: usize,
     /// Minimum amount of functions `wasm-gen` will insert
     /// into generated wasm.
-    pub min_funcs: usize,
+    pub min_funcs: NonZeroUsize,
     /// Maximum amount of functions `wasm-gen` will insert
     /// into generated wasm.
-    pub max_funcs: usize,
+    pub max_funcs: NonZeroUsize,
     /// Flag signalizing whether `unreachable` instruction
     /// must be used or not.
     pub unreachable_enabled: bool,
@@ -368,9 +373,9 @@ impl Default for SelectableParams {
             allowed_instructions: vec![
                 Numeric, Reference, Parametric, Variable, Table, Memory, Control,
             ],
-            max_instructions: 100_000,
-            min_funcs: 15,
-            max_funcs: 30,
+            max_instructions: 500,
+            min_funcs: NonZeroUsize::new(3).expect("from non zero value; qed."),
+            max_funcs: NonZeroUsize::new(5).expect("from non zero value; qed."),
             unreachable_enabled: true,
         }
     }

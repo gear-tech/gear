@@ -36,12 +36,28 @@ use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionAmounts, SysCallsParamsConfig,
+    SysCallsInjectionTypes, SysCallsParamsConfig,
 };
+use std::mem;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
+/// Maximum salt size for the fuzzer - 512 bytes.
+///
+/// There's no need in large salts as we have only 35 extrinsics
+/// for one run. Also small salt will make overall size of the
+/// corpus smaller.
+const MAX_SALT_SIZE: usize = 512;
+static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
+const ID_SIZE: usize = mem::size_of::<ProgramId>();
+const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
+// to generate things like wasm code or message payload but also to generate some auxiliary
+// data, for example index in some vec.
+const AUXILIARY_SIZE: usize = 512;
 
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
 /// from mailbox, for example [`UploadProgramGenerator`] and
@@ -238,8 +254,10 @@ impl UploadProgramGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 1024 KiB for payload and salt and 50 KiB for code.
-        1080 * 1024
+        // Max code size - 50 KiB.
+        const MAX_CODE_SIZE: usize = 50 * 1024;
+
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -278,8 +296,7 @@ impl SendMessageGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -325,8 +342,7 @@ impl SendReplyGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -350,8 +366,7 @@ impl ClaimValueGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 32 bytes for message id.
-        100
+        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -377,7 +392,7 @@ fn arbitrary_message_id_from_mailbox(
 }
 
 fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
-    arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
+    arbitrary_limited_bytes(u, MAX_SALT_SIZE)
 }
 
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
@@ -394,27 +409,24 @@ fn config(
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    injection_amounts.set_multiple(
+    let mut injection_types = SysCallsInjectionTypes::all_once();
+    injection_types.set_multiple(
         [
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
-            (SysCallName::Send, 20..=30),
+            (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 20..=30),
-            (SysCallName::Free, 20..=30),
+            (SysCallName::Alloc, 3..=6),
+            (SysCallName::Free, 3..=6),
         ]
-        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
         .into_iter(),
     );
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(
-        ParamType::Free,
-        (initial_pages..=initial_pages + 250).into(),
-    );
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
 
     let existing_addresses = NonEmpty::collect(
         programs
@@ -430,7 +442,7 @@ fn config(
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         existing_addresses,
         log_info,
         params_config,
