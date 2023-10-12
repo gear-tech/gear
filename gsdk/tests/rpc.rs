@@ -23,7 +23,7 @@ use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr};
-use subxt::{config::Header, error::RpcError, Error as SubxtError};
+use subxt::{error::RpcError, Error as SubxtError};
 use utils::{alice_account_id, dev_node, node_uri};
 
 mod utils;
@@ -285,12 +285,11 @@ async fn test_original_code_storage() -> Result<()> {
         .await?;
 
     let program = signer.api().gprog(pid).await?;
-    let rpc = signer.api().rpc();
-    let last_block = rpc.block(None).await?.unwrap().block.header.number();
-    let block_hash = rpc.block_hash(Some(last_block.into())).await?;
+    let rpc = signer.api().backend();
+    let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_hash.0.into(), block_hash)
+        .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
         .await?;
 
     assert_eq!(code, demo_messager::WASM_BINARY.to_vec());

@@ -27,6 +27,8 @@ use subxt::{
     Config,
 };
 
+pub type Header = SubstrateHeader<u32, BlakeTwo256>;
+
 /// gear config
 ///
 /// see <https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183>
@@ -34,12 +36,11 @@ use subxt::{
 pub struct GearConfig;
 
 impl Config for GearConfig {
-    type Index = u32;
     type Hash = sp_core::H256;
     type Hasher = BlakeTwo256;
     type AccountId = sp_runtime::AccountId32;
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;
-    type Header = SubstrateHeader<u32, BlakeTwo256>;
+    type Header = Header;
     type Signature = sp_runtime::MultiSignature;
     type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }
