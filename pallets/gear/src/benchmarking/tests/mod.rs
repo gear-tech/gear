@@ -28,7 +28,6 @@ pub mod syscalls_integrity;
 mod utils;
 
 use crate::{
-    alloc::string::ToString,
     benchmarking::{
         code::{body, WasmModule},
         utils as common_utils,
@@ -36,7 +35,6 @@ use crate::{
     HandleKind,
 };
 use common::benchmarking;
-use gear_core_backend::error::TrapExplanation;
 use gear_wasm_instrument::parity_wasm::elements::Instruction;
 
 pub fn check_stack_overflow<T>()
@@ -45,16 +43,17 @@ where
     T::AccountId: Origin,
 {
     let instrs = vec![
-        Instruction::I64Const(10),
-        Instruction::GetGlobal(0),
-        Instruction::I64Add,
-        Instruction::SetGlobal(0),
+        Instruction::I64Const(0xCAFEBABE),
+        Instruction::SetLocal(0),
         Instruction::Call(0),
     ];
 
+    let mut body = body::from_instructions(instrs);
+    body::inject_locals(&mut body, 1);
+
     let module: WasmModule<T> = ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        init_body: Some(body::from_instructions(instrs)),
+        init_body: Some(body),
         stack_end: Some(0.into()),
         num_globals: 1,
         ..Default::default()
@@ -70,18 +69,24 @@ where
     )
     .unwrap();
 
-    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-        .unwrap()
-        .into_iter()
-        .find_map(|note| match note {
-            JournalNote::MessageDispatched { outcome, .. } => Some(outcome),
-            _ => None,
-        })
-        .map(|outcome| match outcome {
-            DispatchOutcome::InitFailure { reason, .. } => {
-                assert_eq!(reason, TrapExplanation::Unknown.to_string());
-            }
-            _ => panic!("Unexpected dispatch outcome: {:?}", outcome),
-        })
-        .unwrap();
+    let dispatch =
+        core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+            .unwrap()
+            .into_iter()
+            .find_map(|note| match note {
+                JournalNote::SendDispatch { dispatch, .. } => Some(dispatch),
+                _ => None,
+            })
+            .unwrap();
+
+    let code = dispatch
+        .reply_details()
+        .expect("reply details")
+        .to_reply_code();
+    assert_eq!(
+        code,
+        ReplyCode::Error(ErrorReplyReason::Execution(
+            SimpleExecutionError::UnreachableInstruction
+        ))
+    );
 }

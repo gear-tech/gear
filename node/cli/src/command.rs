@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, CliConfiguration, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -149,6 +149,8 @@ pub fn run() -> sc_cli::Result<()> {
 
     let base = &mut cli.run.base;
 
+    let is_dev = base.is_dev().unwrap_or(false);
+
     // Force setting `Wasm` as default execution strategy.
     let execution_strategy = base
         .import_params
@@ -169,7 +171,7 @@ pub fn run() -> sc_cli::Result<()> {
         || base.two;
 
     // Denying ability to validate blocks with non-wasm execution.
-    if is_validator && *execution_strategy != ExecutionStrategy::Wasm {
+    if !is_dev && is_validator && *execution_strategy != ExecutionStrategy::Wasm {
         return Err(
             "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
                 .into(),
