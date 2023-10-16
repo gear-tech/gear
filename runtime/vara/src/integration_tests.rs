@@ -247,6 +247,23 @@ pub(crate) fn get_last_program_id() -> [u8; 32] {
     }
 }
 
+pub(crate) fn get_treasury_events() -> (Balance, Balance, Balance) {
+    System::events()
+        .into_iter()
+        .fold((0, 0, 0), |r, e| match e.event {
+            RuntimeEvent::Treasury(pallet_treasury::Event::Spending { budget_remaining }) => {
+                (budget_remaining, r.1, r.2)
+            }
+            RuntimeEvent::Treasury(pallet_treasury::Event::Burnt { burnt_funds }) => {
+                (r.0, burnt_funds, r.2)
+            }
+            RuntimeEvent::Treasury(pallet_treasury::Event::Rollover { rollover_balance }) => {
+                (r.0, r.1, rollover_balance)
+            }
+            _ => r,
+        })
+}
+
 #[test]
 fn tokens_locking_works() {
     init_logger();
@@ -407,8 +424,19 @@ fn treasury_surplus_is_not_burned() {
             ));
             assert_eq!(Treasury::pot(), 1_000 * UNITS);
 
+            System::reset_events();
+
             // Run chain for a day so that `Treasury::spend_funds()` is triggered
             run_to_block(DAYS);
+
+            // Check that the `Treasury::spend_funds()` has, indeed, taken place
+            let (budget_remaining, burnt_funds, rollover_balance) = get_treasury_events();
+            // Treasury remaining budget value upon entry in `spend_funds()` function
+            assert_eq!(budget_remaining, 1_000 * UNITS);
+            // Actually burnt funds
+            assert_eq!(burnt_funds, 0);
+            // Remaining balance being rolled over to the next period
+            assert_eq!(rollover_balance, 1_000 * UNITS);
 
             // Treasury had a surplus, but none of it was burned
             assert_eq!(Treasury::pot(), 1_000 * UNITS);
@@ -577,7 +605,7 @@ fn slashed_proposals_back_to_treasury() {
             assert_eq!(dave_acc_data.reserved, 0);
 
             // Treasury funds haven't been spent, no burning has taken place,
-            // the slahsed deposit has landed in the `Treasury`, as well
+            // the slashed deposit has landed in the `Treasury`, as well
             assert_eq!(Treasury::pot(), 1_000 * UNITS + proposal_bond);
 
             // The total issuance has, therefore, persisted
