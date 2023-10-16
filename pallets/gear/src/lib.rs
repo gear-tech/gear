@@ -43,7 +43,7 @@ pub use crate::{
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
-pub use gear_core::gas::GasInfo;
+pub use gear_core::{gas::GasInfo, pages::WasmPagesAmount};
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
@@ -141,6 +141,8 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
+    use gear_core::pages::Drops;
+
     use super::*;
 
     #[pallet::config]
@@ -1032,10 +1034,15 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
+            let max_pages =
+                WasmPagesAmount::try_from(schedule.limits.memory_pages).unwrap_or_else(|_| {
+                    unreachable!("Max pages amount is bigger than possible for 4 GB memory")
+                });
+
             BlockConfig {
                 block_info,
                 performance_multiplier: T::PerformanceMultiplier::get(),
-                max_pages: schedule.limits.memory_pages.into(),
+                max_pages,
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
@@ -1685,7 +1692,7 @@ pub mod pallet {
         pub fn resume_session_init(
             origin: OriginFor<T>,
             program_id: ProgramId,
-            allocations: BTreeSet<WasmPage>,
+            allocations: Drops<WasmPage>,
             code_hash: CodeId,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;

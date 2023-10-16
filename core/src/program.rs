@@ -18,17 +18,20 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
-use alloc::collections::BTreeSet;
-use scale_info::scale::{Decode, Encode};
+use crate::{
+    code::InstrumentedCode,
+    ids::ProgramId,
+    pages::{WasmPage, WasmPagesAmount},
+};
+use drops::Drops;
 
 /// Program.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
-    allocations: BTreeSet<WasmPage>,
+    allocations: Drops<WasmPage>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -48,7 +51,7 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: InstrumentedCode,
-        allocations: BTreeSet<WasmPage>,
+        allocations: Drops<WasmPage>,
         is_initialized: bool,
     ) -> Self {
         Self {
@@ -57,6 +60,11 @@ impl Program {
             allocations,
             is_initialized,
         }
+    }
+
+    /// +_+_+
+    pub fn into_parts(self) -> (ProgramId, InstrumentedCode, Drops<WasmPage>, bool) {
+        (self.id, self.code, self.allocations, self.is_initialized)
     }
 
     /// Reference to [`InstrumentedCode`] of this program.
@@ -75,7 +83,7 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.code.static_pages()
     }
 
@@ -93,12 +101,12 @@ impl Program {
     }
 
     /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &BTreeSet<WasmPage> {
+    pub fn allocations(&self) -> &Drops<WasmPage> {
         &self.allocations
     }
 
     /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPage>) {
+    pub fn set_allocations(&mut self, allocations: Drops<WasmPage>) {
         self.allocations = allocations;
     }
 }
@@ -159,9 +167,9 @@ mod tests {
         let program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2.into());
+        assert_eq!(program.static_pages().raw(), 2);
 
         // Has no allocations because we do not set them in new
-        assert_eq!(program.allocations().len(), 0);
+        assert_eq!(program.allocations().points_amount().unwrap(), 0);
     }
 }

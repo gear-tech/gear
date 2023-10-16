@@ -20,14 +20,11 @@
 
 use crate::{
     common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
+    pages::GearPage,
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_core::{
-    self,
-    memory::MemoryInterval,
-    pages::{GearPage, PageDynSize},
-};
+use gear_core::{self, memory::MemoryInterval};
 use gear_lazy_pages_common::{ProcessAccessError, Status};
 use std::collections::BTreeSet;
 

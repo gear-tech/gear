@@ -28,7 +28,7 @@ use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
@@ -78,7 +78,7 @@ pub fn init_for_program(
 
     let ctx = LazyPagesProgramContext {
         wasm_mem_addr: mem.get_buffer_host_addr(),
-        wasm_mem_size: mem.size().raw(),
+        wasm_mem_size: mem.size().into(),
         stack_end: stack_end.map(|p| p.raw()),
         program_id: <[u8; 32]>::from(program_id.into_origin()).into(),
         globals_config,
@@ -100,7 +100,7 @@ pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
 pub fn update_lazy_pages_and_protect_again(
     mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
-    old_mem_size: WasmPage,
+    old_mem_size: WasmPagesAmount,
     new_mem_addr: HostPointer,
 ) {
     struct PointerDisplay(HostPointer);
@@ -127,7 +127,7 @@ pub fn update_lazy_pages_and_protect_again(
     };
 
     let new_mem_size = mem.size();
-    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.raw());
+    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.into());
 
     if !matches!((changed_addr, changed_size), (None, None)) {
         gear_ri::change_wasm_memory_addr_and_size(changed_addr, changed_size)
@@ -141,7 +141,7 @@ pub fn get_write_accessed_pages() -> Vec<GearPage> {
     gear_ri::write_accessed_pages()
         .into_iter()
         .map(|p| {
-            GearPage::new(p)
+            GearPage::try_from(p)
                 .unwrap_or_else(|_| unreachable!("Lazy pages backend returns wrong pages"))
         })
         .collect()

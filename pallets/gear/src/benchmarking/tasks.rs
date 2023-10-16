@@ -86,11 +86,10 @@ where
     }
 
     ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-        program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+        program.pages_with_data = (0..c).map(|i| GearPage::from(i as u16)).collect();
 
         let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-        program.allocations =
-            BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+        program.allocations = (0..wasm_pages).map(|i| WasmPage::from(i as u16)).collect();
     })
     .expect("program should exist");
 

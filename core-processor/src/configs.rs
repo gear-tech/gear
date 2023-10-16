@@ -21,7 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
-    pages::{GearPage, WasmPage},
+    pages::{GearPage, WasmPagesAmount},
     percent::Percent,
 };
 use gear_lazy_pages_common::LazyPagesWeights;
@@ -51,6 +51,7 @@ pub struct BlockInfo {
 /// Lazy-pages write accesses does not include cost for uploading page data to storage,
 /// because uploading happens after execution, so benchmarks do not include this cost.
 /// But they include cost for processing changed page data in runtime.
+// +_+_+ change to per GearPagesAmount
 #[derive(Clone, Debug, Decode, Encode, Default)]
 #[codec(crate = scale)]
 pub struct PageCosts {
@@ -83,10 +84,13 @@ pub struct PageCosts {
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
-    pub static_page: CostPerPage<WasmPage>,
+    pub static_page: CostPerPage<WasmPagesAmount>,
 
-    /// Cost per one [WasmPage] for memory growing.
-    pub mem_grow: CostPerPage<WasmPage>,
+    /// Cost per one memory growing call.
+    pub mem_grow: u64,
+
+    /// +_+_+
+    pub mem_grow_per_page: CostPerPage<WasmPagesAmount>,
 
     /// Cost per one [GearPage] storage read, when para-chain execution.
     pub parachain_load_heuristic: CostPerPage<GearPage>,
@@ -135,7 +139,8 @@ impl PageCosts {
             load_page_data: a,
             upload_page_data: a,
             static_page: b,
-            mem_grow: b,
+            mem_grow: 4000,
+            mem_grow_per_page: 0.into(),
             parachain_load_heuristic: a,
         }
     }
@@ -148,7 +153,7 @@ pub struct ExecutionSettings {
     /// Performance multiplier.
     pub performance_multiplier: Percent,
     /// Max amount of pages in program memory during execution.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Pages costs.
     pub page_costs: PageCosts,
     /// Minimal amount of existence for account.
@@ -182,7 +187,7 @@ pub struct BlockConfig {
     /// Performance multiplier.
     pub performance_multiplier: Percent,
     /// Max allowed page numbers for wasm program.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Allocations config.
     pub page_costs: PageCosts,
     /// Existential deposit.

@@ -35,16 +35,13 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 impl<T> JournalHandler for ExtManager<T>
 where
@@ -348,16 +345,15 @@ where
         });
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(
+        &mut self,
+        program_id: ProgramId,
+        allocations: gear_core::pages::Drops<WasmPage>,
+    ) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            let removed_pages = p.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
-                if p.pages_with_data.remove(&page) {
-                    ProgramStorageOf::<T>::remove_program_page_data(program_id, page);
-                }
+            if p.allocations != allocations {
+                p.allocations = allocations;
             }
-
-            p.allocations = allocations;
         }).unwrap_or_else(|e| {
             unreachable!("Allocations update guaranteed to be called only for existing and active program: {:?}", e)
         });

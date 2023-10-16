@@ -73,7 +73,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -110,7 +110,7 @@ impl fmt::Debug for HandleKind {
 pub struct CodeInfo {
     id: H256,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 }
 
 impl CodeInfo {

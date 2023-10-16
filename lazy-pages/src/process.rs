@@ -21,8 +21,8 @@
 use crate::{
     common::{Error, LazyPagesExecutionContext},
     mprotect,
+    pages::GearPage,
 };
-use gear_core::pages::{GearPage, PageDynSize};
 use gear_lazy_pages_common::Status;
 use std::slice;
 
@@ -90,7 +90,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
     unsafe {
         if let Some(last_page) = H::last_page(&pages) {
             // Check that all pages are inside wasm memory.
-            if last_page.end_offset(ctx) >= wasm_mem_size {
+            if last_page.end_offset(ctx) as usize >= wasm_mem_size {
                 return Err(Error::OutOfWasmMemoryAccess);
             }
         } else {
@@ -120,7 +120,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                         "Gas limit or allowance exceed, so removes protection from all wasm memory \
                         and continues execution until the end of current wasm block"
                     );
-                    mprotect::mprotect_interval(wasm_mem_addr, wasm_mem_size as usize, true, true)
+                    mprotect::mprotect_interval(wasm_mem_addr, wasm_mem_size, true, true)
                         .map(|_| true)
                 }
             }

@@ -26,6 +26,7 @@ paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
 num-traits.workspace = true
+drops = { path = "../../drops" }
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }

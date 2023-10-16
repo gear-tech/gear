@@ -18,13 +18,15 @@
 
 //! Lazy-pages structures for common usage.
 
-use std::{collections::BTreeSet, mem::size_of, num::NonZeroU32};
+use std::{mem::size_of, num::NonZeroU32};
 
-use crate::{globals::GlobalsContext, mprotect::MprotectError};
-use gear_core::{
-    pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
-    str::LimitedStr,
+use crate::{
+    globals::GlobalsContext,
+    mprotect::MprotectError,
+    pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
 };
+use drops::Drops;
+use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 
 // TODO: investigate error allocations #2441
@@ -103,7 +105,7 @@ impl LazyPagesContext {
 }
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
-pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
+pub(crate) type PageSizes = [NonZeroU32; SIZES_AMOUNT];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
 
 #[derive(Debug)]
@@ -122,13 +124,14 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: WasmPage,
+    pub wasm_mem_size: WasmPagesAmount,
     /// Current program prefix in storage
     pub program_storage_prefix: PagePrefix,
     /// Pages which has been accessed by program during current execution
-    pub accessed_pages: BTreeSet<GearPage>,
+    pub accessed_pages: Drops<GearPage>,
     /// Pages which has been write accessed by program during current execution
-    pub write_accessed_pages: BTreeSet<GearPage>,
+    pub write_accessed_pages: Drops<GearPage>,
+    // +_+_+ correct comment
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
@@ -149,24 +152,24 @@ pub enum LazyPagesVersion {
 }
 
 impl SizeManager for LazyPagesExecutionContext {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes[P::SIZE_NO]
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
+        self.page_sizes[S::SIZE_NO]
     }
 }
 
 impl SizeManager for LazyPagesRuntimeContext {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes[P::SIZE_NO]
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
+        self.page_sizes[S::SIZE_NO]
     }
 }
 
 impl LazyPagesExecutionContext {
     pub fn is_accessed(&self, page: GearPage) -> bool {
-        self.accessed_pages.contains(&page)
+        self.accessed_pages.contains(page)
     }
 
     pub fn is_write_accessed(&self, page: GearPage) -> bool {
-        self.write_accessed_pages.contains(&page)
+        self.write_accessed_pages.contains(page)
     }
 
     pub fn set_accessed(&mut self, page: GearPage) {
@@ -175,10 +178,11 @@ impl LazyPagesExecutionContext {
 
     pub fn set_write_accessed(&mut self, page: GearPage) -> Result<(), Error> {
         self.set_accessed(page);
-        match self.write_accessed_pages.insert(page) {
-            true => Ok(()),
-            false => Err(Error::DoubleWriteAccess(page)),
+        if self.write_accessed_pages.contains(page) {
+            return Err(Error::DoubleWriteAccess(page));
         }
+        self.write_accessed_pages.insert(page);
+        Ok(())
     }
 
     pub fn key_for_page(&mut self, page: GearPage) -> &[u8] {
@@ -235,7 +239,7 @@ impl PagePrefix {
     /// Returns key in storage for `page`.
     fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
-        let page_no: u32 = page.into();
+        let page_no: u32 = page.raw();
         self.buffer[len - size_of::<u32>()..len].copy_from_slice(page_no.to_le_bytes().as_slice());
         &self.buffer
     }
@@ -272,10 +276,12 @@ impl GasCharger {
             (false, false) => self.read_cost,
             (false, true) => return Err(Error::DoubleReadCharge(page)),
         };
+        log::trace!("Charge for page access: {}", amount);
         Ok(Self::sub_gas(gas_counter, amount))
     }
 
     pub fn charge_for_page_data_load(&mut self, gas_counter: &mut u64) -> Status {
+        log::trace!("Charge for page data load");
         Self::sub_gas(gas_counter, self.load_data_cost)
     }
 }

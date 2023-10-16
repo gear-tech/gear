@@ -33,7 +33,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Externalities,
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::WasmPagesAmount,
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
@@ -52,13 +52,13 @@ pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
 impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
     type GrowError = gear_sandbox::Error;
 
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.memory.grow(self.caller, pages.raw()).map(|_| ())
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        self.memory.grow(self.caller, pages.into()).map(|_| ())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new(self.memory.size(self.caller))
-            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    fn size(&self) -> WasmPagesAmount {
+        WasmPagesAmount::try_from(self.memory.size(self.caller))
+            .expect("Unexpected executor behavior: wasm size is bigger then 4 GB")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -108,13 +108,15 @@ where
 {
     type GrowError = gear_sandbox::Error;
 
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.memory.grow(&mut self.store, pages.raw()).map(|_| ())
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        self.memory.grow(&mut self.store, pages.into()).map(|_| ())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new(self.memory.size(&self.store))
-            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    fn size(&self) -> WasmPagesAmount {
+        self.memory
+            .size(&self.store)
+            .try_into()
+            .expect("Unexpected backend behavior: wasm size is bigger than 4 GB")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -470,7 +472,10 @@ pub(crate) struct WasmMemoryWrite {
 mod tests {
     use super::*;
     use crate::{error::ActorTerminationReason, mock::MockExt, state::State};
-    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
+    use gear_core::{
+        memory::{AllocError, AllocationsContext, NoopGrowHandler},
+        pages::WasmPage,
+    };
     use gear_sandbox::{AsContextExt, SandboxStore};
 
     fn new_test_memory(
@@ -499,6 +504,8 @@ mod tests {
 
     #[test]
     fn smoky() {
+        let _ = env_logger::try_init();
+
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_eq!(
@@ -508,9 +515,8 @@ mod tests {
         );
 
         assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap(),
-            16.into()
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(WasmPage::UPPER)
         );
 
         // there is a space for 14 more

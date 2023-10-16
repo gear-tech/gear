@@ -427,12 +427,10 @@ pub fn process_success(
         })
     }
 
-    if !allocations.is_empty() {
-        journal.push(JournalNote::UpdateAllocations {
-            program_id,
-            allocations,
-        });
-    }
+    journal.push(JournalNote::UpdateAllocations {
+        program_id,
+        allocations,
+    });
 
     let outcome = match kind {
         Wait(duration, waited_type) => {

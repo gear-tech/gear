@@ -2754,6 +2754,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
+name = "drops"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "dtoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4043,6 +4053,7 @@ dependencies = [
  "blake2-rfc",
  "byteorder",
  "derive_more",
+ "drops",
  "enum-iterator 1.4.1",
  "env_logger",
  "gear-core-errors",
@@ -4069,6 +4080,7 @@ dependencies = [
  "actor-system-error",
  "blake2-rfc",
  "derive_more",
+ "env_logger",
  "gear-core",
  "gear-core-backend-codegen",
  "gear-core-errors",
@@ -4105,6 +4117,7 @@ version = "1.0.2"
 dependencies = [
  "actor-system-error",
  "derive_more",
+ "drops",
  "enum-iterator 1.4.1",
  "env_logger",
  "gear-core",
@@ -4132,6 +4145,7 @@ version = "1.0.2"
 dependencies = [
  "cfg-if",
  "derive_more",
+ "drops",
  "env_logger",
  "errno",
  "gear-core",
@@ -4529,6 +4543,7 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "drops",
  "gear-core",
  "gear-core-backend",
  "gear-core-processor",

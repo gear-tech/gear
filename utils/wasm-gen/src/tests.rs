@@ -18,6 +18,7 @@
 
 use super::*;
 use arbitrary::Unstructured;
+use drops::Bound;
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},
@@ -392,7 +393,7 @@ fn execute_wasm_with_custom_configs(
             gear_core_processor::Ext::lazy_pages_init_for_program(
                 mem,
                 program_id,
-                Some(mem.size()),
+                Some(mem.size().get().expect("+_+_+")),
                 globals_config,
                 Default::default(),
             );

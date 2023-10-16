@@ -134,15 +134,15 @@ pub trait ProgramStorage {
     }
 
     /// Return program data for each page from `pages`.
-    fn get_program_data_for_pages<'a>(
+    fn get_program_data_for_pages(
         program_id: ProgramId,
-        pages: impl Iterator<Item = &'a GearPage>,
+        pages: impl Iterator<Item = GearPage>,
     ) -> Result<MemoryMap, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, page)
+            let data = Self::MemoryPageMap::get(&program_id, &page)
                 .ok_or(Self::InternalError::cannot_find_page_data())?;
-            pages_data.insert(*page, data);
+            pages_data.insert(page, data);
         }
 
         Ok(pages_data)

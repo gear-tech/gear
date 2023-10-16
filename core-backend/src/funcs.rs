@@ -39,7 +39,7 @@ use gear_core::{
     message::{
         HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{PageNumber, WasmPage},
 };
 use gear_core_backend_codegen::host;
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
@@ -333,7 +333,7 @@ where
         gas: u64,
         page_no: u32,
     ) -> Result<(u64, i32), HostError> {
-        let page = WasmPage::new(page_no).map_err(|_| {
+        let page = WasmPage::try_from(page_no).map_err(|_| {
             UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                 TrapExplanation::Unknown,
             ))

@@ -37,7 +37,7 @@ use gear_core::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{Drops, GearPage, Interval, PageU32Size, WasmPage},
     percent::Percent,
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
@@ -48,7 +48,7 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sp_io::TestExternalities;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
@@ -1028,7 +1028,7 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: Drops<WasmPage>) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
@@ -1048,13 +1048,14 @@ impl JournalHandler for ExtManager {
                     ..
                 }),
             ) => {
-                program
+                for page in program
                     .allocations()
-                    .difference(&allocations)
-                    .flat_map(PageU32Size::to_pages_iter)
-                    .for_each(|ref page| {
-                        pages_data.remove(page);
-                    });
+                    .and_not_iter(&allocations)
+                    .flat_map(Interval::from)
+                    .flat_map(|p| p.to_pages_iter())
+                {
+                    pages_data.remove(&page);
+                }
                 program.set_allocations(allocations);
             }
             _ => unreachable!("No pages data found for program"),

@@ -41,7 +41,7 @@ use gear_core::{
     gas::GasAmount,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, WasmPage},
+    pages::WasmPagesAmount,
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{
@@ -375,7 +375,7 @@ where
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPage,
+        mem_size: WasmPagesAmount,
     ) -> Result<Self, EnvironmentError<Infallible>> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -399,8 +399,9 @@ where
             funcs_count: 0,
         };
 
+        // TODO: make refactoring for mem size #+_+_+
         let memory: DefaultExecutorMemory =
-            match SandboxMemory::new(&mut store, mem_size.raw(), None) {
+            match SandboxMemory::new(&mut store, mem_size.into(), None) {
                 Ok(mem) => mem,
                 Err(e) => return Err(System(CreateEnvMemory(e))),
             };
@@ -559,7 +560,7 @@ where
         let state = store
             .data_mut()
             .take()
-            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
+            .unwrap_or_else(|| unreachable!("State must be set; qed"));
 
         let (ext, termination_reason) = state.terminate(res, gas);
 

@@ -28,12 +28,13 @@ use crate::{
     },
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
+use drops::Drops;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
-    pages::{PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -157,20 +158,15 @@ impl<'a> GasPrecharger<'a> {
     pub fn charge_gas_for_pages(
         &mut self,
         costs: &PageCosts,
-        allocations: &BTreeSet<WasmPage>,
-        static_pages: WasmPage,
-    ) -> Result<WasmPage, PrechargeError> {
+        allocations: &Drops<WasmPage>,
+        static_pages: WasmPagesAmount,
+    ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.
         let amount = costs.static_page.calc(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
-        if let Some(page) = allocations.iter().next_back() {
-            // It means we somehow violated some constraints:
-            // 1. one of allocated pages > MAX_WASM_PAGE_COUNT
-            // 2. static pages > MAX_WASM_PAGE_COUNT
-            Ok(page
-                .inc()
-                .unwrap_or_else(|_| unreachable!("WASM memory size is too big")))
+        if let Some(page) = allocations.end() {
+            Ok(page.inc())
         } else {
             Ok(static_pages)
         }

@@ -53,7 +53,7 @@ where
     ];
 
     let module: WasmModule<T> = ModuleDefinition {
-        memory: Some(ImportedMemory::max::<T>()),
+        memory: Some(Default::default()),
         init_body: Some(body::from_instructions(instrs)),
         stack_end: Some(0.into()),
         num_globals: 1,

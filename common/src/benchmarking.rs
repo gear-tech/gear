@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::pages::{PageNumber, PageU32Size, WasmPage};
+use gear_core::pages::{PageNumber, WasmPage};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -133,32 +133,20 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program<
-    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
-    BlockNumber: Zero + Copy + Saturating,
->(
+pub fn set_program<ProgramStorage, BlockNumber>(
     program_id: ProgramId,
     code: Vec<u8>,
-    static_pages: WasmPage,
-) {
+    static_pages: WasmPagesAmount,
+) where
+    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
+    BlockNumber: Zero + Copy + Saturating,
+{
     let code_id = CodeId::generate(&code).into_origin();
-    let allocations: BTreeSet<WasmPage> = static_pages.iter_from_zero().collect();
-    let persistent_pages_data: BTreeMap<GearPage, PageBuf> = allocations
-        .iter()
-        .flat_map(|p| p.to_pages_iter())
-        .map(|p| (p, PageBuf::new_zeroed()))
-        .collect();
-    let pages_with_data = persistent_pages_data.keys().copied().collect();
-
-    for (page, page_buf) in persistent_pages_data {
-        ProgramStorage::set_program_page_data(program_id, page, page_buf);
-    }
-
     ProgramStorage::add_program(
         program_id,
         ActiveProgram {
-            allocations,
-            pages_with_data,
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
             code_hash: code_id,
             code_exports: Default::default(),
             static_pages,

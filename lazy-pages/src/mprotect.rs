@@ -18,9 +18,9 @@
 
 //! Wrappers around system memory protections.
 
-use crate::utils;
+use crate::pages::{Page, PagesAmount, SizeManager, SizeNumber};
 use core::ops::RangeInclusive;
-use gear_core::pages::{PageDynSize, PagesIterInclusive, SizeManager};
+use drops::NotEmptyInterval;
 use std::fmt::Debug;
 
 #[derive(Debug, derive_more::Display)]
@@ -33,12 +33,10 @@ pub enum MprotectError {
         mask: region::Protection,
         reason: region::Error,
     },
-    #[display(fmt = "Interval overflows usize: {_0:#x} +/- {_1:#x}")]
-    Overflow(usize, usize),
+    #[display(fmt = "Interval size or page address overflow")]
+    Overflow,
     #[display(fmt = "Zero size is restricted for mprotect")]
     ZeroSizeError,
-    #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
-    OffsetOverflow(usize, usize),
 }
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
@@ -87,79 +85,32 @@ pub(crate) fn mprotect_interval(
     unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
 }
 
-/// Protect all pages in memory interval, except pages from `except_pages`.
-/// If `protect` is true then restrict read/write access, else allow them.
-pub(crate) fn mprotect_mem_interval_except_pages<S: SizeManager, P: PageDynSize>(
-    mem_addr: usize,
-    start_offset: usize,
-    mem_size: usize,
-    except_pages: impl Iterator<Item = P>,
-    size_ctx: &S,
-    prot_read: bool,
-    prot_write: bool,
-) -> Result<(), MprotectError> {
-    let mprotect = |start, end: usize| {
-        let addr = mem_addr
-            .checked_add(start)
-            .ok_or(MprotectError::Overflow(mem_addr, start))?;
-        let size = end
-            .checked_sub(start)
-            .ok_or(MprotectError::Overflow(end, start))?;
-        unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
-    };
-
-    if start_offset > mem_size {
-        return Err(MprotectError::OffsetOverflow(start_offset, mem_size));
-    }
-
-    let mut interval_offset = start_offset;
-    for page in except_pages {
-        let page_offset = PageDynSize::offset(&page, size_ctx) as usize;
-        if page_offset > interval_offset {
-            mprotect(interval_offset, page_offset)?;
-        }
-        interval_offset = PageDynSize::end_offset(&page, size_ctx) as usize + 1;
-    }
-    if mem_size > interval_offset {
-        mprotect(interval_offset, mem_size)
-    } else {
-        Ok(())
-    }
-}
-
 /// Mprotect all pages from `pages`.
-pub(crate) fn mprotect_pages<S: SizeManager, P: PageDynSize + Ord>(
+pub(crate) fn mprotect_pages<M: SizeManager, S: SizeNumber, I: Into<NotEmptyInterval<Page<S>>>>(
     mem_addr: usize,
-    pages: impl Iterator<Item = P>,
-    size_ctx: &S,
+    pages: impl Iterator<Item = I>,
+    size_ctx: &M,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
-    let mprotect = |interval: PagesIterInclusive<P>| {
-        let start = if let Some(start) = interval.current() {
-            start
-        } else {
-            // Interval is empty
-            return Ok(());
-        };
-        let end = interval.end();
+    for interval in pages {
+        let interval: NotEmptyInterval<Page<S>> = interval.into();
+
+        let start = interval.start();
 
         let addr = mem_addr
-            .checked_add(PageDynSize::offset(&start, size_ctx) as usize)
-            .ok_or(MprotectError::Overflow(
-                mem_addr,
-                PageDynSize::offset(&start, size_ctx) as usize,
-            ))?;
+            .checked_add(start.offset(size_ctx) as usize)
+            .ok_or(MprotectError::Overflow)?;
 
-        // `+ P::size()` because range is inclusive, and it's safe, because both are u32.
-        let size = PageDynSize::offset(
-            &end.checked_sub(start)
-                .unwrap_or_else(|| unreachable!("`end` cannot be less than `start`")),
-            size_ctx,
-        ) as usize
-            + <P as PageDynSize>::size(size_ctx) as usize;
-        unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
-    };
+        let size = interval
+            .raw_size()
+            .and_then(|raw| PagesAmount::<S>::new(size_ctx, raw))
+            .ok_or(MprotectError::Overflow)?
+            .offset(size_ctx);
 
-    utils::with_inclusive_ranges(&pages.collect(), mprotect)
+        unsafe {
+            sys_mprotect_interval(addr, size, prot_read, prot_write, false)?;
+        }
+    }
+    Ok(())
 }
