@@ -78,7 +78,7 @@ impl RpcClient {
                     // *WARNING*:
                     // After updating jsonrpsee to 0.20.0 and higher
                     // use another method created only for that.
-                    .max_request_body_size(ONE_HUNDRED_MEGA_BYTES)
+                    .max_request_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
