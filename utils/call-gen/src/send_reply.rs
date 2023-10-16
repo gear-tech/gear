@@ -25,7 +25,7 @@ use crate::{
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
-// reply to message id, payload, gas limit, value, prepaid
+// reply to message id, payload, gas limit, value.
 type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 
 /// Send reply args

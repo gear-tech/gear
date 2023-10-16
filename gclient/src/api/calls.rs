@@ -723,14 +723,13 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
         let payload = payload.as_ref().to_vec();
 
         let tx = self
             .0
             .calls
-            .send_message(destination, payload, gas_limit, value, prepaid)
+            .send_message(destination, payload, gas_limit, value)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
@@ -805,9 +804,8 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
-        self.send_message_bytes(destination, payload.encode(), gas_limit, value, prepaid)
+        self.send_message_bytes(destination, payload.encode(), gas_limit, value)
             .await
     }
 
@@ -836,7 +834,6 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
@@ -845,7 +842,7 @@ impl GearApi {
         let tx = self
             .0
             .calls
-            .send_reply(reply_to_id, payload, gas_limit, value, prepaid)
+            .send_reply(reply_to_id, payload, gas_limit, value)
             .await?;
 
         let events = tx.wait_for_success().await?;
@@ -946,9 +943,8 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
-        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value, prepaid)
+        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
             .await
     }
 

@@ -109,7 +109,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     signer
         .calls
-        .send_message(pid, vec![], gas_info.min_limit, 0, false)
+        .send_message(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -146,7 +146,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
     // 2. send wait message.
     signer
         .calls
-        .send_message(pid, payload.encode(), 100_000_000_000, 0, false)
+        .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
     let mailbox = signer
@@ -164,7 +164,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     signer
         .calls
-        .send_reply(message_id, vec![], gas_info.min_limit, 0, false)
+        .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())

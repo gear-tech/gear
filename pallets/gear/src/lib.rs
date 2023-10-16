@@ -1449,18 +1449,11 @@ pub mod pallet {
         /// is not a program in uninitialized state. If the opposite holds true,
         /// the message is not enqueued for processing.
         ///
-        /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// charged against a `voucher` that must have been issued for the sender
-        /// in conjunction with the `destination` program. That means that the
-        /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
-        /// exist and have sufficient funds in it. Otherwise, the call is invalidated.
-        ///
         /// Parameters:
         /// - `destination`: the message destination.
         /// - `payload`: in case of a program destination, parameters of the `handle` function.
         /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
         /// - `value`: balance to be transferred to the program once it's been created.
-        /// - `prepaid`: a flag that indicates whether a voucher should be used.
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
@@ -1492,12 +1485,6 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        ///
-        /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// charged against a `voucher` that must have been issued for the sender
-        /// in conjunction with the mailboxed message source program. That means that the
-        /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
-        /// exist and have sufficient funds in it. Otherwise, the call is invalidated.
         #[pallet::call_index(4)]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
