@@ -136,8 +136,8 @@ impl WasmModule {
             for export in export_section.entries().iter() {
                 if export.field() == ep.to_str() {
                     let &Internal::Function(init_idx) = export.internal() else {
-                            panic!("init export is not a func");
-                        };
+                        panic!("init export is not a func");
+                    };
                     return Some(init_idx);
                 }
             }

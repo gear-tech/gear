@@ -140,7 +140,9 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             ));
         }
 
-        let SysCallDestination::ExistingAddresses(existing_addresses) = self.config.syscall_destination() else {
+        let SysCallDestination::ExistingAddresses(existing_addresses) =
+            self.config.syscall_destination()
+        else {
             return None;
         };
 
