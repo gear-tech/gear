@@ -571,7 +571,7 @@ mod tests {
         fn assert_alloc_error(err: AllocError) {
             match err {
                 AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds => {}
-                err => Err(err).unwrap(),
+                err => panic!("{err:?}"),
             }
         }
 
@@ -579,7 +579,7 @@ mod tests {
         fn assert_free_error(err: AllocError) {
             match err {
                 AllocError::InvalidFree(_) => {}
-                err => Err(err).unwrap(),
+                err => panic!("{err:?}"),
             }
         }
 

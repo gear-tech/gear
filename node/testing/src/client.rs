@@ -20,7 +20,6 @@
 
 #[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
 use gear_runtime as runtime;
-use sc_service::client;
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;
