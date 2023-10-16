@@ -21,7 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
-    pages::{GearPage, WasmPage},
+    pages::{GearPagesAmount, WasmPagesAmount},
 };
 use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -54,41 +54,44 @@ pub struct BlockInfo {
 #[codec(crate = scale)]
 pub struct PageCosts {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages.
-    pub lazy_pages_signal_read: CostPerPage<GearPage>,
+    pub lazy_pages_signal_read: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    pub lazy_pages_signal_write: CostPerPage<GearPage>,
+    pub lazy_pages_signal_write: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
-    pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
+    pub lazy_pages_signal_write_after_read: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
-    pub lazy_pages_host_func_read: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_read: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
-    pub lazy_pages_host_func_write: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_write: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] data loading from storage and moving it in program memory.
     /// Does not include cost for storage read, because it is taken in account separately.
-    pub load_page_data: CostPerPage<GearPage>,
+    pub load_page_data: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [GearPage] uploading data to storage.
     /// Does not include cost for processing changed page data in runtime,
     /// cause it is taken in account separately.
-    pub upload_page_data: CostPerPage<GearPage>,
+    pub upload_page_data: CostPerPage<GearPagesAmount>,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
-    pub static_page: CostPerPage<WasmPage>,
+    pub static_page: CostPerPage<WasmPagesAmount>,
 
-    /// Cost per one [WasmPage] for memory growing.
-    pub mem_grow: CostPerPage<WasmPage>,
+    /// Cost per one memory growing call.
+    pub mem_grow: u64,
+
+    /// Cost of growing memory per one page.
+    pub mem_grow_per_page: CostPerPage<WasmPagesAmount>,
 
     /// Cost per one [GearPage] storage read, when para-chain execution.
-    pub parachain_load_heuristic: CostPerPage<GearPage>,
+    pub parachain_load_heuristic: CostPerPage<GearPagesAmount>,
 }
 
 impl PageCosts {
@@ -134,7 +137,8 @@ impl PageCosts {
             load_page_data: a,
             upload_page_data: a,
             static_page: b,
-            mem_grow: b,
+            mem_grow: 4000,
+            mem_grow_per_page: 0.into(),
             parachain_load_heuristic: a,
         }
     }
@@ -147,7 +151,7 @@ pub struct ExecutionSettings {
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
     /// Max amount of pages in program memory during execution.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Pages costs.
     pub page_costs: PageCosts,
     /// Minimal amount of existence for account.
@@ -183,7 +187,7 @@ pub struct BlockConfig {
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
     /// Max allowed page numbers for wasm program.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Allocations config.
     pub page_costs: PageCosts,
     /// Existential deposit.

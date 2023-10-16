@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
@@ -113,23 +113,21 @@ pub struct DataSegment {
 
 #[derive(Clone)]
 pub struct ImportedMemory {
-    // TODO: change to WasmPage (issue #2094)
-    pub min_pages: WasmPage,
+    pub min_pages: WasmPagesAmount,
 }
 
 impl ImportedMemory {
-    pub fn max<T: Config>() -> Self
-    where
-        T: Config,
-    {
-        Self {
-            min_pages: max_pages::<T>().into(),
-        }
-    }
-
     pub fn new(min_pages: u16) -> Self {
         Self {
             min_pages: min_pages.into(),
+        }
+    }
+}
+
+impl Default for ImportedMemory {
+    fn default() -> Self {
+        Self {
+            min_pages: (super::MAX_PAGES as u16).into(),
         }
     }
 }
@@ -275,9 +273,10 @@ where
 
         // Add stack end export
         let stack_end = def.stack_end.unwrap_or(
+            // Full static memory as stack
             def.memory
                 .as_ref()
-                .map(|memory| memory.min_pages)
+                .map(|memory| memory.min_pages.to_page().expect("memory size is too big"))
                 .unwrap_or(0.into()),
         );
         program = program
@@ -330,7 +329,7 @@ where
     /// Creates a wasm module with an empty `handle` and `init` function and nothing else.
     pub fn dummy() -> Self {
         ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(Default::default()),
             ..Default::default()
         }
         .into()
@@ -362,7 +361,7 @@ where
             End,
         ];
         let mut module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(Default::default()),
             ..Default::default()
         };
         let body = Some(body::repeated(expansions, EXPANSION));
@@ -442,7 +441,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{GearPage, PageU32Size, WasmPage};
+    use gear_core::pages::{GearPage, Interval, PageU32Size, WasmPage};
 
     use super::*;
 
@@ -495,13 +494,10 @@ pub mod body {
     }
 
     pub fn write_access_all_pages_instrs(
-        mem_size: WasmPage,
+        mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in mem_size
-            .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
-        {
+        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_interval::<GearPage>()) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
             head.push(Instruction::I32Store(2, 0));
@@ -510,13 +506,10 @@ pub mod body {
     }
 
     pub fn read_access_all_pages_instrs(
-        mem_size: WasmPage,
+        mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in mem_size
-            .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
-        {
+        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_interval::<GearPage>()) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));
             head.push(Instruction::Drop);
@@ -692,11 +685,17 @@ pub mod body {
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
-pub fn max_pages<T: Config>() -> u16
+pub fn max_pages<T: Config>() -> WasmPagesAmount
 where
     T: Config,
 {
-    T::Schedule::get().limits.memory_pages
+    T::Schedule::get()
+        .limits
+        .memory_pages
+        .try_into()
+        .unwrap_or_else(|_| {
+            unreachable!("Memory pages limit is bigger than possible in 4 GB memory")
+        })
 }
 
 // Used for producing different code based on instruction bit width: 32-bit or 64-bit.

@@ -23,6 +23,35 @@ use std::time::Duration;
 use demo_wat::WatExample;
 use gclient::{errors, Error, EventProcessor, GearApi};
 
+const BIG_ALLOC_WAT: &str = r#"
+    (module
+	    (import "env" "memory" (memory 0))
+        (import "env" "alloc" (func $alloc (param i32) (result i32)))
+	    (export "init" (func $init))
+	    (func $init
+            ;; alloc `4GB - 64KB`
+            i32.const 0xffff
+            call $alloc
+            drop
+
+            ;; access last 4 bits
+            i32.const 0xfffefffc
+            i32.const 0x42
+            i32.store
+
+            ;; access first 4 bits
+            i32.const 0x0
+            i32.const 0x42
+            i32.store
+
+            ;; access 4 bits in the middle
+            i32.const 0x80000000
+            i32.const 0x42
+            i32.store
+        )
+    )
+"#;
+
 async fn upload_programs_and_check(
     api: &GearApi,
     codes: Vec<Vec<u8>>,
@@ -77,6 +106,7 @@ async fn harmless_upload() -> anyhow::Result<()> {
         WatExample::InfRecursion,
         WatExample::ReadAccess,
         WatExample::ReadWriteAccess,
+        WatExample::from_wat(BIG_ALLOC_WAT).unwrap(),
     ];
 
     let codes = examples.into_iter().map(|e| e.code()).collect();

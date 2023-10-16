@@ -90,8 +90,7 @@ where
         }
 
         let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-        program.allocations =
-            BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+        program.allocations = (0..wasm_pages).map(|i| WasmPage::from(i as u16)).collect();
     })
     .expect("program should exist");
 

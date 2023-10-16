@@ -21,7 +21,11 @@ use crate::queue::{ActorResult, QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
-use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
+use gear_core::{
+    code::TryNewCodeConfig,
+    pages::{IntervalsTree, WasmPage},
+    program::MemoryInfix,
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -30,7 +34,7 @@ pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     pub memory_infix: MemoryInfix,
 }
 

@@ -40,7 +40,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, IntervalsTree, PageU32Size, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -80,7 +80,7 @@ pub struct ProcessorContext {
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
     /// Max allowed wasm memory pages.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Allocations config.
     pub page_costs: PageCosts,
     /// Account existential deposit
@@ -167,7 +167,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -314,9 +314,10 @@ impl BackendAllocSyscallError for AllocExtError {
 
 struct LazyGrowHandler {
     old_mem_addr: Option<u64>,
-    old_mem_size: WasmPage,
+    old_mem_size: WasmPagesAmount,
 }
 
+// TODO: remove GrowHandler after grows removing #_+_+_
 impl GrowHandler for LazyGrowHandler {
     fn before_grow_action(mem: &mut impl Memory) -> Self {
         // New pages allocation may change wasm memory buffer location.
@@ -386,13 +387,13 @@ impl ProcessorExternalities for Ext {
             ..
         } = self.context;
 
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+        let (static_pages, allocations) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
         let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
-            let wasm_page = p.to_page();
-            wasm_page < static_pages || allocations.contains(&wasm_page)
+            let wasm_page: WasmPage = p.to_page();
+            static_pages > wasm_page || allocations.contains(wasm_page)
         });
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -424,9 +425,7 @@ impl ProcessorExternalities for Ext {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
+            allocations,
             pages_data,
             generated_dispatches,
             awakening,
@@ -707,15 +706,31 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+        let pages = WasmPagesAmount::try_from(pages_num)
+            .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
+        // charge for place for allocation search
+        let intervals_amount = self
+            .context
+            .allocations_context
+            .allocations()
+            .intervals_amount() as u64;
+        let gas = self
+            .context
+            .host_fn_weights
+            .alloc_per_intervals_amount
+            .saturating_mul(intervals_amount);
+        self.charge_gas_if_enough(gas)?;
 
         self.context
             .allocations_context
             .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+                let gas_for_call = self.context.page_costs.mem_grow;
+                let gas_for_pages = self.context.page_costs.mem_grow_per_page.calc(pages);
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
+                    gas_for_call.saturating_add(gas_for_pages),
                 )
             })
             .map_err(Into::into)
@@ -1284,7 +1299,7 @@ mod tests {
         let non_existing_page = 100.into();
 
         let allocations_context =
-            AllocationsContext::new(BTreeSet::from([existing_page]), 1.into(), 512.into());
+            AllocationsContext::new([existing_page].into_iter().collect(), 1.into(), 512.into());
 
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()

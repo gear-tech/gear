@@ -33,7 +33,7 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
+    pages::{WasmPage, WasmPagesAmount, WASM_PAGE_SIZE},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
@@ -340,16 +340,16 @@ impl MockMemory {
 impl Memory for MockMemory {
     type GrowError = ();
 
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        let new_size = self.pages.len() + (pages.raw() as usize) * WASM_PAGE_SIZE;
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        let new_size = self.pages.len() + (u32::from(pages) as usize) * WASM_PAGE_SIZE;
 
         self.pages.resize(new_size, 0);
 
         Ok(())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
+    fn size(&self) -> WasmPagesAmount {
+        WasmPagesAmount::try_from((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {

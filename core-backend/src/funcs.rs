@@ -41,7 +41,7 @@ use gear_core::{
     message::{
         HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{PageNumber, WasmPage},
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
@@ -653,7 +653,7 @@ where
 
     pub fn free(page_no: u32) -> impl SysCall<Ext, i32> {
         InfallibleSysCall::new(RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
-            let page = WasmPage::new(page_no).map_err(|_| {
+            let page = WasmPage::try_from(page_no).map_err(|_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
                 ))

@@ -18,23 +18,35 @@
 
 //! Lazy-pages wasm runtime tests.
 
-use core::mem::size_of;
-
-use ::alloc::{collections::BTreeSet, format};
-use common::ProgramStorage;
-use core_processor::Ext;
+use ::alloc::{collections::BTreeSet, format, vec};
+use common::{Origin, ProgramStorage};
+use core::{
+    fmt::{Debug, Formatter},
+    mem::size_of,
+};
+use core_processor::{
+    common::{DispatchOutcome, JournalNote},
+    configs::PageCosts,
+    Ext,
+};
 use frame_support::codec::MaxEncodedLen;
 use gear_core::{
-    memory::MemoryInterval,
-    pages::{PageNumber, PageU32Size},
+    ids::ProgramId,
+    memory::{MemoryInterval, PageBuf},
+    pages::{GearPage, GearPagesAmount, Interval, PageNumber, PageU32Size},
 };
 use gear_lazy_pages_common::Status;
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use rand::{Rng, SeedableRng};
 
-use super::*;
 use crate::{
-    benchmarking::{utils as common_utils, utils::PrepareConfig},
-    HandleKind,
+    benchmarking::{
+        code::{body, ImportedMemory, ModuleDefinition},
+        utils as common_utils,
+        utils::PrepareConfig,
+        Program,
+    },
+    Config, HandleKind, ProgramStorageOf,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -50,12 +62,12 @@ enum SetNo {
 }
 
 #[derive(Default)]
-struct PageSets<P: PageU32Size> {
-    sets: [BTreeSet<P>; SetNo::Amount as usize],
+struct PageSets {
+    sets: [BTreeSet<GearPage>; SetNo::Amount as usize],
 }
 
-impl<P: PageU32Size + core::fmt::Debug> core::fmt::Debug for PageSets<P> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Debug for PageSets {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         for set_no in SetNo::SignalRead as usize..=SetNo::WithData as usize {
             let set = if set_no == SetNo::WithData as usize {
                 self.accessed_pages()
@@ -71,28 +83,28 @@ impl<P: PageU32Size + core::fmt::Debug> core::fmt::Debug for PageSets<P> {
     }
 }
 
-impl<P: PageU32Size> PageSets<P> {
-    fn get(&self, no: SetNo) -> &BTreeSet<P> {
+impl PageSets {
+    fn get(&self, no: SetNo) -> &BTreeSet<GearPage> {
         &self.sets[no as usize]
     }
 
-    fn get_mut(&mut self, no: SetNo) -> &mut BTreeSet<P> {
+    fn get_mut(&mut self, no: SetNo) -> &mut BTreeSet<GearPage> {
         &mut self.sets[no as usize]
     }
 
-    fn with_accessed(i: MemoryInterval, mut f: impl FnMut(P)) {
-        let start = P::from_offset(i.offset);
-        let end = P::from_offset(i.offset.checked_add(i.size.saturating_sub(1)).unwrap());
-        for page in start.iter_end_inclusive(end).unwrap() {
+    fn with_accessed(i: MemoryInterval, mut f: impl FnMut(GearPage)) {
+        let start = GearPage::from_offset(i.offset);
+        let end = GearPage::from_offset(i.offset.checked_add(i.size.saturating_sub(1)).unwrap());
+        for page in Interval::try_from(start..=end).unwrap() {
             f(page);
         }
     }
 
-    fn is_any_read(&self, page: P) -> bool {
+    fn is_any_read(&self, page: GearPage) -> bool {
         self.get(SetNo::SignalRead).contains(&page) || self.get(SetNo::HostFuncRead).contains(&page)
     }
 
-    fn is_any_write(&self, page: P) -> bool {
+    fn is_any_write(&self, page: GearPage) -> bool {
         self.get(SetNo::SignalWrite).contains(&page)
             || self.get(SetNo::SignalWriteAfterRead).contains(&page)
             || self.get(SetNo::HostFuncWrite).contains(&page)
@@ -139,11 +151,11 @@ impl<P: PageU32Size> PageSets<P> {
         });
     }
 
-    fn add_page_with_data(&mut self, p: P) {
+    fn add_page_with_data(&mut self, p: GearPage) {
         self.get_mut(SetNo::WithData).insert(p);
     }
 
-    fn accessed_pages(&self) -> BTreeSet<P> {
+    fn accessed_pages(&self) -> BTreeSet<GearPage> {
         let mut accessed_pages = BTreeSet::new();
         for set in self.sets[..SetNo::WithData as usize].iter() {
             accessed_pages.extend(set.iter().copied());
@@ -151,12 +163,12 @@ impl<P: PageU32Size> PageSets<P> {
         accessed_pages
     }
 
-    fn loaded_pages_count(&self) -> GearPage {
-        (self
+    fn loaded_pages_count(&self) -> GearPagesAmount {
+        let c = self
             .accessed_pages()
             .intersection(self.get(SetNo::WithData))
-            .count() as u16)
-            .into()
+            .count() as u32;
+        c.try_into().unwrap()
     }
 
     fn charged_for_pages(&self, costs: &PageCosts) -> u64 {
@@ -172,6 +184,7 @@ impl<P: PageU32Size> PageSets<P> {
         ];
 
         let mut amount = 0u64;
+
         #[allow(clippy::needless_range_loop)]
         for set_no in SetNo::SignalRead as usize..SetNo::WithData as usize {
             amount = amount
@@ -199,11 +212,11 @@ where
     let (load_prob, store_prob, syscall_prob) = (4, 4, 2);
     let prob_max = load_prob + store_prob + syscall_prob;
 
-    let memory = ImportedMemory::max::<T>();
+    let memory = ImportedMemory::new(1000);
     let size_wasm_pages = memory.min_pages;
-    let size_gear = size_wasm_pages.to_page::<GearPage>();
+    let size_gear: GearPagesAmount = size_wasm_pages.to_pages_amount();
     let access_size = size_of::<u32>() as u32;
-    let max_addr = size_wasm_pages.offset();
+    let max_addr = size_wasm_pages.to_page().unwrap().offset();
 
     let test = |seed: u64| {
         let mut rng = rand_pcg::Pcg32::seed_from_u64(seed);
@@ -262,7 +275,7 @@ where
 
         // Upload program with code
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(memory.clone()),
             imported_functions: vec![SysCallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
@@ -274,7 +287,7 @@ where
 
         // Append data in storage for some pages.
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
-            .map(|_| GearPage::new(rng.gen_range(0..size_gear.raw())).unwrap())
+            .map(|_| GearPage::try_from(rng.gen_range(0..size_gear.raw())).unwrap())
         {
             page_sets.add_page_with_data(page);
             ProgramStorageOf::<T>::set_program_page_data(
@@ -358,7 +371,7 @@ where
 
     let test = |instrs, expected| {
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(Default::default()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -516,7 +529,7 @@ where
         Instruction::I32Store(2, 0),
     ];
     let module = ModuleDefinition {
-        memory: Some(ImportedMemory::max::<T>()),
+        memory: Some(Default::default()),
         handle_body: Some(body::from_instructions(instrs)),
         stack_end: Some(0.into()),
         ..Default::default()

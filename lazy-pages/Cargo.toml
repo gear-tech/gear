@@ -15,6 +15,7 @@ cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
 once_cell.workspace = true
+static_assertions.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
@@ -33,3 +34,5 @@ winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
 [dev-dependencies]
 env_logger.workspace = true
+numerated = { workspace = true, features = ["mock"] }
+proptest.workspace = true

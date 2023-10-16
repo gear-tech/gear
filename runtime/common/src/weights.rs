@@ -171,7 +171,7 @@ pub fn check_pages_weights(
         weights.static_page.one(),
         expected_page_costs.static_page.one(),
     );
-    check_pages_weight(weights.mem_grow.one(), expected_page_costs.mem_grow.one());
+    check_pages_weight(weights.mem_grow, expected_page_costs.mem_grow);
     check_pages_weight(
         weights.parachain_load_heuristic.one(),
         expected_page_costs.parachain_load_heuristic.one(),

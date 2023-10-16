@@ -135,11 +135,10 @@ use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
-pub mod migrations;
-
 #[cfg(test)]
 mod mock;
 
+pub mod migration_alloc;
 pub mod pallet_tests;
 
 #[frame_support::pallet]

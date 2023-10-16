@@ -49,8 +49,7 @@ use tests::syscalls_integrity;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
-        OFFSET_AUX,
+        ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule, OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -62,10 +61,7 @@ use crate::{
     GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
     RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
-use ::alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec,
-};
+use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
@@ -460,7 +456,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (MAX_PAGES as u16).into()).unwrap();
     }
 
     claim_value {
@@ -598,11 +594,11 @@ benchmarks! {
             for i in 0 .. c {
                 let page = GearPage::from(i as u16);
                 ProgramStorageOf::<T>::set_program_page_data(program_id, program.memory_infix, page, memory_page.clone());
-                program.pages_with_data.insert(page);
             }
+            program.pages_with_data = (0..c).map(|i| GearPage::from(i as u16)).collect();
 
             let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-            program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
+            program.allocations = (0..wasm_pages).map(|i| WasmPage::from(i as u16)).collect();
 
             program.clone()
         }).expect("program should exist");
@@ -642,7 +638,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in kilobytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. MAX_PAGES * 64 * 128;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -676,7 +672,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. MAX_PAGES * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
@@ -792,11 +788,10 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
-    // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::alloc(r, 1)?;
+        let exec = Benches::<T>::alloc(r, 0, 1)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -805,14 +800,47 @@ benchmarks! {
     }
 
     alloc_per_page {
-        let p in 1 .. MAX_PAGES;
+        let s in 0 .. 500;
         let mut res = None;
-        let exec = Benches::<T>::alloc(1, p)?;
+        let exec = Benches::<T>::alloc(1, 0, s)?;
     }: {
         res.replace(run_process(exec));
     }
     verify {
         verify_process(res.unwrap());
+    }
+
+    alloc_per_intervals_amount {
+        let i in 0 .. 10000;
+        let mut res = None;
+        let exec = Benches::<T>::alloc(1, i, 2)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    mem_grow {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut store = Store::new(None);
+        let mem = ExecutorMemory::new(&mut store, 0, None).unwrap();
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
+    }: {
+        for _ in 0..r * API_BENCHMARK_BATCH_SIZE {
+            mem.grow(1.into()).unwrap();
+        }
+    }
+
+    mem_grow_per_page {
+        let p in 1 .. 600;
+        let mut store = Store::new(None);
+        let mem = ExecutorMemory::new(&mut store, 0, None).unwrap();
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
+    }: {
+        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+            mem.grow((p as u16).into()).unwrap();
+        }
     }
 
     free {
@@ -1585,7 +1613,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1596,7 +1624,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1607,7 +1635,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
     }: {
@@ -1618,7 +1646,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. code::max_pages::<T>() as u32;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1661,26 +1689,14 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    mem_grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut store = Store::new(None);
-        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
-    }: {
-        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(1.into()).unwrap();
-        }
-    }
-
     // w_load = w_bench
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1694,11 +1710,10 @@ benchmarks! {
     instr_i32load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1712,11 +1727,10 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1730,11 +1744,10 @@ benchmarks! {
     instr_i32store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()
@@ -2048,7 +2061,7 @@ benchmarks! {
     instr_memory_current {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(Default::default()),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::CurrentMemory(0),
                 Instruction::Drop

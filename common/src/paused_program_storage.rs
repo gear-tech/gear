@@ -18,27 +18,25 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-};
+use gear_core::pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 
-const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
+/// TODO: need to make full refactoring of program pages data pausing #_+_+_
+const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * 256;
 
 pub type SessionId = u32;
 
 // The entity helps to calculate hash of program's data and memory pages.
 // Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
 struct Item {
-    data: (BTreeSet<WasmPage>, H256, MemoryMap),
+    data: (IntervalsTree<WasmPage>, H256, MemoryMap),
     remaining_pages: MemoryMap,
 }
 
-impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
+impl From<(IntervalsTree<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
-        (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
+        (allocations, code_hash, mut memory_pages): (IntervalsTree<WasmPage>, H256, MemoryMap),
     ) -> Self {
         let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
         Self {
@@ -77,8 +75,8 @@ pub struct ResumeSession<AccountId, BlockNumber> {
     page_count: u32,
     user: AccountId,
     program_id: ProgramId,
-    allocations: BTreeSet<WasmPage>,
-    pages_with_data: BTreeSet<GearPage>,
+    allocations: IntervalsTree<WasmPage>,
+    pages_with_data: IntervalsTree<GearPage>,
     code_hash: CodeId,
     end_block: BlockNumber,
 }
@@ -133,7 +131,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = match Self::get_program_data_for_pages(
                 program_id,
                 program.memory_infix,
-                program.pages_with_data.iter(),
+                program.pages_with_data.points_iter(),
             ) {
                 Ok(memory_pages) => memory_pages,
                 Err(e) => {
@@ -164,7 +162,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         user: Self::AccountId,
         end_block: Self::BlockNumber,
         program_id: ProgramId,
-        allocations: BTreeSet<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
         code_hash: CodeId,
     ) -> Result<SessionId, Self::Error> {
         if !Self::paused_program_exists(&program_id) {
@@ -272,7 +270,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = Self::get_program_data_for_pages(
                 session.program_id,
                 MemoryInfix::new(session_id),
-                session.pages_with_data.iter(),
+                session.pages_with_data.points_iter(),
             )
             .unwrap_or_default();
             let code_hash = session.code_hash.into_origin();

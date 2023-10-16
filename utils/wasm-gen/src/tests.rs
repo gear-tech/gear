@@ -26,7 +26,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    pages::WASM_PAGE_SIZE,
+    pages::{Bound, WASM_PAGE_SIZE},
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
@@ -393,7 +393,11 @@ fn execute_wasm_with_custom_configs(
                 mem,
                 program_id,
                 Default::default(),
-                Some(mem.size()),
+                Some(
+                    mem.size()
+                        .get()
+                        .expect("Memory size is 4GB, so cannot be stack end"),
+                ),
                 globals_config,
                 Default::default(),
             );

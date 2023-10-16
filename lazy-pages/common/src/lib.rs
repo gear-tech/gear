@@ -28,7 +28,7 @@ use core::{any::Any, fmt::Debug};
 use gear_core::{
     costs::CostPerPage,
     memory::HostPointer,
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, GearPagesAmount, WasmPage},
     str::LimitedStr,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -60,19 +60,19 @@ pub enum GlobalsAccessMod {
 #[codec(crate = codec)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
-    pub signal_read: CostPerPage<GearPage>,
+    pub signal_read: CostPerPage<GearPagesAmount>,
     /// First write page access cost.
-    pub signal_write: CostPerPage<GearPage>,
+    pub signal_write: CostPerPage<GearPagesAmount>,
     /// First write access cost for page, which has been already read accessed.
-    pub signal_write_after_read: CostPerPage<GearPage>,
+    pub signal_write_after_read: CostPerPage<GearPagesAmount>,
     /// First read page access cost from host function call.
-    pub host_func_read: CostPerPage<GearPage>,
+    pub host_func_read: CostPerPage<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write: CostPerPage<GearPage>,
+    pub host_func_write: CostPerPage<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write_after_read: CostPerPage<GearPage>,
+    pub host_func_write_after_read: CostPerPage<GearPagesAmount>,
     /// Loading page data from storage cost.
-    pub load_page_storage_data: CostPerPage<GearPage>,
+    pub load_page_storage_data: CostPerPage<GearPagesAmount>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.
@@ -149,7 +149,7 @@ pub struct LazyPagesInitContext {
 impl LazyPagesInitContext {
     pub fn new(prefix: [u8; 32]) -> Self {
         Self {
-            page_sizes: vec![WasmPage::size(), GearPage::size()],
+            page_sizes: vec![WasmPage::SIZE, GearPage::SIZE],
             global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
             pages_storage_prefix: prefix.to_vec(),
         }
