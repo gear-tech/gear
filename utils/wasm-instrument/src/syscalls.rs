@@ -633,6 +633,7 @@ pub enum HashType {
     CodeId,
     MessageId,
     ReservationId,
+    /// This enum variant is used for the `gr_random` syscall.
     SubjectId,
 }
 
