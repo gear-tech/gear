@@ -163,11 +163,7 @@ impl System {
         if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.0
-            .borrow_mut()
-            .mailbox
-            .entry(program_id)
-            .or_insert_with(Vec::default);
+        self.0.borrow_mut().mailbox.entry(program_id).or_default();
         Mailbox::new(program_id, &self.0)
     }
 

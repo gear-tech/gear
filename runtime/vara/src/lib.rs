@@ -332,11 +332,9 @@ impl pallet_balances::Config for Runtime {
     type MaxLocks = ConstU32<50>;
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    /// The type for recording an account's balance.
     type Balance = Balance;
-    /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
-    type DustRemoval = ();
+    type DustRemoval = pallet_gear_staking_rewards::OffsetPool<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
@@ -603,7 +601,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     // Burning the reward remainder for now.
-    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    // TODO: set remainder back to `RewardProxy<Self, Treasury>` to stop burning `Treasury` part.
     type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
@@ -683,7 +681,7 @@ parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
     pub const ProposalBondMinimum: Balance = ECONOMIC_UNITS;
     pub const SpendPeriod: BlockNumber = DAYS;
-    pub const Burn: Permill = Permill::from_percent(50);
+    pub const Burn: Permill = Permill::zero();
     pub const TipCountdown: BlockNumber = DAYS;
     pub const TipFindersFee: Percent = Percent::from_percent(20);
     pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
@@ -699,7 +697,7 @@ impl pallet_treasury::Config for Runtime {
     type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = ();
+    type OnSlash = Treasury;
     type ProposalBond = ProposalBond;
     type ProposalBondMinimum = ProposalBondMinimum;
     type ProposalBondMaximum = ();

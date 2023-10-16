@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing possible injection types for each sys-call.
-//! These entities allows to configure which sys-calls to insert into
+//! Entities describing possible injection types for each syscall.
+//! These entities allows to configure which syscalls to insert into
 //! code section of wasm module and which ones to simply import.
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
@@ -27,50 +27,54 @@ use crate::InvocableSysCall;
 use gear_wasm_instrument::syscalls::SysCallName;
 use std::{collections::HashMap, ops::RangeInclusive};
 
-/// This enum defines how the sys-call should be injected into wasm module.
+/// This enum defines how the syscall should be injected into wasm module.
 #[derive(Debug, Clone)]
 pub enum SysCallInjectionType {
     /// Don't modify wasm module at all.
     None,
-    /// Sys-call import will be injected into import section of wasm module,
-    /// but the `wasm-gen` generators will not call that sys-call.
+    /// Syscall import will be injected into import section of wasm module,
+    /// but the `wasm-gen` generators will not call that syscall.
     ///
-    /// It should be used in cases where you don't need to invoke an actual sys-call.
-    /// For example, `precision_gr_reservation_send` sys-call uses `gr_reserve_gas` under
+    /// It should be used in cases where you don't need to invoke an actual syscall.
+    /// For example, `precision_gr_reservation_send` syscall uses `gr_reserve_gas` under
     /// the hood. In this case, `gr_reserve_gas` will be imported but will not be called.
     Import,
-    /// Sys-call import will be injected into import section of wasm module,
-    /// and the `wasm-gen` generators will insert invoke instructions for that sys-call.
+    /// Syscall import will be injected into import section of wasm module,
+    /// and the `wasm-gen` generators can insert invoke instructions for that syscall.
     ///
-    /// It also has `sys_call_amount_range: RangeInclusive<u32>` - the range from which
-    /// amount of sys-calls will be generated for injection into code section of wasm module.
+    /// It wraps syscall amount range `RangeInclusive<u32>` - the range from which
+    /// amount of the syscall invocations will be generated.
+    ///
+    /// Setting range to `(0..=n)`, where `n >= 0` can imitate `SysCallInjectionType::Import`,
+    /// as in case if syscall amount range is zero, then syscall import will be injected, but
+    /// no invocations will be generated, which is pretty similar to the other variant.
     Function(RangeInclusive<u32>),
 }
 
-/// Possible injection types for each sys-call.
+/// Possible injection types for each syscall.
 #[derive(Debug, Clone)]
 pub struct SysCallsInjectionTypes(HashMap<InvocableSysCall, SysCallInjectionType>);
 
 impl SysCallsInjectionTypes {
-    /// Instantiate a sys-calls map, where each gear sys-call is injected into wasm-module only once.
+    /// Instantiate a syscalls map, where each gear syscall is injected into wasm-module only once.
     pub fn all_once() -> Self {
         Self::new_with_injection_type(SysCallInjectionType::Function(1..=1))
     }
 
-    /// Instantiate a sys-calls map, where no gear sys-call is ever injected into wasm-module.
+    /// Instantiate a syscalls map, where no gear syscall is ever injected into wasm-module.
     pub fn all_never() -> Self {
         Self::new_with_injection_type(SysCallInjectionType::None)
     }
 
-    /// Instantiate a sys-calls map with given injection type.
+    /// Instantiate a syscalls map with given injection type.
     fn new_with_injection_type(injection_type: SysCallInjectionType) -> Self {
-        let sys_calls = SysCallName::instrumentable();
+        let syscalls = SysCallName::instrumentable();
         Self(
-            sys_calls
+            syscalls
                 .iter()
                 .cloned()
                 .map(|name| (InvocableSysCall::Loose(name), injection_type.clone()))
-                .chain(sys_calls.iter().cloned().filter_map(|name| {
+                .chain(syscalls.iter().cloned().filter_map(|name| {
                     InvocableSysCall::has_precise_variant(name)
                         .then_some((InvocableSysCall::Precise(name), injection_type.clone()))
                 }))
@@ -78,43 +82,46 @@ impl SysCallsInjectionTypes {
         )
     }
 
-    /// Gets injection type for given sys-call.
+    /// Gets injection type for given syscall.
     pub fn get(&self, name: InvocableSysCall) -> SysCallInjectionType {
         self.0
             .get(&name)
             .cloned()
-            .expect("instantiated with all sys-calls set")
+            .expect("instantiated with all syscalls set")
     }
 
-    /// Sets possible amount range for the the sys-call.
+    /// Sets possible amount range for the the syscall.
+    ///
+    /// Sets injection type for `name` syscall to `SysCallInjectionType::Function`.
     pub fn set(&mut self, name: InvocableSysCall, min: u32, max: u32) {
         self.0
             .insert(name, SysCallInjectionType::Function(min..=max));
 
-        if let InvocableSysCall::Precise(sys_call) = name {
-            let Some(required_imports) = InvocableSysCall::required_imports_for_sys_call(sys_call) else {
+        if let InvocableSysCall::Precise(syscall) = name {
+            let Some(required_imports) = InvocableSysCall::required_imports_for_syscall(syscall)
+            else {
                 return;
             };
 
-            for &sys_call_import in required_imports {
-                self.enable_sys_call_import(InvocableSysCall::Loose(sys_call_import));
+            for &syscall_import in required_imports {
+                self.enable_syscall_import(InvocableSysCall::Loose(syscall_import));
             }
         }
     }
 
-    /// Imports the given sys-call if necessary.
-    pub(crate) fn enable_sys_call_import(&mut self, name: InvocableSysCall) {
+    /// Imports the given syscall, if necessary.
+    pub(crate) fn enable_syscall_import(&mut self, name: InvocableSysCall) {
         if let Some(injection_type @ SysCallInjectionType::None) = self.0.get_mut(&name) {
             *injection_type = SysCallInjectionType::Import;
         }
     }
 
-    /// Same as [`SysCallsInjectionTypes::set`], but sets amount ranges for multiple sys-calls.
+    /// Same as [`SysCallsInjectionTypes::set`], but sets amount ranges for multiple syscalls.
     pub fn set_multiple(
         &mut self,
-        sys_calls_freqs: impl Iterator<Item = (InvocableSysCall, RangeInclusive<u32>)>,
+        syscalls_freqs: impl Iterator<Item = (InvocableSysCall, RangeInclusive<u32>)>,
     ) {
-        for (name, range) in sys_calls_freqs {
+        for (name, range) in syscalls_freqs {
             let (min, max) = range.into_inner();
             self.set(name, min, max);
         }

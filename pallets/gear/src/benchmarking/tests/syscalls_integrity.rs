@@ -101,15 +101,23 @@ where
 
         utils::run_to_next_block::<T>(None);
 
-        assert!(SystemPallet::<T>::events().into_iter().any(|e| {
-            let bytes = e.event.encode();
-            let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-            let Event::MessagesDispatched { statuses, .. } = gear_event else { return false };
+        assert!(
+            SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref())
+                else {
+                    return false;
+                };
+                let Event::MessagesDispatched { statuses, .. } = gear_event else {
+                    return false;
+                };
 
-            log::debug!("{statuses:?}");
-            log::debug!("{next_user_mid:?}");
-            matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
-        }), "No message with expected id had succeeded");
+                log::debug!("{statuses:?}");
+                log::debug!("{next_user_mid:?}");
+                matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
+            }),
+            "No message with expected id had succeeded"
+        );
 
         let state = Gear::<T>::read_state_impl(pid, Default::default(), None)
             .expect("Failed to read state");

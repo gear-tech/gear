@@ -61,7 +61,7 @@ pub struct Inner {
     api: Api,
     /// Current signer.
     signer: PairSigner<GearConfig, Pair>,
-    nonce: Option<u32>,
+    nonce: Option<u64>,
     backtrace: Backtrace,
 }
 
@@ -127,7 +127,7 @@ impl Signer {
     }
 
     /// Set nonce of the signer
-    pub fn set_nonce(&mut self, nonce: u32) {
+    pub fn set_nonce(&mut self, nonce: u64) {
         self.replace_inner(Inner {
             nonce: Some(nonce),
             ..self.signer.as_ref().clone()
