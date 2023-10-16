@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys-calls generators entities.
+//! Syscalls generators entities.
 //!
 //! Generators from this module form a state machine:
 //! ```text
-//! # Zero sys-calls generators nesting level.
+//! # Zero syscalls generators nesting level.
 //! SysCallsImport--->DisabledSysCallsImport--->ModuleWithCallIndexes--->WasmModule
 //!
-//! # First sys-calls generators nesting level.
+//! # First syscalls generators nesting level.
 //! SysCallsImport--->DisabledSysCallsImport--(SysCallsImportsGenerationProof)-->AdditionalDataInjector---\
 //! |--->DisabledAdditionalDataInjector--->ModuleWithCallIndexes--->WasmModule
 //!
-//! # Third sys-calls generators nesting level
+//! # Third syscalls generators nesting level
 //! SysCallsImport--->DisabledSysCallsImport--(SysCallsImportsGenerationProof)-->AdditionalDataInjector---\
 //! |--->DisabledAdditionalDataInjector--(AddressesInjectionOutcome)-->SysCallsInvocator--->DisabledSysCallsInvocator--->ModuleWithCallIndexes--->WasmModule
 //! ```
@@ -44,16 +44,16 @@ pub use invocator::*;
 
 use gear_wasm_instrument::syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature};
 
-/// Type of invocable sys-call.
+/// Type of invocable syscall.
 ///
-/// Basically, there are 2 types of generated sys-calls:
+/// Basically, there are 2 types of generated syscalls:
 /// 1. Those invocation of which is done regardless of validity of call context (`Loose`).
 /// 2. Those which are invoked correctly with implementing all call context (`Precise`).
 ///
 /// Clarifying that, `gr_reservation_send` requires an existing reservation id,
 /// which is pretty hard to predict beforehand with a generator. So this call context
 /// is created from scratch - first `gr_reserve_gas` is called and then it's result
-/// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
+/// is used for the further `gr_reservation_send` call. Those are `Precise` syscalls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InvocableSysCall {
     Loose(SysCallName),
@@ -63,8 +63,8 @@ pub enum InvocableSysCall {
 impl InvocableSysCall {
     pub(crate) fn to_str(self) -> &'static str {
         match self {
-            InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
-            InvocableSysCall::Precise(sys_call) => match sys_call {
+            InvocableSysCall::Loose(syscall) => syscall.to_str(),
+            InvocableSysCall::Precise(syscall) => match syscall {
                 SysCallName::ReservationSend => "precise_gr_reservation_send",
                 SysCallName::ReservationReply => "precise_gr_reservation_reply",
                 SysCallName::SendCommit => "precise_gr_send_commit",
@@ -143,17 +143,25 @@ impl InvocableSysCall {
         }
     }
 
-    /// Checks whether given sys-call has the precise variant.
-    pub(crate) fn has_precise_variant(sys_call: SysCallName) -> bool {
-        Self::required_imports_for_sys_call(sys_call).is_some()
+    /// Checks whether given syscall has the precise variant.
+    pub(crate) fn has_precise_variant(syscall: SysCallName) -> bool {
+        Self::required_imports_for_syscall(syscall).is_some()
     }
 
-    /// Returns the required imports to build precise sys-call.
-    pub(crate) fn required_imports_for_sys_call(
-        sys_call: SysCallName,
+    /// Returns the required imports to build precise syscall, but of a fixed size.
+    fn required_imports<const N: usize>(syscall: SysCallName) -> &'static [SysCallName; N] {
+        Self::required_imports_for_syscall(syscall)
+            .expect("failed to find required imports for syscall")
+            .try_into()
+            .expect("failed to convert slice")
+    }
+
+    /// Returns the required imports to build precise syscall.
+    pub(crate) fn required_imports_for_syscall(
+        syscall: SysCallName,
     ) -> Option<&'static [SysCallName]> {
-        // NOTE: the last sys-call must be pattern itself
-        Some(match sys_call {
+        // NOTE: the last syscall must be pattern itself
+        Some(match syscall {
             SysCallName::ReservationSend => {
                 &[SysCallName::ReserveGas, SysCallName::ReservationSend]
             }
@@ -173,14 +181,6 @@ impl InvocableSysCall {
             ],
             _ => return None,
         })
-    }
-
-    /// Returns the required imports to build precise sys-call, but of a fixed size.
-    fn required_imports<const N: usize>(sys_call: SysCallName) -> &'static [SysCallName; N] {
-        Self::required_imports_for_sys_call(sys_call)
-            .expect("failed to find required imports for sys-call")
-            .try_into()
-            .expect("failed to convert slice")
     }
 
     /// Returns the index of the destination param.

@@ -18,10 +18,10 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{config::GearConfig, ext::sp_core::H256, metadata::gear_runtime::RuntimeEvent};
-use subxt::{config::Header, rpc::types::ChainBlock};
+use gsdk::{config::Header, ext::sp_core::H256, metadata::gear_runtime::RuntimeEvent};
+use subxt::config::Header as _;
 
-type GearBlock = ChainBlock<GearConfig>;
+type GearBlock = Header;
 
 impl GearApi {
     /// Return the total gas limit per block (also known as a gas budget).
@@ -41,24 +41,33 @@ impl GearApi {
 
     // Get block data
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {
-        Ok(self
-            .0
+        let hash = if let Some(hash) = block_hash {
+            hash
+        } else {
+            self.0
+                .api()
+                .backend()
+                .latest_finalized_block_ref()
+                .await?
+                .hash()
+        };
+
+        self.0
             .api()
-            .rpc()
-            .block(block_hash)
+            .backend()
+            .block_header(hash)
             .await?
-            .ok_or(Error::BlockDataNotFound)?
-            .block)
+            .ok_or(Error::BlockDataNotFound)
     }
 
     /// Return a hash of the last block.
     pub async fn last_block_hash(&self) -> Result<H256> {
-        Ok(self.get_block_at(None).await?.header.hash())
+        Ok(self.get_block_at(None).await?.hash())
     }
 
     /// Return a number of the last block (also known as block height).
     pub async fn last_block_number(&self) -> Result<u32> {
-        Ok(self.get_block_at(None).await?.header.number)
+        Ok(self.get_block_at(None).await?.number())
     }
 
     /// Return vector of events contained in the last block.
@@ -68,7 +77,7 @@ impl GearApi {
 
     /// Return a number of the specified block identified by the `block_hash`.
     pub async fn block_number_at(&self, block_hash: H256) -> Result<u32> {
-        Ok(self.get_block_at(Some(block_hash)).await?.header.number)
+        Ok(self.get_block_at(Some(block_hash)).await?.number())
     }
 
     /// Get a hash of a block identified by its `block_number`.
@@ -76,7 +85,7 @@ impl GearApi {
         self.0
             .api()
             .rpc()
-            .block_hash(Some(block_number.into()))
+            .chain_get_block_hash(Some(block_number.into()))
             .await?
             .ok_or(Error::BlockHashNotFound)
     }
@@ -114,14 +123,14 @@ impl GearApi {
 
         let mut current = self.get_block_at(None).await?;
         for _ in 0..max_depth {
-            let current_hash = current.header.hash();
+            let current_hash = current.hash();
             block_hashes.push(current_hash);
 
             if current_hash == block_hash {
                 break;
             }
 
-            current = self.get_block_at(Some(current.header.parent_hash)).await?;
+            current = self.get_block_at(Some(current.parent_hash)).await?;
         }
 
         if block_hashes.contains(&block_hash) {

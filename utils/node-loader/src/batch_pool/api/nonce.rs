@@ -6,17 +6,17 @@ use parking_lot::{Mutex, MutexGuard};
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
-    sync::atomic::{AtomicU32, Ordering},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-pub static AVAILABLE_NONCE: OnceCell<AtomicU32> = OnceCell::new();
+pub static AVAILABLE_NONCE: OnceCell<AtomicU64> = OnceCell::new();
 pub static MISSED_NONCES: OnceCell<Mutex<MinHeap>> = OnceCell::new();
 
-pub type MinHeap = BinaryHeap<Reverse<u32>>;
+pub type MinHeap = BinaryHeap<Reverse<u64>>;
 type MissedNoncesGuard<'a> = MutexGuard<'a, MinHeap>;
 
-pub fn init_nonces(available_nonce: u32) -> Result<()> {
-    let an = AVAILABLE_NONCE.get_or_init(|| AtomicU32::new(available_nonce));
+pub fn init_nonces(available_nonce: u64) -> Result<()> {
+    let an = AVAILABLE_NONCE.get_or_init(|| AtomicU64::new(available_nonce));
     let mn = MISSED_NONCES.get_or_init(|| Mutex::new(MinHeap::new()));
 
     if an.load(Ordering::Relaxed) != available_nonce || !mn.lock().is_empty() {
@@ -30,14 +30,14 @@ pub fn is_empty_missed_nonce() -> Result<bool> {
     hold_missed_nonces().map(|mn| mn.is_empty())
 }
 
-pub fn increment_nonce() -> Result<u32> {
+pub fn increment_nonce() -> Result<u64> {
     AVAILABLE_NONCE
         .get()
         .ok_or_else(|| anyhow!("Not initialized missed nonces storage"))
         .map(|an| an.fetch_add(1, Ordering::Relaxed))
 }
 
-pub fn pop_missed_nonce() -> Result<u32> {
+pub fn pop_missed_nonce() -> Result<u64> {
     hold_missed_nonces()?
         .pop()
         .map(|Reverse(v)| v)
@@ -51,7 +51,7 @@ fn hold_missed_nonces<'a>() -> Result<MissedNoncesGuard<'a>> {
         .ok_or_else(|| anyhow!("Not initialized missed nonces storage"))
 }
 
-pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u32) -> Result<()> {
+pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u64) -> Result<()> {
     if let Err(err) = batch_res {
         if is_missed_nonce_err(err) {
             hold_missed_nonces()?.push(Reverse(nonce));
@@ -72,7 +72,7 @@ fn is_missed_nonce_err(err: &GClientError) -> bool {
 fn test_min_heap_order() {
     use rand::Rng;
 
-    let mut test_array = [0u32; 512];
+    let mut test_array = [0u64; 512];
     let mut thread_rng = rand::thread_rng();
     thread_rng.fill(&mut test_array);
 
