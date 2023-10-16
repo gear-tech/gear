@@ -99,7 +99,7 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
-        type CallsDispatcher: VoucherCallsDispatcher<
+        type CallsDispatcher: PrepaidCallsDispatcher<
             AccountId = Self::AccountId,
             Balance = BalanceOf<Self>,
         >;
@@ -181,7 +181,7 @@ pub mod pallet {
         #[pallet::weight(T::CallsDispatcher::weight(call))]
         pub fn call(
             origin: OriginFor<T>,
-            call: VoucherCall<BalanceOf<T>>,
+            call: PrepaidCall<BalanceOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
@@ -210,7 +210,7 @@ impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
-pub enum VoucherCall<Balance> {
+pub enum PrepaidCall<Balance> {
     SendMessage {
         destination: ProgramId,
         payload: Vec<u8>,
@@ -225,14 +225,14 @@ pub enum VoucherCall<Balance> {
     },
 }
 
-pub trait VoucherCallsDispatcher {
+pub trait PrepaidCallsDispatcher {
     type AccountId;
     type Balance;
 
-    fn weight(call: &VoucherCall<Self::Balance>) -> Weight;
+    fn weight(call: &PrepaidCall<Self::Balance>) -> Weight;
 
     fn dispatch(
         account_id: Self::AccountId,
-        call: VoucherCall<Self::Balance>,
+        call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }

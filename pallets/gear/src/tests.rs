@@ -75,7 +75,7 @@ use gear_core_backend::error::{
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
-use pallet_gear_voucher::VoucherCall;
+use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
@@ -13548,7 +13548,7 @@ fn send_gasless_message_works() {
         assert_noop!(
             GearVoucher::call(
                 RuntimeOrigin::signed(USER_2),
-                VoucherCall::SendMessage {
+                PrepaidCall::SendMessage {
                     destination: program_id,
                     payload: EMPTY_PAYLOAD.to_vec(),
                     gas_limit: DEFAULT_GAS_LIMIT,
@@ -13589,7 +13589,7 @@ fn send_gasless_message_works() {
         // Now that voucher is issued, the message should be sent successfully.
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_2),
-            VoucherCall::SendMessage {
+            PrepaidCall::SendMessage {
                 destination: program_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
                 gas_limit: DEFAULT_GAS_LIMIT,
@@ -13674,7 +13674,7 @@ fn send_gasless_reply_works() {
         let gas_limit = 10_000_000_u64;
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_1),
-            VoucherCall::SendReply {
+            PrepaidCall::SendReply {
                 reply_to_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
                 gas_limit,

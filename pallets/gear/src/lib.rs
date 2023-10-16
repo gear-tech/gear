@@ -75,7 +75,7 @@ use gear_core::{
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_voucher::{VoucherCall, VoucherCallsDispatcher};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{One, Saturating, UniqueSaturatedInto, Zero},
@@ -1976,19 +1976,19 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> VoucherCallsDispatcher for Pallet<T>
+    impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
     where
         T::AccountId: Origin,
     {
         type AccountId = AccountIdOf<T>;
         type Balance = BalanceOf<T>;
 
-        fn weight(call: &VoucherCall<Self::Balance>) -> Weight {
+        fn weight(call: &PrepaidCall<Self::Balance>) -> Weight {
             match call {
-                VoucherCall::SendMessage { payload, .. } => {
+                PrepaidCall::SendMessage { payload, .. } => {
                     <T as Config>::WeightInfo::send_message(payload.len() as u32)
                 }
-                VoucherCall::SendReply { payload, .. } => {
+                PrepaidCall::SendReply { payload, .. } => {
                     <T as Config>::WeightInfo::send_reply(payload.len() as u32)
                 }
             }
@@ -1996,10 +1996,10 @@ pub mod pallet {
 
         fn dispatch(
             account_id: Self::AccountId,
-            call: VoucherCall<Self::Balance>,
+            call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
-                VoucherCall::SendMessage {
+                PrepaidCall::SendMessage {
                     destination,
                     payload,
                     gas_limit,
@@ -2012,7 +2012,7 @@ pub mod pallet {
                     value,
                     true,
                 ),
-                VoucherCall::SendReply {
+                PrepaidCall::SendReply {
                     reply_to_id,
                     payload,
                     gas_limit,

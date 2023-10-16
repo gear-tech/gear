@@ -99,16 +99,16 @@ parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
 }
 
-impl crate::VoucherCallsDispatcher for () {
+impl crate::PrepaidCallsDispatcher for () {
     type AccountId = AccountId;
     type Balance = Balance;
 
-    fn weight(_call: &pallet_gear_voucher::VoucherCall<Balance>) -> frame_support::weights::Weight {
+    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> frame_support::weights::Weight {
         unimplemented!();
     }
     fn dispatch(
         _account_id: Self::AccountId,
-        _call: pallet_gear_voucher::VoucherCall<Balance>,
+        _call: pallet_gear_voucher::PrepaidCall<Balance>,
     ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
         unimplemented!()
     }

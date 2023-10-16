@@ -272,10 +272,10 @@ impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
             RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::VoucherCall::SendMessage { .. },
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
             }) => Some(FEE_PAYER),
             RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::VoucherCall::SendReply { reply_to_id, .. },
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
             }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
                 |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
             ),

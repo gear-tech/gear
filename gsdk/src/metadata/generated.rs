@@ -3305,7 +3305,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "Dispatch allowed with voucher call."]
                     call {
-                        call: runtime_types::pallet_gear_voucher::VoucherCall<
+                        call: runtime_types::pallet_gear_voucher::PrepaidCall<
                             ::core::primitive::u128,
                         >,
                     },
@@ -3331,7 +3331,7 @@ pub mod runtime_types {
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum VoucherCall<_0> {
+            pub enum PrepaidCall<_0> {
                 #[codec(index = 0)]
                 SendMessage {
                     destination: runtime_types::gear_core::ids::ProgramId,

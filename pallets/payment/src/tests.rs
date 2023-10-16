@@ -570,7 +570,7 @@ fn fee_payer_replacement_works() {
 
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::VoucherCall::SendMessage {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage {
                     destination: program_id,
                     payload: Default::default(),
                     gas_limit: 100_000,
@@ -660,7 +660,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         let gas_limit = 100_000_u64;
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::VoucherCall::SendReply {
+                call: pallet_gear_voucher::PrepaidCall::SendReply {
                     reply_to_id: msg_id,
                     payload: vec![],
                     gas_limit,
