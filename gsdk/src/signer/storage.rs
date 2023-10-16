@@ -144,7 +144,7 @@ impl SignerStorage {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
             let addr = Api::storage(
-                GearProgramStorage::MemoryPageStorage2,
+                GearProgramStorage::MemoryPages,
                 vec![
                     subxt::dynamic::Value::from_bytes(program_id),
                     subxt::dynamic::Value::u128(memory_infix as u128),

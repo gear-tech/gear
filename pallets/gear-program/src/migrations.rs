@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Config, MemoryPageStorage2, Pallet, PausedProgramStorage, ProgramStorage, ResumeSessions,
+    Config, MemoryPages, Pallet, PausedProgramStorage, ProgramStorage, ResumeSessions,
 };
 use common::Program;
 use frame_support::{
@@ -89,7 +89,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                                 weight =
                                     weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-                                MemoryPageStorage2::<T>::insert(
+                                MemoryPages::<T>::insert(
                                     (program_id, MEMORY_INFIX, page),
                                     data,
                                 );
@@ -141,7 +141,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 assert_eq!(p.memory_infix, MEMORY_INFIX);
 
                 for page in p.pages_with_data.iter() {
-                    assert!(MemoryPageStorage2::<T>::contains_key((
+                    assert!(MemoryPages::<T>::contains_key((
                         k,
                         p.memory_infix,
                         page

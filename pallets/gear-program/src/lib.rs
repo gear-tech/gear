@@ -292,7 +292,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type MemoryPageStorage2<T: Config> = StorageNMap<
+    pub(crate) type MemoryPages<T: Config> = StorageNMap<
         _,
         (
             Key<Identity, ProgramId>,
@@ -303,7 +303,7 @@ pub mod pallet {
     >;
 
     common::wrap_storage_triple_map!(
-        storage: MemoryPageStorage2,
+        storage: MemoryPages,
         name: MemoryPageStorageWrap,
         key1: ProgramId,
         key2: MemoryInfix,
@@ -377,7 +377,7 @@ pub mod pallet {
         type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
-            MemoryPageStorage2::<T>::final_prefix()
+            MemoryPages::<T>::final_prefix()
         }
     }
 
