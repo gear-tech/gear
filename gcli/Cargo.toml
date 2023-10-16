@@ -47,7 +47,7 @@ etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" ] }
 wasmi = { workspace = true, features = ["std"] }
-vara-runtime = { workspace = true, features = [ "std", "dev" ] }
+# vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 
 [dev-dependencies]
 rand.workspace = true

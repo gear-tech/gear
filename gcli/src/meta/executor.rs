@@ -21,14 +21,29 @@
 //! is because they are for the on-chain environment data.
 
 use anyhow::{anyhow, Result};
-use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
+use wasmi::{
+    AsContextMut, Caller, Engine, Extern, Func, Linker, Memory, MemoryType, Module, Store,
+};
 
 const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
 
 /// HostState for the WASM executor
 #[derive(Default)]
 pub struct HostState {
+    /// Message buffer in host state.
     pub msg: Vec<u8>,
+}
+
+macro_rules! func {
+    ($store:tt) => {
+        func!($store,)
+    };
+    ($store:tt, $($ty:tt),* ) => {
+        Func::wrap(
+            &mut $store,
+            move |_caller: Caller<'_, HostState>, $(_: $ty),*| { Ok(()) },
+        )
+    };
 }
 
 /// Executes the WASM code.
@@ -47,20 +62,17 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     {
         let memory = Memory::new(store.as_context_mut(), MemoryType::new(256, None)).unwrap();
         linker.define("env", "memory", Extern::Memory(memory))?;
-        linker.define("env", "gr_read", funcs::gr_read(&mut store, memory))?;
         linker.define("env", "alloc", funcs::alloc(&mut store, memory))?;
-        linker.define("env", "free", funcs::free(&mut store))?;
-        linker.define("env", "gr_size", funcs::gr_size(&mut store, memory))?;
+        linker.define("env", "gr_read", funcs::gr_read(&mut store, memory))?;
         linker.define("env", "gr_reply", funcs::gr_reply(&mut store, memory))?;
-        linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
-        linker.define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))?;
-        linker.define("env", "gr_out_of_gas", funcs::gr_out_of_gas(&mut store))?;
-        linker.define("env", "gr_block_height", funcs::gr_block_height(&mut store))?;
-        linker.define(
-            "env",
-            "gr_block_timestamp",
-            funcs::gr_block_timestamp(&mut store),
-        )?;
+        linker.define("env", "gr_size", funcs::gr_size(&mut store, memory))?;
+        // methods may be used by programs but not required by metadata.
+        linker.define("env", "free", func!(store, i32))?;
+        linker.define("env", "gr_panic", func!(store, u32, i32))?;
+        linker.define("env", "gr_oom_panic", func!(store))?;
+        linker.define("env", "gr_out_of_gas", func!(store))?;
+        linker.define("env", "gr_block_height", func!(store, u32))?;
+        linker.define("env", "gr_block_timestamp", func!(store, u32))?;
     }
 
     let instance = linker
@@ -101,33 +113,6 @@ mod funcs {
                     )
             },
         ))
-    }
-
-    pub fn free(ctx: impl AsContextMut) -> Extern {
-        Extern::Func(Func::wrap(ctx, |_: i32| 0))
-    }
-
-    pub fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
-        Extern::Func(Func::wrap(
-            ctx,
-            move |caller: Caller<'_, HostState>, ptr: u32, len: i32| {
-                let mut buff = Vec::with_capacity(len as usize);
-                memory.read(caller, ptr as usize, &mut buff).map_err(|e| {
-                    log::error!("{e:?}");
-                    Trap::Code(TrapCode::MemoryAccessOutOfBounds)
-                })?;
-
-                log::error!("Panic: {}", String::from_utf8_lossy(&buff));
-                Ok(())
-            },
-        ))
-    }
-
-    pub fn gr_oom_panic(ctx: impl AsContextMut) -> Extern {
-        Extern::Func(Func::wrap(ctx, || {
-            log::error!("OOM panic occurred");
-            Ok(())
-        }))
     }
 
     pub fn gr_read(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
@@ -202,27 +187,6 @@ mod funcs {
 
                 Ok(())
             },
-        ))
-    }
-
-    pub fn gr_out_of_gas(ctx: &mut Store<HostState>) -> Extern {
-        Extern::Func(Func::wrap(
-            ctx,
-            move |_caller: Caller<'_, HostState>| Ok(()),
-        ))
-    }
-
-    pub fn gr_block_height(ctx: &mut Store<HostState>) -> Extern {
-        Extern::Func(Func::wrap(
-            ctx,
-            move |_caller: Caller<'_, HostState>, _height: u32| Ok(()),
-        ))
-    }
-
-    pub fn gr_block_timestamp(ctx: &mut Store<HostState>) -> Extern {
-        Extern::Func(Func::wrap(
-            ctx,
-            move |_caller: Caller<'_, HostState>, _timestamp: u32| Ok(()),
         ))
     }
 }
