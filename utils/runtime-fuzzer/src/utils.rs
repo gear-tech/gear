@@ -24,7 +24,7 @@ use crate::{
     runtime::{self, default_gas_limit, get_mailbox_messages},
 };
 use gear_core::ids::MessageId;
-use gear_runtime::AccountId;
+use vara_runtime::AccountId;
 
 #[cfg(test)]
 pub fn min_unstructured_input_size() -> usize {
@@ -52,7 +52,6 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
             SendMessageGenerator {
                 gas: default_gas_limit(),
                 value: 0,
-                prepaid: false,
             }
             .into(),
         ),
@@ -64,7 +63,6 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
                 }),
                 gas: default_gas_limit(),
                 value: 0,
-                prepaid: false,
             }
             .into(),
         ),

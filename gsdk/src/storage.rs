@@ -19,7 +19,6 @@
 //! Gear storage apis
 use crate::{
     metadata::{
-        gear_runtime::RuntimeEvent,
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
@@ -31,6 +30,7 @@ use crate::{
             GearBankStorage, GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage,
             SessionStorage, SystemStorage, TimestampStorage,
         },
+        vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
     utils::storage_address_bytes,

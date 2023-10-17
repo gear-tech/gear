@@ -1230,23 +1230,20 @@ where
             &[],
         );
 
-        instructions.extend(
-            body::fallible_syscall_instr(
-                repetitions,
-                0,
-                InstrI32Const(res_offset),
-                &[
-                    // get handle from send init results
-                    Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
-                    InstrI32Load(2, 0),
-                    // input at
-                    InstrI32Const(input_at),
-                    // input len
-                    InstrI32Const(input_len),
-                ],
-            )
-            .into_iter(),
-        );
+        instructions.extend(body::fallible_syscall_instr(
+            repetitions,
+            0,
+            InstrI32Const(res_offset),
+            &[
+                // get handle from send init results
+                Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+                InstrI32Load(2, 0),
+                // input at
+                InstrI32Const(input_at),
+                // input len
+                InstrI32Const(input_len),
+            ],
+        ));
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

@@ -382,7 +382,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 ///
 /// Some programs can rely on their messages to other programs, i.e., check
 /// another program's state and use it as a parameter for its own business
-/// logic. The basic implementation is covered in [`reply`](crate::msg::reply)
+/// logic. The basic implementation is covered in [`reply`]
 /// function.
 ///
 /// This function allows sending a reply message filled with payload parts via

@@ -293,6 +293,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = Gear;
 }
 
 // Build genesis storage according to the mock runtime.
