@@ -25,8 +25,8 @@ use crate::{
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
-// reply to message id, payload, gas limit, value, prepaid
-type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128, bool);
+// reply to message id, payload, gas limit, value.
+type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 
 /// Send reply args
 ///
@@ -62,8 +62,6 @@ impl GeneratableCallArgs for SendReplyArgs {
         // TODO #2203
         let value = 0;
 
-        let prepaid = false;
-
-        Self((message_id, payload, gas_limit, value, prepaid))
+        Self((message_id, payload, gas_limit, value))
     }
 }
