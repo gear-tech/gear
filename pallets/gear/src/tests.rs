@@ -12693,7 +12693,8 @@ fn async_recursion() {
 
         let mut to_assert = (1..=arg)
             .rev()
-            .filter_map(|i| (i % 4 == 0).then(|| Assertion::Payload(i.encode())))
+            .filter(|&i| i % 4 == 0)
+            .map(|i| Assertion::Payload(i.encode()))
             .collect::<Vec<_>>();
         to_assert.insert(
             to_assert.len() - 1,

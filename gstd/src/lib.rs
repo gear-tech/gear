@@ -127,12 +127,13 @@
     all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
 )]
-#![cfg_attr(target_arch = "wasm32", feature(panic_oom_payload))]
+#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
+
 #[cfg(target_arch = "wasm32")]
 extern crate galloc;
 
