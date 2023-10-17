@@ -25,6 +25,7 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use std::{convert::TryInto, fmt::Debug};
 
+/// A log that can be emitted by a program.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
     id: MessageId,
@@ -35,22 +36,27 @@ pub struct CoreLog {
 }
 
 impl CoreLog {
+    /// Get the id of the message that emitted this log.
     pub fn id(&self) -> MessageId {
         self.id
     }
 
+    /// Get the source of the message that emitted this log.
     pub fn source(&self) -> ProgramId {
         self.source
     }
 
+    /// Get the destination of the message that emitted this log.
     pub fn destination(&self) -> ProgramId {
         self.destination
     }
 
+    /// Get the payload of the message that emitted this log.
     pub fn payload(&self) -> &[u8] {
         self.payload.inner()
     }
 
+    /// Get the reply code of the message that emitted this log.
     pub fn reply_code(&self) -> Option<ReplyCode> {
         self.reply_code
     }
@@ -70,6 +76,7 @@ impl From<StoredMessage> for CoreLog {
     }
 }
 
+/// A log that has been decoded into a Rust type.
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
     id: MessageId,
@@ -93,6 +100,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
     }
 }
 
+/// A log that can be emitted by a program.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
     source: Option<ProgramId>,
@@ -126,10 +134,12 @@ where
 }
 
 impl Log {
+    /// Set up a builder for a `Log`.
     pub fn builder() -> Self {
         Default::default()
     }
 
+    /// Set up a builder with error reason.
     pub fn error_builder(error_reason: ErrorReplyReason) -> Self {
         let mut log = Self::builder();
         log.reply_code = Some(error_reason.into());
@@ -144,7 +154,7 @@ impl Log {
         log
     }
 
-    /// Create a `Log` with a reply code of `SuccessReplyReason::Auto`.
+    /// Set up a log builder with success reason.
     pub fn auto_reply_builder() -> Self {
         Self {
             reply_code: Some(ReplyCode::Success(SuccessReplyReason::Auto)),
@@ -152,10 +162,12 @@ impl Log {
         }
     }
 
+    /// Set the payload of the log.
     pub fn payload(self, payload: impl Encode) -> Self {
         self.payload_bytes(payload.encode())
     }
 
+    /// Set the payload of the log with bytes.
     #[track_caller]
     pub fn payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if self.payload.is_some() {
@@ -171,6 +183,7 @@ impl Log {
         self
     }
 
+    /// Set the source of the log.
     #[track_caller]
     pub fn source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         if self.source.is_some() {
@@ -182,6 +195,7 @@ impl Log {
         self
     }
 
+    /// Set the destination of the log.
     #[track_caller]
     pub fn dest(mut self, dest: impl Into<ProgramIdWrapper>) -> Self {
         if self.destination.is_some() {
@@ -282,6 +296,7 @@ impl PartialEq<Log> for CoreLog {
     }
 }
 
+/// The result of a message run.
 #[derive(Debug, Clone)]
 pub struct RunResult {
     pub(crate) log: Vec<CoreLog>,
@@ -294,40 +309,49 @@ pub struct RunResult {
 }
 
 impl RunResult {
+    /// If the result contains a specific log.
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log = log.clone().into();
 
         self.log.iter().any(|e| e == &log)
     }
 
+    /// Get the logs.
     pub fn log(&self) -> &[CoreLog] {
         &self.log
     }
 
+    /// If main message failed.
     pub fn main_failed(&self) -> bool {
         self.main_failed
     }
 
+    /// If any other messages failed.
     pub fn others_failed(&self) -> bool {
         self.others_failed
     }
 
+    /// Get the message id.
     pub fn sent_message_id(&self) -> MessageId {
         self.message_id
     }
 
+    /// Get the total number of processed messages.
     pub fn total_processed(&self) -> u32 {
         self.total_processed
     }
 
+    /// Get the total gas burned by the main message.
     pub fn main_gas_burned(&self) -> Gas {
         self.main_gas_burned
     }
 
+    /// Get the total gas burned by the other messages.
     pub fn others_gas_burned(&self) -> Gas {
         self.others_gas_burned
     }
 
+    /// Returns decoded logs.
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {
         self.log
             .clone()

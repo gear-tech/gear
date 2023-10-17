@@ -28,6 +28,7 @@ use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
+/// The testing environment.
 pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
@@ -37,6 +38,7 @@ impl Default for System {
 }
 
 impl System {
+    /// Prefix for lazy pages.
     pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
 
     /// Create a new system.
@@ -90,10 +92,12 @@ impl System {
             .try_init();
     }
 
+    /// Send raw dispatch.
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
         self.0.borrow_mut().validate_and_run_dispatch(dispatch)
     }
 
+    /// Spend blocks and return all results.
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
 
@@ -133,6 +137,7 @@ impl System {
         }
     }
 
+    /// If `id` is a active program, returns `true`.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
         !self.0.borrow().is_user(&program_id)
@@ -157,6 +162,7 @@ impl System {
         self.0.borrow_mut().store_new_code(&code)
     }
 
+    /// Get mailbox by program id.
     #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
