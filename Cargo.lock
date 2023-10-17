@@ -13977,8 +13977,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.33.2"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/merge-upstream#af2313e8382524a1f6deeb933dcf0ab28234e111"
+version = "0.35.0"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
 dependencies = [
  "leb128",
 ]
@@ -14055,15 +14055,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-smith"
-version = "0.12.19"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/merge-upstream#af2313e8382524a1f6deeb933dcf0ab28234e111"
+version = "0.12.21"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
 dependencies = [
  "arbitrary",
  "flagset",
  "indexmap 2.0.0",
  "leb128",
- "wasm-encoder 0.33.2",
- "wasmparser 0.113.3",
+ "wasm-encoder 0.35.0",
+ "wasmparser 0.115.0",
 ]
 
 [[package]]
@@ -14489,8 +14489,8 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.113.3"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/merge-upstream#af2313e8382524a1f6deeb933dcf0ab28234e111"
+version = "0.115.0"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
 dependencies = [
  "indexmap 2.0.0",
  "semver 1.0.18",
