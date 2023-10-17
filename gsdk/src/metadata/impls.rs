@@ -219,7 +219,6 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             payload,
             gas_limit,
             value,
-            prepaid,
         } => Value::named_variant(
             "send_message",
             [
@@ -227,7 +226,6 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("payload", Value::from_bytes(payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
-                ("prepaid", Value::bool(prepaid)),
             ],
         ),
         GearCall::send_reply {
@@ -235,7 +233,6 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             payload,
             gas_limit,
             value,
-            prepaid,
         } => Value::named_variant(
             "send_reply",
             [
@@ -243,7 +240,6 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("payload", Value::from_bytes(payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
-                ("prepaid", Value::bool(prepaid)),
             ],
         ),
         GearCall::claim_value { message_id } => Value::named_variant(

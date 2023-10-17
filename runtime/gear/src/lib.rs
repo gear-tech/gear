@@ -547,26 +547,14 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message {
-                destination,
-                prepaid,
-                ..
-            }) => prepaid.then(|| GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::Gear(pallet_gear::Call::send_reply {
-                reply_to_id,
-                prepaid,
-                ..
-            }) => {
-                if *prepaid {
-                    <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                        |stored_message| {
-                            GearVoucher::voucher_account_id(who, &stored_message.source())
-                        },
-                    )
-                } else {
-                    None
-                }
-            }
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
             _ => None,
         }
     }
@@ -587,6 +575,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type CallsDispatcher = Gear;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

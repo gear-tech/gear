@@ -120,25 +120,23 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
             )
         }
         GearCall::SendMessage(args) => {
-            let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
+            let SendMessageArgs((destination, payload, gas_limit, value)) = args;
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
                 payload,
                 gas_limit,
                 value,
-                prepaid,
             )
         }
         GearCall::SendReply(args) => {
-            let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
+            let SendReplyArgs((message_id, payload, gas_limit, value)) = args;
             Gear::send_reply(
                 RuntimeOrigin::signed(sender),
                 message_id,
                 payload,
                 gas_limit,
                 value,
-                prepaid,
             )
         }
         GearCall::ClaimValue(args) => {
