@@ -24,7 +24,7 @@ use crate::{
     runtime::{self, default_gas_limit, get_mailbox_messages},
 };
 use gear_core::ids::MessageId;
-use gear_runtime::AccountId;
+use vara_runtime::AccountId;
 
 #[cfg(test)]
 pub fn min_unstructured_input_size() -> usize {

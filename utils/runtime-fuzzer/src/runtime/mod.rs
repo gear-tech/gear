@@ -23,12 +23,12 @@ use frame_support::{
     traits::{Currency, GenesisBuild},
 };
 use frame_system::GenesisConfig as SystemConfig;
-use gear_runtime::{
-    AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
-};
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
 use pallet_gear_bank::Config as GearBankConfig;
 use sp_io::TestExternalities;
+use vara_runtime::{
+    AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
+};
 
 pub use account::{account, alice};
 pub use block::{default_gas_limit, run_to_block, run_to_next_block};
@@ -67,13 +67,15 @@ pub fn new_test_ext() -> TestExternalities {
     SessionConfig {
         keys: authorities
             .into_iter()
-            .map(|(account, babe_id, grandpa_id)| {
+            .map(|(account, babe, grandpa, im_online, authority_discovery)| {
                 (
                     account.clone(),
                     account,
                     SessionKeys {
-                        babe: babe_id,
-                        grandpa: grandpa_id,
+                        babe,
+                        grandpa,
+                        im_online,
+                        authority_discovery,
                     },
                 )
             })

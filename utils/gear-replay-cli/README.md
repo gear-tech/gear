@@ -107,7 +107,7 @@ In order to use the native runtime build make sure the node is built with the Ru
 General command format and available subcommand are:
 
 ```bash
-    gear-replay-cli -h 
+    gear-replay-cli -h
     Commands of `gear-replay` CLI
 
     Usage: gear-replay-cli [OPTIONS] <COMMAND>
@@ -149,7 +149,7 @@ Currently supported cases include:
 
 The `gear-replay-cli` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
 
-The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
+The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocket connection uri).
 This is the default way of building the tool:
 
 ```bash
@@ -166,14 +166,12 @@ In order to enable native runtime, use one of the following:
 
 ```bash
 make gear-replay-vara-native
-make gear-replay-gear-native
 ```
 
 or
 
 ```bash
 ./scripts/gear.sh build gear-replay --release --no-default-features --features=vara-native
-./scripts/gear.sh build gear-replay --release --no-default-features --features=gear-native
 ```
 
 The `--uri` parameter must match the native runtime you've built the tool with, while the Runtime version should be the same as the on-chain one. If it does not, the Wasm executor will be used as a fallback.
