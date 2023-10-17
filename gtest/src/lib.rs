@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This crate provides a testing framework for testing gear programs.
+//!
+//! # Example
+//!
+//! ```
+//!
+//! ```
+
 mod error;
 mod log;
 mod mailbox;
