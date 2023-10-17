@@ -125,8 +125,6 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                         HashType::ActorId,
                     ))),
-                    // Address of value
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
                     // Pointer to payload
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
                         length_param_idx: 2,
