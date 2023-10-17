@@ -25,6 +25,7 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
+use core::mem::MaybeUninit;
 use gsys::{
     BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, Gas,
     HashWithValue, Value,
@@ -36,7 +37,7 @@ use gsys::{
 /// settings. This structure matches to the most recent version of execution
 /// settings supported by backend.
 #[repr(C, packed)]
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Settings {
     /// Current value of performance multiplier in percents.
     pub performance_multiplier_percent: u32,
@@ -50,9 +51,11 @@ pub struct Settings {
 
 /// Get current version of execution settings.
 pub fn settings() -> Settings {
-    let mut settings = Settings::default();
-    unsafe { gsys::gr_exec_settings(&mut settings as *mut _ as *mut u8, 1) };
-    settings
+    let mut settings = MaybeUninit::<Settings>::uninit();
+    unsafe {
+        gsys::gr_exec_settings(1, settings.as_mut_ptr() as *mut u8);
+        settings.assume_init()
+    }
 }
 
 /// Get the current block height.

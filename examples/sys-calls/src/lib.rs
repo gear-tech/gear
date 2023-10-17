@@ -21,6 +21,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
+use gstd::{Gas, Value};
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "wasm-wrapper")]
@@ -79,9 +80,9 @@ pub enum Kind {
     // Expected values
     ExecSettings {
         performance_multiplier: u32,
-        existential_deposit: u128,
-        mailbox_threshold: u64,
-        gas_to_value_multiplier: u128,
+        existential_deposit: Value,
+        mailbox_threshold: Gas,
+        gas_to_value_multiplier: Value,
     },
     // Expected(block height)
     BlockHeight(u32),

@@ -358,8 +358,8 @@ where
     pub fn exec_settings(
         ctx: &mut CallerWrap<'_, '_, Ext>,
         gas: u64,
-        settings_ptr: u32,
         settings_ver: u32,
+        settings_ptr: u32,
     ) -> Result<(u64, ()), HostError> {
         let settings = ctx.ext_mut().exec_settings(settings_ver)?;
         let settings_bytes = settings.to_bytes();

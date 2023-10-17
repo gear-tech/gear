@@ -373,10 +373,10 @@ where
             handle_body: Some(body::syscall(
                 repetitions,
                 &[
-                    // offset where to write settings
-                    InstrI32Const(settings_offset),
                     // version. TODO: Should it be benched based on version?
                     InstrI32Const(1),
+                    // offset where to write settings
+                    InstrI32Const(settings_offset),
                 ],
             )),
             ..Default::default()

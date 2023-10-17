@@ -288,10 +288,10 @@ impl SysCallName {
             }
             Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash))]),
             Self::ExecSettings => SysCallSignature::gr([
+                Size,
                 // The PtrType::BufferStart doesn't work here as it requires length_param_idx
                 // Should we introduce something like PtrType::Buffer
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
-                Size,
             ]),
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
