@@ -29,6 +29,16 @@ use path_clean::PathClean;
 use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 /// The testing environment.
+///
+/// ```
+/// use gtest::System;
+///
+/// // Create a new testing system.
+/// let system = System::new();
+///
+/// // Init logger with "gwasm" target set to `debug` level.
+/// system.init_logger();
+/// ```
 pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {

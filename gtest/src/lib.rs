@@ -26,6 +26,7 @@
 //!
 //! use gstd::{msg, prelude::*};
 //!
+//! /// This program replies with `PONG` if it receives `PING`.
 //! #[no_mangle]
 //! extern "C" fn handle() {
 //!     let payload = msg::load_bytes().expect("Failed to load payload");
@@ -47,7 +48,7 @@
 //!         let from = 42;
 //!         let program = Program::current(&system);
 //!
-//!         // Initialize program with message `()`.
+//!         // Initialize program with message `()` from user `42`.
 //!         {
 //!             let res = program.send(from, ());
 //!             let log = Log::builder().source(program.id()).dest(from);

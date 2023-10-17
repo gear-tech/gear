@@ -41,14 +41,14 @@ mod tests {
         let from = 42;
         let program = Program::current(&system);
 
-        // Initialize program
+        // // Initialize program with message `()`.
         {
             let res = program.send(from, ());
             let log = Log::builder().source(program.id()).dest(from);
             assert!(res.contains(&log));
         }
 
-        // Handle program message
+        // Send message `b"PING"` to our program.
         {
             let res = program.send(from, *b"PING");
             let log = Log::builder()

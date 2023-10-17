@@ -221,7 +221,19 @@ macro_rules! state_args_encoded {
     };
 }
 
-/// Gear program abstraction.
+/// Gear program instance.
+///
+/// ```ignore
+/// use gtest::{System, Program};
+///
+/// let system = System::new();
+///
+/// // Get the current program of the testing system.
+/// let program = Program::current(&system);
+///
+/// // Initialize the program from user 42 with message "init program".
+/// let _result = program.send(42, "init program");
+/// ```
 pub struct Program<'a> {
     /// Ext manager.
     pub(crate) manager: &'a RefCell<ExtManager>,

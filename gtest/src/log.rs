@@ -25,7 +25,8 @@ use gear_core::{
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use std::{convert::TryInto, fmt::Debug};
 
-/// A log that can be emitted by a program.
+/// A log that emitted by a program, for user defined logs,
+/// see [`Log`].
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
     id: MessageId,
@@ -101,6 +102,19 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 }
 
 /// A log that can be emitted by a program.
+///
+/// ```ignore
+/// use gtest::{Log, Program, System};
+///
+/// let system = System::new();
+/// let program = Program::current(&system);
+/// let from = 42;
+/// let res = program.send(from, ());
+///
+/// // Check that the log is emitted.
+/// let log = Log::builder().source(program.id()).dest(from);
+/// assert!(res.contains(&log));
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
     source: Option<ProgramId>,
