@@ -19,10 +19,14 @@
 //! Execution settings
 
 use core::{mem, slice};
+use gsys::ExecSettings as ExecSettingsV1;
 
 /// All supported versions of execution settings
 pub enum ExecSettings {
     /// Values of execution settings V1
+    // When a new version is introduced in gsys, the previous version should be
+    // copied here as ExecSettingsV1 whereas the most recent version should be bound
+    // to the variant corresponding to it
     V1(ExecSettingsV1),
 }
 
@@ -36,18 +40,4 @@ impl ExecSettings {
             }
         }
     }
-}
-
-/// Values of execution settings V1
-#[repr(C, packed)]
-#[derive(Debug, Clone, Copy)]
-pub struct ExecSettingsV1 {
-    /// Performance multiplier percentage
-    pub performance_multiplier_percent: u32,
-    /// Existential deposit
-    pub existential_deposit: u128,
-    /// Mailbox threshold
-    pub mailbox_threshold: u64,
-    /// Multiplier for converting gas into value
-    pub gas_to_value_multiplier: u128,
 }

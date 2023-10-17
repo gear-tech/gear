@@ -329,6 +329,24 @@ impl TwoHashesWithValue {
     }
 }
 
+/// Current version of execution settings.
+///
+/// Backend maintains backward compatibility with previous versions of execution
+/// settings. This structure matches to the most recent version of execution
+/// settings supported by backend.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct ExecSettings {
+    /// Current value of performance multiplier in percents.
+    pub performance_multiplier_percent: u32,
+    /// Current value of existential deposit.
+    pub existential_deposit: Value,
+    /// Current value of mailbox threshold.
+    pub mailbox_threshold: Gas,
+    /// Current value of value per gas multiplier.
+    pub gas_to_value_multiplier: Value,
+}
+
 #[allow(improper_ctypes)]
 extern "C" {
     /// Infallible `gr_exec_settings` get syscall.
