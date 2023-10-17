@@ -19,7 +19,7 @@
 //! Execution settings
 
 use core::{mem, slice};
-use gsys::ExecSettings as ExecSettingsV1;
+pub use gsys::ExecSettings as ExecSettingsV1;
 
 /// All supported versions of execution settings
 pub enum ExecSettings {
