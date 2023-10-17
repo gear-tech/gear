@@ -126,6 +126,13 @@ use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender
 
 mod migrations;
 
+// By this we assert if runtime compiled with "dev" feature.
+#[cfg_attr(
+    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
+    link_section = "dev_runtime"
+)]
+static _DEV_RUNTIME: u8 = 0;
+
 // By this we inject compile time version including commit hash
 // (https://github.com/paritytech/substrate/blob/297b3948f4a0f7f6504d4b654e16cb5d9201e523/utils/build-script-utils/src/version.rs#L44)
 // into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.

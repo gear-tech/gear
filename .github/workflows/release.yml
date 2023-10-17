@@ -78,23 +78,22 @@ jobs:
       - name: "Build: Production `vara-runtime`"
         run: cargo build -p vara-runtime --profile production --no-default-features --features std
 
-      - name: "Test: Production `vara-runtime`"
-        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
-
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_runtime_v$VARA_SPEC.wasm"
 
       - name: "Build: Production node with development runtimes"
         run: cargo build -p gear-cli --profile production
 
-      - name: "Test: Development runtime"
-        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
-
-      - name: "Artifact: Production node and development runtime"
+      - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_devruntime_v$VARA_SPEC.wasm"
           cp target/production/gear artifact/gear
           strip artifact/gear || true
+
+      - name: "Test: Runtimes"
+        run: |
+          ./wasm-proc --check-runtime-imports --check-runtime-is-dev false "artifact/vara_runtime_v$VARA_SPEC.wasm"
+          ./wasm-proc --check-runtime-imports --check-runtime-is-dev true  "artifact/vara_devruntime_v$VARA_SPEC.wasm"
 
       - name: Publish
         uses: softprops/action-gh-release@v1
