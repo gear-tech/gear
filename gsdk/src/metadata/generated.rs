@@ -384,9 +384,9 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct AccountInfo<_0, _1> {
                 pub nonce: _0,
-                pub consumers: _0,
-                pub providers: _0,
-                pub sufficients: _0,
+                pub consumers: ::core::primitive::u32,
+                pub providers: ::core::primitive::u32,
+                pub sufficients: ::core::primitive::u32,
                 pub data: _1,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -590,7 +590,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ResumeSession<_0, _1> {
-                    pub page_count: _1,
+                    pub page_count: ::core::primitive::u32,
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
                     pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
@@ -913,6 +913,17 @@ pub mod runtime_types {
                     crate::gp::Encode,
                 )]
                 pub struct WasmPage(pub ::core::primitive::u32);
+            }
+            pub mod percent {
+                use super::runtime_types;
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct Percent(pub ::core::primitive::u32);
             }
             pub mod reservation {
                 use super::runtime_types;
@@ -1890,7 +1901,7 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ChildBounty<_0, _1, _2> {
-                pub parent_bounty: _2,
+                pub parent_bounty: ::core::primitive::u32,
                 pub value: _1,
                 pub fee: _1,
                 pub curator_deposit: _1,
@@ -3269,8 +3280,8 @@ pub mod runtime_types {
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "Transferred to the pool from an external account."]
-                    Refilled { amount: ::core::primitive::u128 },
+                    #[doc = "Deposited to the pool."]
+                    Deposited { amount: ::core::primitive::u128 },
                     #[codec(index = 1)]
                     #[doc = "Transferred from the pool to an external account."]
                     Withdrawn { amount: ::core::primitive::u128 },
@@ -4094,9 +4105,9 @@ pub mod runtime_types {
             pub struct Heartbeat<_0> {
                 pub block_number: _0,
                 pub network_state: runtime_types::sp_core::offchain::OpaqueNetworkState,
-                pub session_index: _0,
-                pub authority_index: _0,
-                pub validators_len: _0,
+                pub session_index: ::core::primitive::u32,
+                pub authority_index: ::core::primitive::u32,
+                pub validators_len: ::core::primitive::u32,
             }
         }
         pub mod pallet_multisig {
@@ -4339,7 +4350,7 @@ pub mod runtime_types {
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Timepoint<_0> {
                 pub height: _0,
-                pub index: _0,
+                pub index: ::core::primitive::u32,
             }
         }
         pub mod pallet_nomination_pools {
@@ -6170,7 +6181,7 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct TrackInfo<_0, _1> {
                     pub name: ::std::string::String,
-                    pub max_deciding: _1,
+                    pub max_deciding: ::core::primitive::u32,
                     pub decision_deposit: _0,
                     pub prepare_period: _1,
                     pub decision_period: _1,
@@ -8588,16 +8599,6 @@ pub mod runtime_types {
                         pub __subxt_unused_type_params: ::core::marker::PhantomData<_1>,
                     }
                 }
-                pub mod unchecked_extrinsic {
-                    use super::runtime_types;
-                    #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                    )]
-                    pub struct UncheckedExtrinsic<_0, _1, _2, _3>(
-                        pub ::std::vec::Vec<::core::primitive::u8>,
-                        #[codec(skip)] pub ::core::marker::PhantomData<(_1, _0, _2, _3)>,
-                    );
-                }
             }
             pub mod traits {
                 use super::runtime_types;
@@ -9049,6 +9050,81 @@ pub mod runtime_types {
                 Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum RuntimeError {
+                #[codec(index = 0)]
+                System(runtime_types::frame_system::pallet::Error),
+                #[codec(index = 3)]
+                Babe(runtime_types::pallet_babe::pallet::Error),
+                #[codec(index = 4)]
+                Grandpa(runtime_types::pallet_grandpa::pallet::Error),
+                #[codec(index = 5)]
+                Balances(runtime_types::pallet_balances::pallet::Error),
+                #[codec(index = 10)]
+                Vesting(runtime_types::pallet_vesting::pallet::Error),
+                #[codec(index = 11)]
+                BagsList(runtime_types::pallet_bags_list::pallet::Error),
+                #[codec(index = 12)]
+                ImOnline(runtime_types::pallet_im_online::pallet::Error),
+                #[codec(index = 13)]
+                Staking(runtime_types::pallet_staking::pallet::pallet::Error),
+                #[codec(index = 7)]
+                Session(runtime_types::pallet_session::pallet::Error),
+                #[codec(index = 14)]
+                Treasury(runtime_types::pallet_treasury::pallet::Error),
+                #[codec(index = 8)]
+                Utility(runtime_types::pallet_utility::pallet::Error),
+                #[codec(index = 16)]
+                ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Error),
+                #[codec(index = 17)]
+                Referenda(runtime_types::pallet_referenda::pallet::Error),
+                #[codec(index = 18)]
+                FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Error),
+                #[codec(index = 19)]
+                FellowshipReferenda(runtime_types::pallet_referenda::pallet::Error2),
+                #[codec(index = 21)]
+                Whitelist(runtime_types::pallet_whitelist::pallet::Error),
+                #[codec(index = 22)]
+                Scheduler(runtime_types::pallet_scheduler::pallet::Error),
+                #[codec(index = 23)]
+                Preimage(runtime_types::pallet_preimage::pallet::Error),
+                #[codec(index = 24)]
+                Identity(runtime_types::pallet_identity::pallet::Error),
+                #[codec(index = 25)]
+                Proxy(runtime_types::pallet_proxy::pallet::Error),
+                #[codec(index = 26)]
+                Multisig(runtime_types::pallet_multisig::pallet::Error),
+                #[codec(index = 27)]
+                ElectionProviderMultiPhase(
+                    runtime_types::pallet_election_provider_multi_phase::pallet::Error,
+                ),
+                #[codec(index = 29)]
+                Bounties(runtime_types::pallet_bounties::pallet::Error),
+                #[codec(index = 30)]
+                ChildBounties(runtime_types::pallet_child_bounties::pallet::Error),
+                #[codec(index = 31)]
+                NominationPools(runtime_types::pallet_nomination_pools::pallet::Error),
+                #[codec(index = 100)]
+                GearProgram(runtime_types::pallet_gear_program::pallet::Error),
+                #[codec(index = 101)]
+                GearMessenger(runtime_types::pallet_gear_messenger::pallet::Error),
+                #[codec(index = 102)]
+                GearScheduler(runtime_types::pallet_gear_scheduler::pallet::Error),
+                #[codec(index = 103)]
+                GearGas(runtime_types::pallet_gear_gas::pallet::Error),
+                #[codec(index = 104)]
+                Gear(runtime_types::pallet_gear::pallet::Error),
+                #[codec(index = 106)]
+                StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Error),
+                #[codec(index = 107)]
+                GearVoucher(runtime_types::pallet_gear_voucher::pallet::Error),
+                #[codec(index = 108)]
+                GearBank(runtime_types::pallet_gear_bank::pallet::Error),
+                #[codec(index = 99)]
+                Sudo(runtime_types::pallet_sudo::pallet::Error),
+                #[codec(index = 199)]
+                GearDebug(runtime_types::pallet_gear_debug::pallet::Error),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeEvent {
@@ -10694,303 +10770,6 @@ pub mod storage {
             match self {
                 Self::WhitelistedCall => "WhitelistedCall",
             }
-        }
-    }
-}
-pub mod impls {
-    use crate::metadata::Event;
-    impl subxt::events::RootEvent for Event {
-        fn root_event(
-            pallet_bytes: &[u8],
-            pallet_name: &str,
-            pallet_ty: u32,
-            metadata: &subxt::Metadata,
-        ) -> Result<Self, subxt::Error> {
-            use subxt::metadata::DecodeWithMetadata;
-            if pallet_name == "System" {
-                return Ok(Event::System(
-                    crate::metadata::system::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Grandpa" {
-                return Ok(Event::Grandpa(
-                    crate::metadata::grandpa::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Balances" {
-                return Ok(Event::Balances(
-                    crate::metadata::balances::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Vesting" {
-                return Ok(Event::Vesting(
-                    crate::metadata::vesting::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "TransactionPayment" {
-                return Ok(Event::TransactionPayment(
-                    crate::metadata::transaction_payment::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "BagsList" {
-                return Ok(Event::BagsList(
-                    crate::metadata::bags_list::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "ImOnline" {
-                return Ok(Event::ImOnline(
-                    crate::metadata::im_online::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Staking" {
-                return Ok(Event::Staking(
-                    crate::metadata::staking::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Session" {
-                return Ok(Event::Session(
-                    crate::metadata::session::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Treasury" {
-                return Ok(Event::Treasury(
-                    crate::metadata::treasury::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Utility" {
-                return Ok(Event::Utility(
-                    crate::metadata::utility::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "ConvictionVoting" {
-                return Ok(Event::ConvictionVoting(
-                    crate::metadata::conviction_voting::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Referenda" {
-                return Ok(Event::Referenda(
-                    crate::metadata::referenda::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "FellowshipCollective" {
-                return Ok(Event::FellowshipCollective(
-                    crate::metadata::fellowship_collective::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "FellowshipReferenda" {
-                return Ok(Event::FellowshipReferenda(
-                    crate::metadata::fellowship_referenda::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Whitelist" {
-                return Ok(Event::Whitelist(
-                    crate::metadata::whitelist::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Scheduler" {
-                return Ok(Event::Scheduler(
-                    crate::metadata::scheduler::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Preimage" {
-                return Ok(Event::Preimage(
-                    crate::metadata::preimage::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Identity" {
-                return Ok(Event::Identity(
-                    crate::metadata::identity::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Proxy" {
-                return Ok(Event::Proxy(
-                    crate::metadata::proxy::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Multisig" {
-                return Ok(Event::Multisig(
-                    crate::metadata::multisig::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "ElectionProviderMultiPhase" {
-                return Ok(Event::ElectionProviderMultiPhase(
-                    crate::metadata::election_provider_multi_phase::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Offences" {
-                return Ok(Event::Offences(
-                    crate::metadata::offences::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Bounties" {
-                return Ok(Event::Bounties(
-                    crate::metadata::bounties::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "ChildBounties" {
-                return Ok(Event::ChildBounties(
-                    crate::metadata::child_bounties::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "NominationPools" {
-                return Ok(Event::NominationPools(
-                    crate::metadata::nomination_pools::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Gear" {
-                return Ok(Event::Gear(
-                    crate::metadata::gear::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "StakingRewards" {
-                return Ok(Event::StakingRewards(
-                    crate::metadata::staking_rewards::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "GearVoucher" {
-                return Ok(Event::GearVoucher(
-                    crate::metadata::gear_voucher::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "Sudo" {
-                return Ok(Event::Sudo(
-                    crate::metadata::sudo::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            if pallet_name == "GearDebug" {
-                return Ok(Event::GearDebug(
-                    crate::metadata::gear_debug::Event::decode_with_metadata(
-                        &mut &*pallet_bytes,
-                        pallet_ty,
-                        metadata,
-                    )?,
-                ));
-            }
-            Err(subxt::ext::scale_decode::Error::custom(format!(
-                "Pallet name '{}' not found in root Event enum",
-                pallet_name
-            ))
-            .into())
         }
     }
 }

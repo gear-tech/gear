@@ -27,49 +27,55 @@ use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
 /// Transaction Status for Backtrace
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BacktraceStatus {
-    Future,
-    Ready,
-    Broadcast(Vec<String>),
-    InBlock {
+    Validated,
+    NoLongerInBestBlock,
+    Broadcasted {
+        num_peers: u32,
+    },
+    InBestBlock {
         block_hash: H256,
         extrinsic_hash: H256,
     },
-    Retracted {
-        block_hash: H256,
-    },
-    FinalityTimeout {
-        block_hash: H256,
-    },
-    Finalized {
+    InFinalizedBlock {
         block_hash: H256,
         extrinsic_hash: H256,
     },
-    Usurped {
-        extrinsic_hash: H256,
+    Error {
+        message: String,
     },
-    Dropped,
-    Invalid,
+    Dropped {
+        message: String,
+    },
+    Invalid {
+        message: String,
+    },
 }
 
 impl<'s> From<&'s TxStatus> for BacktraceStatus {
     fn from(status: &'s TxStatus) -> BacktraceStatus {
         match status {
-            TxStatus::Future => BacktraceStatus::Future,
-            TxStatus::Ready => BacktraceStatus::Ready,
-            TxStatus::Broadcast(v) => BacktraceStatus::Broadcast(v.clone()),
-            TxStatus::InBlock(b) => BacktraceStatus::InBlock {
+            TxStatus::Validated => BacktraceStatus::Validated,
+            TxStatus::NoLongerInBestBlock => BacktraceStatus::NoLongerInBestBlock,
+            TxStatus::Broadcasted { num_peers } => BacktraceStatus::Broadcasted {
+                num_peers: *num_peers,
+            },
+            TxStatus::InBestBlock(b) => BacktraceStatus::InBestBlock {
                 block_hash: b.block_hash(),
                 extrinsic_hash: b.extrinsic_hash(),
             },
-            TxStatus::Retracted(h) => BacktraceStatus::Retracted { block_hash: *h },
-            TxStatus::FinalityTimeout(h) => BacktraceStatus::FinalityTimeout { block_hash: *h },
-            TxStatus::Finalized(b) => BacktraceStatus::Finalized {
+            TxStatus::InFinalizedBlock(b) => BacktraceStatus::InFinalizedBlock {
                 block_hash: b.block_hash(),
                 extrinsic_hash: b.extrinsic_hash(),
             },
-            TxStatus::Usurped(h) => BacktraceStatus::Usurped { extrinsic_hash: *h },
-            TxStatus::Dropped => BacktraceStatus::Dropped,
-            TxStatus::Invalid => BacktraceStatus::Invalid,
+            TxStatus::Error { message } => BacktraceStatus::Error {
+                message: message.clone(),
+            },
+            TxStatus::Dropped { message } => BacktraceStatus::Dropped {
+                message: message.clone(),
+            },
+            TxStatus::Invalid { message } => BacktraceStatus::Invalid {
+                message: message.clone(),
+            },
         }
     }
 }

@@ -51,14 +51,16 @@ macro_rules! export_module_error {
         impl std::error::Error for ModuleError {}
 
         impl From<subxt::error::ModuleError> for ModuleError {
-            fn from(error: subxt::error::ModuleError) -> ModuleError {
-                let raw = error.raw();
-                match raw.pallet_index {
-                     $($index => match $error::decode(&mut [raw.error[0]].as_ref()) {
+            fn from(e: subxt::error::ModuleError) -> ModuleError {
+                let mut error = [0; 4];
+                error.copy_from_slice(&e.bytes()[1..]);
+
+                match e.pallet_index() {
+                     $($index => match $error::decode(&mut [e.error_index()].as_ref()) {
                          Ok(e) => ModuleError::$error(e),
                          Err(_) => ModuleError::Unknown {
-                             pallet_index: raw.pallet_index,
-                             error: raw.error,
+                             pallet_index: e.pallet_index(),
+                             error,
                          },
                      }),*,
                      // `pallet_fellowship_referenda => 19`
@@ -67,18 +69,18 @@ macro_rules! export_module_error {
                      //
                      // `pallet_fellowship_collective => 18`
                      19 => {
-                         let mb_error = RanckedCollective::decode(&mut raw.error.as_ref());
+                         let mb_error = RanckedCollective::decode(&mut error.as_ref());
                          match mb_error {
                              Ok(e) => ModuleError::RanckedCollective(e),
                              Err(_) => ModuleError::Unknown {
-                                 pallet_index: raw.pallet_index,
-                                 error: raw.error,
+                                 pallet_index: e.pallet_index(),
+                                 error,
                              },
                          }
                      },
                      _ => ModuleError::Unknown {
-                         pallet_index: raw.pallet_index,
-                         error: raw.error,
+                         pallet_index: e.pallet_index(),
+                         error,
                      }
                 }
             }

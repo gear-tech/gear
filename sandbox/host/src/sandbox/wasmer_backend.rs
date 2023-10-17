@@ -215,9 +215,7 @@ pub fn instantiate(
             wasmer::ExternType::Global(_) | wasmer::ExternType::Table(_) => (),
 
             wasmer::ExternType::Memory(_) => {
-                let exports = exports_map
-                    .entry(import.module().to_string())
-                    .or_insert_with(wasmer::Exports::new);
+                let exports = exports_map.entry(import.module().to_string()).or_default();
 
                 let memory = guest_env
                     .imports
@@ -274,9 +272,7 @@ pub fn instantiate(
                     }
                 };
 
-                let exports = exports_map
-                    .entry(import.module().to_string())
-                    .or_insert_with(wasmer::Exports::new);
+                let exports = exports_map.entry(import.module().to_string()).or_default();
 
                 exports.insert(import.name(), wasmer::Extern::Function(function));
             }

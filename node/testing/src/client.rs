@@ -18,7 +18,6 @@
 
 //! Utilities to build a `TestClient` for gear- or vara-runtime.
 
-use sc_service::client;
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;

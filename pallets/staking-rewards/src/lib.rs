@@ -231,8 +231,8 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Transferred to the pool from an external account.
-        Refilled { amount: BalanceOf<T> },
+        /// Deposited to the pool.
+        Deposited { amount: BalanceOf<T> },
         /// Transferred from the pool to an external account.
         Withdrawn { amount: BalanceOf<T> },
         /// Burned from the pool.
@@ -271,7 +271,7 @@ pub mod pallet {
                 log::error!("Failed to replenish the staking rewards pool: {:?}", e);
                 Error::<T>::FailureToRefillPool
             })?;
-            Self::deposit_event(Event::Refilled { amount: value });
+            Self::deposit_event(Event::Deposited { amount: value });
 
             Ok(())
         }
@@ -295,7 +295,7 @@ pub mod pallet {
                 log::error!("Failed to replenish the staking rewards pool: {:?}", e);
                 Error::<T>::FailureToRefillPool
             })?;
-            Self::deposit_event(Event::Refilled { amount: value });
+            Self::deposit_event(Event::Deposited { amount: value });
 
             Ok(())
         }
@@ -403,6 +403,8 @@ impl<T: Config> EraPayout<BalanceOf<T>> for Pallet<T> {
     }
 }
 
+/// Balance out excessive total supply whenever new tokens are minted through
+/// burning the equivalent amount from the inflation offset pool
 impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
     fn on_nonzero_unbalanced(minted: PositiveImbalanceOf<T>) {
         let amount = minted.peek();
@@ -420,20 +422,38 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
             Self::deposit_event(Event::Burned { amount });
         } else {
             log::warn!(
-                "Staking rewards pool has insufficient balance to burn minted rewards. The currency total supply may grow."
+                "Staking rewards pool has insufficient balance to burn minted rewards. \
+                The currency total supply may grow."
             );
         };
     }
 }
 
+/// Funnel the funds-to-burn into the inflation offset pool to maintain the total supply
+pub struct OffsetPool<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
+    fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
+        let numeric_amount = amount.peek();
+
+        // Should resolve into existing but resolving with creation is a safer bet anyway
+        T::Currency::resolve_creating(&Pallet::<T>::account_id(), amount);
+
+        Pallet::deposit_event(Event::<T>::Deposited {
+            amount: numeric_amount,
+        });
+    }
+}
+
 /// A type to be plugged into the Staking pallet as the `RewardRemainder` associated type.
 ///
-/// Implements the `OnUnbalanced<NegativeImbalance>` trait in a way that would try to offset
-/// the input negative imbalance against the staking rewards pool so that the total
-/// token supply is not affected by the rewards-in-excess that are sent to Treasury.
-pub struct RewardsStash<T, U>(sp_std::marker::PhantomData<(T, U)>);
+/// A wrapper around the final `RewardRemainder` destination that burns from the inflation offset
+/// pool the equivalent of the provided `NegativeImbalance` value in order to balance out what has
+/// been minted as a part of the staking rewards for the era but not yet attributed to any account.
+/// It is assumed that the subsequent `OnUnbalanced` handler (e.g. Treasury) would `resolve` the
+/// imbalance and not drop it - otherwise the the total supply will decrease.
+pub struct RewardProxy<T, U>(sp_std::marker::PhantomData<(T, U)>);
 
-impl<T: Config, U> OnUnbalanced<NegativeImbalanceOf<T>> for RewardsStash<T, U>
+impl<T: Config, U> OnUnbalanced<NegativeImbalanceOf<T>> for RewardProxy<T, U>
 where
     U: OnUnbalanced<NegativeImbalanceOf<T>>,
 {

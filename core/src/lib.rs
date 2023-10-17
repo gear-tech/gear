@@ -35,6 +35,7 @@ pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod pages;
+pub mod percent;
 pub mod program;
 pub mod reservation;
 

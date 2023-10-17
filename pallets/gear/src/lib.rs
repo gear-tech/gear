@@ -72,6 +72,7 @@ use gear_core::{
     memory::PageBuf,
     message::*,
     pages::{GearPage, WasmPage},
+    percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
@@ -166,6 +167,10 @@ pub mod pallet {
         /// The maximum amount of messages that can be produced in single run.
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
+
+        /// Performance multiplier.
+        #[pallet::constant]
+        type PerformanceMultiplier: Get<Percent>;
 
         type DebugInfo: DebugInfo;
 
@@ -1028,6 +1033,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
+                performance_multiplier: T::PerformanceMultiplier::get(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
