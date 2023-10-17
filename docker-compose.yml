@@ -1,0 +1,186 @@
+#version: '3.5'
+# Startup without gear-node.
+# Example: docker-compose up -d
+# Startup with gear-node. Using profile `--profile gear-node`
+# Example: docker-compose --profile gear-node up -d
+# Shutdown and clear.
+# Stop the container(s) using the following command:
+#   docker-compose down
+#   docker rm -f $(docker ps -a -q)
+#   docker volume rm $(docker volume ls -q)
+# Restart the containers using the following command:
+#   docker-compose up -d
+
+x-restart-policy: &restart_policy
+  restart: unless-stopped
+x-depends_on-healthy: &depends_on-healthy
+  condition: service_healthy
+x-depends_on-default: &depends_on-default
+  condition: service_started
+x-healthcheck-defaults: &healthcheck_defaults
+  # Avoid setting the interval too small, as docker uses much more CPU than one would expect.
+  interval: "30s"
+  timeout: "1m30s"
+  retries: 10
+  start_period: 10s
+x-database-defaults: &postgres_defaults
+    <<: *restart_policy
+    # Using the same postgres version as Sentry dev for consistency purposes
+    image: "postgres:14.5"
+    healthcheck:
+      <<: *healthcheck_defaults
+      # Using default user "postgres"
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+    command:
+      [
+        "postgres",
+        "-c",
+        "wal_level=logical",
+        "-c",
+        "max_replication_slots=1",
+        "-c",
+        "max_wal_senders=1",
+      ]
+
+services:
+
+  redis:
+    <<: *restart_policy
+    image: "redis:6.2.13-alpine"
+    healthcheck:
+      <<: *healthcheck_defaults
+      test: redis-cli ping
+    ports:
+      - "6379:6379"
+    volumes:
+      - "gear-redis:/data"
+    ulimits:
+      nofile:
+        soft: 10032
+        hard: 10032
+
+  pg-indexer:
+    <<: *postgres_defaults
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+      POSTGRES_DB: "indexer"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+     - "gear-postgres-indexer:/var/lib/postgresql/data"
+
+  pg-meta:
+    <<: *postgres_defaults
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+      POSTGRES_DB: "meta"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+     - "gear-postgres-meta:/var/lib/postgresql/data"
+
+  rabbitmq:
+    <<: *restart_policy
+    image: "rabbitmq:3.11"
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      #RABBITMQ_ERLANG_COOKIE: "SWQOKODSQALRPCLNMEQG"
+      RABBITMQ_DEFAULT_USER: "guest"
+      RABBITMQ_DEFAULT_PASS: "guest"
+      RABBITMQ_DEFAULT_VHOST: "/"
+    healthcheck:
+      <<: *healthcheck_defaults
+      #test: [ "CMD", "nc", "-z", "localhost", "5672" ]
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+    ulimits:
+      nofile:
+        soft: 10032
+        hard: 10032
+    volumes:
+      - "gear-rabbitmq:/var/lib/rabbitmq"
+
+  api-gateway:
+    <<: *restart_policy
+    image: ghcr.io/gear-tech/gear-js-api-gateway:qa
+    ports:
+      - 3000:3000
+    depends_on:
+      rabbitmq:
+        <<: *depends_on-healthy
+      redis:
+        <<: *depends_on-healthy
+    environment:
+      RABBIT_MQ_URL: amqp://guest:guest@rabbitmq:5672
+      CAPTCH_SECRET: '0xfF8C6A74C8EcD1Db7A7A5772F815255f4B661197'
+      CRON_TIME: 0 */3 * * *
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      #REDIS_PASSWORD: redis
+
+  meta-storage:
+    <<: *restart_policy
+    depends_on:
+      rabbitmq:
+        <<: *depends_on-healthy
+      pg-meta:
+        <<: *depends_on-healthy
+    image: ghcr.io/gear-tech/gear-js-meta-storage:qa
+    environment:
+      DB_NAME: meta
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: pg-meta
+      RMQ_URL: amqp://guest:guest@rabbitmq:5672
+
+  gear-node:
+    profiles: ["gear-node"]
+    <<: *restart_policy
+    ports:
+      - "30333:30333"
+      - "9933:9933"
+      - "9944:9944"
+      - "9615:9615"
+    image: "ghcr.io/gear-tech/node:0.1.0-05339e21"
+    entrypoint: "/usr/local/bin/gear"
+    command: ["--dev",
+    #         "--base-path /gear",
+              "--tmp",
+              "--unsafe-ws-external",
+              "--unsafe-rpc-external",
+              "--rpc-methods", "Unsafe",
+              "--rpc-cors", "all"]
+    #environment:
+    volumes:
+      - "gear-data:/gear"
+      #- "/tmp/gear/gear-data/:/gear/"
+
+  indexer:
+    <<: *restart_policy
+    depends_on:
+      rabbitmq:
+        <<: *depends_on-healthy
+      pg-indexer:
+        <<: *depends_on-healthy
+    image: ghcr.io/gear-tech/gear-js-indexer:qa
+    environment:
+      DB_NAME: indexer
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: pg-indexer
+      RABBIT_MQ_URL: amqp://guest:guest@rabbitmq:5672
+      GEAR_WS_PROVIDER: ws://gear-node:9944
+
+volumes:
+  # These store application data that should persist across restarts.
+#  gear-postgres:
+  gear-postgres-meta:
+  gear-postgres-indexer:
+#    external: true
+  gear-redis:
+#    external: true
+  gear-rabbitmq:
+#    external: true
+  gear-api-gateway:
+  gear-data:
