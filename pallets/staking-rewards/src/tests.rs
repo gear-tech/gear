@@ -21,8 +21,8 @@
 #![cfg(test)]
 
 use crate::{mock::*, *};
-use frame_support::{assert_noop, assert_ok};
-use sp_runtime::{PerThing, Perbill};
+use frame_support::{assert_noop, assert_ok, assert_storage_noop};
+use sp_runtime::{DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -41,6 +41,105 @@ pub(crate) fn init_logger() {
         .format_module_path(false)
         .format_level(true)
         .try_init();
+}
+
+#[test]
+fn supply_alignment_works() {
+    init_logger();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+        ])
+        .stash(VALIDATOR_STAKE)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![SIGNER])
+        .total_supply(INITIAL_TOTAL_TOKEN_SUPPLY)
+        .non_stakeable(Perquintill::from_rational(4108_u64, 10_000_u64))
+        .pool_balance(Perquintill::from_percent(11) * INITIAL_TOTAL_TOKEN_SUPPLY)
+        .ideal_stake(Perquintill::from_percent(85))
+        .target_inflation(Perquintill::from_rational(578_u64, 10_000_u64))
+        .build()
+        .execute_with(|| {
+            let assert_issuance =
+                |balance: BalanceOf<Test>| assert_eq!(Balances::total_issuance(), balance);
+
+            let assert_pool = |balance: BalanceOf<Test>| {
+                assert_eq!(
+                    Balances::total_balance(&StakingRewards::account_id()),
+                    balance + Balances::minimum_balance()
+                )
+            };
+
+            // Asserting initial parameters.
+            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY);
+
+            let initial_pool_balance = Perquintill::from_percent(11) * INITIAL_TOTAL_TOKEN_SUPPLY;
+            assert_pool(initial_pool_balance);
+
+            // Asserting bad origin.
+            assert_noop!(
+                StakingRewards::align_supply(
+                    RuntimeOrigin::signed(SIGNER),
+                    INITIAL_TOTAL_TOKEN_SUPPLY
+                ),
+                DispatchError::BadOrigin
+            );
+
+            // Asserting no-op in case of equity.
+            assert_storage_noop!(assert_ok!(StakingRewards::align_supply(
+                RuntimeOrigin::root(),
+                INITIAL_TOTAL_TOKEN_SUPPLY
+            )));
+
+            // Burning N tokens.
+            let n = Balances::minimum_balance() * 5;
+
+            assert_ok!(Balances::set_balance(
+                RuntimeOrigin::root(),
+                SIGNER,
+                Balances::free_balance(SIGNER) - n,
+                Balances::reserved_balance(SIGNER),
+            ));
+
+            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY - n);
+            assert_pool(initial_pool_balance);
+
+            // Aligning supply.
+            assert_ok!(StakingRewards::align_supply(
+                RuntimeOrigin::root(),
+                INITIAL_TOTAL_TOKEN_SUPPLY
+            ));
+
+            System::assert_has_event(Event::Minted { amount: n }.into());
+            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY);
+            assert_pool(initial_pool_balance + n);
+
+            // Minting M tokens.
+            let m = Balances::minimum_balance() * 12;
+
+            assert_ok!(Balances::set_balance(
+                RuntimeOrigin::root(),
+                SIGNER,
+                Balances::free_balance(SIGNER) + m,
+                Balances::reserved_balance(SIGNER),
+            ));
+
+            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY + m);
+            assert_pool(initial_pool_balance + n);
+
+            // Aligning supply.
+            assert_ok!(StakingRewards::align_supply(
+                RuntimeOrigin::root(),
+                INITIAL_TOTAL_TOKEN_SUPPLY
+            ));
+
+            System::assert_has_event(Event::Burned { amount: m }.into());
+            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY);
+            assert_pool(initial_pool_balance + n - m);
+        });
 }
 
 #[test]
