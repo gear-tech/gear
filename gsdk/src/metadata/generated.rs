@@ -3250,6 +3250,8 @@ pub mod runtime_types {
                         to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         value: ::core::primitive::u128,
                     },
+                    #[codec(index = 3)]
+                    align_supply { target: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the staking rewards pallet."]
@@ -3273,6 +3275,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "Burned from the pool."]
                     Burned { amount: ::core::primitive::u128 },
+                    #[codec(index = 3)]
+                    #[doc = "Minted to the pool."]
+                    Minted { amount: ::core::primitive::u128 },
                 }
             }
         }
@@ -9792,6 +9797,7 @@ pub mod calls {
         Refill,
         ForceRefill,
         Withdraw,
+        AlignSupply,
     }
     impl CallInfo for StakingRewardsCall {
         const PALLET: &'static str = "StakingRewards";
@@ -9800,6 +9806,7 @@ pub mod calls {
                 Self::Refill => "refill",
                 Self::ForceRefill => "force_refill",
                 Self::Withdraw => "withdraw",
+                Self::AlignSupply => "align_supply",
             }
         }
     }
