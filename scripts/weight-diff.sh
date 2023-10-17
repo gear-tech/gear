@@ -12,7 +12,7 @@ USAGE:
     ./weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> [FLAGS]
 
 EXAMPLES:
-    ./weight-diff.sh master $(git branch --show-current) gear --display-units
+    ./weight-diff.sh master $(git branch --show-current) vara --display-units
 
 FLAGS:
     --display-units  if present, displays the value in units
@@ -20,7 +20,7 @@ FLAGS:
 ARGUMENTS:
   <BRANCH1>  branch #1 from where to get the weights
   <BRANCH2>  branch #2 from where to get the weights
-  <RUNTIME>  what runtime to compare? [possible values: gear, vara]
+  <RUNTIME>  what runtime to compare? [possible values: vara]
 EOF
 }
 

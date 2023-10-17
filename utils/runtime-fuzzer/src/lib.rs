@@ -29,12 +29,12 @@ use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
-use gear_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 use sha1::*;
 use std::fmt::Debug;
 use utils::default_generator_set;
+use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 
 /// This is a wrapper over random bytes provided from fuzzer.
 ///
@@ -120,25 +120,23 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
             )
         }
         GearCall::SendMessage(args) => {
-            let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
+            let SendMessageArgs((destination, payload, gas_limit, value)) = args;
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
                 payload,
                 gas_limit,
                 value,
-                prepaid,
             )
         }
         GearCall::SendReply(args) => {
-            let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
+            let SendReplyArgs((message_id, payload, gas_limit, value)) = args;
             Gear::send_reply(
                 RuntimeOrigin::signed(sender),
                 message_id,
                 payload,
                 gas_limit,
                 value,
-                prepaid,
             )
         }
         GearCall::ClaimValue(args) => {

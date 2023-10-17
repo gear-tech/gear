@@ -152,7 +152,7 @@ impl WasmBuilder {
         }
 
         // It may turn out that crate with a build script is built as a dependency of
-        // another crate with build script in the same process (gear-runtime -> pallet-gear -> examples).
+        // another crate with build script in the same process (runtime -> pallet-gear -> examples).
         // In that case, all the CARGO_FEATURE_<feature> environment variables are propagated down to
         // the dependent crate which might not have the corresponding features at all.
         // In such situation, we just warn about unmatched features for diagnostic purposes and ignore them

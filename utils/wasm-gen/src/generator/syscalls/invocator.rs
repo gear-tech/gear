@@ -660,13 +660,15 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 });
 
             for export_call_indexes_handle in export_funcs_call_indexes_handles {
-                let FunctionIndex::Func(idx) = self.call_indexes
+                let FunctionIndex::Func(idx) = self
+                    .call_indexes
                     .get(*export_call_indexes_handle as usize)
-                    .expect("getting by handle of existing call") else {
-                        // Export can be to the import function by WASM specification,
-                        // but we currently do not support this in wasm-gen.
-                        panic!("Export cannot be to the import function");
-                    };
+                    .expect("getting by handle of existing call")
+                else {
+                    // Export can be to the import function by WASM specification,
+                    // but we currently do not support this in wasm-gen.
+                    panic!("Export cannot be to the import function");
+                };
 
                 let old_idx = *export_call_indexes_handle;
                 *export_call_indexes_handle = idx + imports_num;

@@ -266,7 +266,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
             }
         ) => {{
             // check field is exist
-            let $name::<gear_runtime::Runtime> {
+            let $name::<vara_runtime::Runtime> {
                 $( $field: _, )+
             } = Default::default();
 
@@ -476,7 +476,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
             }
         }
         WeightsKind::Extrinsic => {
-            let extrinsics = pallet_gear::pallet::Call::<gear_runtime::Runtime>::get_call_names();
+            let extrinsics = pallet_gear::pallet::Call::<vara_runtime::Runtime>::get_call_names();
             benches.extend(
                 extrinsics
                     .iter()
