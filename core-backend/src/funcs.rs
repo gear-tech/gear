@@ -44,7 +44,7 @@ use gear_core::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
-use gear_sandbox::{ReturnValue, Value};
+use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
@@ -303,7 +303,7 @@ where
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
     pub fn execute<B, Args, R, S>(
-        caller: &mut gear_sandbox::default_executor::Caller<HostState<Ext, ExecutorMemory>>,
+        caller: &mut Caller<HostState<Ext, ExecutorMemory>>,
         args: &[Value],
         builder: B,
     ) -> Result<WasmReturnValue, HostError>
