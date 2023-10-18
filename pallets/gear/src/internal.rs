@@ -180,7 +180,7 @@ impl<T: Config> HoldBound<T> {
 
 impl<T: Config> PartialOrd for HoldBound<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.expected.partial_cmp(&other.expected)
+        Some(self.cmp(other))
     }
 }
 
