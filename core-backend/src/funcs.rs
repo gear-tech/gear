@@ -144,7 +144,7 @@ pub(crate) trait SysCall<Ext, T = ()> {
         self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
-    ) -> Result<(u64, T), HostError>;
+    ) -> Result<(Gas, T), HostError>;
 }
 
 pub(crate) trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
@@ -276,7 +276,7 @@ where
         self,
         caller: &mut CallerWrap<Ext>,
         context: Self::Context,
-    ) -> Result<(u64, ()), HostError> {
+    ) -> Result<(Gas, ()), HostError> {
         let Self {
             costs,
             error: _error,
@@ -323,7 +323,7 @@ where
         self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
-    ) -> Result<(u64, T), HostError> {
+    ) -> Result<(Gas, T), HostError> {
         let Self { costs, f } = self;
         let InfallibleSysCallContext { gas } = ctx;
         caller.run_any::<T, _>(gas, costs, f)
