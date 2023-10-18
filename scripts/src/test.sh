@@ -42,20 +42,16 @@ workspace_test() {
 gsdk_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gsdk --no-fail-fast "$@"
-    $CARGO test -p gsdk --no-fail-fast --features vara-testing "$@"
   else
     cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
 gcli_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gcli --no-fail-fast "$@"
-    $CARGO test -p gcli --features vara-testing --no-fail-fast "$@"
   else
     cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
@@ -82,6 +78,8 @@ validators() {
 }
 
 run_fuzzer() {
+  . $(dirname "$SELF")/fuzzer_consts.sh
+
   ROOT_DIR="$1"
   CORPUS_DIR="$2"
   # Navigate to fuzzer dir
@@ -94,7 +92,7 @@ run_fuzzer() {
   fi
 
   # Run fuzzer
-  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=8192 -max_len=35000000 -len_control=0
+  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
 test_fuzzer_reproduction() {
@@ -110,7 +108,7 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
 }
 
 time_consuming_tests() {

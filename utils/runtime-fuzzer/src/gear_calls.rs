@@ -38,6 +38,7 @@ use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
     SysCallsInjectionTypes, SysCallsParamsConfig,
 };
+use std::mem;
 
 /// Maximum payload size for the fuzzer - 512 KiB.
 const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
@@ -50,6 +51,13 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
 static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
+const ID_SIZE: usize = mem::size_of::<ProgramId>();
+const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
+// to generate things like wasm code or message payload but also to generate some auxiliary
+// data, for example index in some vec.
+const AUXILIARY_SIZE: usize = 512;
 
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
 /// from mailbox, for example [`UploadProgramGenerator`] and
@@ -248,9 +256,8 @@ impl UploadProgramGenerator {
     const fn unstructured_size_hint(&self) -> usize {
         // Max code size - 50 KiB.
         const MAX_CODE_SIZE: usize = 50 * 1024;
-        const AUXILIARY_SIZE: usize = 512;
 
-        MAX_CODE_SIZE + MAX_PAYLOAD_SIZE + MAX_SALT_SIZE + AUXILIARY_SIZE
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -264,7 +271,6 @@ impl From<UploadProgramGenerator> for ExtrinsicGenerator {
 pub(crate) struct SendMessageGenerator {
     pub gas: u64,
     pub value: u128,
-    pub prepaid: bool,
 }
 
 impl SendMessageGenerator {
@@ -284,13 +290,12 @@ impl SendMessageGenerator {
         log::trace!("Payload (send_message) length {:?}", payload.len());
 
         Ok(Some(
-            SendMessageArgs((program_id, payload, self.gas, self.value, self.prepaid)).into(),
+            SendMessageArgs((program_id, payload, self.gas, self.value)).into(),
         ))
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -306,7 +311,6 @@ pub(crate) struct SendReplyGenerator {
 
     pub gas: u64,
     pub value: u128,
-    pub prepaid: bool,
 }
 
 impl SendReplyGenerator {
@@ -328,16 +332,13 @@ impl SendReplyGenerator {
                 );
                 log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-                Some(
-                    SendReplyArgs((message_id, payload, self.gas, self.value, self.prepaid)).into(),
-                )
+                Some(SendReplyArgs((message_id, payload, self.gas, self.value)).into())
             }
         })
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -361,8 +362,7 @@ impl ClaimValueGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 32 bytes for message id.
-        100
+        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -416,7 +416,7 @@ fn config(
             (SysCallName::Alloc, 3..=6),
             (SysCallName::Free, 3..=6),
         ]
-        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
         .into_iter(),
     );
 

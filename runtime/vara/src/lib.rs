@@ -21,7 +21,7 @@
 #![recursion_limit = "256"]
 
 // Make the WASM binary available.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::storage::{Mailbox, Messenger};
@@ -63,7 +63,9 @@ use pallet_grandpa::{
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+pub use pallet_transaction_payment::{
+    CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
+};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
@@ -123,6 +125,13 @@ pub mod governance;
 use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
 
 mod migrations;
+
+// By this we assert if runtime compiled with "dev" feature.
+#[cfg_attr(
+    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
+    link_section = "dev_runtime"
+)]
+static _DEV_RUNTIME: u8 = 0;
 
 // By this we inject compile time version including commit hash
 // (https://github.com/paritytech/substrate/blob/297b3948f4a0f7f6504d4b654e16cb5d9201e523/utils/build-script-utils/src/version.rs#L44)
@@ -330,11 +339,9 @@ impl pallet_balances::Config for Runtime {
     type MaxLocks = ConstU32<50>;
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    /// The type for recording an account's balance.
     type Balance = Balance;
-    /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
-    type DustRemoval = ();
+    type DustRemoval = pallet_gear_staking_rewards::OffsetPool<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
@@ -601,7 +608,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     // Burning the reward remainder for now.
-    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    // TODO: set remainder back to `RewardProxy<Self, Treasury>` to stop burning `Treasury` part.
     type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
@@ -681,7 +688,7 @@ parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
     pub const ProposalBondMinimum: Balance = ECONOMIC_UNITS;
     pub const SpendPeriod: BlockNumber = DAYS;
-    pub const Burn: Permill = Permill::from_percent(50);
+    pub const Burn: Permill = Permill::zero();
     pub const TipCountdown: BlockNumber = DAYS;
     pub const TipFindersFee: Percent = Percent::from_percent(20);
     pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
@@ -697,7 +704,7 @@ impl pallet_treasury::Config for Runtime {
     type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = ();
+    type OnSlash = Treasury;
     type ProposalBond = ProposalBond;
     type ProposalBondMinimum = ProposalBondMinimum;
     type ProposalBondMaximum = ();
@@ -1051,26 +1058,14 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message {
-                destination,
-                prepaid,
-                ..
-            }) => prepaid.then(|| GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::Gear(pallet_gear::Call::send_reply {
-                reply_to_id,
-                prepaid,
-                ..
-            }) => {
-                if *prepaid {
-                    <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                        |stored_message| {
-                            GearVoucher::voucher_account_id(who, &stored_message.source())
-                        },
-                    )
-                } else {
-                    None
-                }
-            }
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
             _ => None,
         }
     }
@@ -1091,6 +1086,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type CallsDispatcher = Gear;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -1354,6 +1350,23 @@ impl_runtime_apis_plus_common! {
             )
         }
 
+    }
+
+    impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
+        for Runtime
+    {
+        fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
+            TransactionPayment::query_call_info(call, len)
+        }
+        fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
+            TransactionPayment::query_call_fee_details(call, len)
+        }
+        fn query_weight_to_fee(weight: Weight) -> Balance {
+            TransactionPayment::weight_to_fee(weight)
+        }
+        fn query_length_to_fee(length: u32) -> Balance {
+            TransactionPayment::length_to_fee(length)
+        }
     }
 
     impl pallet_nomination_pools_runtime_api::NominationPoolsApi<

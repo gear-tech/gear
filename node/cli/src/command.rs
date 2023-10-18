@@ -55,28 +55,20 @@ impl SubstrateCli for Cli {
             // Common "dev" chain. `vara-runtime` is prioritized.
             #[cfg(feature = "vara-native")]
             "dev" => Box::new(chain_spec::vara::development_config()?),
-            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
-            "dev" => Box::new(chain_spec::gear::development_config()?),
-            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            #[cfg(not(feature = "vara-native"))]
             "dev" => return Err("No runtimes specified to compile."),
 
             // Specific "dev" chains.
-            #[cfg(feature = "gear-native")]
-            "gear-dev" => Box::new(chain_spec::gear::development_config()?),
             #[cfg(feature = "vara-native")]
             "vara-dev" => Box::new(chain_spec::vara::development_config()?),
 
             // Common "local" chain. `vara-runtime` is prioritized.
             #[cfg(feature = "vara-native")]
             "local" => Box::new(chain_spec::vara::local_testnet_config()?),
-            #[cfg(all(feature = "gear-native", not(feature = "vara-native")))]
-            "local" => Box::new(chain_spec::gear::local_testnet_config()?),
-            #[cfg(not(any(feature = "gear-native", feature = "vara-native")))]
+            #[cfg(not(feature = "vara-native"))]
             "local" => return Err("No runtimes specified to compile."),
 
             // Specific "local" chains.
-            #[cfg(feature = "gear-native")]
-            "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
             #[cfg(feature = "vara-native")]
             "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
 
@@ -107,22 +99,14 @@ impl SubstrateCli for Cli {
                 let chain_spec = Box::new(chain_spec::RawChainSpec::from_json_file(path.clone())?)
                     as Box<dyn ChainSpec>;
 
-                match (chain_spec.is_gear(), chain_spec.is_vara()) {
-                    // Corner cases.
-                    (true, true) => unreachable!("Chain spec couldn't be both of gear and vara runtime"),
-                    (false, false) => return Err("Unable to identify chain spec as gear or vara runtime".into()),
-
-                    // Gear specs.
-                    #[cfg(feature = "gear-runtime")]
-                    (true, ..) => Box::new(chain_spec::gear::ChainSpec::from_json_file(path)?),
-                    #[cfg(not(feature = "gear-runtime"))]
-                    (true, ..) => return Err("Gear runtime is not available. Please compile the node with `-F gear-native` to enable it.".into()),
-
+                if chain_spec.is_vara() {
                     // Vara specs.
                     #[cfg(feature = "vara-runtime")]
-                    (.., true) => Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?),
+                    return Ok(Box::new(chain_spec::vara::ChainSpec::from_json_file(path)?));
                     #[cfg(not(feature = "vara-runtime"))]
-                    (.., true) => return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into()),
+                    return Err("Vara runtime is not available. Please compile the node with `-F vara-native` to enable it.".into());
+                } else {
+                    return Err("Unable to identify chain spec as vara runtime".into());
                 }
             }
         })
@@ -130,8 +114,6 @@ impl SubstrateCli for Cli {
 
     fn native_runtime_version(spec: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
         match spec {
-            #[cfg(feature = "gear-native")]
-            spec if spec.is_gear() => &service::gear_runtime::VERSION,
             #[cfg(feature = "vara-native")]
             spec if spec.is_vara() => &service::vara_runtime::VERSION,
             _ => panic!("Invalid chain spec"),
@@ -147,8 +129,6 @@ macro_rules! unwrap_client {
         $code:expr
     ) => {
         match $client.as_ref() {
-            #[cfg(feature = "gear-native")]
-            service::Client::Gear($client) => $code,
             #[cfg(feature = "vara-native")]
             service::Client::Vara($client) => $code,
             #[allow(unreachable_patterns)]
@@ -288,11 +268,6 @@ pub fn run() -> sc_cli::Result<()> {
                             );
                         }
                         match &config.chain_spec {
-                            #[cfg(feature = "gear-native")]
-                            spec if spec.is_gear() => cmd
-                                .run::<service::gear_runtime::Block, service::GearExecutorDispatch>(
-                                    config,
-                                ),
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
                                 .run::<service::vara_runtime::Block, service::VaraExecutorDispatch>(
@@ -395,18 +370,6 @@ pub fn run() -> sc_cli::Result<()> {
                     .map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
 
             match chain_spec {
-                #[cfg(feature = "gear-native")]
-                spec if spec.is_gear() => runner.async_run(|_| {
-                    let info_provider =
-                        substrate_info(gear_runtime::constants::time::SLOT_DURATION);
-                    Ok((
-                        cmd.run::<service::gear_runtime::Block, ExtendedHostFunctions<
-						sp_io::SubstrateHostFunctions,
-						<service::GearExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-					>, _>(Some(info_provider)),
-                        task_manager,
-                    ))
-                }),
                 #[cfg(feature = "vara-native")]
                 spec if spec.is_vara() => runner.async_run(|_| {
                     let info_provider =
