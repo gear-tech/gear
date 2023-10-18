@@ -287,21 +287,13 @@ impl SysCallName {
                 SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithSignalCode))])
             }
             Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash))]),
-            Self::ExecSettings => SysCallSignature::gr([
-                Size,
-                // The PtrType::BufferStart doesn't work here as it requires length_param_idx
-                // Should we introduce something like PtrType::Buffer
-                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
-            ]),
+            Self::ExecSettings => {
+                SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::Buffer))])
+            }
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                // TODO #3375, the PtrType::BlockNumber is incorrect here.
-                // Should be:
-                // Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
-                //     length_param_idx: 1,
-                // }))
-                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
+                Ptr(PtrInfo::new_mutable(PtrType::Buffer)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
@@ -534,6 +526,7 @@ pub enum ParamType {
     Handler,         // i32 handler number
     Alloc,           // i32 alloc pages
     Free,            // i32 free page
+    Version,         // i32 version number of exec settings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -561,6 +554,7 @@ pub enum PtrType {
     BlockNumber,
     BlockTimestamp,
     BufferStart { length_param_idx: usize },
+    Buffer,
     Hash,
     Gas,
     Length,
@@ -598,6 +592,7 @@ impl PtrType {
             BlockNumber
             | BlockTimestamp
             | BufferStart { .. }
+            | Buffer
             | Hash
             | Gas
             | Length
