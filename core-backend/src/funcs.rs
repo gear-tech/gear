@@ -147,27 +147,32 @@ pub(crate) trait SysCall<Ext, T = ()> {
     ) -> Result<(Gas, T), HostError>;
 }
 
-pub(crate) trait SysCallBuilder<Ext, Args: ?Sized, R, S> {
-    fn build(self, args: &[Value]) -> Result<S, HostError>;
+/// Trait is implemented for functions.
+///
+/// # Generics
+/// `Args` is to make specialization based on function arguments
+/// `Ext` and `Res` are for sys-call itself (`SysCall<Ext, Res>`)
+pub(crate) trait SysCallBuilder<Ext, Args: ?Sized, Res, SysCall> {
+    fn build(self, args: &[Value]) -> Result<SysCall, HostError>;
 }
 
-impl<Ext, R, S, B> SysCallBuilder<Ext, (), R, S> for B
+impl<Ext, Res, Call, Builder> SysCallBuilder<Ext, (), Res, Call> for Builder
 where
-    B: FnOnce() -> S,
-    S: SysCall<Ext, R>,
+    Builder: FnOnce() -> Call,
+    Call: SysCall<Ext, Res>,
 {
-    fn build(self, args: &[Value]) -> Result<S, HostError> {
+    fn build(self, args: &[Value]) -> Result<Call, HostError> {
         let _: [Value; 0] = args.try_into().map_err(|_| HostError)?;
         Ok((self)())
     }
 }
 
-impl<Ext, R, S, B> SysCallBuilder<Ext, [Value], R, S> for B
+impl<Ext, Res, Call, Builder> SysCallBuilder<Ext, [Value], Res, Call> for Builder
 where
-    B: for<'a> FnOnce(&'a [Value]) -> S,
-    S: SysCall<Ext, R>,
+    Builder: for<'a> FnOnce(&'a [Value]) -> Call,
+    Call: SysCall<Ext, Res>,
 {
-    fn build(self, args: &[Value]) -> Result<S, HostError> {
+    fn build(self, args: &[Value]) -> Result<Call, HostError> {
         Ok((self)(args))
     }
 }
