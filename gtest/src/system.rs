@@ -35,7 +35,7 @@ use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 /// ```
 /// use gtest::System;
 ///
-/// // Create a new testing system.
+/// // Create a new testing environment.
 /// let system = System::new();
 ///
 /// // Init logger with "gwasm" target set to `debug` level.

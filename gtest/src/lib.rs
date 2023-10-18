@@ -19,13 +19,20 @@
 #![deny(missing_docs)]
 //! # Testing with `gtest`
 //!
-//! `gtest` simulates a real network by providing mockups of the user, program, balances, mailbox, etc. Since it does not include parts of the actual blockchain, it is fast and lightweight. But being a model of the blockchain network, `gtest` cannot be a complete reflection of the latter.
+//! `gtest` simulates a real network by providing mockups of the user, program,
+//! balances, mailbox, etc. Since it does not include parts of the actual
+//! blockchain, it is fast and lightweight. But being a model of the blockchain
+//! network, `gtest` cannot be a complete reflection of the latter.
 //!
-//! As we said earlier, `gtest` is excellent for unit and integration testing. It is also helpful for debugging Gear program logic. Nothing other than the Rust compiler is required for running tests based on `gtest`. It is predictable and robust when used in continuous integration.
+//! As we said earlier, `gtest` is excellent for unit and integration testing.
+//! It is also helpful for debugging Gear program logic. Nothing other than the
+//! Rust compiler is required for running tests based on `gtest`. It is
+//! predictable and robust when used in continuous integration.
 //!
 //! ## Import `gtest` lib
 //!
-//! To use the `gtest` library, you must import it into your `Cargo.toml` file in the `[dev-dependencies]` block to fetch and compile it for tests only:
+//! To use the `gtest` library, you must import it into your `Cargo.toml` file
+//! in the `[dev-dependencies]` block to fetch and compile it for tests only:
 //!
 //! ```toml
 //! [package]
@@ -48,14 +55,14 @@
 //!
 //! - Initialization of the common environment for running smart contracts:
 //! ```rust
-//!     // This emulates node's and chain's behavior.
-//!     //
-//!     // By default, sets:
-//!     // - current block equals 0
-//!     // - current timestamp equals UNIX timestamp of your system.
-//!     // - minimal message id equal 0x010000..
-//!     // - minimal program id equal 0x010000..
-//!     let sys = System::new();
+//! // This emulates node's and chain's behavior.
+//! //
+//! // By default, sets:
+//! // - current block equals 0
+//! // - current timestamp equals UNIX timestamp of your system.
+//! // - minimal message id equal 0x010000..
+//! // - minimal program id equal 0x010000..
+//! let sys = System::new();
 //! ```
 //! - Program initialization:
 //! ```rust
@@ -127,9 +134,9 @@
 //! ```
 //! - Getting the program from the system:
 //! ```rust
-//!     // If you initialize program not in this scope, in cycle, in other conditions,
-//!     // where you didn't save the structure, you may get the object from the system by id.
-//!     let _ = sys.get_program(105);
+//! // If you initialize program not in this scope, in cycle, in other conditions,
+//! // where you didn't save the structure, you may get the object from the system by id.
+//! let _ = sys.get_program(105);
 //! ```
 //! - Initialization of styled `env_logger`:
 //! ```rust
@@ -237,73 +244,72 @@
 //! ```
 //! - Spending blocks:
 //! ```rust
-//!     // You may control time in the system by spending blocks.
-//!     //
-//!     // It adds the amount of blocks passed as arguments to the current block of the system.
-//!     // Same for the timestamp. Note, that for now 1 block in Gear network is 1 sec duration.
-//!     sys.spend_blocks(150);
+//! // You may control time in the system by spending blocks.
+//! //
+//! // It adds the amount of blocks passed as arguments to the current block of the system.
+//! // Same for the timestamp. Note, that for now 1 block in Gear network is 1 sec duration.
+//! sys.spend_blocks(150);
 //! ```
 //! <!--
 //! - Reading the program state:
 //! ```rust
-//!     // To read the program state you need to call one of two program's functions:
-//!     // `meta_state()` or `meta_state_with_bytes()`.
-//!     //
-//!     // The methods require the payload as the input argument.
-//!     //
-//!     // The first one requires payload to be CODEC Encodable, while the second requires payload
-//!     // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
-//!     //
-//!     // Let we have the following contract state and `meta_state` function:
-//!     #[derive(Encode, Decode, TypeInfo)]
-//!     pub struct ContractState {
-//!         a: u128,
-//!         b: u128,
+//! // To read the program state you need to call one of two program's functions:
+//! // `meta_state()` or `meta_state_with_bytes()`.
+//! //
+//! // The methods require the payload as the input argument.
+//! //
+//! // The first one requires payload to be CODEC Encodable, while the second requires payload
+//! // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
+//! //
+//! // Let we have the following contract state and `meta_state` function:
+//! #[derive(Encode, Decode, TypeInfo)]
+//! pub struct ContractState {
+//!     a: u128,
+//!     b: u128,
+//! }
+//!
+//! pub enum State {
+//!     A,
+//!     B,
+//! }
+//!
+//! pub enum StateReply {
+//!     A(u128),
+//!     B(u128),
+//! }
+//!
+//! #[no_mangle]
+//! unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+//!     let query: State = msg::load().expect("Unable to decode `State`");
+//!     let encoded = match query {
+//!         State::A => StateReply::A(STATE.a),
+//!         State::B => StateReply::B(STATE.b),
 //!     }
+//!     .encode();
+//!     gstd::util::to_leak_ptr(encoded)
+//! }
 //!
-//!     pub enum State {
-//!         A,
-//!         B,
-//!     }
+//! // Let's send a query from gtest:
+//! let reply: StateReply = self.meta_state(&State::A).expect("Meta_state failed");
+//! let expected_reply = StateReply::A(10);
+//! assert_eq!(reply, expected_reply);
 //!
-//!     pub enum StateReply {
-//!         A(u128),
-//!         B(u128),
-//!     }
-//!
-//!     #[no_mangle]
-//!     unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
-//!         let query: State = msg::load().expect("Unable to decode `State`");
-//!         let encoded = match query {
-//!             State::A => StateReply::A(STATE.a),
-//!             State::B => StateReply::B(STATE.b),
-//!         }.encode();
-//!         gstd::util::to_leak_ptr(encoded)
-//!     }
-//!
-//!     // Let's send a query from gtest:
-//!     let reply: StateReply = self
-//!             .meta_state(&State::A)
-//!             .expect("Meta_state failed");
-//!     let expected_reply = StateReply::A(10);
-//!     assert_eq!(reply,expected_reply);
-//!
-//!     // If your `meta_state` function doesn't require input payloads,
-//!     // you can use `meta_state_empty` or `meta_state_empty_with_bytes` functions
-//!     // without any arguments.
+//! // If your `meta_state` function doesn't require input payloads,
+//! // you can use `meta_state_empty` or `meta_state_empty_with_bytes` functions
+//! // without any arguments.
 //! ```
 //! -->
 //! - Balance:
 //! ```rust
-//!     // If you need to send a message with value you have to mint balance for the message sender:
-//!     let user_id = 42;
-//!     sys.mint_to(user_id, 5000);
-//!     assert_eq!(sys.balance_of(user_id), 5000);
+//! // If you need to send a message with value you have to mint balance for the message sender:
+//! let user_id = 42;
+//! sys.mint_to(user_id, 5000);
+//! assert_eq!(sys.balance_of(user_id), 5000);
 //!
-//!     // To give the balance to the program you should use `mint` method:
-//!     let prog = Program::current(&sys);
-//!     prog.mint(1000);
-//!     assert_eq!(prog.balance(), 1000);
+//! // To give the balance to the program you should use `mint` method:
+//! let prog = Program::current(&sys);
+//! prog.mint(1000);
+//! assert_eq!(prog.balance(), 1000);
 //! ```
 
 mod error;

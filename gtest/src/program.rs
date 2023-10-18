@@ -106,12 +106,16 @@ pub trait WasmProgram: Debug {
     /// called.
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     /// Message handler with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic.
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     /// Reply message handler with given `payload`.
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     /// Signal handler with given `payload`.
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     /// State of wasm program.
+    ///
+    /// See [`Program::read_state`] for the usage.
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     /// Emit debug message in program with given `data`.
     ///
