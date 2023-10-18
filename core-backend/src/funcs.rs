@@ -31,7 +31,7 @@ use crate::{
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
-use core::{fmt, marker::PhantomData};
+use core::marker::PhantomData;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::RuntimeCosts,
@@ -53,43 +53,6 @@ use gsys::{
 };
 
 const PTR_SPECIAL: u32 = u32::MAX;
-
-struct ValueFormatter<'a>(&'a Value);
-
-impl fmt::Display for ValueFormatter<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            Value::I32(i32) => fmt::Display::fmt(i32, f),
-            Value::I64(i64) => fmt::Display::fmt(i64, f),
-            Value::F32(f32) => fmt::Display::fmt(f32, f),
-            Value::F64(f64) => fmt::Display::fmt(f64, f),
-        }
-    }
-}
-
-struct ArgsFormatter<'a>(&'a [Value]);
-
-impl fmt::Display for ArgsFormatter<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut iter = self.0.iter();
-
-        if let Some(value) = iter.next() {
-            write!(f, "{}", ValueFormatter(value))?;
-        }
-
-        for value in iter {
-            write!(f, ", {}", ValueFormatter(value))?;
-        }
-
-        Ok(())
-    }
-}
-
-fn function_name<T>() -> &'static str {
-    let s = core::any::type_name::<T>();
-    let pos = s.rfind("::").unwrap();
-    &s[pos + 2..]
-}
 
 /// Actually just wrapper around [`Value`] to implement conversions.
 #[derive(Clone, Copy)]
@@ -350,7 +313,7 @@ where
         S: SysCall<Ext, R>,
         R: Into<SysCallReturnValue>,
     {
-        log::trace!(target: "syscalls", "{}({})", function_name::<B>(), ArgsFormatter(args));
+        crate::log::trace_syscall::<B>(args);
 
         let mut caller = CallerWrap::prepare(caller);
 
