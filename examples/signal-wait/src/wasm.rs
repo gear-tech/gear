@@ -23,7 +23,9 @@ static mut FIRST_EXEC: bool = true;
 #[no_mangle]
 extern "C" fn handle() {
     if unsafe { FIRST_EXEC } {
-        unsafe { FIRST_EXEC = false; }
+        unsafe {
+            FIRST_EXEC = false;
+        }
         gstd::exec::system_reserve_gas(1_000_000_000).unwrap();
     } else {
         panic!();
