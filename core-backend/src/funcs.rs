@@ -586,7 +586,6 @@ where
         )
     }
 
-    // TODO: write proper benchmark #2825
     pub fn signal_code() -> impl SysCall<Ext> {
         (
             RuntimeCosts::SignalCode,
@@ -814,7 +813,6 @@ where
         )
     }
 
-    // TODO: write proper benchmark #2825
     pub fn signal_from() -> impl SysCall<Ext> {
         (
             RuntimeCosts::SignalFrom,
