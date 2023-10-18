@@ -48,7 +48,7 @@ use gear_sandbox::{ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
-    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
+    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash,
     HashWithValue, TwoHashesWithValue,
 };
 
@@ -213,7 +213,7 @@ where
         self,
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
-    ) -> Result<(u64, T), HostError> {
+    ) -> Result<(Gas, T), HostError> {
         let res = (self)(caller)?;
         let InfallibleSysCallContext { gas } = ctx;
         Ok((gas, res))
@@ -221,14 +221,14 @@ where
 }
 
 struct FallibleSysCallContext {
-    gas: u64,
+    gas: Gas,
     res_ptr: u32,
 }
 
 impl SysCallContext for FallibleSysCallContext {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = SysCallValue(*gas).try_into()?;
+        let gas: Gas = SysCallValue(*gas).try_into()?;
         let (res_ptr, args) = args.split_last().ok_or(HostError)?;
         let res_ptr: u32 = SysCallValue(*res_ptr).try_into()?;
         Ok((FallibleSysCallContext { gas, res_ptr }, args))
@@ -260,13 +260,13 @@ where
 }
 
 pub struct InfallibleSysCallContext {
-    gas: u64,
+    gas: Gas,
 }
 
 impl SysCallContext for InfallibleSysCallContext {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
-        let gas: u64 = SysCallValue(*gas).try_into()?;
+        let gas: Gas = SysCallValue(*gas).try_into()?;
         Ok((Self { gas }, args))
     }
 }
