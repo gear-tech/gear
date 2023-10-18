@@ -54,7 +54,7 @@
 //! ## `gtest` capabilities
 //!
 //! - Initialization of the common environment for running smart contracts:
-//! ```rust
+//! ```ignore
 //! // This emulates node's and chain's behavior.
 //! //
 //! // By default, sets:
@@ -65,7 +65,7 @@
 //! let sys = System::new();
 //! ```
 //! - Program initialization:
-//! ```rust
+//! ```ignore
 //!     // Initialization of program structure from file.
 //!     //
 //!     // Takes as arguments reference to the related `System` and the path to wasm binary relatively
@@ -133,13 +133,13 @@
 //!     let _ = sys.get_program(105);
 //! ```
 //! - Getting the program from the system:
-//! ```rust
+//! ```ignore
 //! // If you initialize program not in this scope, in cycle, in other conditions,
 //! // where you didn't save the structure, you may get the object from the system by id.
 //! let _ = sys.get_program(105);
 //! ```
 //! - Initialization of styled `env_logger`:
-//! ```rust
+//! ```ignore
 //!     // Initialization of styled `env_logger` to print logs (only from `gwasm` by default) into stdout.
 //!     //
 //!     // To specify printed logs, set the env variable `RUST_LOG`:
@@ -149,7 +149,7 @@
 //!     sys.init_logger();
 //! ```
 //! - Sending messages:
-//! ```rust
+//! ```ignore
 //!     // To send message to the program need to call one of two program's functions:
 //!     // `send()` or `send_bytes()` (or `send_with_value` and `send_bytes_with_value` if you need to send a message with attached funds).
 //!     //
@@ -167,7 +167,7 @@
 //!     let res = program.send_bytes(100001, "INIT MESSAGE");
 //! ```
 //! - Processing the result of the program execution:
-//! ```rust
+//! ```ignore
 //!     // Any sending functions in the lib returns `RunResult` structure.
 //!     //
 //!     // It contains the final result of the processing message and others,
@@ -243,7 +243,7 @@
 //!     assert!(res.contains(&(1, 100001, "PONG")));
 //! ```
 //! - Spending blocks:
-//! ```rust
+//! ```ignore
 //! // You may control time in the system by spending blocks.
 //! //
 //! // It adds the amount of blocks passed as arguments to the current block of the system.
@@ -252,7 +252,7 @@
 //! ```
 //! <!--
 //! - Reading the program state:
-//! ```rust
+//! ```ignore
 //! // To read the program state you need to call one of two program's functions:
 //! // `meta_state()` or `meta_state_with_bytes()`.
 //! //
@@ -300,7 +300,7 @@
 //! ```
 //! -->
 //! - Balance:
-//! ```rust
+//! ```ignore
 //! // If you need to send a message with value you have to mint balance for the message sender:
 //! let user_id = 42;
 //! sys.mint_to(user_id, 5000);

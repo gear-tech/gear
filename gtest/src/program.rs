@@ -247,6 +247,7 @@ macro_rules! state_args_encoded {
 /// ```ignore
 /// use gtest::{System, Program};
 ///
+/// // Create a testing system.
 /// let system = System::new();
 ///
 /// // Get the current program of the testing system.
