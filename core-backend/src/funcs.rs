@@ -206,6 +206,7 @@ impl_syscall_builder!(A, B, C, D, E);
 impl_syscall_builder!(A, B, C, D, E, F);
 impl_syscall_builder!(A, B, C, D, E, F, G);
 
+/// "raw" sys-call without any argument parsing or without calling [`CallerWrap`] helper methods
 struct RawSysCall<F>(F);
 
 impl<F> RawSysCall<F> {
@@ -230,6 +231,7 @@ where
     }
 }
 
+/// Fallible sys-call context that parses `gas` and `err_ptr` arguments.
 struct FallibleSysCallContext {
     gas: Gas,
     res_ptr: u32,
@@ -245,6 +247,7 @@ impl SysCallContext for FallibleSysCallContext {
     }
 }
 
+/// Fallible sys-call that calls [`CallerWrap::run_fallible`] underneath.
 struct FallibleSysCall<E, F> {
     costs: RuntimeCosts,
     error: PhantomData<E>,
@@ -284,6 +287,7 @@ where
     }
 }
 
+/// Infallible sys-call context that parses `gas` argument.
 pub struct InfallibleSysCallContext {
     gas: Gas,
 }
@@ -296,6 +300,7 @@ impl SysCallContext for InfallibleSysCallContext {
     }
 }
 
+/// Infallible sys-call that calls [`CallerWrap::run_any`] underneath
 struct InfallibleSysCall<F> {
     costs: RuntimeCosts,
     f: F,
