@@ -46,7 +46,10 @@ pub(crate) enum ProcessedSysCallParams {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
     },
-    MemoryArray,
+    MemoryArraySize,
+    MemoryArrayPtr {
+        length_param_idx: usize,
+    },
     MemoryPtrValue,
 }
 
@@ -54,28 +57,34 @@ pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SysCallsParamsConfig,
 ) -> Vec<ProcessedSysCallParams> {
+    let length_param_indexes = params
+        .iter()
+        .filter_map(|&param| match param {
+            ParamType::Ptr(PtrInfo {
+                ty: PtrType::BufferStart { length_param_idx },
+                ..
+            }) => Some(length_param_idx),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+
     let mut res = Vec::with_capacity(params.len());
-    let mut skip_next_param = false;
-    for &param in params {
-        if skip_next_param {
-            skip_next_param = false;
-            continue;
-        }
+    for (param_idx, &param) in params.iter().enumerate() {
         let processed_param = match param {
             ParamType::Alloc => ProcessedSysCallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Ptr(PtrInfo {
-                ty: PtrType::BufferStart { .. },
-                ..
-            }) => {
-                // skipping next as we don't need the following `Size` param,
-                // because it will be chosen in accordance to the wasm module
-                // memory pages config.
-                skip_next_param = true;
-
-                ProcessedSysCallParams::MemoryArray
+            ParamType::Size if length_param_indexes.contains(&param_idx) => {
+                // Due to match guard `ParamType::Size` can be processed in two ways:
+                // 1. The function will return `ProcessedSysCallParams::MemoryArraySize`
+                //    if this parameter is associated with PtrType::BufferStart { length_param_idx }`.
+                // 2. Otherwise, `ProcessedSysCallParams::Value` will be returned from the function.
+                ProcessedSysCallParams::MemoryArraySize
             }
+            ParamType::Ptr(PtrInfo {
+                ty: PtrType::BufferStart { length_param_idx },
+                ..
+            }) => ProcessedSysCallParams::MemoryArrayPtr { length_param_idx },
             ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
@@ -491,7 +500,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::MemoryArray => {
+                ProcessedSysCallParams::MemoryArraySize => {
+                    // The parameter will be replaced when the loop reaches `MemoryArrayPtr`.
+                    setters.push(ParamSetter::new_i32(0));
+                }
+                ProcessedSysCallParams::MemoryArrayPtr { length_param_idx } => {
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
                     let offset = self.unstructured.int_in_range(0..=upper_limit)?;
@@ -500,7 +513,11 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory array {offset}, {length}");
 
                     setters.push(ParamSetter::new_i32(offset));
-                    setters.push(ParamSetter::new_i32(length));
+
+                    // Set the actual memory array length parameter.
+                    if let Some(setter) = setters.get_mut(length_param_idx) {
+                        *setter = ParamSetter::new_i32(length);
+                    }
                 }
                 ProcessedSysCallParams::MemoryPtrValue => {
                     // Subtract a bit more so entities from `gsys` fit.
