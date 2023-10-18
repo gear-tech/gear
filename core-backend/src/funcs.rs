@@ -131,6 +131,12 @@ pub(crate) trait SysCallContext: Sized {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
 }
 
+impl SysCallContext for () {
+    fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
+        Ok(((), args))
+    }
+}
+
 pub(crate) trait SysCall<Ext, T = ()> {
     type Context: SysCallContext;
 
@@ -200,23 +206,27 @@ impl_syscall_builder!(A, B, C, D, E);
 impl_syscall_builder!(A, B, C, D, E, F);
 impl_syscall_builder!(A, B, C, D, E, F, G);
 
-type SimpleSysCall<F> = F;
+struct SimpleSysCall<F>(F);
+
+impl<F> SimpleSysCall<F> {
+    fn new(f: F) -> Self {
+        Self(f)
+    }
+}
 
 impl<T, F, Ext> SysCall<Ext, T> for SimpleSysCall<F>
 where
-    F: FnOnce(&mut CallerWrap<Ext>) -> Result<T, HostError>,
+    F: FnOnce(&mut CallerWrap<Ext>) -> Result<(Gas, T), HostError>,
     Ext: BackendExternalities + 'static,
 {
-    type Context = InfallibleSysCallContext;
+    type Context = ();
 
     fn execute(
         self,
         caller: &mut CallerWrap<Ext>,
-        ctx: Self::Context,
+        (): Self::Context,
     ) -> Result<(Gas, T), HostError> {
-        let res = (self)(caller)?;
-        let InfallibleSysCallContext { gas } = ctx;
-        Ok((gas, res))
+        (self.0)(caller)
     }
 }
 
@@ -1266,8 +1276,8 @@ where
         })
     }
 
-    pub fn out_of_gas() -> impl SysCall<Ext> {
-        |ctx: &mut CallerWrap<Ext>| {
+    pub fn out_of_gas(_gas: Gas) -> impl SysCall<Ext> {
+        SimpleSysCall::new(|ctx: &mut CallerWrap<Ext>| {
             let ext = ctx.ext_mut();
             let current_counter = ext.current_counter_type();
             log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
@@ -1282,6 +1292,6 @@ where
 
             ctx.set_termination_reason(termination_reason.into());
             Err(HostError)
-        }
+        })
     }
 }
