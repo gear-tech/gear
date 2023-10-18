@@ -50,7 +50,7 @@ mod tests {
 
         // Send message `b"PING"` to our program.
         {
-            let res = program.send(from, *b"PING");
+            let res = program.send_bytes(from, "PING");
             let log = Log::builder()
                 .source(program.id())
                 .dest(from)

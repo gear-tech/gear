@@ -77,7 +77,10 @@ impl From<StoredMessage> for CoreLog {
     }
 }
 
-/// A log that has been decoded into a Rust type.
+/// A log that has been decoded into a Rust type which implements
+/// [`codec::Encodable`] \( [`codec::Decode`] \).
+///
+/// Used for pretty-printing.
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
     id: MessageId,
@@ -114,6 +117,26 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 /// // Check that the log is emitted.
 /// let log = Log::builder().source(program.id()).dest(from);
 /// assert!(res.contains(&log));
+/// ```
+///
+/// The Log instance is also possible being parsed from tuples.
+///
+/// ```
+/// use gtest::Log;
+///
+/// let log: Log = (1, "payload").into();
+/// assert_eq!(Log::builder().dest(1).payload_bytes("payload"), log);
+///
+/// assert_eq!(
+///     Log::builder().source(1).dest(2).payload_bytes("payload"),
+///     Log::from((1, 2, "payload")),
+/// );
+///
+/// let v = vec![1; 32];
+/// assert_eq!(
+///     Log::builder().source(1).dest(&v).payload_bytes("payload"),
+///     Log::from((1, v, "payload"))
+/// );
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {

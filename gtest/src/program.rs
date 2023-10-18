@@ -92,19 +92,30 @@ impl Gas {
     }
 }
 
-/// Shared trait for wasm programs.
+/// Trait for mocking gear programs.
+///
+/// See [`Program`] and [`Program::mock`] for the usages.
 pub trait WasmProgram: Debug {
-    /// Init wasm program.
+    /// Init wasm program with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic
+    /// with given `payload`.
+    ///
+    /// If error occurs, the program will be terminated which
+    /// means that `handle` and `handle_reply` will not be
+    /// called.
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Message handler.
+    /// Message handler with given `payload`.
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Reply message handler.
+    /// Reply message handler with given `payload`.
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// Signal handler.
+    /// Signal handler with given `payload`.
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     /// State of wasm program.
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
-    /// Emit debug message in program.
+    /// Emit debug message in program with given `data`.
+    ///
+    /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
         log::debug!(target: "gwasm", "DEBUG: {data}");
     }
@@ -188,6 +199,9 @@ impl From<&str> for ProgramIdWrapper {
 }
 
 /// Construct state arguments.
+///
+/// Used for reading and decoding the program’s transformed state,
+/// see [`Program::read_state_using_wasm`] for example.
 #[macro_export]
 macro_rules! state_args {
     () => {
@@ -202,6 +216,9 @@ macro_rules! state_args {
 }
 
 /// Construct encoded state arguments.
+///
+/// Used for reading the program’s transformed state as a byte vector,
+/// see [`Program::read_state_bytes_using_wasm`] for example.
 #[macro_export]
 macro_rules! state_args_encoded {
     () => {
@@ -235,9 +252,7 @@ macro_rules! state_args_encoded {
 /// let _result = program.send(42, "init program");
 /// ```
 pub struct Program<'a> {
-    /// Ext manager.
     pub(crate) manager: &'a RefCell<ExtManager>,
-    /// Program id.
     pub(crate) id: ProgramId,
 }
 
@@ -267,14 +282,21 @@ impl<'a> Program<'a> {
         }
     }
 
-    /// Get the current program from system.
+    /// Get program of the root crate with provided `system`.
+    ///
+    /// It looks up the wasm binary of the root crate that contains
+    /// the current test, upload it to the testing system, then,
+    /// returns the program instance.
     pub fn current(system: &'a System) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::current_with_id(system, nonce)
     }
 
-    /// Get the current program from system with id.
+    /// Get program of the root crate with provided `system` and
+    /// initialize it with provided `args`.
+    ///
+    /// See also [`Program::current`].
     pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -282,14 +304,19 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, id, Self::wasm_path("wasm"))
     }
 
-    /// Get current optimized program.
+    /// Get optimized program of the root crate with provided `system`,
+    ///
+    /// See also [`Program::current`].
     pub fn current_opt(system: &'a System) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::current_opt_with_id(system, nonce)
     }
 
-    /// Get current optimized program with id.
+    /// Get optimized program of the root crate with provided `system` and
+    /// initialize it with provided `id`.
+    ///
+    /// See also [`Program::current_with_id`].
     pub fn current_opt_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -297,14 +324,19 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, id, Self::wasm_path("opt.wasm"))
     }
 
-    /// Create a mock program.
+    /// Mock a program with provided `system` and `mock`.
+    ///
+    /// See [`WasmProgram`] for more details.
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::mock_with_id(system, nonce, mock)
     }
 
-    /// Create a mock program with id.
+    /// Create a mock program with provided `system` and `mock`,
+    /// and initialize it with provided `id`.
+    ///
+    /// See also [`Program::mock`].
     pub fn mock_with_id<T: WasmProgram + 'static, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -313,14 +345,19 @@ impl<'a> Program<'a> {
         Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
-    /// Create a program from file.
+    /// Create a program instance from wasm file.
+    ///
+    /// See also [`Program::current`].
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::from_file_with_id(system, nonce, path)
     }
 
-    /// Create a program from file with id.
+    /// Create a program from file and initialize it with provided
+    /// `path` and `id`.
+    ///
+    /// See also [`Program::from_file`].
     #[track_caller]
     pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
@@ -348,6 +385,8 @@ impl<'a> Program<'a> {
     }
 
     /// Create a program from optimized and metadata files.
+    ///
+    /// See also [`Program::from_file`].
     pub fn from_opt_and_meta<P: AsRef<Path>>(
         system: &'a System,
         optimized: P,
@@ -357,7 +396,10 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_with_id(system, nonce, optimized, metadata)
     }
 
-    /// Create a program from optimized and metadata files with id.
+    /// Create a program from optimized and metadata files and initialize
+    /// it with given `id`.
+    ///
+    /// See also [`Program::from_file`].
     pub fn from_opt_and_meta_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -370,7 +412,10 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, opt_code, Some(meta_code))
     }
 
-    /// Create a program from optimized and metadata code with id.
+    /// Create a program from optimized and metadata code and initialize
+    /// it with given `id`.
+    ///
+    /// See also [`Program::from_file`].
     #[track_caller]
     pub fn from_opt_and_meta_code_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
