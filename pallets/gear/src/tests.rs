@@ -14491,6 +14491,60 @@ fn test_gas_info_of_terminated_program() {
     })
 }
 
+#[test]
+fn test_handle_signal_wait() {
+    use demo_signal_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
