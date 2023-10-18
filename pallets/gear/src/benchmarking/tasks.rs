@@ -236,7 +236,6 @@ where
         calls.encode(),
         10_000_000_000,
         0u32.into(),
-        false,
     )
     .expect("failed to send message");
 
@@ -284,7 +283,6 @@ where
         Command::Wait(WaitSubcommand::WaitFor(delay)).encode(),
         10_000_000_000,
         0u32.into(),
-        false,
     )
     .expect("failed to send message");
 
@@ -332,7 +330,6 @@ where
         Command::Wait(WaitSubcommand::Wait).encode(),
         10_000_000_000,
         0u32.into(),
-        false,
     )
     .expect("failed to send message");
 

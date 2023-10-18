@@ -31,7 +31,6 @@ authorship.workspace = true
 # Gear Runtimes
 common = { workspace = true, features = ["std"] }
 gear-runtime-common = { workspace = true, features = ["std"] }
-gear-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate Client
@@ -102,7 +101,6 @@ try-runtime-cli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-gear-native = ["gear-runtime"]
 vara-native = [
 	"vara-runtime",
 	"pallet-staking",
@@ -112,15 +110,12 @@ vara-native = [
 runtime-benchmarks = [
  	"frame-benchmarking/runtime-benchmarks",
  	"frame-benchmarking-cli/runtime-benchmarks",
-	"gear-runtime?/runtime-benchmarks",
 	"vara-runtime?/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
-	"gear-runtime?/runtime-benchmarks-checkers",
 	"vara-runtime?/runtime-benchmarks-checkers",
 ]
 try-runtime = [
-	"gear-runtime?/try-runtime",
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]

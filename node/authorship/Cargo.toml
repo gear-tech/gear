@@ -54,7 +54,7 @@ pallet-gear-program = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
-testing = {workspace = true, features = ["vara-native"] }
+testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
 demo-constructor = { workspace = true, features = ["std"] }
 env_logger.workspace = true

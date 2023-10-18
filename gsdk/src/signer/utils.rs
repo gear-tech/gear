@@ -23,7 +23,7 @@ use crate::{
     backtrace::BacktraceStatus,
     config::GearConfig,
     metadata::{
-        calls::SudoCall, gear_runtime::RuntimeCall, sudo::Event as SudoEvent, CallInfo, Event,
+        calls::SudoCall, sudo::Event as SudoEvent, vara_runtime::RuntimeCall, CallInfo, Event,
     },
     result::Result,
     signer::SignerRpc,
