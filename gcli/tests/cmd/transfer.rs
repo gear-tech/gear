@@ -17,21 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-#![cfg(not(feature = "vara-testing"))]
+
 use crate::common::{self, logs, Args, NodeExec, Result};
 use gsdk::Api;
 
 // Testing account
-//
-// Secret phrase:     tumble tenant update heavy sad draw present tray atom chunk animal exhaust
-// Network ID:        substrate
-// Secret seed:       0xd13d64420f7e304a1bfd4a17a5cda3f14b4e98034abe2cbd4fc05214c6ba2488
-// Public key (hex):  0x62bd03f963e636deea9139b00e33e6800f3c1afebb5f69b47ed07c07be549e78
-// Account ID:        0x62bd03f963e636deea9139b00e33e6800f3c1afebb5f69b47ed07c07be549e78
-// Public key (SS58): 5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs
-// SS58 Address:      5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs
 const SURI: &str = "tumble tenant update heavy sad draw present tray atom chunk animal exhaust";
-const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
+const ADDRESS: &str = "kGhmTEymraqSPa1NYjXzqbko2p4Ge1CmEfACtC1s4aC5hTPYk";
 
 #[tokio::test]
 async fn test_command_transfer_works() -> Result<()> {
@@ -45,14 +37,14 @@ async fn test_command_transfer_works() -> Result<()> {
     let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
 
     // Run command transfer
-    let value = 1_000_000_000u128;
+    let value = 1_000_000_000_000_000u128;
     let _ = node.run(
         Args::new("transfer")
             .destination(ADDRESS)
             .amount(value.to_string()),
     )?;
 
-    let after = signer.api().get_balance(ADDRESS).await?;
+    let after = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
     assert_eq!(
         after.saturating_sub(before),
         value,
