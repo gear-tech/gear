@@ -299,7 +299,6 @@ impl SysCallName {
                 Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
                     length_param_idx: 1,
                 })),
-                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
