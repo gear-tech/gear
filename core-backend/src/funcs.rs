@@ -346,22 +346,22 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
-    pub fn execute<B, Args, R, S>(
+    pub fn execute<Builder, Args, Res, Call>(
         caller: &mut Caller<HostState<Ext, ExecutorMemory>>,
         args: &[Value],
-        builder: B,
+        builder: Builder,
     ) -> Result<WasmReturnValue, HostError>
     where
-        B: SysCallBuilder<Ext, Args, R, S>,
+        Builder: SysCallBuilder<Ext, Args, Res, Call>,
         Args: ?Sized,
-        S: SysCall<Ext, R>,
-        R: Into<SysCallReturnValue>,
+        Call: SysCall<Ext, Res>,
+        Res: Into<SysCallReturnValue>,
     {
-        crate::log::trace_syscall::<B>(args);
+        crate::log::trace_syscall::<Builder>(args);
 
         let mut caller = CallerWrap::prepare(caller);
 
-        let (ctx, args) = S::Context::from_args(args)?;
+        let (ctx, args) = Call::Context::from_args(args)?;
         let sys_call = builder.build(args)?;
         let (gas, value) = sys_call.execute(&mut caller, ctx)?;
         let value = value.into();
