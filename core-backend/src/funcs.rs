@@ -206,15 +206,15 @@ impl_syscall_builder!(A, B, C, D, E);
 impl_syscall_builder!(A, B, C, D, E, F);
 impl_syscall_builder!(A, B, C, D, E, F, G);
 
-struct SimpleSysCall<F>(F);
+struct RawSysCall<F>(F);
 
-impl<F> SimpleSysCall<F> {
+impl<F> RawSysCall<F> {
     fn new(f: F) -> Self {
         Self(f)
     }
 }
 
-impl<T, F, Ext> SysCall<Ext, T> for SimpleSysCall<F>
+impl<T, F, Ext> SysCall<Ext, T> for RawSysCall<F>
 where
     F: FnOnce(&mut CallerWrap<Ext>) -> Result<(Gas, T), HostError>,
     Ext: BackendExternalities + 'static,
@@ -1277,7 +1277,7 @@ where
     }
 
     pub fn out_of_gas(_gas: Gas) -> impl SysCall<Ext> {
-        SimpleSysCall::new(|ctx: &mut CallerWrap<Ext>| {
+        RawSysCall::new(|ctx: &mut CallerWrap<Ext>| {
             let ext = ctx.ext_mut();
             let current_counter = ext.current_counter_type();
             log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
