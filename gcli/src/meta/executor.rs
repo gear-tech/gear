@@ -59,20 +59,113 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     let mut linker = <Linker<HostState>>::new();
 
     // Execution environment
+    //
+    // TODO: refactor this after #3416.
     {
         let memory = Memory::new(store.as_context_mut(), MemoryType::new(256, None)).unwrap();
         linker.define("env", "memory", Extern::Memory(memory))?;
         linker.define("env", "alloc", funcs::alloc(&mut store, memory))?;
+        linker.define("env", "gr_oom_panic", funcs::gr_oom_panic(&mut store))?;
         linker.define("env", "gr_read", funcs::gr_read(&mut store, memory))?;
         linker.define("env", "gr_reply", funcs::gr_reply(&mut store, memory))?;
+        linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
         linker.define("env", "gr_size", funcs::gr_size(&mut store, memory))?;
         // methods may be used by programs but not required by metadata.
         linker.define("env", "free", func!(store, i32))?;
-        linker.define("env", "gr_panic", func!(store, u32, i32))?;
-        linker.define("env", "gr_oom_panic", func!(store))?;
-        linker.define("env", "gr_out_of_gas", func!(store))?;
         linker.define("env", "gr_block_height", func!(store, u32))?;
         linker.define("env", "gr_block_timestamp", func!(store, u32))?;
+        linker.define(
+            "env",
+            "gr_create_program_wgas",
+            func!(store, i32, i32, u32, i32, u32, u64, u32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_create_program",
+            func!(store, i32, i32, u32, i32, u32, u64, i32),
+        )?;
+        linker.define("env", "gr_debug", func!(store, i32, u32))?;
+        linker.define("env", "gr_exit", func!(store, i32))?;
+        linker.define("env", "gr_gas_available", func!(store, i32))?;
+        linker.define("env", "gr_leave", func!(store))?;
+        linker.define("env", "gr_message_id", func!(store, i32))?;
+        linker.define("env", "gr_out_of_gas", func!(store))?;
+        linker.define("env", "gr_pay_program_rent", func!(store, i32, i32))?;
+        linker.define("env", "gr_program_id", func!(store, i32))?;
+        linker.define("env", "gr_random", func!(store, i32, i32))?;
+        linker.define("env", "gr_reply", func!(store, i32, u32, i32, i32))?;
+        linker.define("env", "gr_reply_code", func!(store, i32))?;
+        linker.define("env", "gr_reply_commit", func!(store, i32, i32))?;
+        linker.define("env", "gr_reply_deposit", func!(store, i32, u64, i32))?;
+        linker.define("env", "gr_reply_input", func!(store, u32, u32, i32, i32))?;
+        linker.define("env", "gr_reply_push", func!(store, i32, u32, i32))?;
+        linker.define("env", "gr_reply_push_input", func!(store, u32, u32, i32))?;
+        linker.define(
+            "env",
+            "gr_reply_push_input_wgas",
+            func!(store, u32, u32, u64, i32, i32),
+        )?;
+        linker.define("env", "gr_reply_to", func!(store, i32))?;
+        linker.define(
+            "env",
+            "gr_reply_wgas",
+            func!(store, i32, u32, u64, i32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_reservation_reply",
+            func!(store, i32, i32, u32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_reservation_send_commit",
+            func!(store, u32, i32, u32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_reservation_send",
+            func!(store, i32, i32, u32, u32, i32),
+        )?;
+        linker.define("env", "gr_reserve_gas", func!(store, u64, u32, i32))?;
+        linker.define("env", "gr_send", func!(store, i32, i32, u32, u32, i32))?;
+        linker.define("env", "gr_send_commit", func!(store, u32, i32, u32, i32))?;
+        linker.define(
+            "env",
+            "gr_send_commit_wgas",
+            func!(store, u32, i32, u64, u32, i32),
+        )?;
+        linker.define("env", "gr_send_init", func!(store, i32))?;
+        linker.define(
+            "env",
+            "gr_send_input",
+            func!(store, i32, u32, u32, u32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_send_input_wgas",
+            func!(store, i32, u32, u32, u64, u32, i32),
+        )?;
+        linker.define("env", "gr_send_push", func!(store, u32, i32, u32, i32))?;
+        linker.define(
+            "env",
+            "gr_send_push_input",
+            func!(store, u32, u32, u32, i32),
+        )?;
+        linker.define(
+            "env",
+            "gr_send_wgas",
+            func!(store, i32, i32, u32, u64, u32, i32),
+        )?;
+        linker.define("env", "gr_signal_code", func!(store, i32))?;
+        linker.define("env", "gr_signal_from", func!(store, i32))?;
+        linker.define("env", "gr_source", func!(store, i32))?;
+        linker.define("env", "gr_system_reserve_gas", func!(store, u64, i32))?;
+        linker.define("env", "gr_unreserve_gas", func!(store, i32, i32))?;
+        linker.define("env", "gr_value", func!(store, i32))?;
+        linker.define("env", "gr_wait", func!(store, u32))?;
+        linker.define("env", "gr_wait_for", func!(store, u32))?;
+        linker.define("env", "gr_wait_up_to", func!(store, u32))?;
+        linker.define("env", "gr_wake", func!(store, i32, u32, i32))?;
     }
 
     let instance = linker
@@ -188,5 +281,28 @@ mod funcs {
                 Ok(())
             },
         ))
+    }
+
+    pub fn gr_panic(ctx: &mut Store<HostState>, memory: Memory) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |caller: Caller<'_, HostState>, ptr: u32, len: i32| {
+                let mut buff = Vec::with_capacity(len as usize);
+                memory.read(caller, ptr as usize, &mut buff).map_err(|e| {
+                    log::error!("{e:?}");
+                    Trap::Code(TrapCode::MemoryAccessOutOfBounds)
+                })?;
+
+                log::error!("Panic: {}", String::from_utf8_lossy(&buff));
+                Ok(())
+            },
+        ))
+    }
+
+    pub fn gr_oom_panic(ctx: impl AsContextMut) -> Extern {
+        Extern::Func(Func::wrap(ctx, || {
+            log::error!("OOM panic occurred");
+            Ok(())
+        }))
     }
 }
