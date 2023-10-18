@@ -286,7 +286,16 @@ impl SysCallContext for InfallibleSysCallContext {
     }
 }
 
-type InfallibleSysCall<F> = (RuntimeCosts, F);
+struct InfallibleSysCall<F> {
+    costs: RuntimeCosts,
+    f: F,
+}
+
+impl<F> InfallibleSysCall<F> {
+    fn new(costs: RuntimeCosts, f: F) -> Self {
+        Self { costs, f }
+    }
+}
 
 impl<T, F, Ext> SysCall<Ext, T> for InfallibleSysCall<F>
 where
@@ -300,9 +309,9 @@ where
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
     ) -> Result<(u64, T), HostError> {
-        let (costs, func) = self;
+        let Self { costs, f } = self;
         let InfallibleSysCallContext { gas } = ctx;
-        caller.run_any::<T, _>(gas, costs, func)
+        caller.run_any::<T, _>(gas, costs, f)
     }
 }
 
@@ -559,7 +568,7 @@ where
     }
 
     pub fn size(size_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Size, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Size, move |ctx: &mut CallerWrap<Ext>| {
             let size = ctx.ext_mut().size()? as u32;
 
             let write_size = ctx.manager.register_write_as(size_ptr);
@@ -569,7 +578,7 @@ where
     }
 
     pub fn exit(inheritor_id_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Exit, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Exit, move |ctx: &mut CallerWrap<Ext>| {
             let read_inheritor_id = ctx.manager.register_read_decoded(inheritor_id_ptr);
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
             Err(ActorTerminationReason::Exit(inheritor_id).into())
@@ -601,7 +610,7 @@ where
     }
 
     pub fn alloc(pages: u32) -> impl SysCall<Ext, u32> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::Alloc(pages),
             move |ctx: &mut CallerWrap<Ext>| {
                 let res = ctx.alloc(pages);
@@ -623,7 +632,7 @@ where
     }
 
     pub fn free(page_no: u32) -> impl SysCall<Ext, i32> {
-        (RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
             let page = WasmPage::new(page_no).map_err(|_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
@@ -647,7 +656,7 @@ where
     }
 
     pub fn block_height(height_ptr: u32) -> impl SysCall<Ext> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::BlockHeight,
             move |ctx: &mut CallerWrap<Ext>| {
                 let height = ctx.ext_mut().block_height()?;
@@ -660,7 +669,7 @@ where
     }
 
     pub fn block_timestamp(timestamp_ptr: u32) -> impl SysCall<Ext> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::BlockTimestamp,
             move |ctx: &mut CallerWrap<Ext>| {
                 let timestamp = ctx.ext_mut().block_timestamp()?;
@@ -673,7 +682,7 @@ where
     }
 
     pub fn random(subject_ptr: u32, bn_random_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Random, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Random, move |ctx: &mut CallerWrap<Ext>| {
             let read_subject = ctx.manager.register_read_decoded(subject_ptr);
             let write_bn_random = ctx.manager.register_write_as(bn_random_ptr);
 
@@ -949,7 +958,7 @@ where
     }
 
     pub fn debug(data_ptr: u32, data_len: u32) -> impl SysCall<Ext> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::Debug(data_len),
             move |ctx: &mut CallerWrap<Ext>| {
                 let read_data = ctx.manager.register_read(data_ptr, data_len);
@@ -972,7 +981,7 @@ where
     }
 
     pub fn panic(data_ptr: u32, data_len: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Null, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Null, move |ctx: &mut CallerWrap<Ext>| {
             let read_data = ctx.manager.register_read(data_ptr, data_len);
             let data = ctx.read(read_data).unwrap_or_default();
 
@@ -983,7 +992,7 @@ where
     }
 
     pub fn oom_panic() -> impl SysCall<Ext> {
-        (RuntimeCosts::Null, |_ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Null, |_ctx: &mut CallerWrap<Ext>| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
         })
     }
@@ -1039,7 +1048,7 @@ where
     }
 
     pub fn gas_available(gas_ptr: u32) -> impl SysCall<Ext> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::GasAvailable,
             move |ctx: &mut CallerWrap<Ext>| {
                 let gas_available = ctx.ext_mut().gas_available()?;
@@ -1052,7 +1061,7 @@ where
     }
 
     pub fn message_id(message_id_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::MsgId, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::MsgId, move |ctx: &mut CallerWrap<Ext>| {
             let message_id = ctx.ext_mut().message_id()?;
 
             let write_message_id = ctx.manager.register_write_as(message_id_ptr);
@@ -1062,7 +1071,7 @@ where
     }
 
     pub fn program_id(program_id_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::ProgramId, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::ProgramId, move |ctx: &mut CallerWrap<Ext>| {
             let program_id = ctx.ext_mut().program_id()?;
 
             let write_program_id = ctx.manager.register_write_as(program_id_ptr);
@@ -1090,7 +1099,7 @@ where
     }
 
     pub fn source(source_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Source, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Source, move |ctx: &mut CallerWrap<Ext>| {
             let source = ctx.ext_mut().source()?;
 
             let write_source = ctx.manager.register_write_as(source_ptr);
@@ -1100,7 +1109,7 @@ where
     }
 
     pub fn value(value_ptr: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::Value, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Value, move |ctx: &mut CallerWrap<Ext>| {
             let value = ctx.ext_mut().value()?;
 
             let write_value = ctx.manager.register_write_as(value_ptr);
@@ -1110,7 +1119,7 @@ where
     }
 
     pub fn value_available(value_ptr: u32) -> impl SysCall<Ext> {
-        (
+        InfallibleSysCall::new(
             RuntimeCosts::ValueAvailable,
             move |ctx: &mut CallerWrap<Ext>| {
                 let value_available = ctx.ext_mut().value_available()?;
@@ -1123,27 +1132,27 @@ where
     }
 
     pub fn leave() -> impl SysCall<Ext> {
-        (RuntimeCosts::Leave, move |_ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Leave, move |_ctx: &mut CallerWrap<Ext>| {
             Err(ActorTerminationReason::Leave.into())
         })
     }
 
     pub fn wait() -> impl SysCall<Ext> {
-        (RuntimeCosts::Wait, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Wait, move |ctx: &mut CallerWrap<Ext>| {
             ctx.ext_mut().wait()?;
             Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
         })
     }
 
     pub fn wait_for(duration: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::WaitFor, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::WaitFor, move |ctx: &mut CallerWrap<Ext>| {
             ctx.ext_mut().wait_for(duration)?;
             Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
         })
     }
 
     pub fn wait_up_to(duration: u32) -> impl SysCall<Ext> {
-        (RuntimeCosts::WaitUpTo, move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::WaitUpTo, move |ctx: &mut CallerWrap<Ext>| {
             let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
                 MessageWaitedType::WaitUpToFull
             } else {
@@ -1252,7 +1261,7 @@ where
     }
 
     pub fn forbidden(_args: &[Value]) -> impl SysCall<Ext> {
-        (RuntimeCosts::Null, |_: &mut CallerWrap<Ext>| {
+        InfallibleSysCall::new(RuntimeCosts::Null, |_: &mut CallerWrap<Ext>| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
         })
     }
