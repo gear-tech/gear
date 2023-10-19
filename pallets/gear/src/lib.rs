@@ -1174,6 +1174,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> Result<InitPacket, DispatchError> {
             let packet = InitPacket::new_with_gas(
                 code_id,
@@ -1196,9 +1197,8 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            // TODO (breathx): pass arg.
-            GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
-            GearBank::<T>::deposit_value(&who, value, false)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
+            GearBank::<T>::deposit_value(&who, value, keep_alive)?;
 
             Ok(packet)
         }
@@ -1377,6 +1377,8 @@ pub mod pallet {
                 init_payload,
                 gas_limit,
                 value,
+                // TODO (breathx): pass arg.
+                false,
             )?;
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
@@ -1434,8 +1436,16 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Construct packet.
-            let packet =
-                Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
+            // TODO (breathx): pass arg.
+            let packet = Self::init_packet(
+                who.clone(),
+                code_id,
+                salt,
+                init_payload,
+                gas_limit,
+                value,
+                false,
+            )?;
 
             Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
             Ok(().into())
@@ -1470,7 +1480,8 @@ pub mod pallet {
             // Validating origin.
             let who = ensure_signed(origin)?;
 
-            Self::send_message_impl(who, destination, payload, gas_limit, value, false)
+            // TODO (breathx): pass arg.
+            Self::send_message_impl(who, destination, payload, gas_limit, value, false, false)
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1498,7 +1509,8 @@ pub mod pallet {
             // Validating origin.
             let who = ensure_signed(origin)?;
 
-            Self::send_reply_impl(who, reply_to_id, payload, gas_limit, value, false)
+            // TODO (breathx): pass arg.
+            Self::send_reply_impl(who, reply_to_id, payload, gas_limit, value, false, false)
         }
 
         /// Claim value from message in `Mailbox`.
@@ -1797,6 +1809,7 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
             prepaid: bool,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1825,16 +1838,14 @@ pub mod pallet {
                 // in the queue.
                 // Note: reservation is always made against the user's account regardless whether
                 // a voucher exists. The latter can only be used to pay for gas or transaction fee.
-                // TODO (breathx): pass arg.
-                GearBank::<T>::deposit_value(&who, value, false)?;
+                GearBank::<T>::deposit_value(&who, value, keep_alive)?;
 
                 let external_node = if prepaid {
                     // If voucher is used, we attempt to reserve funds on the respective account.
                     // If no such voucher exists, the call is invalidated.
                     let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
 
-                    // TODO (breathx): pass arg.
-                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, false).map_err(|e| {
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
                         log::debug!(
                             "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
                         );
@@ -1844,8 +1855,7 @@ pub mod pallet {
                     voucher_id
                 } else {
                     // If voucher is not used, we reserve gas limit on the user's account.
-                    // TODO (breathx): pass arg.
-                    GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
+                    GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
 
                     who.clone()
                 };
@@ -1895,6 +1905,7 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
             prepaid: bool,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1923,16 +1934,14 @@ pub mod pallet {
                 gas_limit
             };
 
-            // TODO (breathx): pass arg.
-            GearBank::<T>::deposit_value(&origin, value, false)?;
+            GearBank::<T>::deposit_value(&origin, value, keep_alive)?;
 
             let external_node = if prepaid {
                 // If voucher is used, we attempt to reserve funds on the respective account.
                 // If no such voucher exists, the call is invalidated.
                 let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
 
-                // TODO (breathx): pass arg.
-                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, false).map_err(|e| {
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
                     log::debug!(
                         "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
                     );
@@ -1942,8 +1951,7 @@ pub mod pallet {
                 voucher_id
             } else {
                 // If voucher is not used, we reserve gas limit on the user's account.
-                // TODO (breathx): pass arg.
-                GearBank::<T>::deposit_gas(&origin, gas_limit, false)?;
+                GearBank::<T>::deposit_gas(&origin, gas_limit, keep_alive)?;
 
                 origin.clone()
             };
@@ -2018,6 +2026,8 @@ pub mod pallet {
                     gas_limit,
                     value,
                     true,
+                    // TODO (breathx): pass arg.
+                    false,
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
@@ -2025,7 +2035,16 @@ pub mod pallet {
                     gas_limit,
                     value,
                 } => {
-                    Self::send_reply_impl(account_id, reply_to_id, payload, gas_limit, value, true)
+                    // TODO (breathx): pass arg.
+                    Self::send_reply_impl(
+                        account_id,
+                        reply_to_id,
+                        payload,
+                        gas_limit,
+                        value,
+                        true,
+                        false,
+                    )
                 }
             }
         }
