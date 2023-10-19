@@ -127,10 +127,10 @@ curl --proto '=https' --tlsv1.2 -SfL "$archive_url" -o "$archive_tmp" || err "fa
 tar -C "$td" -xf "$archive_tmp" || err "failed to extract $archive_name"
 
 for f in "$td"/*; do
-  [ -x "$td/$f" ] || continue
+  [ -x "$f" ] || continue
 
   mkdir -p "$dest"
-  sudo install -m 755 "$td"/"$f" "$dest"
+  sudo install -m 755 "$f" "$dest"
 
 done
 
