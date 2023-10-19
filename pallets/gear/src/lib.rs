@@ -1363,6 +1363,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1377,8 +1378,7 @@ pub mod pallet {
                 init_payload,
                 gas_limit,
                 value,
-                // TODO (breathx): pass arg.
-                false,
+                keep_alive,
             )?;
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
@@ -1426,6 +1426,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1436,7 +1437,6 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Construct packet.
-            // TODO (breathx): pass arg.
             let packet = Self::init_packet(
                 who.clone(),
                 code_id,
@@ -1444,7 +1444,7 @@ pub mod pallet {
                 init_payload,
                 gas_limit,
                 value,
-                false,
+                keep_alive,
             )?;
 
             Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
@@ -1476,12 +1476,20 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             // Validating origin.
             let who = ensure_signed(origin)?;
 
-            // TODO (breathx): pass arg.
-            Self::send_message_impl(who, destination, payload, gas_limit, value, false, false)
+            Self::send_message_impl(
+                who,
+                destination,
+                payload,
+                gas_limit,
+                value,
+                false,
+                keep_alive,
+            )
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1505,12 +1513,20 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             // Validating origin.
             let who = ensure_signed(origin)?;
 
-            // TODO (breathx): pass arg.
-            Self::send_reply_impl(who, reply_to_id, payload, gas_limit, value, false, false)
+            Self::send_reply_impl(
+                who,
+                reply_to_id,
+                payload,
+                gas_limit,
+                value,
+                false,
+                keep_alive,
+            )
         }
 
         /// Claim value from message in `Mailbox`.
@@ -2019,6 +2035,7 @@ pub mod pallet {
                     payload,
                     gas_limit,
                     value,
+                    keep_alive,
                 } => Self::send_message_impl(
                     account_id,
                     destination,
@@ -2026,26 +2043,23 @@ pub mod pallet {
                     gas_limit,
                     value,
                     true,
-                    // TODO (breathx): pass arg.
-                    false,
+                    keep_alive,
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
                     payload,
                     gas_limit,
                     value,
-                } => {
-                    // TODO (breathx): pass arg.
-                    Self::send_reply_impl(
-                        account_id,
-                        reply_to_id,
-                        payload,
-                        gas_limit,
-                        value,
-                        true,
-                        false,
-                    )
-                }
+                    keep_alive,
+                } => Self::send_reply_impl(
+                    account_id,
+                    reply_to_id,
+                    payload,
+                    gas_limit,
+                    value,
+                    true,
+                    keep_alive,
+                ),
             }
         }
     }
