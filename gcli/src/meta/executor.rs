@@ -44,6 +44,12 @@ macro_rules! func {
             move |_caller: Caller<'_, HostState>, $(_: $ty),*| { Ok(()) },
         )
     };
+    (@result $store:tt, $($ty:tt),* ) => {
+        Func::wrap(
+            &mut $store,
+            move |_caller: Caller<'_, HostState>, $(_: $ty),*| { 0 },
+        )
+    };
 }
 
 /// Executes the WASM code.
@@ -71,7 +77,7 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         linker.define("env", "gr_panic", funcs::gr_panic(&mut store, memory))?;
         linker.define("env", "gr_size", funcs::gr_size(&mut store, memory))?;
         // methods may be used by programs but not required by metadata.
-        linker.define("env", "free", func!(store, i32))?;
+        linker.define("env", "free", func!(@result store, i32))?;
         linker.define("env", "gr_block_height", func!(store, u32))?;
         linker.define("env", "gr_block_timestamp", func!(store, u32))?;
         linker.define(
@@ -93,7 +99,6 @@ pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
         linker.define("env", "gr_pay_program_rent", func!(store, i32, i32))?;
         linker.define("env", "gr_program_id", func!(store, i32))?;
         linker.define("env", "gr_random", func!(store, i32, i32))?;
-        linker.define("env", "gr_reply", func!(store, i32, u32, i32, i32))?;
         linker.define("env", "gr_reply_code", func!(store, i32))?;
         linker.define("env", "gr_reply_commit", func!(store, i32, i32))?;
         linker.define("env", "gr_reply_deposit", func!(store, i32, u64, i32))?;
