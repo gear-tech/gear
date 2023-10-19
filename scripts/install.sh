@@ -1,13 +1,13 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
-set -euo pipefail
+set -eu
 
-if [ ! -z ${GITHUB_ACTIONS-} ]; then
+if [ -n "${GITHUB_ACTIONS-}" ]; then
   set -x
 fi
 
 help() {
-  cat <<'EOF'
+  cat <<EOF
 Install a binary release of gear hosted on get.gear.rs
 
 USAGE:
@@ -26,7 +26,6 @@ EOF
 git=gear-tech/gear
 crate=gear
 url=https://get.gear.rs/
-releases=$url
 say() {
   echo "$@"
 }
@@ -36,26 +35,20 @@ say_err() {
 }
 
 err() {
-  if [ ! -z ${td-} ]; then
-    rm -rf $td
+  if [ -n "${td-}" ]; then
+    rm -rf "$td"
   fi
 
-  say_err "error: $@"
+  say_err "error: $*"
   exit 1
 }
 
 need() {
-  if ! command -v $1 > /dev/null 2>&1; then
-    err "need $1 (command not found)"
-  fi
+  command -v "$1" > /dev/null 2>&1 || err "need $1 (command not found)"
 }
 
-force=false
-while test $# -gt 0; do
+while [ $# -gt 0 ]; do
   case $1 in
-    --force | -f)
-      force=true
-      ;;
     --help | -h)
       help
       exit 0
@@ -86,54 +79,57 @@ need mktemp
 need tar
 
 # Optional dependencies
-if [ -z ${tag-} ]; then
+if [ -z "${tag-}" ]; then
   need cut
   need rev
 fi
 
-if [ -z ${dest-} ]; then
+if [ -z "${dest-}" ]; then
   dest="/usr/local/bin"
 fi
 
-if [ -z ${tag-} ]; then
-  tag=$(curl --proto =https --tlsv1.2 -sSf https://api.github.com/repos/gear-tech/gear/releases/latest |
-    grep tag_name |
-    cut -d'"' -f4
-  )
+if [ -z "${tag-}" ]; then
+  json=$(curl --proto '=https' --tlsv1.2 -sSf "https://api.github.com/repos/$git/releases/latest" || err "failed to get latest release of $git")
+  tag_name=$(echo "$json" | grep tag_name || err "failed to parse tag_name")
+  tag=$(echo "$tag_name" | cut -d'"' -f4)
 fi
 
-if [ -z ${target-} ]; then
-  uname_target=`uname -m`-`uname -s`
+if [ -z "${target-}" ]; then
+  uname_target=$(uname -m)-$(uname -s)
 
   case $uname_target in
     arm64-Darwin) target=aarch64-apple-darwin;;
     x86_64-Darwin) target=x86_64-apple-darwin;;
     x86_64-Linux) target=x86_64-unknown-linux-gnu;;
     *)
-      err 'Could not determine target from output of `uname -m`-`uname -s`, please use `--target`:' $uname_target
-      err 'Target architecture is not supported by this install script.'
-      err 'Consider opening an issue or building from source: https://github.com/gear-tech/gear'
+      err "Could not determine target from output of \`uname -m\`-\`uname -s\`, please use --target: $uname_target
+Target architecture is not supported by this install script.
+Consider opening an issue or building from source: https://github.com/$git"
     ;;
   esac
 fi
 
-archive="$url$crate-$tag-$target.tar.xz"
+archive_name="$crate-$tag-$target.tar.xz"
+archive_url="$url$archive_name"
 
 say "Crate:       $crate"
 say "Tag:         $tag"
 say "Target:      $target"
 say "Destination: $dest"
-say "Archive:     $archive"
+say "Archive URL: $archive_url"
 
 td=$(mktemp -d || mktemp -d -t tmp)
-curl --proto =https --tlsv1.2 -SfL $archive | tar -C $td -xJv
+archive_tmp="$td/$archive_name"
 
-for f in $(ls $td); do
-  test -x $td/$f || continue
+curl --proto '=https' --tlsv1.2 -SfL "$archive_url" -o "$archive_tmp" || err "failed to download $archive_name"
+tar -C "$td" -xf "$archive_tmp" || err "failed to extract $archive_name"
 
-  mkdir -p $dest
-  sudo install -m 755 $td/$f $dest
+for f in "$td"/*; do
+  [ -x "$td/$f" ] || continue
+
+  mkdir -p "$dest"
+  sudo install -m 755 "$td"/"$f" "$dest"
 
 done
 
-rm -rf $td
+rm -rf "$td"
