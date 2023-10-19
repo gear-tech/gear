@@ -17,10 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear api
-use crate::metadata::runtime_types::gear_common::{
-    gas_provider::node::{GasNode, GasNodeId},
-    ActiveProgram,
-};
 pub use crate::{
     api::Api,
     config::GearConfig,
@@ -30,11 +26,16 @@ pub use crate::{
     subscription::{Blocks, Events},
 };
 pub use gear_core::gas::GasInfo;
+pub use subxt::dynamic::Value;
+
+use crate::metadata::runtime_types::gear_common::{
+    gas_provider::node::{GasNode, GasNodeId},
+    ActiveProgram,
+};
 use gear_core::ids::{MessageId, ReservationId};
 use parity_scale_codec::Decode;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
-pub use subxt::dynamic::Value;
 use subxt::{
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
     OnlineClient,
