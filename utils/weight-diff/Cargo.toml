@@ -15,5 +15,4 @@ tabled.workspace = true
 pallet-gear.workspace = true
 frame-support.workspace = true
 
-gear-runtime.workspace = true
 vara-runtime.workspace = true

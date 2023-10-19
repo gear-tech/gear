@@ -119,6 +119,10 @@ struct Args {
     #[arg(long)]
     check_runtime_imports: bool,
 
+    /// Check runtime is built with dev feature or not
+    #[arg(long)]
+    check_runtime_is_dev: Option<bool>,
+
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -126,6 +130,19 @@ struct Args {
     /// Path to WASMs, accepts multiple files
     #[arg(value_parser)]
     path: Vec<String>,
+}
+
+fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), String> {
+    let module = parity_wasm::deserialize_file(path_to_wasm)
+        .map_err(|e| format!("Deserialization error: {e}"))?;
+
+    let is_dev = module.custom_sections().any(|v| v.name() == "dev_runtime");
+
+    match (expected_to_be_dev, is_dev) {
+        (true, false) => Err(String::from("Runtime expected to be DEV, but it's NOT DEV")),
+        (false, true) => Err(String::from("Runtime expected to be NOT DEV, but it's DEV")),
+        _ => Ok(()),
+    }
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -163,6 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assembly_script,
         strip_custom_sections,
         check_runtime_imports,
+        check_runtime_is_dev,
         verbose,
     } = Args::parse();
 
@@ -187,6 +205,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if check_runtime_imports {
             check_rt_imports(file, &rt_allowed_imports)
                 .map_err(|e| format!("Error with `{file}`: {e}"))?;
+
+            if check_runtime_is_dev.is_none() {
+                continue;
+            }
+        }
+
+        if let Some(expected_to_be_dev) = check_runtime_is_dev {
+            check_rt_is_dev(file, expected_to_be_dev)
+                .map_err(|e| format!("Error with `{file}`: {e}"))?;
+
             continue;
         }
 

@@ -118,7 +118,6 @@ async fn get_state_request() -> anyhow::Result<()> {
             btree::Request::Insert(key, value).encode(),
             gas_limit,
             0,
-            false,
         )
     });
 

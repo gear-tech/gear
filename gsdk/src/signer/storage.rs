@@ -20,7 +20,6 @@
 use crate::{
     config::GearConfig,
     metadata::{
-        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
@@ -28,6 +27,7 @@ use crate::{
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
+        vara_runtime::RuntimeCall,
     },
     signer::Inner,
     utils::storage_address_bytes,

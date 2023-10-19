@@ -26,7 +26,7 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-gear-runtime = { workspace = true, features = ["std", "dev", "fuzz"] }
+vara-runtime = { workspace = true, features = ["std", "dev", "fuzz"] }
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
 
@@ -40,6 +40,8 @@ pallet-balances.workspace = true
 sp-consensus-slots = { workspace = true }
 sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
+pallet-im-online.workspace = true
+sp-authority-discovery.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]

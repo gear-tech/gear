@@ -98,7 +98,8 @@ impl SysCallsInjectionTypes {
             .insert(name, SysCallInjectionType::Function(min..=max));
 
         if let InvocableSysCall::Precise(syscall) = name {
-            let Some(required_imports) = InvocableSysCall::required_imports_for_syscall(syscall) else {
+            let Some(required_imports) = InvocableSysCall::required_imports_for_syscall(syscall)
+            else {
                 return;
             };
 

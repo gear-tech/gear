@@ -2498,18 +2498,11 @@ pub mod runtime_types {
                     #[doc = "is not a program in uninitialized state. If the opposite holds true,"]
                     #[doc = "the message is not enqueued for processing."]
                     #[doc = ""]
-                    #[doc = "If `prepaid` flag is set, the transaction fee and the gas cost will be"]
-                    #[doc = "charged against a `voucher` that must have been issued for the sender"]
-                    #[doc = "in conjunction with the `destination` program. That means that the"]
-                    #[doc = "synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must"]
-                    #[doc = "exist and have sufficient funds in it. Otherwise, the call is invalidated."]
-                    #[doc = ""]
                     #[doc = "Parameters:"]
                     #[doc = "- `destination`: the message destination."]
                     #[doc = "- `payload`: in case of a program destination, parameters of the `handle` function."]
                     #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
                     #[doc = "- `value`: balance to be transferred to the program once it's been created."]
-                    #[doc = "- `prepaid`: a flag that indicates whether a voucher should be used."]
                     #[doc = ""]
                     #[doc = "Emits the following events:"]
                     #[doc = "- `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue."]
@@ -2518,7 +2511,6 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
-                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send reply on message in `Mailbox`."]
@@ -2534,18 +2526,11 @@ pub mod runtime_types {
                     #[doc = ""]
                     #[doc = "NOTE: only user who is destination of the message, can claim value"]
                     #[doc = "or reply on the message from mailbox."]
-                    #[doc = ""]
-                    #[doc = "If `prepaid` flag is set, the transaction fee and the gas cost will be"]
-                    #[doc = "charged against a `voucher` that must have been issued for the sender"]
-                    #[doc = "in conjunction with the mailboxed message source program. That means that the"]
-                    #[doc = "synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must"]
-                    #[doc = "exist and have sufficient funds in it. Otherwise, the call is invalidated."]
                     send_reply {
                         reply_to_id: runtime_types::gear_core::ids::MessageId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
-                        prepaid: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "Claim value from message in `Mailbox`."]
@@ -3278,6 +3263,8 @@ pub mod runtime_types {
                         to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         value: ::core::primitive::u128,
                     },
+                    #[codec(index = 3)]
+                    align_supply { target: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the staking rewards pallet."]
@@ -3301,6 +3288,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "Burned from the pool."]
                     Burned { amount: ::core::primitive::u128 },
+                    #[codec(index = 3)]
+                    #[doc = "Minted to the pool."]
+                    Minted { amount: ::core::primitive::u128 },
                 }
             }
         }
@@ -3330,6 +3320,13 @@ pub mod runtime_types {
                         program: runtime_types::gear_core::ids::ProgramId,
                         value: ::core::primitive::u128,
                     },
+                    #[codec(index = 1)]
+                    #[doc = "Dispatch allowed with voucher call."]
+                    call {
+                        call: runtime_types::pallet_gear_voucher::PrepaidCall<
+                            ::core::primitive::u128,
+                        >,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -3350,6 +3347,23 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                 }
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum PrepaidCall<_0> {
+                #[codec(index = 0)]
+                SendMessage {
+                    destination: runtime_types::gear_core::ids::ProgramId,
+                    payload: ::std::vec::Vec<::core::primitive::u8>,
+                    gas_limit: ::core::primitive::u64,
+                    value: _0,
+                },
+                #[codec(index = 1)]
+                SendReply {
+                    reply_to_id: runtime_types::gear_core::ids::MessageId,
+                    payload: ::std::vec::Vec<::core::primitive::u8>,
+                    gas_limit: ::core::primitive::u64,
+                    value: _0,
+                },
             }
         }
         pub mod pallet_grandpa {
@@ -9468,12 +9482,14 @@ pub mod calls {
     #[doc = "Calls of pallet `GearVoucher`."]
     pub enum GearVoucherCall {
         Issue,
+        Call,
     }
     impl CallInfo for GearVoucherCall {
         const PALLET: &'static str = "GearVoucher";
         fn call_name(&self) -> &'static str {
             match self {
                 Self::Issue => "issue",
+                Self::Call => "call",
             }
         }
     }
@@ -9794,6 +9810,7 @@ pub mod calls {
         Refill,
         ForceRefill,
         Withdraw,
+        AlignSupply,
     }
     impl CallInfo for StakingRewardsCall {
         const PALLET: &'static str = "StakingRewards";
@@ -9802,6 +9819,7 @@ pub mod calls {
                 Self::Refill => "refill",
                 Self::ForceRefill => "force_refill",
                 Self::Withdraw => "withdraw",
+                Self::AlignSupply => "align_supply",
             }
         }
     }

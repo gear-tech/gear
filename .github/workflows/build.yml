@@ -71,9 +71,6 @@ jobs:
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked --release
 
-      - name: "Check: Gear runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
-
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
@@ -164,9 +161,6 @@ jobs:
           cd target/wasm32-unknown-unknown/release
           tar czvf ../../../artifact/examples.tar.gz *.wasm
           cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/

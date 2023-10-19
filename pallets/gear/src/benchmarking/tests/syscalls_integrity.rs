@@ -96,21 +96,28 @@ where
             strings.encode(),
             BlockGasLimitOf::<T>::get(),
             Zero::zero(),
-            false,
         )
         .expect("Failed to send read_big_state append command");
 
         utils::run_to_next_block::<T>(None);
 
-        assert!(SystemPallet::<T>::events().into_iter().any(|e| {
-            let bytes = e.event.encode();
-            let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-            let Event::MessagesDispatched { statuses, .. } = gear_event else { return false };
+        assert!(
+            SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref())
+                else {
+                    return false;
+                };
+                let Event::MessagesDispatched { statuses, .. } = gear_event else {
+                    return false;
+                };
 
-            log::debug!("{statuses:?}");
-            log::debug!("{next_user_mid:?}");
-            matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
-        }), "No message with expected id had succeeded");
+                log::debug!("{statuses:?}");
+                log::debug!("{next_user_mid:?}");
+                matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
+            }),
+            "No message with expected id had succeeded"
+        );
 
         let state = Gear::<T>::read_state_impl(pid, Default::default(), None)
             .expect("Failed to read state");
@@ -410,7 +417,6 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -769,7 +775,6 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -808,7 +813,6 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
         )
         .expect("triggering message send to mailbox failed");
 
@@ -903,7 +907,7 @@ where
         let next_mid = utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let (random, expected_bn) = T::Randomness::random(next_mid.as_ref());
 
-        // If we use gear-runtime, current epoch starts at block 0,
+        // If we use vara-runtime, current epoch starts at block 0,
         // But mock runtime will reference currently proceeding block number,
         // so we add to currently got value.
         #[cfg(feature = "std")]
@@ -1013,7 +1017,6 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send message");
         }
@@ -1025,7 +1028,6 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
             )
             .expect("failed send reply");
         }
