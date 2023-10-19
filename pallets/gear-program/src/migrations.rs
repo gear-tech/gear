@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    Config, MemoryPages, Pallet, PausedProgramStorage, ProgramStorage, ResumeSessions,
-};
+use crate::{Config, MemoryPages, Pallet, PausedProgramStorage, ProgramStorage, ResumeSessions};
 use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
@@ -89,10 +87,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                                 weight =
                                     weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-                                MemoryPages::<T>::insert(
-                                    (program_id, MEMORY_INFIX, page),
-                                    data,
-                                );
+                                MemoryPages::<T>::insert((program_id, MEMORY_INFIX, page), data);
                             }
 
                             Program::Active(common::ActiveProgram {
@@ -141,11 +136,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 assert_eq!(p.memory_infix, MEMORY_INFIX);
 
                 for page in p.pages_with_data.iter() {
-                    assert!(MemoryPages::<T>::contains_key((
-                        k,
-                        p.memory_infix,
-                        page
-                    )));
+                    assert!(MemoryPages::<T>::contains_key((k, p.memory_infix, page)));
                 }
             }
 

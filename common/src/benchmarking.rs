@@ -153,7 +153,7 @@ pub fn set_program<
         .collect();
     let pages_with_data = persistent_pages_data.keys().copied().collect();
 
-    let memory_infix = MemoryInfix::from(1u32);
+    let memory_infix = MemoryInfix::new(1u32);
     let program = ActiveProgram {
         allocations,
         pages_with_data,

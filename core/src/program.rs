@@ -41,12 +41,6 @@ impl MemoryInfix {
     }
 }
 
-impl From<u32> for MemoryInfix {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {

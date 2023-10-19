@@ -319,7 +319,7 @@ impl Api {
 
         for page in &program.pages_with_data {
             let addr = Self::storage(
-                GearProgramStorage::MemoryPageStorage2,
+                GearProgramStorage::MemoryPages,
                 vec![
                     Value::from_bytes(program_id),
                     Value::u128(program.memory_infix.0 as u128),
