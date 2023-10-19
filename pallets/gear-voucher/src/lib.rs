@@ -216,12 +216,14 @@ pub enum PrepaidCall<Balance> {
         payload: Vec<u8>,
         gas_limit: u64,
         value: Balance,
+        keep_alive: bool,
     },
     SendReply {
         reply_to_id: MessageId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: Balance,
+        keep_alive: bool,
     },
 }
 
