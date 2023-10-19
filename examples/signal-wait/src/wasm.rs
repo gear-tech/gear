@@ -26,7 +26,7 @@ extern "C" fn handle() {
         unsafe {
             FIRST_EXEC = false;
         }
-        gstd::exec::system_reserve_gas(1_000_000_000).unwrap();
+        exec::system_reserve_gas(1_000_000_000).unwrap();
     } else {
         panic!();
     }
