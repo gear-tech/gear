@@ -7,7 +7,7 @@ if [ -n "${GITHUB_ACTIONS-}" ]; then
 fi
 
 help() {
-  cat <<EOF
+  cat << EOF
 Install a binary release of gear hosted on get.gear.rs
 
 USAGE:
