@@ -17,19 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear api
+use crate::metadata::runtime_types::gear_common::{
+    gas_provider::node::{GasNode, GasNodeId},
+    ActiveProgram,
+};
 pub use crate::{
     api::Api,
+    config::GearConfig,
     metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
     subscription::{Blocks, Events},
-};
-use crate::{
-    config::GearConfig,
-    metadata::runtime_types::gear_common::{
-        gas_provider::node::{GasNode, GasNodeId},
-        ActiveProgram,
-    },
 };
 pub use gear_core::gas::GasInfo;
 use gear_core::ids::{MessageId, ReservationId};
