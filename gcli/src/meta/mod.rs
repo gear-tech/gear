@@ -113,7 +113,7 @@ impl Meta {
             TryNewCodeConfig::new_no_exports_check(),
         )?;
         let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
-        let result = executor::execute(code.code(), "metadata")?;
+        let result = executor::call_metadata(code.code())?;
 
         Ok(Self::Wasm(MetawasmData::decode(&mut result.as_ref())?))
     }

@@ -52,8 +52,13 @@ macro_rules! func {
     };
 }
 
+/// Call `metadata` method in the WASM code.
+pub fn call_metadata(wasm: &[u8]) -> Result<Vec<u8>> {
+    execute(wasm, "metadata")
+}
+
 /// Executes the WASM code.
-pub fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
+fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
     assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         PAGE_STORAGE_PREFIX
     ));
