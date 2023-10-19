@@ -72,11 +72,13 @@ while [ $# -gt 0 ]; do
 done
 
 # Dependencies
+need sudo
 need curl
 need install
 need mkdir
 need mktemp
 need tar
+need xz
 
 # Optional dependencies
 if [ -z "${tag-}" ]; then
