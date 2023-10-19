@@ -50,3 +50,9 @@ impl From<u32> for Percent {
         Self::new(value)
     }
 }
+
+impl From<Percent> for gsys::Percent {
+    fn from(value: Percent) -> Self {
+        gsys::Percent::new(value.value())
+    }
+}

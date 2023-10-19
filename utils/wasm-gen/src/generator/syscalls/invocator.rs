@@ -66,7 +66,7 @@ pub(crate) fn process_syscall_params(
                 allowed_values: params_config.get_rule(&param),
             },
             ParamType::Ptr(PtrInfo {
-                ty: PtrType::BufferStart { .. },
+                ty: PtrType::SizedBufferStart { .. },
                 ..
             }) => {
                 // skipping next as we don't need the following `Size` param,

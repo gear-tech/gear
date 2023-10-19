@@ -71,7 +71,7 @@ where
         reservation,
         write_cost,
         rent_cost,
-        gas_to_value_multiplier,
+        gas_multiplier,
         ..
     } = block_config.clone();
 
@@ -90,7 +90,7 @@ where
         reservation,
         random_data,
         rent_cost,
-        gas_to_value_multiplier,
+        gas_multiplier,
     };
 
     let dispatch = execution_context.dispatch;

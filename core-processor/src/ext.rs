@@ -41,7 +41,6 @@ use gear_core::{
         MessageContext, Packet, ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    percent::Percent,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -78,7 +77,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Performance multiplier.
-    pub performance_multiplier: Percent,
+    pub performance_multiplier: gsys::Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -110,8 +109,8 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
-    /// Gas to value multiplier.
-    pub gas_to_value_multiplier: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
 }
 
 #[cfg(any(feature = "mock", test))]
@@ -141,7 +140,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
-            performance_multiplier: Percent::new(100),
+            performance_multiplier: gsys::Percent::new(100),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
@@ -157,7 +156,7 @@ impl ProcessorContext {
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             rent_cost: 0,
-            gas_to_value_multiplier: Default::default(),
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
         }
     }
 }
@@ -728,12 +727,12 @@ impl Externalities for Ext {
     fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
         match version {
             1 => Ok(ExecSettings::V1(ExecSettingsV1 {
-                performance_multiplier_percent: self.context.performance_multiplier.value(),
+                performance_multiplier: self.context.performance_multiplier,
                 existential_deposit: self.context.existential_deposit,
                 mailbox_threshold: self.context.mailbox_threshold,
-                gas_to_value_multiplier: self.context.gas_to_value_multiplier,
+                gas_multiplier: self.context.gas_multiplier,
             })),
-            _ => Err(UnrecoverableExecutionError::UnexpectedExecSettingsVersion.into()),
+            _ => Err(UnrecoverableExecutionError::UnsupportedExecSettingsVersion.into()),
         }
     }
 

@@ -271,9 +271,10 @@ fn process(syscall_kind: Kind) {
             gas_to_value_multiplier: expected_gas_to_value_multiplier,
         } => {
             let settings = exec::settings();
-            let actual_performance_multiplier_percent = settings.performance_multiplier_percent;
+            let actual_performance_multiplier = settings.performance_multiplier;
             assert_eq!(
-                actual_performance_multiplier_percent, expected_performance_multiplier_percent,
+                actual_performance_multiplier.value(),
+                expected_performance_multiplier_percent,
                 "Kind::ExecSettings: performance_multiplier test failed"
             );
             let actual_existential_deposit = settings.existential_deposit;
@@ -286,9 +287,10 @@ fn process(syscall_kind: Kind) {
                 actual_mailbox_threshold, expected_mailbox_threshold,
                 "Kind::ExecSettings: mailbox_threshold test failed"
             );
-            let actual_gas_to_value_multiplier = settings.gas_to_value_multiplier;
+            let actual_gas_multiplier = settings.gas_multiplier;
             assert_eq!(
-                actual_gas_to_value_multiplier, expected_gas_to_value_multiplier,
+                actual_gas_multiplier.gas_to_value(1),
+                expected_gas_to_value_multiplier,
                 "Kind::ExecSettings: gas_to_value_multiplier test failed"
             );
         }

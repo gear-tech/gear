@@ -1034,7 +1034,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                performance_multiplier: T::PerformanceMultiplier::get(),
+                performance_multiplier: T::PerformanceMultiplier::get().into(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
@@ -1055,9 +1055,7 @@ pub mod pallet {
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
                 rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
-                gas_to_value_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get()
-                    .gas_to_value(1)
-                    .unique_saturated_into(),
+                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
 

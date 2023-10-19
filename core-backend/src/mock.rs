@@ -118,10 +118,10 @@ impl Externalities for MockExt {
     fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
         match version {
             1 => Ok(ExecSettings::V1(ExecSettingsV1 {
-                performance_multiplier_percent: 100,
+                performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
-                gas_to_value_multiplier: 30,
+                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
             })),
             _ => unreachable!("Unexpected version of execution settings"),
         }

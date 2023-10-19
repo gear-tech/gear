@@ -12,6 +12,7 @@ core-processor = { workspace = true, features = ["std"] }
 gear-lazy-pages-interface = { workspace = true, features = ["std"] }
 gear-wasm-builder.workspace = true
 gear-utils.workspace = true
+gsys.workspace = true
 
 sp-io = { workspace = true, features = ["std"] }
 

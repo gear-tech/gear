@@ -15,7 +15,7 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
 enum-iterator.workspace = true
-fail = { workspace = true, features = [ "failpoints" ], optional = true }
+fail = { workspace = true, features = ["failpoints"], optional = true }
 hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
@@ -25,6 +25,7 @@ path-clean.workspace = true
 gear-core.workspace = true
 gear-common-codegen.workspace = true
 gear-wasm-instrument = { workspace = true, optional = true }
+gsys.workspace = true
 
 # Substrate deps
 sp-core.workspace = true

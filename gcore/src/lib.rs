@@ -82,7 +82,7 @@ pub use general::*;
 mod utils;
 pub use utils::ext;
 
-pub use gsys::{BlockCount, BlockNumber, Gas, Value};
+pub use gsys::{BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 
 use core::mem::size_of;
 use static_assertions::const_assert;

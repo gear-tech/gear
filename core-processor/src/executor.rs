@@ -42,7 +42,6 @@ use gear_core::{
         WasmEntryPoint,
     },
     pages::{PageU32Size, WasmPage},
-    percent::Percent,
     program::Program,
     reservation::GasReserver,
 };
@@ -222,7 +221,7 @@ where
         reservation: settings.reservation,
         random_data: settings.random_data,
         rent_cost: settings.rent_cost,
-        gas_to_value_multiplier: settings.gas_to_value_multiplier,
+        gas_multiplier: settings.gas_multiplier,
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
@@ -402,7 +401,7 @@ where
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,
-        performance_multiplier: Percent::new(100),
+        performance_multiplier: gsys::Percent::new(100),
         max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),
@@ -419,7 +418,7 @@ where
         random_data: Default::default(),
         system_reservation: Default::default(),
         rent_cost: Default::default(),
-        gas_to_value_multiplier: Default::default(),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();

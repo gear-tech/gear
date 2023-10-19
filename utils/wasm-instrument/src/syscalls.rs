@@ -243,13 +243,13 @@ impl SysCallName {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
             Self::Debug => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
             ]),
             Self::Panic => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -296,16 +296,16 @@ impl SysCallName {
                 HashType::MessageId,
             )))]),
             Self::ExecSettings => {
-                SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::Buffer))])
+                SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
             }
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                Ptr(PtrInfo::new_mutable(PtrType::Buffer)),
+                Ptr(PtrInfo::new_mutable(PtrType::BufferStart)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -323,7 +323,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyWGas => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -359,7 +359,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ReservationId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -376,7 +376,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyPush => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -395,7 +395,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -419,7 +419,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -467,7 +467,7 @@ impl SysCallName {
             }
             Self::SendPush => SysCallSignature::gr([
                 Handler,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -484,7 +484,7 @@ impl SysCallName {
                     HashType::ReservationId,
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -513,11 +513,11 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 4,
                 })),
                 Size,
@@ -531,11 +531,11 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 4,
                 })),
                 Size,
@@ -646,8 +646,8 @@ pub enum HashType {
 pub enum PtrType {
     BlockNumber,
     BlockTimestamp,
-    BufferStart { length_param_idx: usize },
-    Buffer,
+    SizedBufferStart { length_param_idx: usize },
+    BufferStart,
     Hash(HashType),
     Gas,
     Length,
@@ -684,8 +684,8 @@ impl PtrType {
             | ErrorWithBlockNumberAndValue => true,
             BlockNumber
             | BlockTimestamp
-            | BufferStart { .. }
-            | Buffer
+            | SizedBufferStart { .. }
+            | BufferStart
             | Hash(_)
             | Gas
             | Length

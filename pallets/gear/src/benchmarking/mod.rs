@@ -92,7 +92,6 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-    percent::Percent,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -188,7 +187,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        performance_multiplier: Percent::new(100),
+        performance_multiplier: gsys::Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
@@ -204,7 +203,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
         rent_cost: 0,
-        gas_to_value_multiplier: Default::default(),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
     }
 }
 

@@ -63,7 +63,7 @@ where
 
     BlockConfig {
         block_info,
-        performance_multiplier: T::PerformanceMultiplier::get(),
+        performance_multiplier: T::PerformanceMultiplier::get().into(),
         max_pages: T::Schedule::get().limits.memory_pages.into(),
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
@@ -84,9 +84,7 @@ where
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
         rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
-        gas_to_value_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get()
-            .gas_to_value(1)
-            .unique_saturated_into(),
+        gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
     }
 }
 

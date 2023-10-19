@@ -683,7 +683,7 @@ fn check_memory_array_pointers_definition_correctness() {
             .iter()
             .filter_map(|param_ty| match param_ty {
                 ParamType::Ptr(PtrInfo {
-                    ty: PtrType::BufferStart { length_param_idx },
+                    ty: PtrType::SizedBufferStart { length_param_idx },
                     ..
                 }) => Some(*length_param_idx),
                 _ => None,
