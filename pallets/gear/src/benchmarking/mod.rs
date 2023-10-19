@@ -475,8 +475,8 @@ benchmarks! {
         let value = 10000u32.into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -720,8 +720,8 @@ benchmarks! {
         let value = (p % 2).into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),

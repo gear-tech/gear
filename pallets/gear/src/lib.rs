@@ -594,8 +594,8 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas(&who, gas_limit)?;
-            GearBank::<T>::deposit_value(&who, value)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
+            GearBank::<T>::deposit_value(&who, value, false)?;
 
             let origin = who.clone().into_origin();
 
@@ -1196,8 +1196,9 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas(&who, gas_limit)?;
-            GearBank::<T>::deposit_value(&who, value)?;
+            // TODO (breathx): pass arg.
+            GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
+            GearBank::<T>::deposit_value(&who, value, false)?;
 
             Ok(packet)
         }
@@ -1824,14 +1825,16 @@ pub mod pallet {
                 // in the queue.
                 // Note: reservation is always made against the user's account regardless whether
                 // a voucher exists. The latter can only be used to pay for gas or transaction fee.
-                GearBank::<T>::deposit_value(&who, value)?;
+                // TODO (breathx): pass arg.
+                GearBank::<T>::deposit_value(&who, value, false)?;
 
                 let external_node = if prepaid {
                     // If voucher is used, we attempt to reserve funds on the respective account.
                     // If no such voucher exists, the call is invalidated.
                     let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
 
-                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
+                    // TODO (breathx): pass arg.
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, false).map_err(|e| {
                         log::debug!(
                             "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
                         );
@@ -1841,7 +1844,8 @@ pub mod pallet {
                     voucher_id
                 } else {
                     // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas(&who, gas_limit)?;
+                    // TODO (breathx): pass arg.
+                    GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
 
                     who.clone()
                 };
@@ -1919,14 +1923,16 @@ pub mod pallet {
                 gas_limit
             };
 
-            GearBank::<T>::deposit_value(&origin, value)?;
+            // TODO (breathx): pass arg.
+            GearBank::<T>::deposit_value(&origin, value, false)?;
 
             let external_node = if prepaid {
                 // If voucher is used, we attempt to reserve funds on the respective account.
                 // If no such voucher exists, the call is invalidated.
                 let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
 
-                GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
+                // TODO (breathx): pass arg.
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, false).map_err(|e| {
                     log::debug!(
                         "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
                     );
@@ -1936,7 +1942,8 @@ pub mod pallet {
                 voucher_id
             } else {
                 // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas(&origin, gas_limit)?;
+                // TODO (breathx): pass arg.
+                GearBank::<T>::deposit_gas(&origin, gas_limit, false)?;
 
                 origin.clone()
             };

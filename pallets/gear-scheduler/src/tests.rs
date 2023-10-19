@@ -73,7 +73,7 @@ fn populate_wl_from(
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
     WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
-    GearBank::deposit_gas(&src, DEFAULT_GAS).expect("Cannot reserve gas");
+    GearBank::deposit_gas(&src, DEFAULT_GAS, false).expect("Cannot reserve gas");
 
     let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
     GasHandlerOf::<Test>::create(src, multiplier, mid, DEFAULT_GAS)
