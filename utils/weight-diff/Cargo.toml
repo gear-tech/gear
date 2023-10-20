@@ -15,4 +15,4 @@ tabled.workspace = true
 pallet-gear.workspace = true
 frame-support.workspace = true
 
-vara-runtime.workspace = true
+vara-runtime = { workspace = true, features = ["std"] }
