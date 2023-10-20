@@ -37,6 +37,7 @@ where
         delay.encode(),
         100_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -63,6 +64,7 @@ where
         b"init_payload".to_vec(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -113,6 +115,7 @@ where
         b"init_payload".to_vec(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -153,6 +156,7 @@ where
         InitAction::Normal(vec![(50_000, 100)]).encode(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -219,6 +223,7 @@ where
         Scheme::empty().encode(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -274,6 +279,7 @@ where
         vec![],
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -323,6 +329,7 @@ where
         vec![],
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 

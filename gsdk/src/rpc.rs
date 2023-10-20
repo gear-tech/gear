@@ -21,7 +21,7 @@
 use crate::{result::Result, Api, GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
-use subxt::rpc::rpc_params;
+use subxt::rpc_params;
 
 impl Api {
     /// gear_calculateInitCreateGas

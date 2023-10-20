@@ -183,7 +183,7 @@ extern "C" fn handle() {
         HandleAction::InvalidDebugCall => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            #[allow(clippy::invalid_utf8_in_unchecked)]
+            #[allow(invalid_from_utf8_unchecked)]
             let invalid_string = unsafe { core::str::from_utf8_unchecked(&[0, 159, 146, 150]) };
             debug!("{}", invalid_string);
         }

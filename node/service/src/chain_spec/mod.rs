@@ -25,8 +25,6 @@ use sp_runtime::traits::IdentifyAccount;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "gear-native")]
-pub mod gear;
 #[cfg(feature = "vara-native")]
 pub mod vara;
 

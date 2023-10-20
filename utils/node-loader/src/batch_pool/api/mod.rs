@@ -135,7 +135,7 @@ impl GearApiFacade {
         r.map_err(Into::into)
     }
 
-    fn prepare_api_for_call(&self) -> (GearApi, u32) {
+    fn prepare_api_for_call(&self) -> (GearApi, u64) {
         let nonce = self.call_nonce().expect("nonce storages are initialized");
         let mut api = self.api.clone();
         api.set_nonce(nonce);
@@ -143,7 +143,7 @@ impl GearApiFacade {
         (api, nonce)
     }
 
-    fn call_nonce(&self) -> Result<u32> {
+    fn call_nonce(&self) -> Result<u64> {
         let ret_nonce;
 
         if nonce::is_empty_missed_nonce()? {

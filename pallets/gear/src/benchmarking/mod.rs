@@ -475,8 +475,8 @@ benchmarks! {
         let value = 10000u32.into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -502,7 +502,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
 
         let block_count = 1_000u32.into();
 
@@ -522,7 +522,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -547,7 +547,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -583,7 +583,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -657,7 +657,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value)
+    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
@@ -685,7 +685,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code, salt, vec![], 100_000_000_u64, value)
+    }: _(origin, code, salt, vec![], 100_000_000_u64, value, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -699,10 +699,9 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
-        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance, prepaid)
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -721,8 +720,8 @@ benchmarks! {
         let value = (p % 2).into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -732,10 +731,9 @@ benchmarks! {
             None,
         ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
-        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance, prepaid)
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
@@ -749,7 +747,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
         process_queue::<T>();
     }
     verify {
@@ -764,7 +762,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
         process_queue::<T>();
     }
     verify {

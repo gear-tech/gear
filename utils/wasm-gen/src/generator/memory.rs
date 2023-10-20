@@ -60,7 +60,7 @@ impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
 }
 
 impl MemoryGenerator {
-    pub(crate) const MEMORY_FIELD_NAME: &str = "memory";
+    pub(crate) const MEMORY_FIELD_NAME: &'static str = "memory";
 
     /// Instantiate the memory generator from wasm module and memory pages config.
     pub fn new(module: WasmModule, config: MemoryPagesConfig) -> Self {

@@ -57,6 +57,7 @@ fn vec() {
             vec![],
             10_000_000_000,
             0,
+            false,
         ));
 
         let vec_id = get_last_program_id();
@@ -154,6 +155,7 @@ fn debug_mode_works() {
             Vec::new(),
             10_000_000_000_u64,
             0_u128,
+            false,
         )
         .expect("Failed to submit program");
 
@@ -188,6 +190,7 @@ fn debug_mode_works() {
             Vec::new(),
             10_000_000_000_u64,
             0_u128,
+            false,
         )
         .expect("Failed to submit program");
 
@@ -523,6 +526,7 @@ fn check_not_allocated_pages() {
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
+            false,
         ));
 
         // Enable debug mode.
@@ -750,6 +754,7 @@ fn check_changed_pages_in_storage() {
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
+            false,
         ));
 
         // Enable debug mode.
@@ -880,6 +885,7 @@ fn check_gear_stack_end() {
             Vec::new(),
             5_000_000_000_u64,
             0_u128,
+            false,
         ));
 
         // Enable debug mode.
@@ -937,6 +943,7 @@ fn disabled_program_rent() {
             pay_rent_id.into_bytes().to_vec(),
             20_000_000_000,
             program_value,
+            false,
         ));
 
         run_to_next_block(None);

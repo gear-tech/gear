@@ -259,6 +259,11 @@ try-runtime = [
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
+fuzz = [
+	"common/fuzz",
+	"pallet-gear/fuzz",
+	"pallet-gear-gas/fuzz"
+]
 dev = [
 	"pallet-gear-debug",
 	"pallet-sudo",
