@@ -236,9 +236,11 @@ pub fn instrument_recursion(module: Module) -> Module {
                     _ => None,
                 })
         })
-        .map(Into::<WasmPageCount>::into).map(|page_count| page_count.memory_size()) else {
-            return module;
-        };
+        .map(Into::<WasmPageCount>::into)
+        .map(|page_count| page_count.memory_size())
+    else {
+        return module;
+    };
 
     let call_depth_ptr = mem_size - mem::size_of::<u32>() as u32;
     let gas_ptr = call_depth_ptr - mem::size_of::<u64>() as u32;
@@ -284,7 +286,9 @@ pub fn instrument_recursion(module: Module) -> Module {
         }
     };
 
-    let (Some(type_section), Some(function_section)) = (module.type_section(), module.function_section()) else {
+    let (Some(type_section), Some(function_section)) =
+        (module.type_section(), module.function_section())
+    else {
         return module;
     };
 
