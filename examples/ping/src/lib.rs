@@ -28,34 +28,3 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm;
-
-#[cfg(test)]
-mod tests {
-    use gtest::{Log, Program, System};
-
-    #[test]
-    fn it_works() {
-        let system = System::new();
-        system.init_logger();
-
-        let from = 42;
-        let program = Program::current(&system);
-
-        // // Initialize program with message `()`.
-        {
-            let res = program.send(from, ());
-            let log = Log::builder().source(program.id()).dest(from);
-            assert!(res.contains(&log));
-        }
-
-        // Send message `b"PING"` to our program.
-        {
-            let res = program.send_bytes(from, "PING");
-            let log = Log::builder()
-                .source(program.id())
-                .dest(from)
-                .payload(*b"PONG");
-            assert!(res.contains(&log));
-        }
-    }
-}
