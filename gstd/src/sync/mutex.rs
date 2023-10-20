@@ -102,6 +102,12 @@ pub struct Mutex<T> {
     queue: AccessQueue,
 }
 
+impl<T> From<T> for Mutex<T> {
+    fn from(t: T) -> Self {
+        Mutex::new(t)
+    }
+}
+
 impl<T> Mutex<T> {
     /// Create a new mutex in an unlocked state ready for use.
     pub const fn new(t: T) -> Mutex<T> {
