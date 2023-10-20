@@ -7719,7 +7719,7 @@ fn locking_gas_for_waitlist() {
             .send(calculator.into_bytes(), [])
             .send(waiter.into_bytes(), []);
 
-        calculate_handle_and_send_with_extra(USER_1, sender, calls.encode(), None, 0);
+        calculate_handle_and_send_with_extra(USER_1, sender, calls.encode(), Some(1_000), 0);
         let origin_msg_id = get_last_message_id();
 
         let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
@@ -14528,7 +14528,7 @@ fn remove_from_waitlist_after_exit_reply() {
             RuntimeOrigin::signed(USER_1),
             reply.id(),
             vec![],
-            1_000_000_000,
+            2_000_000_000,
             0,
             false,
         ));
