@@ -71,7 +71,7 @@ impl Toolchain {
         });
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
-            .captures(&toolchain_desc)
+            .captures(toolchain_desc)
             .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
             .get(1)
             .unwrap() // It is safe to use unwrap here because we know the regex matches
