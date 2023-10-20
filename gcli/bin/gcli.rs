@@ -23,7 +23,7 @@ use color_eyre::eyre::Result;
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    // sp_core::crypto::set_default_ss58_version(vara_runtime::SS58Prefix::get().try_into().unwrap());
+    sp_core::crypto::set_default_ss58_version(vara_runtime::SS58Prefix::get().try_into().unwrap());
 
     if let Err(e) = gcli::cmd::Opt::run().await {
         log::error!("{}", e);
