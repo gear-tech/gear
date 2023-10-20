@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, env, path::Path};
 
 use crate::builder_error::BuilderError;
 
@@ -43,9 +43,12 @@ impl CrateInfo {
             BuilderError::ManifestPathInvalid(manifest_path.to_path_buf())
         );
 
+        let target = env::var_os("TARGET").unwrap();
+
         let mut meta_cmd = MetadataCommand::new();
         let metadata = meta_cmd
             .manifest_path(manifest_path)
+            .env("CARGO_BUILD_TARGET", target) // for cross-compilation
             .exec()
             .context("unable to invoke `cargo metadata`")?;
 
