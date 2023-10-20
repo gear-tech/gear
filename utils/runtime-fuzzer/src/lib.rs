@@ -117,6 +117,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
                 payload,
                 gas_limit,
                 value,
+                false,
             )
         }
         GearCall::SendMessage(args) => {
@@ -127,6 +128,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
                 payload,
                 gas_limit,
                 value,
+                false,
             )
         }
         GearCall::SendReply(args) => {
@@ -137,6 +139,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
                 payload,
                 gas_limit,
                 value,
+                false,
             )
         }
         GearCall::ClaimValue(args) => {

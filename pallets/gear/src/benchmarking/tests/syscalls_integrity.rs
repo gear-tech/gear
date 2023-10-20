@@ -65,6 +65,7 @@ where
         Default::default(),
         BlockGasLimitOf::<T>::get(),
         Zero::zero(),
+        false,
     )
     .expect("Failed to upload read_big_state binary");
 
@@ -96,6 +97,7 @@ where
             strings.encode(),
             BlockGasLimitOf::<T>::get(),
             Zero::zero(),
+            false,
         )
         .expect("Failed to send read_big_state append command");
 
@@ -401,6 +403,7 @@ where
         b"".to_vec(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("failed to upload test program");
 
@@ -417,6 +420,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false,
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -775,6 +779,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -813,6 +818,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -985,6 +991,7 @@ where
         vec![],
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("child program deploy failed");
 
@@ -1001,6 +1008,7 @@ where
         child_code_hash.encode(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("sys-call check program deploy failed");
 
@@ -1017,6 +1025,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
+                false,
             )
             .expect("failed send message");
         }
@@ -1028,6 +1037,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
+                false,
             )
             .expect("failed send reply");
         }
