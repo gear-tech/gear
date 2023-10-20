@@ -2450,6 +2450,7 @@ pub mod runtime_types {
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 2)]
                     #[doc = "Creates program via `code_id` from storage."]
@@ -2474,6 +2475,7 @@ pub mod runtime_types {
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 3)]
                     #[doc = "Sends a message to a program or to another account."]
@@ -2498,6 +2500,7 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send reply on message in `Mailbox`."]
@@ -2518,6 +2521,7 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "Claim value from message in `Mailbox`."]
@@ -3343,6 +3347,7 @@ pub mod runtime_types {
                     payload: ::std::vec::Vec<::core::primitive::u8>,
                     gas_limit: ::core::primitive::u64,
                     value: _0,
+                    keep_alive: ::core::primitive::bool,
                 },
                 #[codec(index = 1)]
                 SendReply {
@@ -3350,6 +3355,7 @@ pub mod runtime_types {
                     payload: ::std::vec::Vec<::core::primitive::u8>,
                     gas_limit: ::core::primitive::u64,
                     value: _0,
+                    keep_alive: ::core::primitive::bool,
                 },
             }
         }
