@@ -174,7 +174,7 @@ fn format_value(value: Option<u64>, display_units: bool) -> String {
 }
 
 fn format_diff(before: Option<u64>, after: Option<u64>) -> String {
-    let after = after.filter(|x| x != 0);
+    let after = after.filter(|&x| x != 0);
     if let (Some(before), Some(after)) = (before, after) {
         let (before, after) = (before as f64, after as f64);
         let percentage_diff = (1.0 - before / after) * 100.0;
