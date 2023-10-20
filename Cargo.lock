@@ -3837,6 +3837,7 @@ dependencies = [
  "sp-io",
  "thiserror",
  "tokio",
+ "vara-runtime",
  "wasmi 0.14.0",
  "which",
  "whoami",
