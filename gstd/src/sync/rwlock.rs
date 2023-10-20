@@ -121,6 +121,12 @@ impl<T> From<T> for RwLock<T> {
     }
 }
 
+impl<T: Default> Default for RwLock<T> {
+    fn default() -> Self {
+        <T as Default>::default().into()
+    }
+}
+
 impl<T> RwLock<T> {
     /// Limit of readers for `RwLock`
     pub const READERS_LIMIT: ReadersCount = READERS_LIMIT;

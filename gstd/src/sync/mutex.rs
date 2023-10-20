@@ -108,6 +108,12 @@ impl<T> From<T> for Mutex<T> {
     }
 }
 
+impl<T: Default> Default for Mutex<T> {
+    fn default() -> Self {
+        <T as Default>::default().into()
+    }
+}
+
 impl<T> Mutex<T> {
     /// Create a new mutex in an unlocked state ready for use.
     pub const fn new(t: T) -> Mutex<T> {
