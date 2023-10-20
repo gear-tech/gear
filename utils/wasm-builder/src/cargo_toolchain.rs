@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::builder_error::BuilderError;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::{borrow::Cow, ffi::OsStr, path::PathBuf};
+use std::{borrow::Cow, process::Command};
 
 // The channel patterns we support (borrowed from the rustup code)
 static TOOLCHAIN_CHANNELS: &[&str] = &[
@@ -42,16 +42,23 @@ impl Toolchain {
     /// Extracts `Toolchain` from cargo executable path.
     ///
     /// WARNING: There is no validation for the `path` argument provided.
-    pub fn try_from_cargo_path(path: impl Into<PathBuf>) -> Result<Self> {
-        let path = path.into();
+    pub fn try_from_rustup() -> Result<Self> {
+        let output = Command::new("rustup")
+            .args(["show", "active-toolchain"])
+            .output()
+            .context("`rustup` command failed")?;
 
-        // Cargo path format:
-        // "$RUSTUP_HOME/toolchains/**toolchain_desc**/bin/cargo"
-        let toolchain_desc = path
-            .iter()
-            .nth_back(2)
-            .and_then(OsStr::to_str)
-            .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
+        anyhow::ensure!(
+            output.status.success(),
+            "`rustup` exit code is not successful"
+        );
+
+        let toolchain_desc = output
+            .stdout
+            .split(|&x| x == b' ')
+            .next()
+            .and_then(|s| std::str::from_utf8(s).ok())
+            .expect("unexpected `rustup` output");
 
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
             // This regex is borrowed from the rustup code and modified (added non-capturing groups)
@@ -64,7 +71,7 @@ impl Toolchain {
         });
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
-            .captures(toolchain_desc)
+            .captures(&toolchain_desc)
             .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
             .get(1)
             .unwrap() // It is safe to use unwrap here because we know the regex matches
