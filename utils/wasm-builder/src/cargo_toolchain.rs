@@ -39,9 +39,8 @@ impl Toolchain {
     pub fn nightly() -> Self {
         Self("nightly".into())
     }
-    /// Extracts `Toolchain` from cargo executable path.
-    ///
-    /// WARNING: There is no validation for the `path` argument provided.
+
+    /// Fetches `Toolchain` via rustup.
     pub fn try_from_rustup() -> Result<Self> {
         let output = Command::new("rustup")
             .args(["show", "active-toolchain"])
