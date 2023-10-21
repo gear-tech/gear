@@ -141,6 +141,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
+        max_gas: Option<u64>,
     ) -> Self {
         ProposerFactory {
             client,
@@ -152,7 +153,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
             soft_deadline_percent: DEFAULT_SOFT_DEADLINE_PERCENT,
             telemetry,
             include_proof_in_block_size_estimation: true,
-            max_gas: None,
+            max_gas,
             _phantom: PhantomData,
         }
     }
@@ -208,7 +209,7 @@ where
         + GearRuntimeApi<Block>
         + Clone,
 {
-    fn init_with_now(
+    pub(super) fn init_with_now(
         &mut self,
         parent_header: &<Block as BlockT>::Header,
         now: Box<dyn Fn() -> Instant + Send + Sync>,
@@ -347,7 +348,7 @@ where
 /// If the block is full we will attempt to push at most
 /// this number of transactions before quitting for real.
 /// It allows us to increase block utilization.
-const MAX_SKIPPED_TRANSACTIONS: usize = 5;
+pub(super) const MAX_SKIPPED_TRANSACTIONS: usize = 5;
 
 impl<A, B, Block, C, PR> Proposer<B, Block, C, A, PR>
 where
