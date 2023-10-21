@@ -1,0 +1,15 @@
+[package]
+name = "gear-lazy-pages-common"
+description = "Gear lazy-pages commons"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gear-core.workspace = true
+
+num_enum.workspace = true
+codec.workspace = true

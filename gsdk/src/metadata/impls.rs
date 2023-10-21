@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    gear_runtime::{RuntimeCall, RuntimeEvent},
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
         gear_common::{
@@ -30,6 +29,7 @@ use super::{
         pallet_gear::pallet::Call as GearCall,
         pallet_sudo::pallet::Call as SudoCall,
     },
+    vara_runtime::{RuntimeCall, RuntimeEvent},
 };
 use core::ops::{Index, IndexMut};
 use gear_core::{ids, message, message::UserMessage};
@@ -188,6 +188,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             init_payload,
             gas_limit,
             value,
+            keep_alive,
         } => Value::named_variant(
             "upload_program",
             [
@@ -196,6 +197,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("init_payload", Value::from_bytes(init_payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
             ],
         ),
         GearCall::create_program {
@@ -204,6 +206,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             init_payload,
             gas_limit,
             value,
+            keep_alive,
         } => Value::named_variant(
             "create_program",
             [
@@ -212,6 +215,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("init_payload", Value::from_bytes(init_payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
             ],
         ),
         GearCall::send_message {
@@ -219,7 +223,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             payload,
             gas_limit,
             value,
-            prepaid,
+            keep_alive,
         } => Value::named_variant(
             "send_message",
             [
@@ -227,7 +231,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("payload", Value::from_bytes(payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
-                ("prepaid", Value::bool(prepaid)),
+                ("keep_alive", Value::bool(keep_alive)),
             ],
         ),
         GearCall::send_reply {
@@ -235,7 +239,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             payload,
             gas_limit,
             value,
-            prepaid,
+            keep_alive,
         } => Value::named_variant(
             "send_reply",
             [
@@ -243,7 +247,7 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
                 ("payload", Value::from_bytes(payload)),
                 ("gas_limit", Value::u128(gas_limit as u128)),
                 ("value", Value::u128(value as u128)),
-                ("prepaid", Value::bool(prepaid)),
+                ("keep_alive", Value::bool(keep_alive)),
             ],
         ),
         GearCall::claim_value { message_id } => Value::named_variant(

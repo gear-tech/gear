@@ -16,13 +16,15 @@ gear-utils.workspace = true
 gear-core.workspace = true
 wasmparser.workspace = true
 static_assertions.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
 wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
+gear-utils.workspace = true
 
-gear-backend-sandbox = { workspace = true, features = ["std"] }
-gear-backend-common = { workspace = true, features = ["mock"] }
-gear-core-processor = { workspace = true, features = ["mock"] }
+gear-core-backend = { workspace = true, features = ["std"] }
+gear-core-processor = { workspace = true, features = ["std", "mock"] }
+gear-lazy-pages-interface = { workspace = true, features = ["std"] }

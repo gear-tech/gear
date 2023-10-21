@@ -299,7 +299,7 @@ case "$COMMAND" in
 
       fuzz)
         header "Running fuzzer for runtime panic checks"
-        run_fuzzer "$ROOT_DIR" "$1"; ;;
+        run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
 
       fuzz-repr)
         header "Running fuzzer reproduction"
@@ -309,7 +309,7 @@ case "$COMMAND" in
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
         syscalls_integrity_test "$@"; ;;
 
-      doc)
+      docs)
         header "Testing examples in docs"
         doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 

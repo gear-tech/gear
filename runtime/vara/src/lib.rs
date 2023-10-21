@@ -21,7 +21,7 @@
 #![recursion_limit = "256"]
 
 // Make the WASM binary available.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::storage::{Mailbox, Messenger};
@@ -63,16 +63,17 @@ use pallet_grandpa::{
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+pub use pallet_transaction_payment::{
+    CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
+};
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
-    AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
-    VALUE_PER_GAS,
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -99,13 +100,13 @@ pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 #[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
-#[cfg(any(feature = "std", test))]
+#[cfg(all(feature = "dev", any(feature = "std", test)))]
 pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
@@ -123,10 +124,14 @@ mod bag_thresholds;
 pub mod governance;
 use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
 
-mod extensions;
-pub use extensions::DisableValueTransfers;
-
 mod migrations;
+
+// By this we assert if runtime compiled with "dev" feature.
+#[cfg_attr(
+    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
+    link_section = "dev_runtime"
+)]
+static _DEV_RUNTIME: u8 = 0;
 
 // By this we inject compile time version including commit hash
 // (https://github.com/paritytech/substrate/blob/297b3948f4a0f7f6504d4b654e16cb5d9201e523/utils/build-script-utils/src/version.rs#L44)
@@ -146,7 +151,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 320,
+    spec_version: 1010,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -317,8 +322,8 @@ impl pallet_scheduler::Config for Runtime {
 
 parameter_types! {
     pub const PreimageMaxSize: u32 = 4096 * 1024;
-    pub const PreimageBaseDeposit: Balance = DOLLARS;
-    pub const PreimageByteDeposit: Balance = CENTS;
+    pub const PreimageBaseDeposit: Balance = ECONOMIC_UNITS;
+    pub const PreimageByteDeposit: Balance = ECONOMIC_CENTIUNITS;
 }
 
 impl pallet_preimage::Config for Runtime {
@@ -341,11 +346,9 @@ impl pallet_balances::Config for Runtime {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
-    /// The type for recording an account's balance.
     type Balance = Balance;
-    /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
-    type DustRemoval = ();
+    type DustRemoval = pallet_gear_staking_rewards::OffsetPool<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
@@ -357,7 +360,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u128 = 10;
+    pub const QueueLengthStep: u128 = 1000;
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
@@ -466,9 +469,9 @@ parameter_types! {
     pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
     // signed config
-    pub const SignedRewardBase: Balance = DOLLARS;
-    pub const SignedDepositBase: Balance = DOLLARS;
-    pub const SignedDepositByte: Balance = CENTS;
+    pub const SignedRewardBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
+    pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
 
     pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
@@ -570,8 +573,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();
     type SignedMaxWeight = MinerMaxWeight;
-    type SlashHandler = (); // burn slashes
-    type RewardHandler = (); // nothing to do upon rewards
+    type SlashHandler = Treasury;
+    type RewardHandler = StakingRewards;
     type DataProvider = Staking;
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
@@ -616,7 +619,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     // Burning the reward remainder for now.
-    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    // TODO: set remainder back to `RewardProxy<Self, Treasury>` to stop burning `Treasury` part.
     type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
@@ -652,7 +655,6 @@ impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Runtime {
 }
 
 parameter_types! {
-    pub const PostUnbondPoolsWindow: u32 = 4;
     pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
     pub const MaxPointsToBalance: u8 = 10;
 }
@@ -679,9 +681,10 @@ impl pallet_nomination_pools::Config for Runtime {
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
     type Staking = Staking;
-    type PostUnbondingPoolsWindow = PostUnbondPoolsWindow;
+    type PostUnbondingPoolsWindow = ConstU32<4>;
     type MaxMetadataLen = ConstU32<256>;
-    type MaxUnbonding = ConstU32<8>;
+    // we use the same number of allowed unlocking chunks as with staking.
+    type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
     type PalletId = NominationPoolsPalletId;
     type MaxPointsToBalance = MaxPointsToBalance;
 }
@@ -694,13 +697,13 @@ impl pallet_offences::Config for Runtime {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: Balance = DOLLARS;
+    pub const ProposalBondMinimum: Balance = ECONOMIC_UNITS;
     pub const SpendPeriod: BlockNumber = DAYS;
-    pub const Burn: Permill = Permill::from_percent(50);
+    pub const Burn: Permill = Permill::zero();
     pub const TipCountdown: BlockNumber = DAYS;
     pub const TipFindersFee: Percent = Percent::from_percent(20);
-    pub const TipReportDepositBase: Balance = DOLLARS;
-    pub const DataDepositPerByte: Balance = CENTS;
+    pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
+    pub const DataDepositPerByte: Balance = ECONOMIC_CENTIUNITS;
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
     pub const MaximumReasonLength: u32 = 300;
     pub const MaxApprovals: u32 = 100;
@@ -712,7 +715,7 @@ impl pallet_treasury::Config for Runtime {
     type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = ();
+    type OnSlash = Treasury;
     type ProposalBond = ProposalBond;
     type ProposalBondMinimum = ProposalBondMinimum;
     type ProposalBondMaximum = ();
@@ -727,11 +730,11 @@ impl pallet_treasury::Config for Runtime {
 
 parameter_types! {
     pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-    pub const BountyValueMinimum: Balance = 5 * DOLLARS;
-    pub const BountyDepositBase: Balance = DOLLARS;
+    pub const BountyValueMinimum: Balance = 5 * ECONOMIC_UNITS;
+    pub const BountyDepositBase: Balance = ECONOMIC_UNITS;
     pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
-    pub const CuratorDepositMin: Balance = DOLLARS;
-    pub const CuratorDepositMax: Balance = 100 * DOLLARS;
+    pub const CuratorDepositMin: Balance = ECONOMIC_UNITS;
+    pub const CuratorDepositMax: Balance = 100 * ECONOMIC_UNITS;
     pub const BountyDepositPayoutDelay: BlockNumber = DAYS;
     pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
 }
@@ -752,7 +755,7 @@ impl pallet_bounties::Config for Runtime {
 }
 
 parameter_types! {
-    pub const ChildBountyValueMinimum: Balance = DOLLARS;
+    pub const ChildBountyValueMinimum: Balance = ECONOMIC_UNITS;
 }
 
 impl pallet_child_bounties::Config for Runtime {
@@ -766,7 +769,7 @@ parameter_types! {
     pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
     /// We prioritize im-online heartbeats over election solution submission.
     pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
-    pub const MaxAuthorities: u32 = 32;
+    pub const MaxAuthorities: u32 = 100_000;
     pub const MaxKeys: u32 = 10_000;
     pub const MaxPeerInHeartbeats: u32 = 10_000;
     pub const MaxPeerDataEncodingSize: u32 = 1_000;
@@ -790,9 +793,9 @@ impl pallet_authority_discovery::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-    pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+    pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
+    pub const FieldDeposit: Balance = 250 * ECONOMIC_CENTIUNITS;        // 66 bytes on-chain
+    pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
     pub const MaxRegistrars: u32 = 20;
@@ -813,6 +816,7 @@ impl pallet_identity::Config for Runtime {
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
+#[cfg(feature = "dev")]
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -884,13 +888,23 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
     fn filter(&self, c: &RuntimeCall) -> bool {
         match self {
             ProxyType::Any => true,
-            ProxyType::NonTransfer => !matches!(
-                c,
-                RuntimeCall::Balances(..)
-                    | RuntimeCall::Sudo(..)
-                    | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                    | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-            ),
+            ProxyType::NonTransfer => {
+                #[cfg(feature = "dev")]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Sudo(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+                #[cfg(not(feature = "dev"))]
+                return !matches!(
+                    c,
+                    RuntimeCall::Balances(..)
+                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+                );
+            }
             ProxyType::Governance => matches!(
                 c,
                 RuntimeCall::Treasury(..)
@@ -958,25 +972,29 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
+    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
@@ -1002,7 +1020,7 @@ impl pallet_gear::Config for Runtime {
     type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
 }
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
@@ -1029,12 +1047,6 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
-impl pallet_airdrop::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = weights::pallet_airdrop::SubstrateWeight<Runtime>;
-    type VestingSchedule = Vesting;
-}
-
 pub struct ExtraFeeFilter;
 impl Contains<RuntimeCall> for ExtraFeeFilter {
     fn contains(call: &RuntimeCall) -> bool {
@@ -1057,26 +1069,14 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message {
-                destination,
-                prepaid,
-                ..
-            }) => prepaid.then(|| GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::Gear(pallet_gear::Call::send_reply {
-                reply_to_id,
-                prepaid,
-                ..
-            }) => {
-                if *prepaid {
-                    <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                        |stored_message| {
-                            GearVoucher::voucher_account_id(who, &stored_message.source())
-                        },
-                    )
-                } else {
-                    None
-                }
-            }
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
             _ => None,
         }
     }
@@ -1097,6 +1097,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type CallsDispatcher = Gear;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -1108,7 +1109,7 @@ where
 }
 
 parameter_types! {
-    pub const MinVestedTransfer: Balance = 100 * CENTS;
+    pub const MinVestedTransfer: Balance = 100 * ECONOMIC_CENTIUNITS;
     pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
         WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
@@ -1124,7 +1125,7 @@ impl pallet_vesting::Config for Runtime {
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1178,18 +1179,16 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
         Sudo: pallet_sudo = 99,
 
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
 
-        // Only available with "debug-mode" feature on
+        // Only available with "dev" feature on
         GearDebug: pallet_gear_debug = 199,
     }
 );
 
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1243,11 +1242,8 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
 
-        // TODO: Remove in stage 3
-        Sudo: pallet_sudo = 99,
-
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
+        // NOTE (!): `pallet_sudo` used to be idx(99).
+        // NOTE (!): `pallet_airdrop` used to be idx(198).
     }
 );
 
@@ -1259,8 +1255,6 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-    // RELEASE: remove before final release
-    DisableValueTransfers,
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
@@ -1293,9 +1287,9 @@ mod tests;
 #[cfg(test)]
 mod integration_tests;
 
-#[cfg(feature = "debug-mode")]
+#[cfg(feature = "dev")]
 type DebugInfo = GearDebug;
-#[cfg(not(feature = "debug-mode"))]
+#[cfg(not(feature = "dev"))]
 type DebugInfo = ();
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1311,7 +1305,6 @@ mod benches {
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
         // Gear pallets
-        [pallet_airdrop, Airdrop]
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
     );
@@ -1368,6 +1361,53 @@ impl_runtime_apis_plus_common! {
             )
         }
 
+    }
+
+    impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
+        for Runtime
+    {
+        fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
+            TransactionPayment::query_call_info(call, len)
+        }
+        fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
+            TransactionPayment::query_call_fee_details(call, len)
+        }
+        fn query_weight_to_fee(weight: Weight) -> Balance {
+            TransactionPayment::weight_to_fee(weight)
+        }
+        fn query_length_to_fee(length: u32) -> Balance {
+            TransactionPayment::length_to_fee(length)
+        }
+    }
+
+    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+        Block,
+        AccountId,
+        Balance,
+    > for Runtime {
+        fn pending_rewards(member: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(member).unwrap_or_default()
+        }
+
+        fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+            NominationPools::api_points_to_balance(pool_id, points)
+        }
+
+        fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+            NominationPools::api_balance_to_points(pool_id, new_funds)
+        }
+    }
+
+    impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+        fn nominations_quota(balance: Balance) -> u32 {
+            Staking::api_nominations_quota(balance)
+        }
+    }
+
+    impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
+        fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
+            StakingRewards::inflation_info()
+        }
     }
 
     #[cfg(feature = "try-runtime")]

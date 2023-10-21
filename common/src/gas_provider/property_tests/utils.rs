@@ -28,7 +28,7 @@ pub(super) fn consume_node(
 ) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), super::Error> {
     let nodes_before_consume = gas_tree_node_clone();
     Gas::consume(consuming).map(|maybe_output| {
-        let maybe_caught_value = maybe_output.map(|(imb, _)| imb.peek());
+        let maybe_caught_value = maybe_output.map(|(imb, ..)| imb.peek());
         let remaining_nodes = gas_tree_node_clone();
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {

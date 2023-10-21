@@ -1,16 +1,17 @@
 [package]
 name = "gear-runtime-interface"
-version = "0.1.0"
-authors.workspace = true
 description = "Gear Runtime Interface"
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true
-gear-backend-common = { workspace = true }
+gear-lazy-pages-common.workspace = true
+
 log = { workspace = true, optional = true }
 libc.workspace = true
 sp-allocator.workspace = true

@@ -29,7 +29,8 @@
 
 use super::*;
 
-use crate::{CurrencyOf, Event, RentCostPerBlockOf, WaitlistOf};
+use crate::{BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
+use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -38,6 +39,93 @@ use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
 use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
+
+pub fn read_big_state<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
+
+    #[cfg(feature = "std")]
+    utils::init_logger();
+
+    let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+    CurrencyOf::<T>::deposit_creating(
+        &origin,
+        100_000_000_000_000_000_u128.unique_saturated_into(),
+    );
+
+    let salt = b"read_big_state salt";
+
+    Gear::<T>::upload_program(
+        RawOrigin::Signed(origin.clone()).into(),
+        WASM_BINARY.to_vec(),
+        salt.to_vec(),
+        Default::default(),
+        BlockGasLimitOf::<T>::get(),
+        Zero::zero(),
+        false,
+    )
+    .expect("Failed to upload read_big_state binary");
+
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    utils::run_to_next_block::<T>(None);
+
+    let string = String::from("hi").repeat(4095);
+    let string_size = 8 * 1024;
+    assert_eq!(string.encoded_size(), string_size);
+
+    let strings = Strings::new(string);
+    let strings_size = (string_size * Strings::LEN) + 1;
+    assert_eq!(strings.encoded_size(), strings_size);
+
+    let approx_size =
+        |size: usize, iteration: usize| -> usize { size - 17 - 144 * (iteration + 1) };
+
+    // with initial data step is ~2 MiB
+    let expected_size =
+        |iteration: usize| -> usize { Strings::LEN * State::LEN * string_size * (iteration + 1) };
+
+    // go to 6 MiB due to approximate calculations and 8MiB reply restrictions
+    for i in 0..3 {
+        let next_user_mid = utils::get_next_message_id::<T>(origin.clone());
+
+        Gear::<T>::send_message(
+            RawOrigin::Signed(origin.clone()).into(),
+            pid,
+            strings.encode(),
+            BlockGasLimitOf::<T>::get(),
+            Zero::zero(),
+            false,
+        )
+        .expect("Failed to send read_big_state append command");
+
+        utils::run_to_next_block::<T>(None);
+
+        assert!(
+            SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref())
+                else {
+                    return false;
+                };
+                let Event::MessagesDispatched { statuses, .. } = gear_event else {
+                    return false;
+                };
+
+                log::debug!("{statuses:?}");
+                log::debug!("{next_user_mid:?}");
+                matches!(statuses.get(&next_user_mid), Some(DispatchStatus::Success))
+            }),
+            "No message with expected id had succeeded"
+        );
+
+        let state = Gear::<T>::read_state_impl(pid, Default::default(), None)
+            .expect("Failed to read state");
+        assert_eq!(approx_size(state.len(), i), expected_size(i));
+    }
+}
 
 pub fn main_test<T>()
 where
@@ -128,7 +216,7 @@ where
             )]
             .encode(),
         )
-        .with_value(10_000_000_000);
+        .with_value(50_000_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -315,10 +403,11 @@ where
         b"".to_vec(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("failed to upload test program");
 
-    let pid = ProgramId::generate(wasm_module.hash, b"alloc-free-test");
+    let pid = ProgramId::generate_from_user(wasm_module.hash, b"alloc-free-test");
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -331,7 +420,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -413,7 +502,8 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = u16::MAX as u128;
+        let sending_value = 10_000_000_000_000;
+
         let mp = MessageParamsBuilder::new(vec![Kind::Value(sending_value)].encode())
             .with_value(sending_value);
 
@@ -427,11 +517,10 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let sending_value = 10_000;
-        // Program sends 2000
-        let mp =
-            MessageParamsBuilder::new(vec![Kind::ValueAvailable(sending_value - 2000)].encode())
-                .with_value(sending_value);
+        let sending_value = 20_000_000_000_000;
+        // Program sends 10_000_000_000_000
+        let mp = MessageParamsBuilder::new(vec![Kind::ValueAvailable(10_000_000_000_000)].encode())
+            .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -448,7 +537,11 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
         let salt = 10u64;
-        let expected_pid = ProgramId::generate(simplest_gear_wasm::<T>().hash, &salt.to_le_bytes());
+        let expected_pid = ProgramId::generate_from_program(
+            simplest_gear_wasm::<T>().hash,
+            &salt.to_le_bytes(),
+            next_user_mid,
+        );
 
         let mp = vec![Kind::CreateProgram(
             salt,
@@ -686,7 +779,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -725,7 +818,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -820,7 +913,7 @@ where
         let next_mid = utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let (random, expected_bn) = T::Randomness::random(next_mid.as_ref());
 
-        // If we use gear-runtime, current epoch starts at block 0,
+        // If we use vara-runtime, current epoch starts at block 0,
         // But mock runtime will reference currently proceeding block number,
         // so we add to currently got value.
         #[cfg(feature = "std")]
@@ -882,7 +975,8 @@ where
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
 
-    let tester_pid = ProgramId::generate(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
+    let tester_pid =
+        ProgramId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
@@ -897,6 +991,7 @@ where
         vec![],
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("child program deploy failed");
 
@@ -913,6 +1008,7 @@ where
         child_code_hash.encode(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("sys-call check program deploy failed");
 
@@ -929,7 +1025,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
+                false,
             )
             .expect("failed send message");
         }
@@ -941,7 +1037,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
+                false,
             )
             .expect("failed send reply");
         }

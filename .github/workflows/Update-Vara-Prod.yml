@@ -13,7 +13,7 @@ jobs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Create image tag
         id: image-tag
@@ -24,16 +24,16 @@ jobs:
     needs: tag-image
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./docker/Vara-Dockerfile
@@ -54,7 +54,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Info
         run: |
@@ -93,7 +93,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Info
         run: |
@@ -132,7 +132,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Info
         run: |
@@ -171,7 +171,7 @@ jobs:
     needs: [docker, tag-image, deploy-first-connector, deploy-second-connector, deploy-one-validator]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Info
         run: |

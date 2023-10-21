@@ -34,7 +34,6 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
-        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::{
@@ -48,6 +47,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
+        vara_runtime::RuntimeCall,
         Convert, Event,
     },
     Error as GsdkError, GearGasNode, GearGasNodeId,
@@ -204,13 +204,14 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -664,7 +665,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -710,14 +711,13 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
         let payload = payload.as_ref().to_vec();
 
         let tx = self
             .0
             .calls
-            .send_message(destination, payload, gas_limit, value, prepaid)
+            .send_message(destination, payload, gas_limit, value)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
@@ -743,24 +743,24 @@ impl GearApi {
     /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128, bool)>,
+        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
     ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(destination, payload, gas_limit, value, prepaid)| {
+            .map(|(destination, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_message {
                     destination: destination.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
-                    prepaid,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -793,9 +793,8 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, H256)> {
-        self.send_message_bytes(destination, payload.encode(), gas_limit, value, prepaid)
+        self.send_message_bytes(destination, payload.encode(), gas_limit, value)
             .await
     }
 
@@ -824,7 +823,6 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
@@ -833,7 +831,7 @@ impl GearApi {
         let tx = self
             .0
             .calls
-            .send_reply(reply_to_id, payload, gas_limit, value, prepaid)
+            .send_reply(reply_to_id, payload, gas_limit, value)
             .await?;
 
         let events = tx.wait_for_success().await?;
@@ -866,13 +864,9 @@ impl GearApi {
     /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128, bool)> + Clone,
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let message_ids: Vec<_> = args
-            .clone()
-            .into_iter()
-            .map(|(mid, _, _, _, _)| mid)
-            .collect();
+        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
@@ -887,20 +881,20 @@ impl GearApi {
 
         let calls: Vec<_> = args
             .into_iter()
-            .map(|(reply_to_id, payload, gas_limit, value, prepaid)| {
+            .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
-                    prepaid,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -939,9 +933,8 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<(MessageId, u128, H256)> {
-        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value, prepaid)
+        self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
             .await
     }
 
@@ -999,7 +992,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1124,13 +1117,14 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1238,6 +1232,7 @@ impl GearApi {
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
                     code: code.as_ref().to_vec(),
@@ -1270,6 +1265,7 @@ impl GearApi {
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code_without_checks {
                     code: code.as_ref().to_vec(),
@@ -1304,6 +1300,7 @@ impl GearApi {
     ) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::force_set_balance {
                     who: to.into().convert(),

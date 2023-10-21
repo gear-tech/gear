@@ -180,7 +180,7 @@ impl<T: Config> HoldBound<T> {
 
 impl<T: Config> PartialOrd for HoldBound<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.expected.partial_cmp(&other.expected)
+        Some(self.cmp(other))
     }
 }
 
@@ -228,11 +228,11 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(id)
+        let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Transferring reserved funds from external user to block author.
-        GearBank::<T>::spend_gas::<T::GasPrice>(&external, amount)
+        GearBank::<T>::spend_gas(&external, amount, multiplier)
             .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
@@ -247,7 +247,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
-        if let Some((imbalance, external)) = outcome {
+        if let Some((imbalance, multiplier, external)) = outcome {
             // Peeking numeric value from negative imbalance.
             let gas_left = imbalance.peek();
 
@@ -257,7 +257,7 @@ where
                     "Consumed message {id}. Unreserving {gas_left} (gas) from {external:?}"
                 );
 
-                GearBank::<T>::withdraw_gas::<T::GasPrice>(&external, gas_left)
+                GearBank::<T>::withdraw_gas(&external, gas_left, multiplier)
                     .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
         }
@@ -652,7 +652,7 @@ where
 
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         }
 
@@ -759,7 +759,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
@@ -1044,8 +1044,9 @@ where
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
+        let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
-            GasHandlerOf::<T>::create(origin, key, amount)
+            GasHandlerOf::<T>::create(origin, multiplier, key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }

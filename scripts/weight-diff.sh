@@ -12,7 +12,7 @@ USAGE:
     ./weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> [FLAGS]
 
 EXAMPLES:
-    ./weight-diff.sh master $(git branch --show-current) gear --display-units
+    ./weight-diff.sh master $(git branch --show-current) vara --display-units
 
 FLAGS:
     --display-units  if present, displays the value in units
@@ -20,7 +20,7 @@ FLAGS:
 ARGUMENTS:
   <BRANCH1>  branch #1 from where to get the weights
   <BRANCH2>  branch #2 from where to get the weights
-  <RUNTIME>  what runtime to compare? [possible values: gear, vara]
+  <RUNTIME>  what runtime to compare? [possible values: vara]
 EOF
 }
 
@@ -39,18 +39,23 @@ flag=$4
 dump_path="weight-dumps"
 mkdir -p "$dump_path"
 
-set -x
+if [ -z $CI ] ; then
+  set -x
+  CARGO_FLAGS=""
+else
+  CARGO_FLAGS="--quiet"
+fi
 
 git checkout "$branch1"
 dump_path1="$dump_path/${branch1//\//-}.json"
-cargo run --package gear-weight-diff --release -- dump "$dump_path1" --label "$branch1"
+cargo run $CARGO_FLAGS --package gear-weight-diff --release -- dump "$dump_path1" --label "$branch1"
 
 git checkout "$branch2"
 dump_path2="$dump_path/${branch2//\//-}.json"
-cargo run --package gear-weight-diff --release -- dump "$dump_path2" --label "$branch2"
+cargo run $CARGO_FLAGS --package gear-weight-diff --release -- dump "$dump_path2" --label "$branch2"
 
 git checkout "$current_branch"
 
-cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
-cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
-cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "memory" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "memory" $flag

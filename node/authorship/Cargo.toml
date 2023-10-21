@@ -1,12 +1,11 @@
 [package]
 name = "gear-authorship"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
-description = "Gear Node"
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -43,6 +42,7 @@ frame-system = { workspace = true, features = ["std"] }
 prometheus-endpoint.workspace = true
 
 [dev-dependencies]
+common = { workspace = true, features = ["std"] }
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
@@ -55,7 +55,9 @@ pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-balances  = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
-testing = {workspace = true, features = ["vara-native"] }
-vara-runtime  = { workspace = true, features = ["std"] }
-demo-mul-by-const.workspace = true
+pallet-gear-program = { workspace = true, features = ["std"] }
+testing.workspace = true
+vara-runtime  = { workspace = true, features = ["std", "dev"] }
+demo-mul-by-const = { workspace = true, features = ["debug"] }
 env_logger.workspace = true
+service = { workspace = true, features = ["vara-native"] }

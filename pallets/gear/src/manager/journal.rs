@@ -226,6 +226,7 @@ where
                 GearBank::<T>::deposit_value(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                     dispatch.value().unique_saturated_into(),
+                    false,
                 )
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
@@ -333,6 +334,8 @@ where
 
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
+                log::trace!("{:?} has been write accessed, update it in storage", page);
+
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
             }

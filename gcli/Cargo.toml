@@ -40,10 +40,12 @@ clap = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
-core-processor.workspace = true
-gear-backend-sandbox = { workspace = true, features = [ "std" ] }
+core-processor = { workspace = true, features = [ "std" ] }
+gear-lazy-pages-interface = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
+sp-io = { workspace = true, features = [ "std" ] }
+sp-core = { workspace = true, features = [ "std" ] }
 
 [dev-dependencies]
 rand.workspace = true
@@ -51,13 +53,13 @@ demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 
 [build-dependencies]
 which.workspace = true
 
 [features]
 node-key = [ "libp2p" ]
-vara-testing = [ ]
 
 [package.metadata.docs.rs]
 all-features = true

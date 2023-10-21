@@ -21,7 +21,7 @@ async fn two_nodes_run_independently() {
 async fn program_migrated_to_another_node() {
     const INIT_VALUE_PAYLOAD: u64 = 42;
     const MULTIPLICATOR_VALUE_PAYLOAD: u64 = 4;
-    const PROGRAM_FUNDS: u128 = 25_000;
+    const PROGRAM_FUNDS: u128 = 25_000_000_000_000;
 
     // Arrange
 
@@ -69,7 +69,6 @@ async fn program_migrated_to_another_node() {
             MULTIPLICATOR_VALUE_PAYLOAD,
             dest_node_gas_limit,
             0,
-            false,
         )
         .await
         .expect("Unable to send message to destination program");
@@ -209,7 +208,6 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
             demo_reserve_gas::HandleAction::ReplyFromReservation,
             dest_node_gas_limit,
             0,
-            false,
         )
         .await
         .expect("Unable to send message to destination program");

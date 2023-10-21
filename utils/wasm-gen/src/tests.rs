@@ -18,21 +18,32 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use gear_backend_common::{TerminationReason, TrapExplanation};
 use gear_core::{
     code::Code,
+    ids::{CodeId, ProgramId},
     memory::Memory,
-    message::{IncomingMessage, ReplyPacket},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        ReplyPacket,
+    },
     pages::WASM_PAGE_SIZE,
 };
+use gear_core_backend::{
+    env::{BackendReport, Environment},
+    error::{TerminationReason, TrapExplanation},
+};
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{Instruction, Module},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    },
+    rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::mem;
+use std::{mem, num::NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -110,7 +121,7 @@ fn injecting_addresses_works() {
             upper_limit: None,
             stack_end_page: Some(stack_end_page),
         })
-        .with_sys_calls_config(
+        .with_syscalls_config(
             SysCallsConfigBuilder::new(Default::default())
                 .with_data_offset_msg_dest(addresses)
                 .build(),
@@ -165,21 +176,44 @@ fn injecting_addresses_works() {
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
-    use gear_backend_common::ActorTerminationReason;
+    use gear_core_backend::error::ActorTerminationReason;
+
+    gear_utils::init_default_logger();
+
+    // We create Unstructured from zeroes here as we just need any.
+    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut unstructured = Unstructured::new(&buf);
+    let mut unstructured2 = Unstructured::new(&buf);
 
     let fallible_syscalls = SysCallName::instrumentable()
         .into_iter()
-        .filter(|sc| InvocableSysCall::Loose(*sc).is_fallible());
+        .filter_map(|syscall| {
+            let invocable_syscall = InvocableSysCall::Loose(syscall);
+            invocable_syscall.is_fallible().then_some(invocable_syscall)
+        });
 
     for syscall in fallible_syscalls {
-        let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(&syscall);
+        // Prepare syscalls config & context settings for test case.
+        let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(syscall);
+
+        const INJECTED_SYSCALLS: u32 = 8;
+
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+        let syscalls_config_builder =
+            SysCallsConfigBuilder::new(injection_types).with_params_config(params_config);
 
         // Assert that syscalls results will be processed.
-        let termination_reason = execute_wasm_with_syscall_injected(
-            syscall,
-            false,
-            params_config.clone(),
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config_builder
+                .clone()
+                .set_error_processing_config(ErrorProcessingConfig::All)
+                .build(),
             initial_memory_write.clone(),
+            0,
+            true,
         );
 
         assert_eq!(
@@ -190,8 +224,65 @@ fn error_processing_works_for_fallible_syscalls() {
         );
 
         // Assert that syscall results will be ignored.
-        let termination_reason =
-            execute_wasm_with_syscall_injected(syscall, true, params_config, initial_memory_write);
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured2,
+            syscalls_config_builder.build(),
+            initial_memory_write.clone(),
+            0,
+            true,
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success),
+            "syscall: {}",
+            syscall.to_str()
+        );
+    }
+}
+
+#[test]
+fn precise_syscalls_works() {
+    use gear_core_backend::error::ActorTerminationReason;
+
+    gear_utils::init_default_logger();
+
+    // Pin a specific seed for this test.
+    let mut rng = SmallRng::seed_from_u64(1234);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let precise_syscalls = SysCallName::instrumentable()
+        .into_iter()
+        .filter_map(|syscall| {
+            InvocableSysCall::has_precise_variant(syscall)
+                .then_some(InvocableSysCall::Precise(syscall))
+        });
+
+    for syscall in precise_syscalls {
+        // Prepare syscalls config & context settings for test case.
+        const INJECTED_SYSCALLS: u32 = 1;
+
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+        let mut param_config = SysCallsParamsConfig::default();
+        param_config.add_rule(ParamType::Gas, (0..=0).into());
+
+        // Assert that syscalls results will be processed.
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            SysCallsConfigBuilder::new(injection_types)
+                .with_params_config(param_config)
+                .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3))
+                .with_source_msg_dest()
+                .set_error_processing_config(ErrorProcessingConfig::All)
+                .build(),
+            None,
+            1024,
+            false,
+        );
 
         assert_eq!(
             termination_reason,
@@ -209,9 +300,13 @@ struct MemoryWrite {
 }
 
 fn get_params_for_syscall_to_fail(
-    syscall: &SysCallName,
+    syscall: InvocableSysCall,
 ) -> (SysCallsParamsConfig, Option<MemoryWrite>) {
-    let memory_write = match *syscall {
+    let syscall_name = match syscall {
+        InvocableSysCall::Loose(name) => name,
+        InvocableSysCall::Precise(name) => name,
+    };
+    let memory_write = match syscall_name {
         SysCallName::PayProgramRent => Some(MemoryWrite {
             offset: 0,
             content: vec![255; WASM_PAGE_SIZE],
@@ -225,27 +320,19 @@ fn get_params_for_syscall_to_fail(
     )
 }
 
-fn execute_wasm_with_syscall_injected(
-    syscall: SysCallName,
-    ignore_fallible_errors: bool,
-    params_config: SysCallsParamsConfig,
+fn execute_wasm_with_custom_configs(
+    unstructured: &mut Unstructured,
+    syscalls_config: SysCallsConfig,
     initial_memory_write: Option<MemoryWrite>,
+    outgoing_limit: u32,
+    imitate_reply: bool,
 ) -> TerminationReason {
-    use gear_backend_common::{BackendReport, Environment};
-    use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext};
-    use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
-
+    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
-    const INJECTED_SYSCALLS: u32 = 8;
 
-    // We create Unstructured from zeroes here as we just need any
-    let buf = vec![0; UNSTRUCTURED_SIZE];
-    let mut unstructured = Unstructured::new(&buf);
-
-    let mut injection_amounts = SysCallsInjectionAmounts::all_never();
-    injection_amounts.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
+        PROGRAM_STORAGE_PREFIX
+    ));
 
     let gear_config = (
         GearWasmGeneratorConfigBuilder::new()
@@ -253,45 +340,47 @@ fn execute_wasm_with_syscall_injected(
                 initial_size: INITIAL_PAGES as u32,
                 ..MemoryPagesConfig::default()
             })
-            .with_sys_calls_config(
-                SysCallsConfigBuilder::new(injection_amounts)
-                    .with_params_config(params_config)
-                    .set_ignore_fallible_syscall_errors(ignore_fallible_errors)
-                    .build(),
-            )
+            .with_syscalls_config(syscalls_config)
             .with_entry_points_config(EntryPointsSet::Init)
             .build(),
         SelectableParams {
             call_indirect_enabled: false,
             allowed_instructions: vec![],
             max_instructions: 0,
-            min_funcs: 1,
-            max_funcs: 1,
+            min_funcs: NonZeroUsize::new(1).unwrap(),
+            max_funcs: NonZeroUsize::new(1).unwrap(),
+            unreachable_enabled: true,
         },
     );
 
     let code =
-        generate_gear_program_code(&mut unstructured, gear_config).expect("failed wasm generation");
+        generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
     let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
         .expect("Failed to create Code");
 
+    let code_id = CodeId::generate(code.original_code());
+    let program_id = ProgramId::generate_from_user(code_id, b"");
+
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
-        Default::default(),
-        ContextSettings::new(0, 0, 0, 0, 0, 0),
+        program_id,
+        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
     );
-    // Imitate that reply was already sent.
-    let _ = message_context.reply_commit(ReplyPacket::auto(), None);
+
+    if imitate_reply {
+        let _ = message_context.reply_commit(ReplyPacket::auto(), None);
+    }
 
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
         rent_cost: 10,
+        program_id,
         ..ProcessorContext::new_mock()
     };
 
     let ext = gear_core_processor::Ext::new(processor_context);
-    let env = SandboxEnvironment::new(
+    let env = Environment::new(
         ext,
         code.code(),
         DispatchKind::Init,
@@ -301,7 +390,15 @@ fn execute_wasm_with_syscall_injected(
     .expect("Failed to create environment");
 
     let report = env
-        .execute(|mem, _, _| -> Result<(), u32> {
+        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+            gear_core_processor::Ext::lazy_pages_init_for_program(
+                mem,
+                program_id,
+                Some(mem.size()),
+                globals_config,
+                Default::default(),
+            );
+
             if let Some(mem_write) = initial_memory_write {
                 return mem
                     .write(mem_write.offset, &mem_write.content)
@@ -332,10 +429,10 @@ proptest! {
             ..Default::default()
         };
 
-        let raw_code = generate_gear_program_code(&mut u, configs_bundle)
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
         assert!(code_res.is_ok());
     }
 

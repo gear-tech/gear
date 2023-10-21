@@ -4,6 +4,10 @@ version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 
+[[bin]]
+name = "run_corpus"
+path = "bin/run_corpus.rs"
+
 [dependencies]
 anyhow.workspace = true
 arbitrary.workspace = true
@@ -22,8 +26,9 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-gear-runtime = { workspace = true, features = ["std", "fuzz", "lazy-pages"] }
+vara-runtime = { workspace = true, features = ["std", "dev", "fuzz"] }
 pallet-gear.workspace = true
+pallet-gear-bank.workspace = true
 
 frame-support.workspace = true
 frame-system.workspace = true
@@ -35,6 +40,8 @@ pallet-balances.workspace = true
 sp-consensus-slots = { workspace = true }
 sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
+pallet-im-online.workspace = true
+sp-authority-discovery.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]

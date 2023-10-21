@@ -27,11 +27,11 @@ use sp_consensus_babe::{
     Slot, BABE_ENGINE_ID,
 };
 use sp_core::{ed25519, sr25519, Pair};
-use sp_keyring::{AccountKeyring, Sr25519Keyring};
-use sp_runtime::{traits::SignedExtension, Digest, DigestItem, MultiAddress};
+use sp_keyring::AccountKeyring;
+use sp_runtime::{Digest, DigestItem};
 
-const ENDOWMENT: u128 = 100 * UNITS;
-const STASH: u128 = 10 * UNITS;
+const ENDOWMENT: u128 = 100_000 * UNITS;
+const STASH: u128 = 1_000 * UNITS;
 
 pub(crate) fn initialize_block(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
@@ -57,6 +57,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
+    Treasury::on_initialize(new_block_number);
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
@@ -72,6 +73,7 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     Gear::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
+    Treasury::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
     Grandpa::on_finalize(current_blk);
@@ -176,10 +178,11 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
+        #[cfg(feature = "dev")]
         SudoConfig { key: self.root }
             .assimilate_storage(&mut storage)
             .unwrap();
-
+        GenesisBuild::<Runtime>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
         GenesisBuild::<Runtime>::assimilate_storage(
             &VestingConfig {
                 vesting: self.vested_accounts,
@@ -244,168 +247,21 @@ pub(crate) fn get_last_program_id() -> [u8; 32] {
     }
 }
 
-#[test]
-fn signed_extension_works() {
-    use sp_runtime::transaction_validity::{InvalidTransaction, TransactionSource};
-
-    init_logger();
-
-    let alice = AccountKeyring::Alice;
-    let bob = AccountKeyring::Bob;
-    let charlie = AccountKeyring::Charlie;
-    ExtBuilder::default()
-        .initial_authorities(vec![
-            (
-                alice.into(),
-                alice.into(),
-                alice.public(),
-                ed25519::Pair::from_string("//Alice", None)
-                    .unwrap()
-                    .public(),
-                alice.public(),
-                alice.public(),
-            ),
-            (
-                bob.into(),
-                bob.into(),
-                bob.public(),
-                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
-                bob.public(),
-                bob.public(),
-            ),
-        ])
-        .stash(STASH)
-        .endowment(ENDOWMENT)
-        .endowed_accounts(vec![charlie.into()])
-        .vested_accounts(vec![(charlie.into(), 100, 500, 10 * UNITS)])
-        .build()
-        .execute_with(|| {
-            let construct_extrinsic =
-                |function: RuntimeCall, caller: Sr25519Keyring| -> UncheckedExtrinsic {
-                    let extra: SignedExtra = (
-                        DisableValueTransfers {},
-                        StakingBlackList::<Runtime>::new(),
-                        frame_system::CheckNonZeroSender::<Runtime>::new(),
-                        frame_system::CheckSpecVersion::<Runtime>::new(),
-                        frame_system::CheckTxVersion::<Runtime>::new(),
-                        frame_system::CheckGenesis::<Runtime>::new(),
-                        frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(256, 0)),
-                        frame_system::CheckNonce::<Runtime>::from(0),
-                        frame_system::CheckWeight::<Runtime>::new(),
-                        CustomChargeTransactionPayment::<Runtime>::from(0),
-                    );
-                    UncheckedExtrinsic::new_signed(
-                        function.clone(),
-                        MultiAddress::Id(caller.public().into()),
-                        Signature::Sr25519(
-                            SignedPayload::from_raw(
-                                function,
-                                extra.clone(),
-                                extra.additional_signed().unwrap(),
-                            )
-                            .using_encoded(|e| caller.sign(e)),
-                        ),
-                        extra,
-                    )
-                };
-
-            // Balance transfer should be blocked by the signed extension
-            let invalid_call = construct_extrinsic(
-                RuntimeCall::Balances(pallet_balances::Call::transfer {
-                    dest: MultiAddress::Id(bob.into()),
-                    value: 10 * UNITS,
-                }),
-                alice,
-            );
-
-            // Wrapping `bond` call in a batch is also illegal
-            let invalid_batch = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch {
-                    calls: vec![RuntimeCall::Balances(pallet_balances::Call::transfer {
-                        dest: MultiAddress::Id(bob.into()),
-                        value: 10 * UNITS,
-                    })],
-                }),
-                alice,
-            );
-
-            let invalid_batch_all = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                    calls: vec![RuntimeCall::Balances(pallet_balances::Call::transfer {
-                        dest: MultiAddress::Id(bob.into()),
-                        value: 10 * UNITS,
-                    })],
-                }),
-                alice,
-            );
-
-            // Nested batches and/or other `Utility` calls shouldn't work, as well
-            let nested_batches = construct_extrinsic(
-                RuntimeCall::Utility(pallet_utility::Call::batch {
-                    calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                        calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
-                            index: 0,
-                            call: Box::new(RuntimeCall::Balances(
-                                pallet_balances::Call::transfer {
-                                    dest: MultiAddress::Id(bob.into()),
-                                    value: 10 * UNITS,
-                                },
-                            )),
-                        })],
-                    })],
-                }),
-                alice,
-            );
-
-            let valid_call =
-                construct_extrinsic(RuntimeCall::Vesting(pallet_vesting::Call::vest {}), charlie);
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_call,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_batch,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    invalid_batch_all,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    TransactionSource::External,
-                    nested_batches,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_ok!(Executive::validate_transaction(
-                TransactionSource::External,
-                valid_call,
-                Default::default(),
-            ));
-        });
+pub(crate) fn get_treasury_events() -> (Balance, Balance, Balance) {
+    System::events()
+        .into_iter()
+        .fold((0, 0, 0), |r, e| match e.event {
+            RuntimeEvent::Treasury(pallet_treasury::Event::Spending { budget_remaining }) => {
+                (budget_remaining, r.1, r.2)
+            }
+            RuntimeEvent::Treasury(pallet_treasury::Event::Burnt { burnt_funds }) => {
+                (r.0, burnt_funds, r.2)
+            }
+            RuntimeEvent::Treasury(pallet_treasury::Event::Rollover { rollover_balance }) => {
+                (r.0, r.1, rollover_balance)
+            }
+            _ => r,
+        })
 }
 
 #[test]
@@ -453,18 +309,18 @@ fn tokens_locking_works() {
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![charlie.into(), dave.into(), eve.into(), ferdie.into()])
         .vested_accounts(vec![
-            (dave.into(), 10, 100, 10 * UNITS), // 1 TOKEN unlocked per block
-            (eve.into(), 10, 100, 10 * UNITS),
-            (ferdie.into(), 10, 100, 10 * UNITS),
+            (dave.into(), 10, 100, 10_000 * UNITS), // 1 TOKEN unlocked per block
+            (eve.into(), 10, 100, 10_000 * UNITS),
+            (ferdie.into(), 10, 100, 10_000 * UNITS),
         ])
         .root(alice.into())
         .build()
         .execute_with(|| {
             let acc_data = System::account(dave.to_account_id()).data;
-            // Free balance of vested accounts is still 100 TOKENS
-            assert_eq!(acc_data.free, 100 * UNITS);
-            // Locked balance is 90 TOKENS
-            assert_eq!(acc_data.frozen, 90 * UNITS);
+            // Free balance of vested accounts is still 100_000 TOKENS
+            assert_eq!(acc_data.free, 100_000 * UNITS);
+            // Locked balance is 90_000 TOKENS
+            assert_eq!(acc_data.frozen, 90_000 * UNITS);
 
             // Locked  funds can't be reserved to pay for gas and/or value
             // Transaction should be invalidated when attempting to `reserve` currency:
@@ -477,7 +333,8 @@ fn tokens_locking_works() {
                     b"salt".to_vec(),
                     vec![],
                     10_000_000_000,
-                    10 * UNITS,
+                    10_000 * UNITS,
+                    false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
@@ -485,7 +342,7 @@ fn tokens_locking_works() {
             // TODO: delete lines below (issue #3081).
             core::mem::drop(Balances::deposit_creating(
                 &alice.to_account_id(),
-                10 * UNITS,
+                10_000 * UNITS,
             ));
 
             // Locked funds can't be transferred to a program as a message `value`
@@ -496,6 +353,7 @@ fn tokens_locking_works() {
                 vec![],
                 10_000_000_000,
                 0,
+                false,
             ));
             let program_id = get_last_program_id();
 
@@ -509,10 +367,250 @@ fn tokens_locking_works() {
                     program_id.into(),
                     vec![],
                     10_000_000_000,
-                    11 * UNITS,
+                    11_000 * UNITS,
                     false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
+        });
+}
+
+#[test]
+fn treasury_surplus_is_not_burned() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+
+    let treasury_id = Treasury::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            // Treasury pot is empty in the beginning
+            assert_eq!(Treasury::pot(), 0);
+
+            let initial_total_issuance = Balances::total_issuance();
+
+            // Top up treasury balance
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(treasury_id.clone()),
+                1_000 * UNITS,
+            ));
+            assert_eq!(Treasury::pot(), 1_000 * UNITS);
+
+            System::reset_events();
+
+            // Run chain for a day so that `Treasury::spend_funds()` is triggered
+            run_to_block(DAYS);
+
+            // Check that the `Treasury::spend_funds()` has, indeed, taken place
+            let (budget_remaining, burnt_funds, rollover_balance) = get_treasury_events();
+            // Treasury remaining budget value upon entry in `spend_funds()` function
+            assert_eq!(budget_remaining, 1_000 * UNITS);
+            // Actually burnt funds
+            assert_eq!(burnt_funds, 0);
+            // Remaining balance being rolled over to the next period
+            assert_eq!(rollover_balance, 1_000 * UNITS);
+
+            // Treasury had a surplus, but none of it was burned
+            assert_eq!(Treasury::pot(), 1_000 * UNITS);
+
+            // The total issuance persisted
+            assert_eq!(Balances::total_issuance(), initial_total_issuance);
+
+            // Run chain until another `Treasury::spend_funds()` invocation
+            run_to_block(2 * DAYS);
+
+            // Treasury still has a surplus, but nothing is burned
+            assert_eq!(Treasury::pot(), 1_000 * UNITS);
+
+            assert_eq!(Balances::total_issuance(), initial_total_issuance);
+        });
+}
+
+#[test]
+fn dust_ends_up_in_offset_pool() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+    let ferdie = AccountKeyring::Ferdie;
+
+    let offset_pool_id = StakingRewards::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into(), offset_pool_id.clone()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let initial_pool_balance = Balances::free_balance(&offset_pool_id);
+            assert_eq!(initial_pool_balance, ENDOWMENT);
+
+            let initial_total_issuance = Balances::total_issuance();
+
+            // Sending ED to `ferdie` to create the account in storage
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT,
+            ));
+            // `ferdie`'s balance is now ED
+            assert_eq!(
+                Balances::free_balance(ferdie.to_account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
+
+            // Sending ED / 2 out of `ferdie` creates dust
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(ferdie.to_account_id()),
+                sp_runtime::MultiAddress::Id(dave.to_account_id()),
+                EXISTENTIAL_DEPOSIT / 2,
+            ));
+            // `ferdie`'s balance is now 0
+            assert_eq!(Balances::free_balance(ferdie.to_account_id()), 0);
+            // Dust has been accumulated in the offset pool account
+            assert_eq!(
+                Balances::free_balance(&offset_pool_id),
+                initial_pool_balance + EXISTENTIAL_DEPOSIT / 2
+            );
+            // The `total_issuance` has persisted
+            assert_eq!(Balances::total_issuance(), initial_total_issuance);
+        });
+}
+
+#[test]
+fn slashed_proposals_back_to_treasury() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let bob = AccountKeyring::Bob;
+    let charlie = AccountKeyring::Charlie;
+    let dave = AccountKeyring::Dave;
+    let ferdie = AccountKeyring::Ferdie;
+
+    let treasury_id = Treasury::account_id();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (
+                alice.into(),
+                charlie.into(),
+                alice.public(),
+                ed25519::Pair::from_string("//Alice", None)
+                    .unwrap()
+                    .public(),
+                alice.public(),
+                alice.public(),
+            ),
+            (
+                bob.into(),
+                dave.into(),
+                bob.public(),
+                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
+                bob.public(),
+                bob.public(),
+            ),
+        ])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![charlie.into(), dave.into()])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            // Treasury pot is empty in the beginning
+            assert_eq!(Treasury::pot(), 0);
+
+            let initial_total_issuance = Balances::total_issuance();
+
+            // Top up treasury balance
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(charlie.to_account_id()),
+                sp_runtime::MultiAddress::Id(treasury_id.clone()),
+                1_000 * UNITS,
+            ));
+            assert_eq!(Treasury::pot(), 1_000 * UNITS);
+
+            assert_ok!(Treasury::propose_spend(
+                RuntimeOrigin::signed(dave.to_account_id()),
+                1_000 * UNITS,
+                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
+            ));
+            let proposal_bond =
+                <Runtime as pallet_treasury::Config>::ProposalBond::get() * UNITS * 1_000;
+            let dave_acc_data = System::account(dave.to_account_id()).data;
+            // Proposer's free balance has decreased by the `proposal_bond`
+            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
+            // The reserved balance is 5% of the proposed amount
+            assert_eq!(dave_acc_data.reserved, proposal_bond);
+
+            assert_ok!(Treasury::reject_proposal(RuntimeOrigin::root(), 0));
+
+            // Run chain for a day so that `Treasury::spend_funds()` is triggered
+            run_to_block(DAYS);
+
+            // The `proposal_bond` has been slashed
+            let dave_acc_data = System::account(dave.to_account_id()).data;
+            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
+            // Nothing is reserved now
+            assert_eq!(dave_acc_data.reserved, 0);
+
+            // Treasury funds haven't been spent, no burning has taken place,
+            // the slashed deposit has landed in the `Treasury`, as well
+            assert_eq!(Treasury::pot(), 1_000 * UNITS + proposal_bond);
+
+            // The total issuance has, therefore, persisted
+            assert_eq!(Balances::total_issuance(), initial_total_issuance);
         });
 }

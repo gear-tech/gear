@@ -165,8 +165,9 @@ macro_rules! impl_runtime_apis_plus_common {
 					value: u128,
 					allow_other_panics: bool,
 					initial_gas: Option<u64>,
+					gas_allowance: Option<u64>,
 				) -> Result<pallet_gear::GasInfo, Vec<u8>> {
-					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
+					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas, gas_allowance)
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
@@ -175,8 +176,8 @@ macro_rules! impl_runtime_apis_plus_common {
 					).into()
 				}
 
-				fn read_state(program_id: H256, payload: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state(program_id, payload)
+				fn read_state(program_id: H256, payload: Vec<u8>, gas_allowance: Option<u64>,) -> Result<Vec<u8>, Vec<u8>> {
+					Gear::read_state(program_id, payload, gas_allowance)
 				}
 
 				fn read_state_using_wasm(
@@ -185,12 +186,13 @@ macro_rules! impl_runtime_apis_plus_common {
 					fn_name: Vec<u8>,
 					wasm: Vec<u8>,
 					argument: Option<Vec<u8>>,
+					gas_allowance: Option<u64>,
 				) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state_using_wasm(program_id, payload, fn_name, wasm, argument)
+					Gear::read_state_using_wasm(program_id, payload, fn_name, wasm, argument, gas_allowance)
 				}
 
-				fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
-					Gear::read_metahash(program_id)
+				fn read_metahash(program_id: H256, gas_allowance: Option<u64>,) -> Result<H256, Vec<u8>> {
+					Gear::read_metahash(program_id, gas_allowance)
 				}
 			}
 

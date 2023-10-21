@@ -3,6 +3,9 @@ name = "gear-cli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -30,8 +33,7 @@ pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
 # Gear Runtimes
-gear-runtime = { workspace = true, optional = true, features = ["std"] }
-vara-runtime = { workspace = true, optional = true, features = ["std"] }
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate client
 sc-cli.workspace = true
@@ -60,35 +62,24 @@ gcli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
-gear-native = [
-	"service/gear-native",
-	"gear-runtime",
-]
+default = ["vara-native"]
 vara-native = [
-	"service/vara-native",
 	"vara-runtime",
+	"service/vara-native",
 	"pallet-gear-staking-rewards",
 ]
-lazy-pages = [
-	"service/lazy-pages",
-	"vara-runtime?/lazy-pages",
-	"gear-runtime?/lazy-pages",
-]
 runtime-benchmarks = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks-checkers",
 ]
-debug-mode = [
-	"service/debug-mode",
-	"gear-runtime?/debug-mode",
-	"vara-runtime?/debug-mode",
-]
 try-runtime = [
+	"vara-runtime?/try-runtime",
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
 ]

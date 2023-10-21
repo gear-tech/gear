@@ -103,11 +103,27 @@ parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
 }
 
+impl crate::PrepaidCallsDispatcher for () {
+    type AccountId = AccountId;
+    type Balance = Balance;
+
+    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> frame_support::weights::Weight {
+        unimplemented!();
+    }
+    fn dispatch(
+        _account_id: Self::AccountId,
+        _call: pallet_gear_voucher::PrepaidCall<Balance>,
+    ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
+        unimplemented!()
+    }
+}
+
 impl pallet_gear_voucher::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = ();
 }
 
 // Build genesis storage according to the mock runtime.

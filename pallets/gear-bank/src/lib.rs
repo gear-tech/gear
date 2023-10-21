@@ -33,14 +33,15 @@ use frame_support::traits::{Currency, StorageVersion};
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
+pub(crate) type GasMultiplier<T> = common::GasMultiplier<BalanceOf<T>, u64>;
+pub(crate) type GasMultiplierOf<T> = <T as Config>::GasMultiplier;
 
 /// The current storage version.
-pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::GasPrice;
     use core::ops::Add;
     use frame_support::{
         ensure,
@@ -68,6 +69,10 @@ pub mod pallet {
         #[pallet::constant]
         /// Bank account address, that will keep all reserved funds.
         type BankAddress: Get<AccountIdOf<Self>>;
+
+        #[pallet::constant]
+        /// Gas price converter.
+        type GasMultiplier: Get<GasMultiplier<Self>>;
     }
 
     // Funds pallets error.
@@ -152,7 +157,11 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
-        fn deposit(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
+        fn deposit(
+            account_id: &AccountIdOf<T>,
+            value: BalanceOf<T>,
+            keep_alive: bool,
+        ) -> Result<(), Error<T>> {
             let bank_address = T::BankAddress::get();
 
             ensure!(
@@ -161,14 +170,15 @@ pub mod pallet {
                 Error::InsufficientDeposit
             );
 
+            let existence_requirement = if keep_alive {
+                ExistenceRequirement::KeepAlive
+            } else {
+                ExistenceRequirement::AllowDeath
+            };
+
             // Check on zero value is inside `pallet_balances` implementation.
-            CurrencyOf::<T>::transfer(
-                account_id,
-                &bank_address,
-                value,
-                ExistenceRequirement::AllowDeath,
-            )
-            .map_err(|_| Error::<T>::InsufficientBalance)
+            CurrencyOf::<T>::transfer(account_id, &bank_address, value, existence_requirement)
+                .map_err(|_| Error::<T>::InsufficientBalance)
         }
 
         /// Ensures that bank account is able to transfer requested value.
@@ -228,17 +238,18 @@ pub mod pallet {
             Self::withdraw(&block_author, value)
         }
 
-        pub fn deposit_gas<P: GasPrice<Balance = BalanceOf<T>>>(
+        pub fn deposit_gas(
             account_id: &AccountIdOf<T>,
             amount: u64,
+            keep_alive: bool,
         ) -> Result<(), Error<T>> {
             if amount.is_zero() {
                 return Ok(());
             }
 
-            let value = P::gas_price(amount);
+            let value = GasMultiplierOf::<T>::get().gas_to_value(amount);
 
-            Self::deposit(account_id, value)?;
+            Self::deposit(account_id, value, keep_alive)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);
@@ -252,11 +263,12 @@ pub mod pallet {
             Ok(())
         }
 
-        fn withdraw_gas_no_transfer<P: GasPrice<Balance = BalanceOf<T>>>(
+        fn withdraw_gas_no_transfer(
             account_id: &AccountIdOf<T>,
             amount: u64,
+            multiplier: GasMultiplier<T>,
         ) -> Result<BalanceOf<T>, Error<T>> {
-            let value = P::gas_price(amount);
+            let value = multiplier.gas_to_value(amount);
 
             let gas_balance = Self::account_gas(account_id);
 
@@ -281,15 +293,16 @@ pub mod pallet {
             Ok(value)
         }
 
-        pub fn withdraw_gas<P: GasPrice<Balance = BalanceOf<T>>>(
+        pub fn withdraw_gas(
             account_id: &AccountIdOf<T>,
             amount: u64,
+            multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
             if amount.is_zero() {
                 return Ok(());
             }
 
-            let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
+            let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
             // All the checks and internal values withdrawals performed in
             // `*_no_transfer` function above.
@@ -300,15 +313,16 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn spend_gas<P: GasPrice<Balance = BalanceOf<T>>>(
+        pub fn spend_gas(
             account_id: &AccountIdOf<T>,
             amount: u64,
+            multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
             if amount.is_zero() {
                 return Ok(());
             }
 
-            let value = Self::withdraw_gas_no_transfer::<P>(account_id, amount)?;
+            let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
             // All the checks and internal values withdrawals performed in
             // `*_no_transfer` function above.
@@ -322,12 +336,13 @@ pub mod pallet {
         pub fn deposit_value(
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> Result<(), Error<T>> {
             if value.is_zero() {
                 return Ok(());
             }
 
-            Self::deposit(account_id, value)?;
+            Self::deposit(account_id, value, keep_alive)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);

@@ -21,6 +21,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use wasmer::{Exportable, RuntimeError};
+use wasmer_types::TrapCode;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
@@ -116,7 +117,17 @@ pub fn invoke(
     let wasmer_result = SandboxContextStore::using(sandbox_context, || {
         function
             .call(&args)
-            .map_err(|error| Error::Sandbox(error.to_string()))
+            .map_err(|error| {
+                if error.clone().to_trap() == Some(TrapCode::StackOverflow) {
+                    // Panic stops process queue execution in that case.
+                    // This allows to avoid error lead to consensus failures, that must be handled
+                    // in node binaries forever. If this panic occur, then we must increase stack memory size,
+                    // or tune stack limit injection.
+                    // see also https://github.com/wasmerio/wasmer/issues/4181
+                    unreachable!("Suppose that this can not happen, because we have a stack limit instrumentation in programs");
+                }
+                Error::Sandbox(error.to_string())
+            })
     })?;
 
     match wasmer_result.as_ref() {
@@ -204,9 +215,7 @@ pub fn instantiate(
             wasmer::ExternType::Global(_) | wasmer::ExternType::Table(_) => (),
 
             wasmer::ExternType::Memory(_) => {
-                let exports = exports_map
-                    .entry(import.module().to_string())
-                    .or_insert_with(wasmer::Exports::new);
+                let exports = exports_map.entry(import.module().to_string()).or_default();
 
                 let memory = guest_env
                     .imports
@@ -263,9 +272,7 @@ pub fn instantiate(
                     }
                 };
 
-                let exports = exports_map
-                    .entry(import.module().to_string())
-                    .or_insert_with(wasmer::Exports::new);
+                let exports = exports_map.entry(import.module().to_string()).or_default();
 
                 exports.insert(import.name(), wasmer::Extern::Function(function));
             }

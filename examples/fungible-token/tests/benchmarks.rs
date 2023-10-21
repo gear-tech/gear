@@ -40,7 +40,7 @@ async fn send_messages_in_parallel(
     api: &GearApi,
     batch_size: usize,
     treads_number: usize,
-    messages: &[(ProgramId, Vec<u8>, u64, u128, bool)],
+    messages: &[(ProgramId, Vec<u8>, u64, u128)],
 ) -> Result<Vec<MessageId>> {
     // TODO: currently have problem with transaction priorities from one user.
     // Fix this after loader become a lib #2781
@@ -190,9 +190,9 @@ async fn stress_test() -> Result<()> {
     }
 
     // Converting batch
-    let batch: Vec<(_, Vec<u8>, u64, _, _)> = batch
+    let batch: Vec<(_, Vec<u8>, u64, _)> = batch
         .iter()
-        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0, false))
+        .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0))
         .collect();
 
     // Sending batch
@@ -208,15 +208,15 @@ async fn stress_test() -> Result<()> {
 async fn stress_transfer() -> Result<()> {
     let mut rng = StdRng::seed_from_u64(42);
 
-    let api = GearApi::dev_from_path(GEAR_PATH).await?;
+    let api = GearApi::dev_from_path(GEAR_PATH).await.unwrap();
     // Use this code in comment for custom node run:
     // let api = GearApi::dev().await?.with("//Alice")?;
 
     // Subscribing for events.
-    let mut listener = api.subscribe().await?;
+    let mut listener = api.subscribe().await.unwrap();
 
     // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    assert!(listener.blocks_running().await.unwrap());
 
     // Uploading program.
     let init_msg = InitConfig {
@@ -230,9 +230,14 @@ async fn stress_transfer() -> Result<()> {
     let salt: u8 = rng.gen();
     let (message_id, program_id, _hash) = api
         .upload_program_bytes(WASM_BINARY.to_vec(), [salt], init_msg, MAX_GAS_LIMIT, 0)
-        .await?;
+        .await
+        .unwrap();
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+    assert!(listener
+        .message_processed(message_id)
+        .await
+        .unwrap()
+        .succeed());
 
     // Fill program with test users balances
     let mut actions: Vec<FTAction> = vec![];
@@ -251,17 +256,20 @@ async fn stress_transfer() -> Result<()> {
         ));
     }
 
-    let messages: Vec<(_, Vec<u8>, u64, _, _)> = actions
+    let messages: Vec<(_, Vec<u8>, u64, _)> = actions
         .into_iter()
-        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0, false))
+        .map(|action| (program_id, action.encode(), MAX_GAS_LIMIT, 0))
         .collect();
 
-    let message_ids = send_messages_in_parallel(&api, BATCH_CHUNK_SIZE, 1, &messages).await?;
+    let message_ids = send_messages_in_parallel(&api, BATCH_CHUNK_SIZE, 1, &messages)
+        .await
+        .unwrap();
 
     // Wait until messages are not processed
     if let Some((msg_id, status)) = listener
         .message_processed_batch(message_ids)
-        .await?
+        .await
+        .unwrap()
         .into_iter()
         .find(|(_, status)| !status.succeed())
     {

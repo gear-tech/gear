@@ -6,7 +6,10 @@ use gear_call_gen::Seed;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
-use gear_wasm_gen::{EntryPointsSet, StandardGearWasmConfigsBundle};
+use gear_wasm_gen::{
+    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
+    SysCallsInjectionTypes, SysCallsParamsConfig,
+};
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
@@ -209,10 +212,34 @@ pub fn get_wasm_gen_config(
     seed: Seed,
     existing_programs: impl Iterator<Item = ProgramId>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
+    let initial_pages = 2;
+    let mut injection_types = SysCallsInjectionTypes::all_once();
+    injection_types.set_multiple(
+        [
+            (SysCallName::Leave, 0..=0),
+            (SysCallName::Panic, 0..=0),
+            (SysCallName::OomPanic, 0..=0),
+            (SysCallName::Send, 10..=15),
+            (SysCallName::Exit, 0..=1),
+            (SysCallName::Alloc, 3..=6),
+            (SysCallName::Free, 3..=6),
+        ]
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
+        .into_iter(),
+    );
+
+    let mut params_config = SysCallsParamsConfig::default();
+    params_config.add_rule(ParamType::Alloc, (1..=10).into());
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 50).into());
+
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),
         existing_addresses: NonEmpty::collect(existing_programs),
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
+        injection_types,
+        params_config,
+        initial_pages: initial_pages as u32,
+        unreachable_enabled: false,
         ..Default::default()
     }
 }

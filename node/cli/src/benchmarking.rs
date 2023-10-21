@@ -66,41 +66,6 @@ macro_rules! with_signed_payload {
         }
     } => {
         match $self.$client.as_ref() {
-            #[cfg(feature = "gear-native")]
-            Client::Gear($client) => {
-                use gear_runtime as runtime;
-
-                $( $setup )*
-                let $extra: runtime::SignedExtra = (
-                    frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-                    frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckGenesis::<runtime::Runtime>::new(),
-                    frame_system::CheckMortality::<runtime::Runtime>::from(
-                        sp_runtime::generic::Era::mortal($period, $current_block),
-                    ),
-                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-                    frame_system::CheckWeight::<runtime::Runtime>::new(),
-                    pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
-                );
-
-                let $raw_payload = runtime::SignedPayload::from_raw(
-                    $call.clone(),
-                    $extra.clone(),
-                    (
-                        (),
-                        runtime::VERSION.spec_version,
-                        runtime::VERSION.transaction_version,
-                        $genesis,
-                        $best_hash,
-                        (),
-                        (),
-                        (),
-                    ),
-                );
-
-                $( $usage )*
-            },
             #[cfg(feature = "vara-native")]
             Client::Vara($client) => {
                 use vara_runtime as runtime;
@@ -108,7 +73,6 @@ macro_rules! with_signed_payload {
                 $( $setup )*
 
                 let $extra: runtime::SignedExtra = (
-                    runtime::DisableValueTransfers,
                     pallet_gear_staking_rewards::StakingBlackList::<runtime::Runtime>::new(),
                     frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
                     frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
@@ -126,7 +90,6 @@ macro_rules! with_signed_payload {
                     $call.clone(),
                     $extra.clone(),
                     (
-                        (),
                         (),
                         (),
                         runtime::VERSION.spec_version,

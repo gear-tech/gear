@@ -27,36 +27,37 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
-use gear_backend_common::{
-    BackendExternalities, BackendSyscallError, Environment, SystemReservationContext,
-};
+use alloc::{string::ToString, vec::Vec};
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
-    memory::PageBuf,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
-    pages::GearPage,
     reservation::GasReservationState,
+};
+use gear_core_backend::{
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
+    BackendExternalities,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<E>(
+pub fn process<Ext>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
-    E: Environment,
-    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
-    <E::Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+    Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
+        performance_multiplier,
         max_pages,
         page_costs,
         existential_deposit,
@@ -75,6 +76,7 @@ where
 
     let execution_settings = ExecutionSettings {
         block_info,
+        performance_multiplier,
         existential_deposit,
         max_pages,
         page_costs,
@@ -97,7 +99,6 @@ where
         gas_allowance_counter: execution_context.gas_allowance_counter,
         gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
-        pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
 
@@ -121,7 +122,7 @@ where
         outgoing_limit,
     );
 
-    let exec_result = executor::execute_wasm::<E>(
+    let exec_result = executor::execute_wasm::<Ext>(
         balance,
         dispatch.clone(),
         execution_context,

@@ -36,7 +36,7 @@ jobs:
       SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -71,17 +71,11 @@ jobs:
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked --release
 
-      - name: "Check: Gear runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
-
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: ./scripts/gear.sh test pallet --features lazy-pages --release --locked
-
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
@@ -99,6 +93,8 @@ jobs:
           cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
           # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          # check that read_big_state benchmarks works
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check that check/test benchmarks works
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check also lazy-pages benchmarks tests for native runtime
@@ -114,7 +110,7 @@ jobs:
       - name: "Test: Try runtime migrations"
         run: |
           cargo build -p gear-cli --features try-runtime --release --locked
-          ./target/release/gear try-runtime --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-private-testnet.gear-tech.io:443
+          ./target/release/gear try-runtime --runtime ./target/release/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://52.32.138.151:9944
         env:
           RUST_LOG: info
 
@@ -165,9 +161,6 @@ jobs:
           cd target/wasm32-unknown-unknown/release
           tar czvf ../../../artifact/examples.tar.gz *.wasm
           cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
@@ -194,7 +187,7 @@ jobs:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -250,7 +243,6 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --features=lazy-pages
           --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc

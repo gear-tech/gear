@@ -18,8 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{msg, prelude::*, ActorId};
-
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -27,18 +25,9 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::errors::{Error, ExtError, MessageError};
 
-#[no_mangle]
-extern "C" fn init() {
-    let res = msg::send(ActorId::default(), "dummy", 250);
-    assert_eq!(
-        res,
-        Err(Error::Core(
-            ExtError::Message(MessageError::InsufficientValue).into()
-        ))
-    );
-}
+#[cfg(not(feature = "std"))]
+mod wasm;
 
 #[cfg(test)]
 mod tests {

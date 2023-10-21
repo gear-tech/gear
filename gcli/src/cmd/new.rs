@@ -24,7 +24,7 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 pub struct New {
     /// Create gear program from templates.
-    #[arg(short, long, default_value = "app")]
+    #[arg(short, long, default_value = "dapp-template")]
     pub template: String,
 
     /// Create gear program in specified path.

@@ -9,8 +9,7 @@ license.workspace = true
 # Internal
 gear-runtime-interface.workspace = true
 runtime-primitives.workspace = true
-gear-runtime = { workspace = true, optional = true }
-vara-runtime = { workspace = true, optional = true }
+vara-runtime = { workspace = true, optional = true, features = ["dev"] }
 service = { workspace = true, optional = true }
 
 # Substrate Primitives
@@ -55,20 +54,14 @@ std = [
     "sc-executor/std",
     "frame-system/std",
     "gear-runtime-interface/std",
-    "gear-runtime?/std",
     "vara-runtime?/std",
 ]
 always-wasm = []
 vara-native = [
-    "service/vara-native",
     "vara-runtime",
-]
-gear-native = [
-    "service/gear-native",
-    "gear-runtime",
+    "service/vara-native",
 ]
 try-runtime = [
-    "service/try-runtime",
-    "gear-runtime?/try-runtime",
     "vara-runtime?/try-runtime",
+    "service/try-runtime",
 ]

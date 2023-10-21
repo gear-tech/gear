@@ -90,7 +90,7 @@ impl From<&'static str> for Arg<bool> {
     }
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::*;
 

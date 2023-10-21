@@ -37,8 +37,13 @@ impl Default for System {
 }
 
 impl System {
+    pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
+
     /// Create a new system.
     pub fn new() -> Self {
+        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
+            Self::PAGE_STORAGE_PREFIX
+        ));
         Default::default()
     }
 
@@ -158,11 +163,7 @@ impl System {
         if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.0
-            .borrow_mut()
-            .mailbox
-            .entry(program_id)
-            .or_insert_with(Vec::default);
+        self.0.borrow_mut().mailbox.entry(program_id).or_default();
         Mailbox::new(program_id, &self.0)
     }
 

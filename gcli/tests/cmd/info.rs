@@ -23,23 +23,6 @@ use crate::common::{
     Args, Result,
 };
 
-#[cfg(not(feature = "vara-testing"))]
-const EXPECTED_BALANCE: &str = r#"
-AccountInfo {
-    nonce: 0,
-    consumers: 1,
-    providers: 1,
-    sufficients: 0,
-    data: AccountData {
-        free: 1152921504606846976,
-        reserved: 0,
-        misc_frozen: 0,
-        fee_frozen: 0,
-    },
-}
-"#;
-
-#[cfg(feature = "vara-testing")]
 const EXPECTED_BALANCE: &str = r#"
 AccountInfo {
     nonce: 0,
@@ -55,18 +38,10 @@ AccountInfo {
 }
 "#;
 
-#[cfg(feature = "vara-testing")]
 const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
     value: 0,
-"#;
-
-#[cfg(not(feature = "vara-testing"))]
-const EXPECTED_MAILBOX: &str = r#"
-    destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
-    payload: "0x",
-    value: 5000,
 "#;
 
 #[tokio::test]
