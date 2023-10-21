@@ -187,6 +187,7 @@ impl CallBuilder {
                 init_payload: Scheme::direct(Calls::builder().noop()).encode(),
                 gas_limit: DEFAULT_GAS_LIMIT,
                 value: 0,
+                keep_alive: false,
             }),
             TestCall::InitLoop(count) => RuntimeCall::Gear(pallet_gear::Call::upload_program {
                 code: WASM_BINARY.to_vec(),
@@ -194,6 +195,7 @@ impl CallBuilder {
                 init_payload: Scheme::direct(Calls::builder().write_in_loop(count)).encode(),
                 gas_limit: DEFAULT_GAS_LIMIT,
                 value: 0,
+                keep_alive: false,
             }),
             TestCall::ToggleRunQueue(value) => RuntimeCall::Sudo(pallet_sudo::Call::sudo {
                 call: Box::new(RuntimeCall::Gear(pallet_gear::Call::set_execute_inherent {
