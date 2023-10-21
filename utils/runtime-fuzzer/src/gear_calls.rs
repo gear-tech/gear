@@ -442,7 +442,6 @@ fn config(
         existing_addresses,
         log_info,
         params_config,
-        unreachable_enabled: false,
         initial_pages: initial_pages as u32,
         ..Default::default()
     }
