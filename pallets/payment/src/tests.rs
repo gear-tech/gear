@@ -218,6 +218,7 @@ fn mq_size_affecting_fee_works() {
                 payload: Default::default(),
                 gas_limit: 100_000,
                 value: 0,
+                keep_alive: false,
             });
 
         let len = 100usize;
@@ -398,6 +399,7 @@ fn query_info_and_fee_details_work() {
         payload: Default::default(),
         gas_limit: 100_000,
         value: 0,
+        keep_alive: false,
     });
     let call_not_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::claim_value {
         message_id: 1.into(),
@@ -575,6 +577,7 @@ fn fee_payer_replacement_works() {
                     payload: Default::default(),
                     gas_limit: 100_000,
                     value: 0,
+                    keep_alive: false,
                 },
             });
 
@@ -665,6 +668,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
                     payload: vec![],
                     gas_limit,
                     value: 0,
+                    keep_alive: false,
                 },
             });
 
