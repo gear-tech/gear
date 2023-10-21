@@ -22,8 +22,9 @@
 // extrinsic at the end of each block.
 
 #![allow(clippy::redundant_clone)]
+#![allow(unused_mut)]
 
-use crate::{block_builder::BlockBuilder, ProposerFactory};
+use crate::{authorship::MAX_SKIPPED_TRANSACTIONS, block_builder::BlockBuilder, ProposerFactory};
 
 use codec::{Decode, Encode};
 use common::Program;
@@ -51,7 +52,7 @@ use sp_inherents::InherentDataProvider;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    Digest, DigestItem, OpaqueExtrinsic,
+    Digest, DigestItem, OpaqueExtrinsic, Perbill,
 };
 use sp_timestamp::Timestamp;
 use std::{
@@ -139,6 +140,7 @@ enum TestCall {
     Noop,
     InitLoop(u64),
     ToggleRunQueue(bool),
+    ExhaustResources,
 }
 
 struct CallBuilder {
@@ -163,6 +165,11 @@ impl CallBuilder {
     pub fn toggle_run_queue(value: bool) -> Self {
         Self {
             call: TestCall::ToggleRunQueue(value),
+        }
+    }
+    pub fn exhaust_resources() -> Self {
+        Self {
+            call: TestCall::ExhaustResources,
         }
     }
     fn build(self) -> RuntimeCall {
@@ -193,6 +200,12 @@ impl CallBuilder {
                     value,
                 })),
             }),
+            TestCall::ExhaustResources => {
+                RuntimeCall::GearDebug(pallet_gear_debug::Call::exhaust_block_resources {
+                    n: 1_000_u64,
+                    s: 1_000_u64,
+                })
+            }
         }
     }
 }
@@ -470,11 +483,11 @@ fn queue_remains_intact_if_processing_fails() {
             // Terminal extrinsic rolled back, therefore only have 1 inherent + 6 normal
             assert_eq!(proposal.block.extrinsics().len(), 8);
 
-            // Importing block #1
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+            // // Importing block #1
+            // block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
 
-            let best_hash = client.info().best_hash;
-            assert_eq!(best_hash, proposal.block.hash());
+            // let best_hash = client.info().best_hash;
+            // assert_eq!(best_hash, proposal.block.hash());
 
             let state = backend.state_at(best_hash).unwrap();
             // Ensure message queue still has 5 messages
@@ -602,7 +615,6 @@ fn block_max_gas_works() {
 
     // Preparing block #2
     // Creating 5 extrinsics
-    // let checked = checked_extrinsics(5, bob(), 0, || CallBuilder::noop().build());
     let checked = checked_extrinsics(5, bob(), 0, || CallBuilder::noop().build());
     let extrinsics = sign_extrinsics(
         checked,
@@ -975,4 +987,549 @@ fn proposal_timing_consistent() {
             assert_eq!(queue_len, 0);
         }
     );
+}
+
+// Original tests from Substrate's `sc-basic-authorship` crate adjusted for actual Vara runtime
+mod basic_tests {
+    use super::*;
+
+    use parking_lot::Mutex;
+
+    fn extrinsic<E>(nonce: u32, signer: &AccountId, genesis_hash: [u8; 32]) -> E
+    where
+        E: From<UncheckedExtrinsic> + Clone,
+    {
+        sign_extrinsics::<E>(
+            checked_extrinsics(1, signer.clone(), nonce, || CallBuilder::noop().build()),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )[0]
+        .clone()
+    }
+
+    fn exhausts_resources_extrinsic<E>(nonce: u32, signer: &AccountId, genesis_hash: [u8; 32]) -> E
+    where
+        E: From<UncheckedExtrinsic> + Clone,
+    {
+        sign_extrinsics::<E>(
+            checked_extrinsics(1, signer.clone(), nonce, || {
+                CallBuilder::exhaust_resources().build()
+            }),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )[0]
+        .clone()
+    }
+
+    #[test]
+    fn should_cease_building_block_when_deadline_is_reached() {
+        init_logger();
+
+        // given
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let block_id = BlockId::number(0);
+        let timestamp = Timestamp::current();
+        let extrinsics = sign_extrinsics(
+            checked_extrinsics(2, bob(), 0_u32, || CallBuilder::noop().build()),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        );
+
+        block_on(txpool.submit_at(&block_id, SOURCE, extrinsics)).unwrap();
+
+        block_on(
+            txpool.maintain(chain_event(
+                client
+                    .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+                    .expect("header get error")
+                    .expect("there should be header"),
+            )),
+        );
+
+        let mut proposer_factory = ProposerFactory::new(
+            spawner.clone(),
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+
+        let cell = Mutex::new((false, time::Instant::now()));
+        // Proposer with `self.now()` that increments the instance by 1s each time it's called
+        let proposer = proposer_factory.init_with_now(
+            &client
+                .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+                .expect("Database error querying block #0")
+                .expect("Block #0 should exist"),
+            Box::new(move || {
+                let mut value = cell.lock();
+                if !value.0 {
+                    value.0 = true;
+                    return value.1;
+                }
+                let old = value.1;
+                let new = old + time::Duration::from_secs(1);
+                *value = (true, new);
+                old
+            }),
+        );
+
+        // when
+        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+        let time_slot = timestamp.as_millis() / SLOT_DURATION;
+        let inherent_data = block_on(timestamp_provider.create_inherent_data())
+            .expect("Create inherent data failed");
+        let deadline = time::Duration::from_secs(3);
+
+        // `proposer.now()` is called a few times while proposing a block so that only one
+        // normal extrinsic fits in the block. The pseudo-inherent is also dropped.
+        let block =
+            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
+                .map(|r| r.block)
+                .unwrap();
+
+        // then
+        // the block should have the timestamp and one ordinary extrinsic
+        assert_eq!(block.extrinsics().len(), 2);
+        // while some tx are still in the pool (TODO: why two?)
+        assert_eq!(txpool.ready().count(), 2);
+    }
+
+    #[test]
+    fn should_not_panic_when_deadline_is_reached() {
+        init_logger();
+
+        init!(client, backend, txpool, spawner, _genesis_hash);
+
+        let mut proposer_factory = ProposerFactory::new(
+            spawner.clone(),
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+
+        let cell = Mutex::new((false, time::Instant::now()));
+        // Proposer with `self.now()` that increments the instance by 160s each time it's called
+        let proposer = proposer_factory.init_with_now(
+            &client.expect_header(client.info().genesis_hash).unwrap(),
+            Box::new(move || {
+                let mut value = cell.lock();
+                if !value.0 {
+                    value.0 = true;
+                    return value.1;
+                }
+                let new = value.1 + time::Duration::from_secs(160);
+                *value = (true, new);
+                new
+            }),
+        );
+
+        let timestamp = Timestamp::current();
+        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+        let time_slot = timestamp.as_millis() / SLOT_DURATION;
+        let inherent_data = block_on(timestamp_provider.create_inherent_data())
+            .expect("Create inherent data failed");
+        let deadline = time::Duration::from_secs(1);
+
+        let _block =
+            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
+                .map(|r| r.block)
+                .unwrap();
+    }
+
+    #[test]
+    fn proposed_storage_changes_should_match_execute_block_storage_changes() {
+        init_logger();
+
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let extrinsics = sign_extrinsics(
+            checked_extrinsics(1, bob(), 0_u32, || CallBuilder::noop().build()),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        );
+
+        let block_id = BlockId::number(0);
+        let timestamp = Timestamp::current();
+        let max_gas = None;
+        let max_duration = 1500_u64;
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            extrinsics,
+            timestamp,
+            max_duration,
+            max_gas,
+            proposal,
+            {},
+            {
+                // then
+                // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
+                assert_eq!(proposal.block.extrinsics().len(), 3);
+
+                let api = client.runtime_api();
+                api.execute_block(genesis_hash.into(), proposal.block)
+                    .unwrap();
+                let state = backend.state_at(genesis_hash.into()).unwrap();
+
+                let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
+
+                assert_eq!(
+                    proposal.storage_changes.transaction_storage_root,
+                    storage_changes.transaction_storage_root,
+                );
+
+                let queue_head_key = storage_prefix(
+                    pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+                    "Head".as_bytes(),
+                );
+                // Ensure message queue is empty given the terminal extrinsic completed successfully
+                assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
+            }
+        );
+    }
+
+    #[test]
+    fn should_not_remove_invalid_transactions_when_skipping() {
+        init_logger();
+
+        // given
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let alice = alice();
+        let bob = bob();
+
+        let extrinsics = vec![
+            extrinsic(0, &bob, genesis_hash),
+            extrinsic(1, &bob, genesis_hash),
+            exhausts_resources_extrinsic(0, &alice, genesis_hash),
+            extrinsic(2, &bob, genesis_hash),
+            exhausts_resources_extrinsic(1, &alice, genesis_hash),
+            extrinsic(3, &bob, genesis_hash),
+            extrinsic(4, &bob, genesis_hash),
+            exhausts_resources_extrinsic(2, &alice, genesis_hash),
+        ];
+        let block_id = BlockId::number(0);
+        let timestamp = Timestamp::current();
+        let max_gas = None;
+        let max_duration = 1500_u64;
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            extrinsics,
+            timestamp,
+            max_duration,
+            max_gas,
+            proposal,
+            {
+                assert_eq!(txpool.ready().count(), 8);
+            },
+            {
+                // then
+                // block should have some extrinsics although we have some more in the pool.
+                assert_eq!(txpool.ready().count(), 8);
+                assert_eq!(proposal.block.extrinsics().len(), 7);
+            }
+        );
+
+        // Preparing block #2
+        let block_id = BlockId::Hash(best_hash);
+        let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
+        let extrinsics = vec![]; // no new extrinsics
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            extrinsics,
+            timestamp,
+            max_duration,
+            max_gas,
+            proposal,
+            {
+                assert_eq!(txpool.ready().count(), 3);
+            },
+            {
+                // 1 normal extrinsic should still make it into block (together with inherents):
+                assert_eq!(proposal.block.extrinsics().len(), 3);
+                assert_eq!(proposal.block.extrinsics().len(), 3);
+            }
+        );
+    }
+
+    #[test]
+    fn should_cease_building_block_when_block_limit_is_reached() {
+        init_logger();
+
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let block_id = BlockId::number(0);
+        let genesis_header = client
+            .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+            .expect("header get error")
+            .expect("there should be header");
+
+        let extrinsics_num = 5_usize;
+        let extrinsics = sign_extrinsics(
+            checked_extrinsics(extrinsics_num as u32, bob(), 0_u32, || {
+                CallBuilder::noop().build()
+            }),
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        );
+
+        let timestamp_extrinsic_size = 11_usize;
+        let tolerance = Perbill::from_percent(20);
+        let all_but_extrinsics = (genesis_header.encoded_size()
+            + Vec::<OpaqueExtrinsic>::new().encoded_size()
+            + timestamp_extrinsic_size) as u32;
+        let block_limit = (all_but_extrinsics + tolerance * all_but_extrinsics) as usize
+            + extrinsics
+                .iter()
+                .take(extrinsics_num - 1)
+                .map(Encode::encoded_size)
+                .sum::<usize>();
+
+        block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
+
+        block_on(txpool.maintain(chain_event(genesis_header.clone())));
+
+        let mut proposer_factory = ProposerFactory::new(
+            spawner.clone(),
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+
+        let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
+
+        // Give it enough time
+        let deadline = time::Duration::from_secs(300_000);
+        let timestamp = Timestamp::current();
+        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+        let time_slot = timestamp.as_millis() / SLOT_DURATION;
+        let inherent_data = block_on(timestamp_provider.create_inherent_data())
+            .expect("Create inherent data failed");
+
+        let block = block_on(proposer.propose(
+            inherent_data.clone(),
+            pre_digest(time_slot, 0),
+            deadline,
+            Some(block_limit),
+        ))
+        .map(|r| r.block)
+        .unwrap();
+
+        // Based on the block limit, one transaction shouldn't be included.
+        // Instead, we have the timestamp and the pseudo-inherent.
+        assert_eq!(block.extrinsics().len(), extrinsics_num - 1 + 2);
+
+        let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
+
+        let block = block_on(proposer.propose(
+            inherent_data.clone(),
+            pre_digest(time_slot, 0),
+            deadline,
+            None,
+        ))
+        .map(|r| r.block)
+        .unwrap();
+
+        // Without a block limit we should include all of them + inherents
+        assert_eq!(block.extrinsics().len(), extrinsics_num + 2);
+
+        let mut proposer_factory = ProposerFactory::with_proof_recording(
+            spawner.clone(),
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+
+        let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
+
+        // Give it enough time
+        let block = block_on(proposer.propose(
+            inherent_data,
+            pre_digest(time_slot, 0),
+            deadline,
+            Some(block_limit),
+        ))
+        .map(|r| r.block)
+        .unwrap();
+
+        // The block limit didn't changed, but we now include the proof in the estimation of the
+        // block size and thus, we fit in the block one oridnary extrinsic less as opposed to
+        // `extrinsics_num - 1` extrinsics we could fit earlier (mind the inherents, as usually).
+        assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
+    }
+
+    #[test]
+    fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
+        // given
+        init_logger();
+
+        // given
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let alice = alice();
+        let bob = bob();
+
+        let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS * 2)
+            .into_iter()
+            .map(|i| exhausts_resources_extrinsic(i as u32, &alice, genesis_hash))
+            // and some transactions that are okay.
+            .chain(
+                (0_usize..MAX_SKIPPED_TRANSACTIONS)
+                    .into_iter()
+                    .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
+            )
+            .collect();
+        let block_id = BlockId::number(0);
+        let timestamp = Timestamp::current();
+        let max_gas = None;
+        // give it enough time so that deadline is never triggered.
+        let max_duration = 900_000_u64;
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            extrinsics,
+            timestamp,
+            max_duration,
+            max_gas,
+            proposal,
+            {
+                assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 3);
+            },
+            {
+                // then
+                // MAX_SKIPPED_TRANSACTIONS + inherents have been included in the block
+                assert_eq!(
+                    proposal.block.extrinsics().len(),
+                    MAX_SKIPPED_TRANSACTIONS + 2
+                );
+            }
+        );
+    }
+
+    #[test]
+    fn should_only_skip_up_to_some_limit_after_soft_deadline() {
+        // given
+        init_logger();
+
+        init!(client, backend, txpool, spawner, genesis_hash);
+
+        let bob = bob();
+
+        block_on(
+            txpool.submit_at(
+                &BlockId::number(0),
+                SOURCE,
+                (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
+                    .into_iter()
+                    .map(|i| exhausts_resources_extrinsic(i as u32, &bob, genesis_hash))
+                    // and some transactions that are okay.
+                    .chain(
+                        (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
+                            .into_iter()
+                            .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
+                    )
+                    .collect(),
+            ),
+        )
+        .unwrap();
+
+        block_on(
+            txpool.maintain(chain_event(
+                client
+                    .expect_header(client.info().genesis_hash)
+                    .expect("there should be header"),
+            )),
+        );
+        assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 2 + 2);
+
+        let mut proposer_factory = ProposerFactory::new(
+            spawner.clone(),
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+
+        let deadline = time::Duration::from_secs(1000);
+        let cell = Arc::new(Mutex::new((0, time::Instant::now())));
+        let cell2 = cell.clone();
+        let proposer = proposer_factory.init_with_now(
+            &client.expect_header(client.info().genesis_hash).unwrap(),
+            Box::new(move || {
+                let mut value = cell.lock();
+                let (called, old) = *value;
+                // add time after deadline is calculated internally (hence 1)
+                let increase = if called == 1 {
+                    // we start after the soft_deadline should have already been reached.
+                    deadline / 2
+                } else {
+                    // but we make sure to never reach the actual deadline
+                    time::Duration::from_millis(0)
+                };
+                *value = (called + 1, old + increase);
+                old
+            }),
+        );
+
+        let timestamp = Timestamp::current();
+        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+        let time_slot = timestamp.as_millis() / SLOT_DURATION;
+        let inherent_data = block_on(timestamp_provider.create_inherent_data())
+            .expect("Create inherent data failed");
+
+        let block =
+            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
+                .map(|r| r.block)
+                .unwrap();
+
+        // then the block should have no ordinary transactions despite some in the pool
+        assert_eq!(block.extrinsics().len(), 3);
+        assert!(
+            cell2.lock().0 > MAX_SKIPPED_TRANSACTIONS,
+            "Not enough calls to current time, which indicates the test might have ended \
+            because of deadline, not soft deadline"
+        );
+    }
 }

@@ -43,6 +43,7 @@ prometheus-endpoint.workspace = true
 [dev-dependencies]
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
+frame-system = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
@@ -58,3 +59,4 @@ gear-core = { workspace = true, features = ["std"] }
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
 demo-constructor = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+parking_lot.workspace = true

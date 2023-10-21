@@ -281,5 +281,28 @@ pub mod pallet {
             // This extrinsic is not chargeable
             Ok(Pays::No.into())
         }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `n`: the weight that needs to be subtracted from the `max_weight`
+        /// - `s`: the weight that needs to be subtracted from the `max_weight`
+        #[pallet::call_index(1)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                max.saturating_sub(Weight::from_parts(*_n, *_s))
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            _origin: OriginFor<T>,
+            _n: u64,
+            _s: u64,
+        ) -> DispatchResultWithPostInfo {
+            Ok(Pays::No.into())
+        }
     }
 }
