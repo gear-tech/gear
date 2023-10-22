@@ -96,6 +96,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
                     init_payload: (i as u64).encode(),
                     gas_limit: DEFAULT_GAS_LIMIT,
                     value: 0,
+                    keep_alive: false,
                 }),
             };
             *nonce += 1;
