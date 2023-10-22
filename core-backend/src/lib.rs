@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod env;
 pub mod error;
 mod funcs;
+mod log;
 pub mod memory;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;

@@ -4058,7 +4058,6 @@ dependencies = [
  "blake2-rfc",
  "derive_more",
  "gear-core",
- "gear-core-backend-codegen",
  "gear-core-errors",
  "gear-lazy-pages-common",
  "gear-sandbox",
@@ -4067,15 +4066,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "gear-core-backend-codegen"
-version = "1.0.2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.38",
 ]
 
 [[package]]
