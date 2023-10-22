@@ -92,14 +92,14 @@ members = [
 
 [workspace.dependencies]
 anyhow = "1.0.75"
-arbitrary = "1.3.0"
+arbitrary = "1.3.1"
 async-recursion = "1.0.5"
-async-trait = "0.1.73"
-base64 = "0.21.3"
-byteorder = { version = "1.4.3", default-features = false }
+async-trait = "0.1.74"
+base64 = "0.21.4"
+byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
-bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.4.2" }
+bs58 = { version = "0.5.0", default-features = false }
+clap = { version = "4.4.6" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -113,10 +113,10 @@ env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.28"
-hashbrown = "0.14.0"
+hashbrown = "0.14.2"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
-jsonrpsee = { version = "^0.16" }
+jsonrpsee = { version = "^0.20" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.20", default-features = false }
@@ -126,16 +126,16 @@ parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.1"
 path-clean = "1.0.1"
-primitive-types = { version = "0.12.1", default-features = false }
+primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-proptest = "1.1.0"
+proptest = "1.3.1"
 quick-xml = "0.28"
 quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
-rayon = "1.7"
+rayon = "1.8"
 regex = "^1.9"
 region = "3.0.0"
-reqwest = { version = "0.11.16", default-features = false }
+reqwest = { version = "0.11.22", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
@@ -158,11 +158,11 @@ static_assertions = "1"
 subxt = { version = "0.32.1" }
 subxt-metadata = { version = "0.32.1" }
 subxt-codegen = { version = "0.32.1" }
-syn = "2.0.31"
-thiserror = "1.0.48"
-tokio = { version = "1.27.0" }
+syn = "2.0.38"
+thiserror = "1.0.50"
+tokio = { version = "1.33.0" }
 url = "2.4.1"
-wat = "1.0.71"
+wat = "1.0.77"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -422,25 +422,25 @@ cfg-if = "1.0.0"                                                          # gear
 cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "2.0.0"                                                        # utils/weight-diff
+indexmap = "2.0.2"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.34", default-features = false }               # node/cli
+mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
-page_size = { version = "0.5", default-features = false }                 # pallets/gear
+page_size = { version = "0.6", default-features = false }                 # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
-schnorrkel = "0.9.1"                                                      # gcli
+schnorrkel = "0.10.2"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.7"                                                            # utils/wasm-builder
-tracing = "0.1.37"                                                        # utils/node-loder
+toml = "0.7.8"                                                            # utils/wasm-builder
+tracing = "0.1.40"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
 trybuild = "1"                                                            # gstd/codegen
