@@ -16,7 +16,6 @@ members = [
     "common/codegen",
     "core",
     "core-backend",
-    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -196,7 +195,6 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-core-backend-codegen = { path = "core-backend/codegen" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
