@@ -97,11 +97,10 @@ fn supply_alignment_works() {
             // Burning N tokens.
             let n = Balances::minimum_balance() * 5;
 
-            assert_ok!(Balances::set_balance(
+            assert_ok!(Balances::force_set_balance(
                 RuntimeOrigin::root(),
                 SIGNER,
                 Balances::free_balance(SIGNER) - n,
-                Balances::reserved_balance(SIGNER),
             ));
 
             assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY - n);
@@ -120,11 +119,10 @@ fn supply_alignment_works() {
             // Minting M tokens.
             let m = Balances::minimum_balance() * 12;
 
-            assert_ok!(Balances::set_balance(
+            assert_ok!(Balances::force_set_balance(
                 RuntimeOrigin::root(),
                 SIGNER,
                 Balances::free_balance(SIGNER) + m,
-                Balances::reserved_balance(SIGNER),
             ));
 
             assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY + m);
