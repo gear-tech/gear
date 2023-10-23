@@ -448,7 +448,9 @@ fn queue_remains_intact_if_processing_fails() {
     };
 
     let mut checked = vec![pre_fund_bank_xt];
-    checked.extend(checked_extrinsics(5, bob(), 0_u32, || CallBuilder::noop().build()).into_iter());
+    checked.extend(checked_extrinsics(5, bob(), 0_u32, || {
+        CallBuilder::noop().build()
+    }));
     let nonce = 5_u32; // Bob's nonce for the future
 
     // Disable queue processing in Gear pallet as the root
@@ -485,14 +487,8 @@ fn queue_remains_intact_if_processing_fails() {
             // Terminal extrinsic rolled back, therefore only have 1 inherent + 6 normal
             assert_eq!(proposal.block.extrinsics().len(), 8);
 
-            // // Importing block #1
-            // block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-            // let best_hash = client.info().best_hash;
-            // assert_eq!(best_hash, proposal.block.hash());
-
-            let state = backend.state_at(best_hash).unwrap();
             // Ensure message queue still has 5 messages
+            let state = backend.state_at(best_hash).unwrap();
             let queue_entry_prefix = storage_prefix(
                 pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
                 "Dispatches".as_bytes(),
@@ -869,15 +865,12 @@ fn proposal_timing_consistent() {
     // so that about 100 time-consuming init messages should end up in the queue.
     // It's possible though that not all of them make it into the block - it can depend on a
     // number of factors (timer on the target machine, log level, etc).
-    checked.extend(
-        checked_extrinsics(100, bob(), 0, || {
-            // TODO: this is a "hand-wavy" workaround to have a long-running init message.
-            // Should be replaced with a more reliable solution (like zero-cost syscalls
-            // in init message that would guarantee incorrect gas estimation)
-            CallBuilder::long_init(500_u64).build()
-        })
-        .into_iter(),
-    );
+    checked.extend(checked_extrinsics(100, bob(), 0, || {
+        // TODO: this is a "hand-wavy" workaround to have a long-running init message.
+        // Should be replaced with a more reliable solution (like zero-cost syscalls
+        // in init message that would guarantee incorrect gas estimation)
+        CallBuilder::long_init(500_u64).build()
+    }));
     let extrinsics = sign_extrinsics(
         checked,
         VERSION.spec_version,
@@ -1390,7 +1383,7 @@ mod basic_tests {
         .unwrap();
 
         // The block limit didn't changed, but we now include the proof in the estimation of the
-        // block size and thus, we fit in the block one oridnary extrinsic less as opposed to
+        // block size and thus, we fit in the block one ordinary extrinsic less as opposed to
         // `extrinsics_num - 1` extrinsics we could fit earlier (mind the inherents, as usually).
         assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
     }
@@ -1407,12 +1400,10 @@ mod basic_tests {
         let bob = bob();
 
         let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS * 2)
-            .into_iter()
             .map(|i| exhausts_resources_extrinsic(i as u32, &alice, genesis_hash))
             // and some transactions that are okay.
             .chain(
                 (0_usize..MAX_SKIPPED_TRANSACTIONS)
-                    .into_iter()
                     .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
             )
             .collect();
@@ -1462,12 +1453,10 @@ mod basic_tests {
                 &BlockId::number(0),
                 SOURCE,
                 (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
-                    .into_iter()
                     .map(|i| exhausts_resources_extrinsic(i as u32, &bob, genesis_hash))
                     // and some transactions that are okay.
                     .chain(
                         (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
-                            .into_iter()
                             .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
                     )
                     .collect(),

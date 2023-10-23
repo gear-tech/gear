@@ -1454,6 +1454,10 @@ where
     }
 }
 
+/// Implementation of the `common::RuntimeApiExt` trait to enable deconstruction into
+/// and restoration from components for the `RuntimeApiImpl` struct.
+///
+/// substrate/primitives/api/proc-macro/src/impl_runtime_apis.rs:219
 #[cfg(any(feature = "std", test))]
 impl<B, C> common::RuntimeApiExt<C> for RuntimeApiImpl<B, C>
 where
