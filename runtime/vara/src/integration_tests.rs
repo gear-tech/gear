@@ -334,6 +334,7 @@ fn tokens_locking_works() {
                     vec![],
                     10_000_000_000,
                     10_000 * UNITS,
+                    false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );
@@ -352,6 +353,7 @@ fn tokens_locking_works() {
                 vec![],
                 10_000_000_000,
                 0,
+                false,
             ));
             let program_id = get_last_program_id();
 
@@ -366,6 +368,7 @@ fn tokens_locking_works() {
                     vec![],
                     10_000_000_000,
                     11_000 * UNITS,
+                    false,
                 ),
                 pallet_gear_bank::Error::<Runtime>::InsufficientBalance
             );

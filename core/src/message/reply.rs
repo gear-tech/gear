@@ -193,6 +193,14 @@ impl ReplyPacket {
         }
     }
 
+    /// Create new manual ReplyPacket with optional gas.
+    pub fn maybe_with_gas(payload: Payload, gas_limit: Option<GasLimit>, value: Value) -> Self {
+        match gas_limit {
+            None => Self::new(payload, value),
+            Some(gas_limit) => Self::new_with_gas(payload, gas_limit, value),
+        }
+    }
+
     // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.

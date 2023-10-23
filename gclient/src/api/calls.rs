@@ -204,6 +204,7 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
@@ -774,6 +775,7 @@ impl GearApi {
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
@@ -907,6 +909,7 @@ impl GearApi {
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
@@ -1136,6 +1139,7 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();

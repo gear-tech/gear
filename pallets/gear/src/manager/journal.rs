@@ -232,6 +232,7 @@ where
                 GearBank::<T>::deposit_value(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                     dispatch.value().unique_saturated_into(),
+                    false,
                 )
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
             }
