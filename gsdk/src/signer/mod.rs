@@ -150,6 +150,10 @@ impl Inner {
     pub fn api(&self) -> &Api {
         &self.api
     }
+
+    pub fn signer(&self) -> &PairSigner<GearConfig, Pair> {
+        &self.signer
+    }
 }
 
 impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {

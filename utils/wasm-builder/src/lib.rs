@@ -20,11 +20,7 @@ use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_projec
 use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
-use std::{
-    env,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
 
 mod builder_error;
@@ -92,14 +88,9 @@ impl WasmBuilder {
     }
 
     fn build_project(mut self) -> Result<()> {
-        let cargo_path = env::var("CARGO")?;
-
         self.wasm_project.generate()?;
 
-        self.cargo
-            .set_toolchain(Toolchain::try_from_cargo_path(Path::new(
-                cargo_path.as_str(),
-            ))?);
+        self.cargo.set_toolchain(Toolchain::try_from_rustup()?);
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
         self.cargo.set_target_dir(self.wasm_project.target_dir());
