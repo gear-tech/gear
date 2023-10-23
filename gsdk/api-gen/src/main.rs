@@ -352,7 +352,6 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
                     "{}",
                     match pallet_name.as_str() {
                         "system" => "frame_system".into(),
-                        "validator_set" => "substrate_validator_set".into(),
                         "fellowship_collective" => "pallet_ranked_collective".into(),
                         "fellowship_referenda" => "pallet_referenda".into(),
                         "staking_rewards" => "pallet_gear_staking_rewards".into(),

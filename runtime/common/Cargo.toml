@@ -19,7 +19,6 @@ pallet-balances.workspace = true
 pallet-session.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
-validator-set.workspace = true
 
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
@@ -56,7 +55,6 @@ std = [
 	"gear-core-processor/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"validator-set/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -78,5 +76,4 @@ try-runtime = [
 	"pallet-gear-bank/try-runtime",
 	"pallet-gear-messenger/try-runtime",
 	"pallet-session/try-runtime",
-	"validator-set/try-runtime",
 ]
