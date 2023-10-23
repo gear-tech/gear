@@ -21,7 +21,6 @@ gear-lazy-pages-interface.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
 derive_more.workspace = true
-static_assertions.workspace = true
 actor-system-error.workspace = true
 
 [dev-dependencies]
