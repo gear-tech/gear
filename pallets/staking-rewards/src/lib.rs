@@ -53,7 +53,8 @@ mod tests;
 
 use frame_support::{
     traits::{
-        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
+        fungible, Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced,
+        WithdrawReasons,
     },
     weights::Weight,
     PalletId,
@@ -73,6 +74,7 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
+pub type StakingCurrency<T> = <T as pallet_staking::Config>::Currency;
 pub type PositiveImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::PositiveImbalance;
@@ -464,6 +466,36 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
         Pallet::deposit_event(Event::<T>::Minted {
             amount: numeric_amount,
         });
+    }
+}
+
+// DustRemoval handler
+pub struct OffsetPoolDust<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, StakingCurrency<T>>>
+    for OffsetPoolDust<T>
+where
+    StakingCurrency<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
+    <T as pallet_staking::Config>::CurrencyBalance: From<
+        <StakingCurrency<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance,
+    >,
+{
+    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, StakingCurrency<T>>)
+    where
+        StakingCurrency<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>
+            + fungible::Inspect<<T as frame_system::Config>::AccountId>,
+    {
+        let numeric_amount = amount.peek();
+
+        let result = <StakingCurrency<T> as fungible::Balanced<_>>::resolve(
+            &Pallet::<T>::account_id(),
+            amount,
+        );
+        match result {
+            Ok(()) => Pallet::deposit_event(Event::<T>::Minted {
+                amount: numeric_amount.into(),
+            }),
+            Err(amount) => log::error!("Balanced::resolve() err: {:?}", amount.peek()),
+        }
     }
 }
 

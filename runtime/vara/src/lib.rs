@@ -353,7 +353,7 @@ impl pallet_balances::Config for Runtime {
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type RuntimeEvent = RuntimeEvent;
-    type DustRemoval = pallet_gear_staking_rewards::OffsetPool<Self>;
+    type DustRemoval = pallet_gear_staking_rewards::OffsetPoolDust<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
