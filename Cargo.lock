@@ -2735,7 +2735,7 @@ source = "git+https://github.com/gear-tech/dlmalloc-rust.git#15352f969112faa4633
 dependencies = [
  "libc",
  "libc-print",
- "page_size 0.6.0",
+ "page_size",
  "static_assertions",
  "str-buf",
 ]
@@ -4768,7 +4768,7 @@ dependencies = [
 name = "gstd"
 version = "1.0.2"
 dependencies = [
- "bs58 0.4.0",
+ "bs58 0.5.0",
  "futures",
  "galloc",
  "gcore",
@@ -7280,16 +7280,6 @@ dependencies = [
 
 [[package]]
 name = "page_size"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
-name = "page_size"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
@@ -7545,7 +7535,7 @@ dependencies = [
  "gsys",
  "hex",
  "log",
- "page_size 0.5.0",
+ "page_size",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-bank",
