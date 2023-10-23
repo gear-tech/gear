@@ -46,7 +46,8 @@ pub(crate) enum ProcessedSysCallParams {
         value_type: ValueType,
         allowed_values: Option<SysCallParamAllowedValues>,
     },
-    MemoryArray,
+    MemoryArraySize,
+    MemoryArrayPtr,
     MemoryPtrValue,
 }
 
@@ -54,28 +55,34 @@ pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SysCallsParamsConfig,
 ) -> Vec<ProcessedSysCallParams> {
+    let length_param_indexes = params
+        .iter()
+        .filter_map(|&param| match param {
+            ParamType::Ptr(PtrInfo {
+                ty: PtrType::BufferStart { length_param_idx },
+                ..
+            }) => Some(length_param_idx),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+
     let mut res = Vec::with_capacity(params.len());
-    let mut skip_next_param = false;
-    for &param in params {
-        if skip_next_param {
-            skip_next_param = false;
-            continue;
-        }
+    for (param_idx, &param) in params.iter().enumerate() {
         let processed_param = match param {
             ParamType::Alloc => ProcessedSysCallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
+            ParamType::Size if length_param_indexes.contains(&param_idx) => {
+                // Due to match guard `ParamType::Size` can be processed in two ways:
+                // 1. The function will return `ProcessedSysCallParams::MemoryArraySize`
+                //    if this parameter is associated with PtrType::BufferStart { .. }`.
+                // 2. Otherwise, `ProcessedSysCallParams::Value` will be returned from the function.
+                ProcessedSysCallParams::MemoryArraySize
+            }
             ParamType::Ptr(PtrInfo {
                 ty: PtrType::SizedBufferStart { .. },
                 ..
-            }) => {
-                // skipping next as we don't need the following `Size` param,
-                // because it will be chosen in accordance to the wasm module
-                // memory pages config.
-                skip_next_param = true;
-
-                ProcessedSysCallParams::MemoryArray
-            }
+            }) => ProcessedSysCallParams::MemoryArrayPtr,
             ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
@@ -450,6 +457,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
         let mut setters = Vec::with_capacity(params.len());
+        let mut memory_array_definition: Option<(i32, Option<i32>)> = None;
+
         for processed_param in process_syscall_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSysCallParams::Alloc { allowed_values } => {
@@ -491,16 +500,38 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::MemoryArray => {
+                ProcessedSysCallParams::MemoryArraySize => {
+                    let length;
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
-                    let offset = self.unstructured.int_in_range(0..=upper_limit)?;
-                    let length = self.unstructured.int_in_range(0..=(upper_limit - offset))?;
+                    (memory_array_definition, length) = if let Some((offset, _)) =
+                        memory_array_definition
+                    {
+                        let length = self.unstructured.int_in_range(0..=(upper_limit - offset))?;
+                        (None, length)
+                    } else {
+                        let offset = self.unstructured.int_in_range(0..=upper_limit)?;
+                        let length = self.unstructured.int_in_range(0..=(upper_limit - offset))?;
+                        (Some((offset, Some(length))), length)
+                    };
 
-                    log::trace!("  ----  Memory array {offset}, {length}");
-
-                    setters.push(ParamSetter::new_i32(offset));
+                    log::trace!("  ----  Memory array length - {length}");
                     setters.push(ParamSetter::new_i32(length));
+                }
+                ProcessedSysCallParams::MemoryArrayPtr => {
+                    let offset;
+                    let upper_limit = mem_size.saturating_sub(1) as i32;
+
+                    (memory_array_definition, offset) =
+                        if let Some((offset, _)) = memory_array_definition {
+                            (None, offset)
+                        } else {
+                            let offset = self.unstructured.int_in_range(0..=upper_limit)?;
+                            (Some((offset, None)), offset)
+                        };
+
+                    log::trace!("  ----  Memory array offset - {offset}");
+                    setters.push(ParamSetter::new_i32(offset));
                 }
                 ProcessedSysCallParams::MemoryPtrValue => {
                     // Subtract a bit more so entities from `gsys` fit.

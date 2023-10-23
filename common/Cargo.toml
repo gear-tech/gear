@@ -15,11 +15,7 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
 enum-iterator.workspace = true
-fail = { workspace = true, features = ["failpoints"], optional = true }
-hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-path-clean.workspace = true
+fail = { workspace = true, features = [ "failpoints" ], optional = true }
 
 # Internal deps
 gear-core.workspace = true

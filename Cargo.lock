@@ -3865,7 +3865,6 @@ dependencies = [
  "demo-wat",
  "env_logger",
  "futures",
- "futures-timer",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
@@ -3876,7 +3875,6 @@ dependencies = [
  "hex-literal",
  "log",
  "parity-scale-codec",
- "rand 0.8.5",
  "static_assertions",
  "subxt",
  "thiserror",
@@ -3906,7 +3904,6 @@ dependencies = [
  "demo-mul-by-const",
  "env_logger",
  "frame-support",
- "frame-system",
  "futures",
  "futures-timer",
  "gear-common",
@@ -3988,7 +3985,6 @@ dependencies = [
  "sc-client-api",
  "sc-executor",
  "sc-service",
- "scale-info",
  "sp-core",
  "sp-inherents",
  "sp-io",
@@ -4015,14 +4011,10 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
- "hex",
  "hex-literal",
  "log",
- "path-clean",
  "primitive-types",
  "proptest",
- "serde",
- "serde_json",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -4108,7 +4100,6 @@ dependencies = [
  "gsys",
  "log",
  "scale-info",
- "static_assertions",
 ]
 
 [[package]]
@@ -4136,11 +4127,9 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "region",
- "sc-executor-common",
  "sp-io",
  "sp-std 5.0.0",
  "sp-wasm-interface",
- "static_assertions",
  "winapi",
 ]
 
@@ -4158,7 +4147,6 @@ name = "gear-lazy-pages-interface"
 version = "1.0.2"
 dependencies = [
  "byteorder",
- "derive_more",
  "gear-common",
  "gear-core",
  "gear-lazy-pages-common",
@@ -4173,9 +4161,7 @@ name = "gear-node-loader"
 version = "1.0.2"
 dependencies = [
  "anyhow",
- "arbitrary",
  "clap 4.4.2",
- "dyn-clonable",
  "futures",
  "futures-timer",
  "gclient",
@@ -4185,7 +4171,6 @@ dependencies = [
  "gear-utils",
  "gear-wasm-gen",
  "gsdk",
- "hex",
  "names 0.14.0",
  "once_cell",
  "parking_lot 0.12.1",
@@ -4290,7 +4275,6 @@ dependencies = [
  "pallet-session",
  "sp-runtime",
  "sp-std 5.0.0",
- "substrate-validator-set",
 ]
 
 [[package]]
@@ -4298,16 +4282,12 @@ name = "gear-runtime-interface"
 version = "1.0.2"
 dependencies = [
  "byteorder",
- "derive_more",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-host",
- "libc",
  "log",
  "parity-scale-codec",
- "region",
- "sp-allocator",
  "sp-runtime-interface",
  "sp-std 5.0.0",
  "sp-wasm-interface",
@@ -4374,13 +4354,7 @@ version = "1.0.2"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "futures",
- "futures-timer",
  "gear-authorship",
- "gear-common",
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
@@ -4393,12 +4367,8 @@ dependencies = [
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-im-online",
  "pallet-staking",
- "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",
- "parity-scale-codec",
- "sc-authority-discovery",
- "sc-block-builder",
  "sc-chain-spec",
  "sc-client-api",
  "sc-consensus",
@@ -4410,7 +4380,6 @@ dependencies = [
  "sc-consensus-slots",
  "sc-executor",
  "sc-executor-common",
- "sc-keystore",
  "sc-network",
  "sc-network-common",
  "sc-network-sync",
@@ -4844,7 +4813,6 @@ version = "1.0.2"
 name = "gtest"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "colored",
  "demo-custom",
  "demo-futures-unordered",
@@ -4858,7 +4826,6 @@ dependencies = [
  "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-utils",
- "gear-wasm-builder",
  "gear-wasm-instrument",
  "gsys",
  "hex",
@@ -9614,12 +9581,9 @@ dependencies = [
 name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
- "env_logger",
- "gear-call-gen",
  "gear-utils",
  "libfuzzer-sys",
  "log",
- "once_cell",
  "runtime-fuzzer",
 ]
 
@@ -9840,34 +9804,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "sc-authority-discovery"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
-dependencies = [
- "async-trait",
- "futures",
- "futures-timer",
- "ip_network",
- "libp2p",
- "log",
- "parity-scale-codec",
- "prost",
- "prost-build",
- "rand 0.8.5",
- "sc-client-api",
- "sc-network",
- "sc-network-common",
- "sp-api",
- "sp-authority-discovery",
- "sp-blockchain",
- "sp-core",
- "sp-keystore",
- "sp-runtime",
- "substrate-prometheus-endpoint",
- "thiserror",
 ]
 
 [[package]]
@@ -12593,26 +12529,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "substrate-validator-set"
-version = "0.9.41"
-source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-canary-revert-oom-changes#732fabecd211eeb99dce6aa4b60b288652a12242"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std 5.0.0",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "substrate-wasm-builder"
 version = "5.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
@@ -13979,7 +13895,6 @@ dependencies = [
  "gear-wasm-builder",
  "log",
  "parity-wasm 0.45.0",
- "thiserror",
 ]
 
 [[package]]

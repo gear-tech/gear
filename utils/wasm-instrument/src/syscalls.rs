@@ -301,8 +301,9 @@ impl SysCallName {
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                // TODO #3375, in fact it has to be SizedBufferStart
-                Ptr(PtrInfo::new_mutable(PtrType::BufferStart)),
+                Ptr(PtrInfo::new_mutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
