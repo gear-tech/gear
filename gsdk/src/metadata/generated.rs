@@ -2778,6 +2778,7 @@ pub mod runtime_types {
                     pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_random: runtime_types::sp_weights::weight_v2::Weight,

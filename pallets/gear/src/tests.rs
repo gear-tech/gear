@@ -14528,7 +14528,7 @@ fn remove_from_waitlist_after_exit_reply() {
             RuntimeOrigin::signed(USER_1),
             reply.id(),
             vec![],
-            1_000_000_000,
+            1_500_000_000,
             0,
             false,
         ));

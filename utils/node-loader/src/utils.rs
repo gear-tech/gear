@@ -219,6 +219,7 @@ pub fn get_wasm_gen_config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
+            (SysCallName::EnvVars, 0..=0),
             (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
             (SysCallName::Alloc, 3..=6),

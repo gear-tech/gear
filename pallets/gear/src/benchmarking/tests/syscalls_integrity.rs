@@ -164,6 +164,7 @@ where
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
             SysCallName::Value => check_gr_value::<T>(),
+            SysCallName::EnvVars => check_gr_env_vars::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
@@ -836,6 +837,31 @@ where
 
         (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
+}
+
+fn check_gr_env_vars<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let performance_multiplier = T::PerformanceMultiplier::get().value();
+        let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+        let mailbox_threshold = T::MailboxThreshold::get();
+        let gas_to_value_multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get()
+            .gas_to_value(1)
+            .unique_saturated_into();
+        let mp = vec![Kind::EnvVars {
+            performance_multiplier,
+            existential_deposit,
+            mailbox_threshold,
+            gas_to_value_multiplier,
+        }]
+        .encode()
+        .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
 }
 
 fn check_gr_block_height<T>()

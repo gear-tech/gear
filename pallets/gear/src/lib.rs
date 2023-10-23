@@ -573,14 +573,13 @@ pub mod pallet {
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_and_id.code_id(),
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1034,7 +1033,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                performance_multiplier: T::PerformanceMultiplier::get(),
+                performance_multiplier: T::PerformanceMultiplier::get().into(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
@@ -1055,6 +1054,7 @@ pub mod pallet {
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
                 rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
+                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
 
@@ -1176,14 +1176,13 @@ pub mod pallet {
             value: BalanceOf<T>,
             keep_alive: bool,
         ) -> Result<InitPacket, DispatchError> {
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
