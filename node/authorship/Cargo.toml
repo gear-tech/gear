@@ -38,7 +38,6 @@ sp-blockchain.workspace = true
 sp-inherents = { workspace = true, features = ["std"] }
 
 # Substrate Other
-frame-system = { workspace = true, features = ["std"] }
 prometheus-endpoint.workspace = true
 
 [dev-dependencies]
