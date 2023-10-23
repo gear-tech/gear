@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -16,7 +16,6 @@ members = [
     "common/codegen",
     "core",
     "core-backend",
-    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -196,7 +195,6 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-core-backend-codegen = { path = "core-backend/codegen" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
@@ -240,8 +238,7 @@ runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/prim
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
-wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.42-canary-no-sandbox', default-features = false }
+wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.42-canary-no-sandbox", default-features = false }
