@@ -557,7 +557,7 @@ where
         let (extrinsics, api, version, _, _, estimated_header_size) =
             block_builder.clone().deconstruct();
         // We need the overlay changes and transaction storage cache to send to a new thread.
-        // The cloned `RuntimaApi` object can't be sent to a new thread directly so we have to
+        // The cloned `RuntimeApi` object can't be sent to a new thread directly so we have to
         // break it down into parts (that are `Send`) and then reconstruct it in the new thread.
         // If changes applied successfully, the updated extrinsics and api parts will be sent back
         // to update the original block builder and finalize the block.
@@ -586,7 +586,7 @@ where
                         (extrinsics, api_params)
                     });
                     if tx.send(outcome).is_err() {
-                        debug!(
+                        warn!(
                             target: "gear::authorship",
                             "🔒 Send failure: the receiver must have already closed the channel.");
                     };
