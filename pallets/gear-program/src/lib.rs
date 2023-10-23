@@ -136,6 +136,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
+pub mod migration_alloc;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -160,7 +162,7 @@ pub mod pallet {
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {

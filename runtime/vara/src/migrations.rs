@@ -19,4 +19,4 @@
 #[allow(unused)]
 use crate::*;
 
-pub type Migrations = ();
+pub type Migrations = (pallet_gear_program::migration_alloc::MigrateToV3<Runtime>,);
