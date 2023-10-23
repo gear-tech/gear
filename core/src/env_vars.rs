@@ -19,24 +19,24 @@
 //! Execution settings
 
 use core::{mem, slice};
-pub use gsys::ExecSettings as ExecSettingsV1;
+pub use gsys::EnvVars as EnvVarsV1;
 
 /// All supported versions of execution settings
-pub enum ExecSettings {
+pub enum EnvVars {
     /// Values of execution settings V1
     // When a new version is introduced in gsys, the previous version should be
-    // copied here as ExecSettingsV1 whereas the most recent version should be bound
+    // copied here as EnvVarsV1 whereas the most recent version should be bound
     // to the variant corresponding to it
-    V1(ExecSettingsV1),
+    V1(EnvVarsV1),
 }
 
-impl ExecSettings {
+impl EnvVars {
     /// Returns byte representation of execution settings
     pub fn to_bytes(&self) -> &[u8] {
         match self {
-            ExecSettings::V1(v1) => {
-                let ptr = v1 as *const ExecSettingsV1 as *const u8;
-                unsafe { slice::from_raw_parts(ptr, mem::size_of::<ExecSettingsV1>()) }
+            EnvVars::V1(v1) => {
+                let ptr = v1 as *const EnvVarsV1 as *const u8;
+                unsafe { slice::from_raw_parts(ptr, mem::size_of::<EnvVarsV1>()) }
             }
         }
     }

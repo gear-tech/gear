@@ -19,7 +19,7 @@
 //! Environment for running a module.
 
 use crate::{
-    exec_settings::ExecSettings,
+    env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
@@ -198,9 +198,9 @@ pub trait Externalities {
     /// should be `free`-d separately.
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
-    /// Get execution settings currently set in the system and in the form
+    /// Get environment variables currently set in the system and in the form
     /// corresponded to the requested version.
-    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError>;
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError>;
 
     /// Get the current block height.
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError>;

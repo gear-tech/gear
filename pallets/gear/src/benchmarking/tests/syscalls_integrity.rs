@@ -164,7 +164,7 @@ where
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
             SysCallName::Value => check_gr_value::<T>(),
-            SysCallName::ExecSettings => check_gr_exec_settings::<T>(),
+            SysCallName::EnvVars => check_gr_env_vars::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
@@ -839,7 +839,7 @@ where
     });
 }
 
-fn check_gr_exec_settings<T>()
+fn check_gr_env_vars<T>()
 where
     T: Config,
     T::AccountId: Origin,
@@ -851,7 +851,7 @@ where
         let gas_to_value_multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get()
             .gas_to_value(1)
             .unique_saturated_into();
-        let mp = vec![Kind::ExecSettings {
+        let mp = vec![Kind::EnvVars {
             performance_multiplier,
             existential_deposit,
             mailbox_threshold,

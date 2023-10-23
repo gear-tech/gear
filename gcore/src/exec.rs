@@ -27,16 +27,16 @@ use crate::{
 };
 use core::mem::MaybeUninit;
 use gsys::{
-    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, ExecSettings,
+    BlockNumberWithHash, EnvVars, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash,
     HashWithValue,
 };
 
-/// Get current version of execution settings.
-pub fn settings() -> ExecSettings {
-    let mut settings = MaybeUninit::<ExecSettings>::uninit();
+/// Get current version of environment variables.
+pub fn env_vars() -> EnvVars {
+    let mut vars = MaybeUninit::<EnvVars>::uninit();
     unsafe {
-        gsys::gr_exec_settings(1, settings.as_mut_ptr() as *mut u8);
-        settings.assume_init()
+        gsys::gr_env_vars(1, vars.as_mut_ptr() as *mut u8);
+        vars.assume_init()
     }
 }
 

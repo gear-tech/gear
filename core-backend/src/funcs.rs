@@ -675,19 +675,15 @@ where
         })
     }
 
-    pub fn exec_settings(settings_ver: u32, settings_ptr: u32) -> impl SysCall<Ext> {
-        InfallibleSysCall::new(
-            RuntimeCosts::ExecSettings,
-            move |ctx: &mut CallerWrap<Ext>| {
-                let settings = ctx.ext_mut().exec_settings(settings_ver)?;
-                let settings_bytes = settings.to_bytes();
-                let settings_write = ctx
-                    .manager
-                    .register_write(settings_ptr, settings_bytes.len() as u32);
-                ctx.write(settings_write, settings_bytes)
-                    .map_err(Into::into)
-            },
-        )
+    pub fn env_vars(vars_ver: u32, vars_ptr: u32) -> impl SysCall<Ext> {
+        InfallibleSysCall::new(RuntimeCosts::EnvVars, move |ctx: &mut CallerWrap<Ext>| {
+            let vars = ctx.ext_mut().env_vars(vars_ver)?;
+            let vars_bytes = vars.to_bytes();
+            let vars_write = ctx
+                .manager
+                .register_write(vars_ptr, vars_bytes.len() as u32);
+            ctx.write(vars_write, vars_bytes).map_err(Into::into)
+        })
     }
 
     pub fn block_height(height_ptr: u32) -> impl SysCall<Ext> {

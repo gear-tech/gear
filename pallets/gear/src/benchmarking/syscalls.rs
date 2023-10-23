@@ -363,13 +363,13 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_exec_settings(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_env_vars(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let settings_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ExecSettings],
+            imported_functions: vec![SysCallName::EnvVars],
             handle_body: Some(body::syscall(
                 repetitions,
                 &[

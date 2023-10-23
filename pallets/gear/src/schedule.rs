@@ -376,8 +376,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: Weight,
 
-    /// Weight of calling `gr_exec_settings`.
-    pub gr_exec_settings: Weight,
+    /// Weight of calling `gr_env_vars`.
+    pub gr_env_vars: Weight,
 
     /// Weight of calling `gr_block_height`.
     pub gr_block_height: Weight,
@@ -872,7 +872,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_size: self.gr_size.ref_time(),
             gr_read: self.gr_read.ref_time(),
             gr_read_per_byte: self.gr_read_per_byte.ref_time(),
-            gr_exec_settings: self.gr_exec_settings.ref_time(),
+            gr_env_vars: self.gr_env_vars.ref_time(),
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
@@ -994,7 +994,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_size: to_weight!(cost_batched!(gr_size)),
             gr_read: to_weight!(cost_batched!(gr_read)),
             gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
-            gr_exec_settings: to_weight!(cost_batched!(gr_exec_settings)),
+            gr_env_vars: to_weight!(cost_batched!(gr_env_vars)),
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
             gr_random: to_weight!(cost_batched!(gr_random)),

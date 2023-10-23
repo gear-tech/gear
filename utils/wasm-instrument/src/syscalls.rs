@@ -74,7 +74,7 @@ pub enum SysCallName {
     // Program execution related
     // --
     // Execution environmental data
-    ExecSettings,
+    EnvVars,
     BlockHeight,
     BlockTimestamp,
     GasAvailable,
@@ -109,7 +109,7 @@ impl SysCallName {
     pub fn to_str(&self) -> &'static str {
         match self {
             SysCallName::Alloc => "alloc",
-            SysCallName::ExecSettings => "gr_exec_settings",
+            SysCallName::EnvVars => "gr_env_vars",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
@@ -295,7 +295,7 @@ impl SysCallName {
             Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(
                 HashType::MessageId,
             )))]),
-            Self::ExecSettings => {
+            Self::EnvVars => {
                 SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
             }
             Self::Read => SysCallSignature::gr([

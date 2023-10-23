@@ -27,7 +27,7 @@ use alloc::{
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    exec_settings::{ExecSettings, ExecSettingsV1},
+    env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, Token, ValueCounter,
@@ -724,15 +724,15 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
-    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
         match version {
-            1 => Ok(ExecSettings::V1(ExecSettingsV1 {
+            1 => Ok(EnvVars::V1(EnvVarsV1 {
                 performance_multiplier: self.context.performance_multiplier,
                 existential_deposit: self.context.existential_deposit,
                 mailbox_threshold: self.context.mailbox_threshold,
                 gas_multiplier: self.context.gas_multiplier,
             })),
-            _ => Err(UnrecoverableExecutionError::UnsupportedExecSettingsVersion.into()),
+            _ => Err(UnrecoverableExecutionError::UnsupportedEnvVarsVersion.into()),
         }
     }
 

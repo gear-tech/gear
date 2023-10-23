@@ -79,7 +79,7 @@ pub enum Kind {
     SignalDetails,
     SignalDetailsWake,
     // Expected values
-    ExecSettings {
+    EnvVars {
         performance_multiplier: u32,
         existential_deposit: Value,
         mailbox_threshold: Gas,

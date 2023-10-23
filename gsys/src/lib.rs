@@ -336,7 +336,7 @@ impl TwoHashesWithValue {
 /// settings supported by backend.
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-pub struct ExecSettings {
+pub struct EnvVars {
     /// Current performance multiplier.
     pub performance_multiplier: Percent,
     /// Current value of existential deposit.
@@ -405,13 +405,13 @@ impl GasMultiplier {
 
 #[allow(improper_ctypes)]
 extern "C" {
-    /// Infallible `gr_exec_settings` get syscall.
+    /// Infallible `gr_env_vars` get syscall.
     /// It leaves backend with unrecoverable error if incorrect version is passed.
     ///
     /// Arguments type:
-    /// - `version`: `u32` defining version of settings to get.
-    /// - `settings`: `mut ptr` for buffer to store requested version of settings.
-    pub fn gr_exec_settings(version: u32, settings: *mut BufferStart);
+    /// - `version`: `u32` defining version of vars to get.
+    /// - `settings`: `mut ptr` for buffer to store requested version of vars.
+    pub fn gr_env_vars(version: u32, vars: *mut BufferStart);
 
     /// Infallible `gr_block_height` get syscall.
     ///

@@ -28,7 +28,7 @@ use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
-    exec_settings::{ExecSettings, ExecSettingsV1},
+    env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
@@ -115,15 +115,15 @@ impl Externalities for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn exec_settings(&self, version: u32) -> Result<ExecSettings, Self::UnrecoverableError> {
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
         match version {
-            1 => Ok(ExecSettings::V1(ExecSettingsV1 {
+            1 => Ok(EnvVars::V1(EnvVarsV1 {
                 performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
                 gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
             })),
-            _ => unreachable!("Unexpected version of execution settings"),
+            _ => unreachable!("Unexpected version of environment variables"),
         }
     }
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {

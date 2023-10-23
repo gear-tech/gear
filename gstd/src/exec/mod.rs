@@ -24,7 +24,7 @@
 
 pub use basic::*;
 pub use gcore::exec::{
-    block_height, block_timestamp, gas_available, leave, random, settings, system_reserve_gas,
+    block_height, block_timestamp, env_vars, gas_available, leave, random, system_reserve_gas,
     value_available, wait, wait_for, wait_up_to,
 };
 pub use r#async::*;

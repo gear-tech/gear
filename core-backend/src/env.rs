@@ -184,7 +184,7 @@ where
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
-        builder.add_func(ExecSettings, wrap_syscall!(exec_settings));
+        builder.add_func(EnvVars, wrap_syscall!(env_vars));
         builder.add_func(BlockHeight, wrap_syscall!(block_height));
         builder.add_func(BlockTimestamp,wrap_syscall!(block_timestamp));
         builder.add_func(CreateProgram, wrap_syscall!(create_program));
