@@ -48,9 +48,9 @@ fn instruction_weights_heuristics_test() {
         call_indirect: 22_100,
         call_indirect_per_param: 2_000,
 
-        local_get: 600,
+        local_get: 900,
         local_set: 1_900,
-        local_tee: 1_500,
+        local_tee: 2_500,
         global_get: 2_000,
         global_set: 3_000,
         memory_current: 14_200,
@@ -141,8 +141,8 @@ fn page_costs_heuristic_test() {
         lazy_pages_signal_write_after_read: 10_650_000.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
         lazy_pages_host_func_write: 33_000_000.into(),
-        lazy_pages_host_func_write_after_read: 9_280_000.into(),
-        load_page_data: 9_700_000.into(),
+        lazy_pages_host_func_write_after_read: 11_000_000.into(),
+        load_page_data: 10_800_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
         mem_grow: 906_170.into(),
@@ -156,7 +156,7 @@ fn page_costs_heuristic_test() {
         host_func_read: 29_000_000.into(),
         host_func_write: 137_000_000.into(),
         host_func_write_after_read: 112_000_000.into(),
-        load_page_storage_data: 9_700_000.into(),
+        load_page_storage_data: 10_700_000.into(),
     };
 
     check_pages_weights(

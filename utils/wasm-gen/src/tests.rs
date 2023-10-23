@@ -344,12 +344,10 @@ fn execute_wasm_with_custom_configs(
             .with_entry_points_config(EntryPointsSet::Init)
             .build(),
         SelectableParams {
-            call_indirect_enabled: false,
             allowed_instructions: vec![],
             max_instructions: 0,
             min_funcs: NonZeroUsize::new(1).unwrap(),
             max_funcs: NonZeroUsize::new(1).unwrap(),
-            unreachable_enabled: true,
         },
     );
 
