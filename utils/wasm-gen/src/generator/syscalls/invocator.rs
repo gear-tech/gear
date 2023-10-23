@@ -59,7 +59,7 @@ pub(crate) fn process_syscall_params(
         .iter()
         .filter_map(|&param| match param {
             ParamType::Ptr(PtrInfo {
-                ty: PtrType::BufferStart { length_param_idx },
+                ty: PtrType::SizedBufferStart { length_param_idx },
                 ..
             }) => Some(length_param_idx),
             _ => None,
