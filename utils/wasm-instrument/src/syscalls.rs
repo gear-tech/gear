@@ -296,12 +296,9 @@ impl SysCallName {
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                // TODO #3375, the PtrType::BlockNumber is incorrect here.
-                // Should be:
-                // Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
-                //     length_param_idx: 1,
-                // }))
-                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
+                Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
+                    length_param_idx: 1,
+                })),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
