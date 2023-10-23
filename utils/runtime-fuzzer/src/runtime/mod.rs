@@ -99,6 +99,5 @@ pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
         who.into(),
         <Runtime as GearBankConfig>::GasMultiplier::get()
             .gas_to_value(account::acc_max_balance() as u64),
-        new_reserved,
     )
 }
