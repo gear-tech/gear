@@ -299,7 +299,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 static_pages: code.static_pages(),
                 state: ProgramState::Initialized,
                 expiration_block,
-                memory_infix: Default::default(),
+                memory_infix: MemoryInfix::new(session_id),
             };
 
             let program_id = session.program_id;
