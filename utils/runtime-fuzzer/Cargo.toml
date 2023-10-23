@@ -14,6 +14,7 @@ arbitrary.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
+sha-1.workspace = true
 static_assertions.workspace = true
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
@@ -41,6 +42,7 @@ sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-im-online.workspace = true
 sp-authority-discovery.workspace = true
+pallet-authorship.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
