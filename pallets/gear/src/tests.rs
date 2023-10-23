@@ -6474,7 +6474,14 @@ fn resume_program_works() {
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
-        let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        // start a session to bump nonce
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+        ));
+
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_3),
             program_id,
@@ -6501,6 +6508,7 @@ fn resume_program_works() {
             memory_pages.into_iter().collect()
         ));
 
+        let block_count = ResumeMinimalPeriodOf::<Test>::get();
         // access to finish session by another user is denied
         assert_err!(
             Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
