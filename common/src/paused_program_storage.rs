@@ -209,6 +209,8 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         user: Self::AccountId,
         memory_pages: Vec<(GearPage, PageBuf)>,
     ) -> Result<(), Self::Error> {
+        // TODO: #3447 additional check
+
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
             let session = match maybe_session.as_mut() {
                 Some(s) if s.user == user => s,

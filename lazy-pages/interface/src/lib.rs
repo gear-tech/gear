@@ -82,7 +82,7 @@ pub fn init_for_program(
         wasm_mem_addr: mem.get_buffer_host_addr(),
         wasm_mem_size: mem.size().raw(),
         stack_end: stack_end.map(|p| p.raw()),
-        program_id: {
+        program_key: {
             let program_id = <[u8; 32]>::from(program_id.into_origin());
             let memory_infix = memory_infix.inner().to_le_bytes();
 

@@ -6627,6 +6627,7 @@ fn resume_program_works() {
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
+        let old_nonce = <ProgramStorageOf<Test> as PausedProgramStorage>::NonceStorage::get();
         // start a session to bump nonce
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_1),
@@ -6634,6 +6635,10 @@ fn resume_program_works() {
             program.allocations.clone(),
             CodeId::from_origin(program.code_hash),
         ));
+        assert_ne!(
+            old_nonce,
+            <ProgramStorageOf::<Test> as PausedProgramStorage>::NonceStorage::get()
+        );
 
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_3),

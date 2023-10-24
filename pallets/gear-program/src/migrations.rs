@@ -28,10 +28,7 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::{
-        codec::{Decode, Encode},
-        traits::StorageVersion,
-    },
+    frame_support::codec::{Decode, Encode},
     sp_std::vec::Vec,
 };
 
@@ -42,11 +39,9 @@ pub struct MigrateToV3<T: Config>(PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-        assert_eq!(
-            StorageVersion::get::<Pallet<T>>(),
-            2,
-            "Can only upgrade from version 2"
-        );
+        assert!(v2::SessionMemoryPages::<T>::iter().next().is_none());
+        assert!(ResumeSessions::<T>::iter().next().is_none());
+        assert!(PausedProgramStorage::<T>::iter().next().is_none());
 
         let count = v2::ProgramStorage::<T>::iter().fold(0u64, |count, (program_id, program)| {
             match program {
@@ -85,7 +80,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                             for (page, data) in v2::MemoryPageStorage::<T>::drain_prefix(program_id)
                             {
                                 weight =
-                                    weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                                    weight.saturating_add(T::DbWeight::get().reads_writes(0, 2));
 
                                 MemoryPages::<T>::insert((program_id, MEMORY_INFIX, page), data);
                             }
@@ -108,10 +103,19 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 },
             );
 
-            let _ = ResumeSessions::<T>::clear(u32::MAX, None);
-            let _ = v2::SessionMemoryPages::<T>::clear(u32::MAX, None);
-            let _ = PausedProgramStorage::<T>::clear(u32::MAX, None);
+            if v2::SessionMemoryPages::<T>::iter().next().is_some() {
+                log::error!("v2::SessionMemoryPages is not empty");
+            }
 
+            if ResumeSessions::<T>::iter().next().is_some() {
+                log::error!("ResumeSessions is not empty");
+            }
+
+            if PausedProgramStorage::<T>::iter().next().is_some() {
+                log::error!("PausedProgramStorage is not empty");
+            }
+
+            weight = weight.saturating_add(T::DbWeight::get().writes(1));
             current.put::<Pallet<T>>();
 
             log::info!("Successfully migrated storage");
@@ -124,8 +128,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
-        assert_eq!(StorageVersion::get::<Pallet<T>>(), 3, "Must upgrade");
-
         // Check that everything decoded fine.
         let count = ProgramStorage::<T>::iter_keys().fold(0u64, |i, k| {
             let Ok(program) = ProgramStorage::<T>::try_get(k) else {
@@ -148,10 +150,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         assert_eq!(count, old_count);
 
         assert!(v2::MemoryPageStorage::<T>::iter().next().is_none());
-        assert!(v2::SessionMemoryPages::<T>::iter().next().is_none());
-
-        assert!(ResumeSessions::<T>::iter().next().is_none());
-        assert!(PausedProgramStorage::<T>::iter().next().is_none());
 
         Ok(())
     }
@@ -255,11 +253,11 @@ mod v2 {
 #[cfg(feature = "try-runtime")]
 mod test {
     use super::*;
-    use crate::{mock::*, pallet, PausedProgramStorage};
-    use common::{PausedProgramStorage as _, ProgramState};
+    use crate::mock::*;
+    use common::ProgramState;
+    use frame_support::pallet_prelude::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
-    use primitive_types::H256;
     use sp_runtime::traits::Zero;
 
     #[test]
@@ -297,39 +295,6 @@ mod test {
             let program = v2::Program::<BlockNumberFor<Test>>::Terminated(program_id);
             let program_id = ProgramId::from(3u64);
             v2::ProgramStorage::<Test>::insert(program_id, program);
-
-            // add a paused program
-            let program_id = ProgramId::from(4u64);
-            PausedProgramStorage::<Test>::insert(program_id, (0, H256::from([1u8; 32])));
-
-            // add a resume session
-            let session_id = pallet::Pallet::<Test>::resume_session_init(
-                USER_2,
-                30,
-                program_id,
-                Default::default(),
-                Default::default(),
-            )
-            .unwrap();
-            pallet::Pallet::<Test>::resume_session_push(
-                session_id,
-                USER_2,
-                vec![
-                    (GearPage::from(0), PageBuf::new_zeroed()),
-                    (GearPage::from(2), PageBuf::new_zeroed()),
-                ],
-            )
-            .unwrap();
-
-            // add another one
-            let _session_id = pallet::Pallet::<Test>::resume_session_init(
-                USER_3,
-                33,
-                program_id,
-                Default::default(),
-                Default::default(),
-            )
-            .unwrap();
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
             let w = MigrateToV3::<Test>::on_runtime_upgrade();

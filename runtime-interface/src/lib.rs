@@ -58,8 +58,7 @@ pub struct LazyPagesProgramContext {
     pub stack_end: Option<u32>,
     /// The field contains prefix to a program's memory pages, i.e.
     /// `program_id` + `memory_infix`.
-    /// For backward compatibility it has not been renamed.
-    pub program_id: Vec<u8>,
+    pub program_key: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
     pub globals_config: GlobalsAccessConfig,
     /// Lazy-pages access weights.
@@ -192,7 +191,7 @@ pub trait GearRI {
             wasm_mem_addr,
             ctx.wasm_mem_size,
             ctx.stack_end,
-            ctx.program_id,
+            ctx.program_key,
             Some(ctx.globals_config),
             ctx.weights,
         )
