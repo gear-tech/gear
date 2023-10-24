@@ -46,7 +46,8 @@ reqwest = { workspace = true, default-features = false, features = [ "json", "ru
 etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" ] }
-wasmi = { workspace = true, features = ["std"] }
+# TODO: use wasmi from workspace (#3214)
+wasmi = { version = "0.30.0", features = ["std"] }
 vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 
 [dev-dependencies]
