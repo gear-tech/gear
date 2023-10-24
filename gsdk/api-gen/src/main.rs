@@ -94,7 +94,7 @@ fn main() -> Result<()> {
 /// Get the metadata of vara runtime.
 fn metadata() -> Vec<u8> {
     use gear_runtime_interface as gear_ri;
-    use sc_executor::WasmExecutionMethod;
+    use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
     use sc_executor_common::runtime_blob::RuntimeBlob;
 
     // 1. Get the wasm binary of `RUNTIME_WASM`.
@@ -110,7 +110,7 @@ fn metadata() -> Vec<u8> {
         sp_io::SubstrateHostFunctions,
     )>::builder()
     .with_execution_method(WasmExecutionMethod::Compiled {
-        instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite,
+        instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
     })
     .with_onchain_heap_alloc_strategy(heap_pages)
     .with_offchain_heap_alloc_strategy(heap_pages)
