@@ -23,6 +23,8 @@ use crate::common::{
     Args, Result,
 };
 
+// ExtraFlags is hardcoded
+// const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;
 const EXPECTED_BALANCE: &str = r#"
 AccountInfo {
     nonce: 0,
@@ -32,8 +34,10 @@ AccountInfo {
     data: AccountData {
         free: 1000000000000000000,
         reserved: 0,
-        misc_frozen: 0,
-        fee_frozen: 0,
+        frozen: 0,
+        flags: ExtraFlags(
+            170141183460469231731687303715884105728,
+        ),
     },
 }
 "#;
