@@ -34,7 +34,7 @@ impl Percent {
         Self(value)
     }
 
-    /// Returns the inner `u16` value.
+    /// Returns the inner `u32` value.
     pub fn value(self) -> u32 {
         self.0
     }
@@ -48,5 +48,11 @@ impl Percent {
 impl From<u32> for Percent {
     fn from(value: u32) -> Self {
         Self::new(value)
+    }
+}
+
+impl From<Percent> for gsys::Percent {
+    fn from(value: Percent) -> Self {
+        gsys::Percent::new(value.value())
     }
 }

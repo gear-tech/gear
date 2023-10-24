@@ -50,10 +50,10 @@ enum Commands {
     Diff {
         /// path to json file #1
         #[arg(value_parser)]
-        output_path1: PathBuf,
+        before: PathBuf,
         /// path to json file #2
         #[arg(value_parser)]
-        output_path2: PathBuf,
+        after: PathBuf,
         /// what runtime to compare?
         #[arg(ignore_case = true, value_enum)]
         runtime: Runtime,
@@ -173,16 +173,15 @@ fn format_value(value: Option<u64>, display_units: bool) -> String {
         .unwrap_or_else(|| "N/A".into())
 }
 
-fn format_diff(value1: Option<u64>, value2: Option<u64>) -> String {
-    value1
-        .filter(|&a| a != 0)
-        .zip(value2)
-        .map(|(value1, value2)| {
-            let (value1, value2) = (value1 as f64, value2 as f64);
-            let percentage_diff = ((value1 / value2) - 1.0) * 100.0;
-            format!("{percentage_diff:+.2}%")
-        })
-        .unwrap_or_else(|| "N/A".into())
+fn format_diff(before: Option<u64>, after: Option<u64>) -> String {
+    let after = after.filter(|&x| x != 0);
+    if let (Some(before), Some(after)) = (before, after) {
+        let (before, after) = (before as f64, after as f64);
+        let percentage_diff = (1.0 - before / after) * 100.0;
+        format!("{percentage_diff:+.2}%")
+    } else {
+        "N/A".to_string()
+    }
 }
 
 fn main() {
@@ -202,16 +201,16 @@ fn main() {
         }
         Commands::Diff {
             display_units,
-            output_path1,
-            output_path2,
+            before,
+            after,
             runtime,
             kind,
         } => {
             let dump1: DeserializableDump =
-                serde_json::from_str(&fs::read_to_string(output_path1).unwrap()).unwrap();
+                serde_json::from_str(&fs::read_to_string(before).unwrap()).unwrap();
 
             let dump2: DeserializableDump =
-                serde_json::from_str(&fs::read_to_string(output_path2).unwrap()).unwrap();
+                serde_json::from_str(&fs::read_to_string(after).unwrap()).unwrap();
 
             let (schedule1, schedule2) = match runtime {
                 Runtime::Vara => (dump1.vara_schedule, dump2.vara_schedule),
@@ -248,8 +247,8 @@ fn main() {
             let mut builder = Builder::default();
             builder.set_columns([
                 "name".into(),
-                dump1.label.unwrap_or_else(|| "value1".into()),
-                dump2.label.unwrap_or_else(|| "value2".into()),
+                dump1.label.unwrap_or_else(|| "before".into()),
+                dump2.label.unwrap_or_else(|| "after".into()),
                 "diff".into(),
             ]);
 

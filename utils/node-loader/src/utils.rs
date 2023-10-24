@@ -219,6 +219,7 @@ pub fn get_wasm_gen_config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
+            (SysCallName::EnvVars, 0..=0),
             (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
             (SysCallName::Alloc, 3..=6),
@@ -239,7 +240,6 @@ pub fn get_wasm_gen_config(
         injection_types,
         params_config,
         initial_pages: initial_pages as u32,
-        unreachable_enabled: false,
         ..Default::default()
     }
 }

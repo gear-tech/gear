@@ -2450,6 +2450,7 @@ pub mod runtime_types {
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 2)]
                     #[doc = "Creates program via `code_id` from storage."]
@@ -2474,6 +2475,7 @@ pub mod runtime_types {
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 3)]
                     #[doc = "Sends a message to a program or to another account."]
@@ -2498,6 +2500,7 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send reply on message in `Mailbox`."]
@@ -2518,6 +2521,7 @@ pub mod runtime_types {
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
+                        keep_alive: ::core::primitive::bool,
                     },
                     #[codec(index = 5)]
                     #[doc = "Claim value from message in `Mailbox`."]
@@ -2774,6 +2778,7 @@ pub mod runtime_types {
                     pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
@@ -3250,6 +3255,8 @@ pub mod runtime_types {
                         to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                         value: ::core::primitive::u128,
                     },
+                    #[codec(index = 3)]
+                    align_supply { target: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the staking rewards pallet."]
@@ -3273,6 +3280,9 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "Burned from the pool."]
                     Burned { amount: ::core::primitive::u128 },
+                    #[codec(index = 3)]
+                    #[doc = "Minted to the pool."]
+                    Minted { amount: ::core::primitive::u128 },
                 }
             }
         }
@@ -3338,6 +3348,7 @@ pub mod runtime_types {
                     payload: ::std::vec::Vec<::core::primitive::u8>,
                     gas_limit: ::core::primitive::u64,
                     value: _0,
+                    keep_alive: ::core::primitive::bool,
                 },
                 #[codec(index = 1)]
                 SendReply {
@@ -3345,6 +3356,7 @@ pub mod runtime_types {
                     payload: ::std::vec::Vec<::core::primitive::u8>,
                     gas_limit: ::core::primitive::u64,
                     value: _0,
+                    keep_alive: ::core::primitive::bool,
                 },
             }
         }
@@ -9792,6 +9804,7 @@ pub mod calls {
         Refill,
         ForceRefill,
         Withdraw,
+        AlignSupply,
     }
     impl CallInfo for StakingRewardsCall {
         const PALLET: &'static str = "StakingRewards";
@@ -9800,6 +9813,7 @@ pub mod calls {
                 Self::Refill => "refill",
                 Self::ForceRefill => "force_refill",
                 Self::Withdraw => "withdraw",
+                Self::AlignSupply => "align_supply",
             }
         }
     }

@@ -86,7 +86,7 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/runtime-fuzzer
 
   if [ "$3" = "wlogs" ]; then
-    LOG_TARGETS="debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace"
+    LOG_TARGETS="debug,syscalls,runtime::sandbox=trace,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace"
   else
     LOG_TARGETS="off"
   fi

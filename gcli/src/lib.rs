@@ -128,3 +128,6 @@ pub mod meta;
 pub mod result;
 pub mod template;
 pub mod utils;
+
+/// SS58 prefix for vara network.
+pub const VARA_SS58_PREFIX: u8 = 137;
