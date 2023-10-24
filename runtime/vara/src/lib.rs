@@ -497,7 +497,7 @@ parameter_types! {
     pub MaxOnChainElectableTargets: u16 = 1250;
     // The maximum winners that can be elected by the Election pallet which is equivalent to the
     // maximum active validators the staking pallet can have.
-    pub MaxActiveValidators: u32 = 1000;
+    pub MaxActiveValidators: u32 = 55;
 }
 
 pub struct OnChainSeqPhragmen;
