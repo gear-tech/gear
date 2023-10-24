@@ -299,7 +299,7 @@ impl<'a> Program<'a> {
     }
 
     /// Get program of the root crate with provided `system` and
-    /// initialize it with provided `args`.
+    /// initialize it with given `id`.
     ///
     /// See also [`Program::current`].
     pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(

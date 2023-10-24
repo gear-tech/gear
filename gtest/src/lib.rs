@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![deny(missing_docs)]
 //! # Testing with `gtest`
 //!
 //! `gtest` simulates a real network by providing mockups of the user, program,
@@ -203,11 +202,10 @@
 //!     let _ = Log::builder();
 //!
 //!     // Constructor for error reply log.
-//!     //
-//!     // Note that error reply never contains payload.
-//!     // And its exit code equals 1, instead of 0 for success replies.
 //!     let _ = Log::error_builder();
 //!
+//!     // The first message to uploaded program is INIT message.
+//!     //
 //!     // Let’s send a new message after the program has been initialized.
 //!     // The initialized program expects to receive a byte string "PING" and replies with a byte string "PONG".
 //!     let res = ping_pong.send_bytes(100001, "PING");
@@ -227,7 +225,7 @@
 //!
 //!     assert!(!res.contains(&wrong_log));
 //!
-//!     // Log also has `From` implementations from (ID, T) and from (ID, ID, T),
+//!     // Log also has `From` implementations from (ID, T) and from (ID_1, ID_2, T),
 //!     // where ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>
 //!     let x = Log::builder().dest(5).payload_bytes("A");
 //!     let x_from: Log = (5, "A").into();
@@ -247,7 +245,8 @@
 //! // You may control time in the system by spending blocks.
 //! //
 //! // It adds the amount of blocks passed as arguments to the current block of the system.
-//! // Same for the timestamp. Note, that for now 1 block in Gear network is 1 sec duration.
+//! // Same for the timestamp. Note, that for now 1 block in Gear-based network is 3 sec
+//! // duration.
 //! sys.spend_blocks(150);
 //! ```
 //! <!--
@@ -311,6 +310,7 @@
 //! prog.mint(1000);
 //! assert_eq!(prog.balance(), 1000);
 //! ```
+#![deny(missing_docs)]
 
 mod error;
 mod log;
@@ -325,37 +325,20 @@ pub use error::{Result, TestError};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;
 
-/// Minimal amount of existence for account.
 const EXISTENTIAL_DEPOSIT: u128 = 500;
-/// Threshold for inserting into mailbox.
 const MAILBOX_THRESHOLD: u64 = 3000;
-/// Cost for single block waitlist holding.
 const WAITLIST_COST: u64 = 100;
-/// Reserve for parameter of scheduling.
 const RESERVE_FOR: u32 = 1;
-/// Cost for reservation holding.
 const RESERVATION_COST: u64 = 100;
-/// One-time db-read cost.
 const READ_COST: u64 = 20;
-/// One-time db-write cost.
 const WRITE_COST: u64 = 100;
-/// Per loaded byte cost.
 const READ_PER_BYTE_COST: u64 = 10;
-/// Per written byte cost.
 const WRITE_PER_BYTE_COST: u64 = 10;
-/// WASM module instantiation byte cost.
 const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
-/// Amount of reservations can exist for 1 program.
 const MAX_RESERVATIONS: u64 = 256;
-/// Epoch duration in blocks.
 const EPOCH_DURATION_IN_BLOCKS: u32 = 600;
-/// Initial random seed.
 const INITIAL_RANDOM_SEED: u64 = 42;
-/// WASM module instantiation byte cost.
 const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
-/// WASM module instantiation cost.
 const MODULE_INSTRUMENTATION_COST: u64 = 297;
-/// Cost of holding a message in dispatch stash.
 const DISPATCH_HOLD_COST: u64 = 200;
-/// Rent cost per block.
 const RENT_COST: u128 = 330;
