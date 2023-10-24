@@ -8,7 +8,7 @@ use num_traits::{
 };
 
 use crate::{
-    seq::{BoundValue, Numerated},
+    numerated::{BoundValue, Numerated},
     Bound,
 };
 
@@ -37,12 +37,17 @@ impl<T: Numerated> From<NotEmptyInterval<T>> for RangeInclusive<T> {
 }
 
 impl<T: Numerated> NotEmptyInterval<T> {
+    /// Creates new interval start..=end with checks only in debug mode.
+    /// Pub is only for crate, so supposed to be safe.
     #[track_caller]
-    /// # Safety
-    /// `start <= end`
-    pub unsafe fn new_unchecked(start: T, end: T) -> Self {
+    pub(crate) fn new_unchecked(start: T, end: T) -> Self {
         debug_assert!(start <= end);
         Self { start, end }
+    }
+
+    /// Creates new interval start..=end if start <= end, else returns None.
+    pub fn new(start: T, end: T) -> Option<Self> {
+        (start <= end).then_some(Self { start, end })
     }
 
     pub fn start(&self) -> T {
@@ -53,27 +58,31 @@ impl<T: Numerated> NotEmptyInterval<T> {
         self.end
     }
 
+    pub fn iter(&self) -> Interval<T> {
+        (*self).into()
+    }
+
     pub fn into_inner(self) -> (T, T) {
         self.into()
     }
 }
 
 impl<T: Numerated> Interval<T> {
-    pub fn start(self) -> T {
+    pub fn start(&self) -> T {
         self.start
+    }
+    pub fn is_empty(&self) -> bool {
+        self.end.is_none()
     }
     pub fn into_not_empty(self) -> Option<NotEmptyInterval<T>> {
         self.end
-            .map(|end| unsafe { NotEmptyInterval::new_unchecked(self.start, end) })
+            .map(|end| NotEmptyInterval::new_unchecked(self.start, end))
     }
     pub fn into_inner(self) -> Option<(T, T)> {
         self.into_not_empty().map(Into::into)
     }
     pub fn into_range_inclusive(self) -> Option<RangeInclusive<T>> {
         self.into_not_empty().map(Into::into)
-    }
-    pub fn is_empty(&self) -> bool {
-        self.end.is_none()
     }
 }
 
@@ -95,15 +104,15 @@ impl<T: Numerated> Iterator for Interval<T> {
                 self.end = None;
                 Some(start)
             } else {
-                // Guarantied by Interval
+                // Guaranteed by `Self`
                 debug_assert!(start < end);
 
                 let result = start;
                 let start = start.inc_if_lt(end).unwrap_or_else(|| {
-                    unreachable!("Problem in `T: AsNumeric` impl: if start < end, then inc must return Some(_)")
+                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s => s.inc_if_lt(e) == Some(_)")
                 });
                 *self = Interval::try_from(start..=end).unwrap_or_else(|_| {
-                    unreachable!("Problem in `T: AsNumeric` impl: if start <= end, then mut be start + 1 <= end")
+                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s => s.inc_if_lt(e) <= e")
                 });
                 Some(result)
             }
@@ -115,19 +124,19 @@ impl<T: Numerated> Iterator for Interval<T> {
 
 impl<T: Numerated> From<T> for Interval<T> {
     fn from(point: T) -> Self {
-        unsafe { NotEmptyInterval::new_unchecked(point, point) }.into()
+        NotEmptyInterval::new_unchecked(point, point).into()
     }
 }
 
 impl<T: Numerated> From<&T> for Interval<T> {
     fn from(point: &T) -> Self {
-        unsafe { NotEmptyInterval::new_unchecked(*point, *point) }.into()
+        NotEmptyInterval::new_unchecked(*point, *point).into()
     }
 }
 
 impl<T: Numerated + LowerBounded> From<RangeToInclusive<T>> for Interval<T> {
     fn from(range: RangeToInclusive<T>) -> Self {
-        unsafe { NotEmptyInterval::new_unchecked(T::min_value(), range.end) }.into()
+        NotEmptyInterval::new_unchecked(T::min_value(), range.end).into()
     }
 }
 
@@ -136,8 +145,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
         let start: T::B = range.start.into();
         match start.unbound() {
             BoundValue::Value(start) => {
-                debug_assert!(start <= T::max_value());
-                unsafe { NotEmptyInterval::new_unchecked(start, T::max_value()) }.into()
+                NotEmptyInterval::new_unchecked(start, T::max_value()).into()
             }
             BoundValue::Upper(start) => Self { start, end: None },
         }
@@ -146,7 +154,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
 
 impl<T: Numerated + UpperBounded + LowerBounded> From<RangeFull> for Interval<T> {
     fn from(_: RangeFull) -> Self {
-        unsafe { NotEmptyInterval::new_unchecked(T::min_value(), T::max_value()) }.into()
+        NotEmptyInterval::new_unchecked(T::min_value(), T::max_value()).into()
     }
 }
 
@@ -217,11 +225,9 @@ impl<T: Numerated> TryFrom<RangeInclusive<T>> for Interval<T> {
 
     fn try_from(range: RangeInclusive<T>) -> Result<Self, Self::Error> {
         let (start, end) = range.into_inner();
-        if start <= end {
-            Ok(unsafe { NotEmptyInterval::new_unchecked(start, end) }.into())
-        } else {
-            Err(IntoIntervalError)
-        }
+        NotEmptyInterval::new(start, end)
+            .ok_or(IntoIntervalError)
+            .map(Into::into)
     }
 }
 
@@ -234,7 +240,7 @@ impl<T: Numerated> NotEmptyInterval<T> {
 
         let distance = end.sub(start).unwrap_or_else(|| {
             unreachable!(
-                "Problem in `T` impl: if end >= start, then end.raw_sub(start) must return Some(_)"
+                "`T: Numerated` impl error: for each s: T, e: T, e >= s => e.sub(s) == Some(_)"
             )
         });
 
@@ -250,11 +256,7 @@ impl<T: Numerated + LowerBounded + UpperBounded> NotEmptyInterval<T> {
         let raw_size = self.raw_size()?;
         let size = T::min_value()
             .raw_add_if_lt(raw_size, T::max_value())
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "Problem in `T` impl: must be T::min_value() + raw_size <= T::max_value()"
-                )
-            });
+            .unwrap_or_else(|| unreachable!("`T: Numerated` impl error"));
         Some(size)
     }
 }
@@ -302,7 +304,9 @@ impl<T: Numerated + UpperBounded> Interval<T> {
                 // subtraction is safe, because c != 0
                 let c = c.map(|c| c - T::N::one()).unwrap_or(T::N::max_value());
                 s.raw_add_if_lt(c, T::max_value())
-                    .map(|e| unsafe { NotEmptyInterval::new_unchecked(s, e) }.into())
+                    .map(|e| NotEmptyInterval::new(s, e).unwrap_or_else(|| {
+                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N => s.raw_add_if_lt(_) >= s")
+                    }).into())
             }
         }
     }

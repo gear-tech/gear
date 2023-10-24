@@ -3,11 +3,11 @@
 extern crate alloc;
 
 mod interval;
-mod seq;
+mod numerated;
 mod tree;
 
 pub use interval::{Interval, IntoIntervalError, NotEmptyInterval};
-pub use seq::{Bound, BoundValue, Numerated};
+pub use numerated::{Bound, BoundValue, Numerated};
 pub use tree::{Drops, VoidsIterator};
 
 pub use num_traits::{

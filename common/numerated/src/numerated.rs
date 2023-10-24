@@ -4,7 +4,7 @@ use num_traits::{bounds::UpperBounded, One, PrimInt, Unsigned};
 pub enum BoundValue<T: Sized> {
     /// The bound is a value.
     Value(T),
-    /// The bound is an upper bound. Contains previous value.
+    /// The bound is an upper bound. Contains max value.
     Upper(T),
 }
 
@@ -101,6 +101,7 @@ macro_rules! impl_for_unsigned {
 
 impl_for_unsigned!(u8 u16 u32 u64 u128 usize);
 
+/// Toggles/inverts the most significant bit.
 macro_rules! toggle_msb {
     ($num:expr) => {
         $num ^ (1 << (core::mem::size_of_val(&$num) * 8 - 1))

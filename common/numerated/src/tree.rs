@@ -39,9 +39,10 @@ impl<T: Numerated> Drops<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = NotEmptyInterval<T>> + '_ {
+        // `Self` guaranties, that contains only `start` <= `end`
         self.inner
             .iter()
-            .map(|(&s, &e)| unsafe { NotEmptyInterval::<T>::new_unchecked(s, e) })
+            .map(|(&start, &end)| NotEmptyInterval::<T>::new_unchecked(start, end))
     }
 
     pub fn contains<I: Into<Interval<T>>>(&self, interval: I) -> bool {
@@ -234,13 +235,13 @@ impl<T: Numerated> Drops<T> {
             }
         }
 
-        let iter = self.inner.range(start..=end).map(|(&s, &e)| unsafe {
-            // Safe, cause this `inner` guaranties, that it contains only `e` >= `s`.
-            NotEmptyInterval::new_unchecked(s, e)
+        let iter = self.inner.range(start..=end).map(|(&start, &end)| {
+            // `Self` guaranties, that it contains only `start` <= `end`.
+            NotEmptyInterval::new_unchecked(start, end)
         });
 
-        // Safe cause we already checked that `start` <= `end`.
-        let interval = unsafe { NotEmptyInterval::new_unchecked(start, end) };
+        // Already checked, that `start` <= `end`.
+        let interval = NotEmptyInterval::new_unchecked(start, end);
 
         VoidsIterator {
             inner: Some((iter, interval)),
@@ -294,35 +295,13 @@ impl<T: Numerated> Drops<T> {
     }
 
     pub fn points_iter(&self) -> impl Iterator<Item = T> + '_ {
-        self.inner.iter().flat_map(|(&s, &e)| unsafe {
-            // Safe, cause this `inner` guaranties, that it contains only `end` > `start`.
-            Interval::from(NotEmptyInterval::new_unchecked(s, e))
-        })
-    }
-
-    pub fn into_points_iter(self) -> impl Iterator<Item = T> {
-        self.inner.into_iter().flat_map(|(s, e)| unsafe {
-            // Safe, cause this `inner` guaranties, that it contains only `end` > `start`.
-            Interval::from(NotEmptyInterval::new_unchecked(s, e))
-        })
-    }
-
-    pub fn to_points_vec(self) -> Vec<T> {
-        self.into_points_iter().collect()
-    }
-
-    // TODO: optimize
-    pub fn union(&mut self, other: &Self) {
-        for interval in other.iter() {
-            self.insert(interval);
-        }
+        // `Self` guaranties, that contains only `end` >= `start`
+        self.inner
+            .iter()
+            .flat_map(|(&s, &e)| NotEmptyInterval::new_unchecked(s, e).iter())
     }
 
     pub fn to_vec(&self) -> Vec<RangeInclusive<T>> {
-        self.iter().map(Into::into).collect()
-    }
-
-    pub fn into_vec(self) -> Vec<RangeInclusive<T>> {
         self.iter().map(Into::into).collect()
     }
 }
@@ -337,16 +316,18 @@ impl<T: Numerated + LowerBounded + UpperBounded> Drops<T> {
                 // `start` < `interval.start()` cause all intervals in tree are sorted.
                 debug_assert!(start < interval.start());
                 let start = start.inc_if_lt(interval.start()).unwrap_or_else(|| {
-                    unreachable!("`T: AsNumeric` impl error: if start < interval.start(), then start.inc() must return Some(_)");
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) == Some(_)");
                 });
 
-                // tree guaranties that between each two intervals in tree exists void.
+                // `Self` guaranties, that between each two intervals void exists.
                 debug_assert!(start < interval.start());
                 let end = interval.start().dec_if_gt(start).unwrap_or_else(|| {
-                    unreachable!("`T: AsNumeric` impl error: if start < interval.start(), then interval.start().dec() must return Some(_)");
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) == Some(_)");
                 });
 
-                res.insert(unsafe { NotEmptyInterval::new_unchecked(start, end) });
+                res.insert(NotEmptyInterval::new(start, end).unwrap_or_else(|| {
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y");
+                }));
             } else {
                 res.insert(..interval.start());
             }
@@ -393,16 +374,22 @@ impl<T: Numerated, I: Iterator<Item = NotEmptyInterval<T>>> Iterator for VoidsIt
 
             // Guaranties by tree: between two intervals always exists void.
             debug_assert!(interval.start() < start);
+
             let void_end = start.dec_if_gt(interval.start()).unwrap_or_else(|| {
-                unreachable!("`T: AsNumeric` impl error: if interval.start() < start, then start.dec() must return Some(_)");
+                unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) == Some(_)");
             });
 
-            // Safe, cause `void_end` >= `interval.start()`
-            let res = Some(unsafe { NotEmptyInterval::new_unchecked(interval.start(), void_end) });
+            let res = NotEmptyInterval::new(interval.start(), void_end);
+            if res.is_none() {
+                unreachable!(
+                    "`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y"
+                );
+            }
 
             if let Some(new_start) = end.inc_if_lt(interval.end()) {
-                // Safe cause `new_start` <= `interval.end()`
-                *interval = unsafe { NotEmptyInterval::new_unchecked(new_start, interval.end()) };
+                *interval = NotEmptyInterval::new(new_start, interval.end()).unwrap_or_else(|| {
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) <= y");
+                });
             } else {
                 self.inner = None;
             }
@@ -467,10 +454,10 @@ impl<
                 return Some(interval1);
             } else {
                 if let Some(new_start) = interval2.end().inc_if_lt(interval1.end()) {
-                    // Safe cause `new_start` <= `interval1.end()`
-                    self.interval1 = Some(unsafe {
-                        NotEmptyInterval::new_unchecked(new_start, interval1.end())
-                    });
+                    self.interval1 = NotEmptyInterval::new(new_start, interval1.end());
+                    if self.interval1.is_none() {
+                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) <= y");
+                    }
                 } else if interval1.end() == interval2.end() {
                     self.interval1 = None;
                     self.interval2 = None;
@@ -479,10 +466,11 @@ impl<
                 }
 
                 if let Some(new_end) = interval2.start().dec_if_gt(interval1.start()) {
-                    // Safe, cause `interval1.start()` <= `new_end`
-                    return Some(unsafe {
-                        NotEmptyInterval::new_unchecked(interval1.start(), new_end)
-                    });
+                    let res = NotEmptyInterval::new(interval1.start(), new_end);
+                    if res.is_none() {
+                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y");
+                    }
+                    return res;
                 } else {
                     continue;
                 }
