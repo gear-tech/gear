@@ -1,17 +1,20 @@
 [package]
 name = "numerated"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A library for working with intervals and sets of numerated values"
+keywords = ["gear", "tree", "interval", "numerated", "no-std", "math"]
+categories = ["mathematics", "no-std"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
-num-traits = { version = "0.2", default-features = false }
-derive_more = "0.99"
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-parity-scale-codec = { version = "3.6.4", default-features = false, features = ["derive", "max-encoded-len"] }
+num-traits.workspace = true
+derive_more.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 rand = "0.8.4"
