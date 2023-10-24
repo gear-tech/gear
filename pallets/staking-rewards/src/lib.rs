@@ -66,7 +66,7 @@ use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup},
     PerThing, Perquintill,
 };
-use sp_std::collections::btree_set::BTreeSet;
+use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
