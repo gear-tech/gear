@@ -65,6 +65,7 @@ where
         Default::default(),
         BlockGasLimitOf::<T>::get(),
         Zero::zero(),
+        false,
     )
     .expect("Failed to upload read_big_state binary");
 
@@ -163,6 +164,7 @@ where
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
             SysCallName::Value => check_gr_value::<T>(),
+            SysCallName::EnvVars => check_gr_env_vars::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
@@ -402,6 +404,7 @@ where
         b"".to_vec(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("failed to upload test program");
 
@@ -418,7 +421,7 @@ where
             b"".to_vec(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("failed to send message to test program");
         utils::run_to_next_block::<T>(None);
@@ -777,7 +780,7 @@ where
             vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -816,7 +819,7 @@ where
             vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
-            false, // call is not prepaid by issuing a voucher
+            false,
         )
         .expect("triggering message send to mailbox failed");
 
@@ -834,6 +837,31 @@ where
 
         (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
+}
+
+fn check_gr_env_vars<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let performance_multiplier = T::PerformanceMultiplier::get().value();
+        let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+        let mailbox_threshold = T::MailboxThreshold::get();
+        let gas_to_value_multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get()
+            .gas_to_value(1)
+            .unique_saturated_into();
+        let mp = vec![Kind::EnvVars {
+            performance_multiplier,
+            existential_deposit,
+            mailbox_threshold,
+            gas_to_value_multiplier,
+        }]
+        .encode()
+        .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
 }
 
 fn check_gr_block_height<T>()
@@ -911,7 +939,7 @@ where
         let next_mid = utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let (random, expected_bn) = T::Randomness::random(next_mid.as_ref());
 
-        // If we use gear-runtime, current epoch starts at block 0,
+        // If we use vara-runtime, current epoch starts at block 0,
         // But mock runtime will reference currently proceeding block number,
         // so we add to currently got value.
         #[cfg(feature = "std")]
@@ -989,6 +1017,7 @@ where
         vec![],
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("child program deploy failed");
 
@@ -1005,6 +1034,7 @@ where
         child_code_hash.encode(),
         50_000_000_000,
         0u128.unique_saturated_into(),
+        false,
     )
     .expect("sys-call check program deploy failed");
 
@@ -1021,7 +1051,7 @@ where
                 mp.payload,
                 50_000_000_000,
                 mp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
+                false,
             )
             .expect("failed send message");
         }
@@ -1033,7 +1063,7 @@ where
                 rp.payload,
                 50_000_000_000,
                 rp.value.unique_saturated_into(),
-                false, // call is not prepaid by issuing a voucher
+                false,
             )
             .expect("failed send reply");
         }

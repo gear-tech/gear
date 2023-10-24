@@ -18,7 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{config::Header, ext::sp_core::H256, metadata::gear_runtime::RuntimeEvent};
+use gsdk::{config::Header, ext::sp_core::H256, metadata::vara_runtime::RuntimeEvent};
 use subxt::config::Header as _;
 
 type GearBlock = Header;

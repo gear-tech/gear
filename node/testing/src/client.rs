@@ -18,12 +18,9 @@
 
 //! Utilities to build a `TestClient` for gear- or vara-runtime.
 
-#[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
-use gear_runtime as runtime;
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;
-#[cfg(feature = "vara-native")]
 use vara_runtime as runtime;
 
 // A unit struct which implements `NativeExecutionDispatch` feeding in the hard-coded runtime

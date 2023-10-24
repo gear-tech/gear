@@ -65,7 +65,6 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "GEAR_SPEC=$(cat runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
           echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
 
       - name: "Environment: Make `artifact` directory"
@@ -80,22 +79,19 @@ jobs:
         run: cargo build -p vara-runtime --profile production --no-default-features --features std
 
       - name: "Test: Production `vara-runtime`"
-        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
+        run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev false target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_runtime_v$VARA_SPEC.wasm"
 
-      - name: "Build: Production node with development runtimes"
+      - name: "Build: Production node client and development `vara-runtime`"
         run: cargo build -p gear-cli --profile production
 
-      - name: "Test: Development runtimes"
-        run: |
-          ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/gear_runtime.wasm
-          ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
+      - name: "Test: Development `vara-runtime`"
+        run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Artifact: Production node and development runtimes"
+      - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm "artifact/gear_devruntime_v$GEAR_SPEC.wasm"
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/vara_devruntime_v$VARA_SPEC.wasm"
           cp target/production/gear artifact/gear
           strip artifact/gear || true

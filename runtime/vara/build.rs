@@ -18,7 +18,7 @@
 
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", not(feature = "fuzz")))]
     {
         substrate_wasm_builder::WasmBuilder::new()
             .with_current_project()
