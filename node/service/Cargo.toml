@@ -24,6 +24,7 @@ pallet-gear-staking-rewards-rpc-runtime-api = { workspace = true, features = ["s
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 authorship.workspace = true
+common.workspace = true
 
 # Gear Runtimes
 gear-runtime-common = { workspace = true, features = ["std"] }
