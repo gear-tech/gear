@@ -152,7 +152,7 @@ pub mod util;
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
-pub use gcore::{ext, BlockCount, BlockNumber};
+pub use gcore::{ext, BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;

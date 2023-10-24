@@ -33,6 +33,10 @@ pub fn min_unstructured_input_size() -> usize {
 }
 
 pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGeneratorSet {
+    // *WARNING*:
+    //
+    // Increasing these constants requires resetting minimal
+    // size of fuzzer input buffer in corresponding scripts.
     const UPLOAD_PROGRAM_CALLS: usize = 10;
     const SEND_MESSAGE_CALLS: usize = 15;
     const SEND_REPLY_CALLS: usize = 1;

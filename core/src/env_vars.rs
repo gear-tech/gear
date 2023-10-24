@@ -16,35 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear core.
-//!
-//! This library provides a runner for dealing with multiple little programs exchanging messages in a deterministic manner.
-//! To be used primary in Gear Substrate node implementation, but it is not limited to that.
-#![no_std]
-#![warn(missing_docs)]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+//! Execution settings
 
-extern crate alloc;
+use core::{mem, slice};
+pub use gsys::EnvVars as EnvVarsV1;
 
-pub mod code;
-pub mod costs;
-pub mod env;
-pub mod env_vars;
-pub mod gas;
-pub mod ids;
-pub mod memory;
-pub mod message;
-pub mod pages;
-pub mod percent;
-pub mod program;
-pub mod reservation;
+/// All supported versions of execution settings
+pub enum EnvVars {
+    /// Values of execution settings V1
+    // When a new version is introduced in gsys, the previous version should be
+    // copied here as EnvVarsV1 whereas the most recent version should be bound
+    // to the variant corresponding to it
+    V1(EnvVarsV1),
+}
 
-pub mod buffer;
-pub mod str;
-
-use core::mem::size_of;
-use static_assertions::const_assert;
-
-// This allows all casts from u32 into usize be safe.
-const_assert!(size_of::<u32>() <= size_of::<usize>());
+impl EnvVars {
+    /// Returns byte representation of execution settings
+    pub fn to_bytes(&self) -> &[u8] {
+        match self {
+            EnvVars::V1(v1) => {
+                let ptr = v1 as *const EnvVarsV1 as *const u8;
+                unsafe { slice::from_raw_parts(ptr, mem::size_of::<EnvVarsV1>()) }
+            }
+        }
+    }
+}

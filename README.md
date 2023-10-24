@@ -39,11 +39,11 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 # Getting Started
 
-1. :open_hands: The easiest way to get started with Gear is to use a demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io).
+1. :open_hands: The easiest way to get started with Gear is by using the demo environment at [https://idea.gear-tech.io](https://idea.gear-tech.io).
 
-2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going.
+2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test smart contract to Wasm. :running: Upload and run smart contract in Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara-network.io), send a message to a program, check how it is going.
 
-3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-foundation). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
+3. :scroll: Write your own smart contract or choose one from the available comprehensive [examples](https://github.com/gear-foundation/dapps) for a convenient and swift onboarding process.
 
 4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
@@ -61,10 +61,10 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 1. Compile and launch node as described in [Gear Node README](https://github.com/gear-tech/gear/tree/master/node/README.md). Alternatively, download nightly build of Gear node:
 
-    - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
     - **macOS M-series (ARM)**: [gear-nightly-aarch64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-aarch64-apple-darwin.tar.xz)
     - **macOS Intel x64**: [gear-nightly-x86_64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-x86_64-apple-darwin.tar.xz)
     - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz)
+    - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
 
 2. Run Gear node without special arguments to get a node connected to the testnet:
 
@@ -86,12 +86,11 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 ## Implement and run your own blockchain application
 
-1. Gear provides dApp [application templates](https://github.com/gear-foundation) that cover various use cases - DeFi, DAO, NFT and more. Write your own smart contract or take one from the available templates. Adapt a template in accordance with your business needs.
+1. Visit the [Gear Wiki](https://wiki.gear-tech.io/docs/examples/prerequisites) to explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own smart contract or take one from the available templates. Adapt a template in accordance with your business needs.
 
-2. Test your smart contract off-chain, test it on-chain using a local node, then upload to Gear network.
+2. Test your smart contract off-chain, test it on-chain using a local node, then upload to Gear-powered network via [Gear Idea](https://idea.gear-tech.io/).
 
-3. Implement an interface for your dApp for interaction Gear network using [JS API](https://github.com/gear-tech/gear-js/tree/main/api) or use provided by Gear on [https://idea.gear-tech.io](https://idea.gear-tech.io).
-
+3. Implement frontend applications that interact with your smart contracts using [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend).
 
 # Gear components
 
@@ -103,7 +102,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 * [gear-js](https://github.com/gear-tech/gear-js/tree/main/api) - JSON-RPC API of Gear backend.
 
-* [examples](https://github.com/gear-foundation) - Gear smart contract examples.
+* [examples](https://github.com/gear-foundation/dapps) - Smart contract examples.
 
 Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 
@@ -119,7 +118,7 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 <img src="images/state.png" height="64"><br>Smart Contracts are stored in the blockchain’s state <br>and are invoked preserving their state upon request.
 </p>
 <p align="center">
-<img src="images/apps.png" height="64"><br>Gear enables a seamless transition to Web3, <br>enabling the running of dApps, microservices, middleware and open APIs.
+<img src="images/apps.png" height="64"><br>Gear facilitates a seamless transition to Web3, <br>enabling the operation of dApps, microservices, middleware, and open APIs.
 </p>
 
 ### :fire: Key features
@@ -133,7 +132,7 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 ### Main capabilities
 
 Gear enables anyone to create and run any custom-logic dApp and is a go-to solution for the following types of applications:
-  - **Run dApps** that support business logic of any project in the **decentralized Gear network** (very fast). Upload programs to the network and interact with them.
+  - **Run dApps** that support business logic of any project in the **decentralized Gear network** (such as the [Vara Network](https://vara-network.io/)). Upload programs to the network and interact with them.
   - Being a **Polkadot parachain**, Gear establishes cross-chain communications between other blockchains, allowing anyone to run a dApp in the Polkadot network in a very **cost-less** manner.
   - Join Substrate-supported blockchains in any other platform outside Polkadot.
   - A standalone instance running microservices, middleware, open API and more
@@ -202,18 +201,21 @@ Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
     <a href="https://t.me/gear_tech">
         <img src="./images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
    </a>
-    <br>
+    <br> •
+    <a href="https://gear-tech.io">
+      About us
+    </a> •
     <a href="https://wiki.gear-tech.io/" nowrap>
-       Wiki
+      Gear Wiki
     </a> •
-    <a href="https://gear-tech.io/#community">
-      Community
+    <a href="https://gear.foundation/news">
+      News
     </a> •
-    <a href="https://gear-tech.io/events.html">
+      <a href="https://gear.foundation/events">
       Events
     </a> •
-    <a href="https://gear-tech.io/#about">
-      About us
-    </a>
+    <a href="https://vara-network.io/">
+      Vara Network
+    </a> •
 </p>
 </h4>

@@ -21,6 +21,7 @@ fail = { workspace = true, features = [ "failpoints" ], optional = true }
 gear-core.workspace = true
 gear-common-codegen.workspace = true
 gear-wasm-instrument = { workspace = true, optional = true }
+gsys.workspace = true
 
 # Substrate deps
 sp-core.workspace = true
