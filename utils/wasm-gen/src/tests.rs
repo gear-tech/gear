@@ -18,7 +18,6 @@
 
 use super::*;
 use arbitrary::Unstructured;
-use drops::Bound;
 use gear_core::{
     code::Code,
     ids::{CodeId, ProgramId},
@@ -27,7 +26,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    pages::WASM_PAGE_SIZE,
+    pages::{Bound, WASM_PAGE_SIZE},
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},

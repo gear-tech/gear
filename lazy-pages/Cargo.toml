@@ -19,7 +19,6 @@ region.workspace = true
 derive_more.workspace = true
 static_assertions.workspace = true
 once_cell.workspace = true
-drops = { path = "../../drops" }
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true

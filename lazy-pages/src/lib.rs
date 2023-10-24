@@ -49,7 +49,7 @@ use crate::{
     },
 };
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use drops::{Bound, Interval};
+use gear_core::pages::{Bound, Interval};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 

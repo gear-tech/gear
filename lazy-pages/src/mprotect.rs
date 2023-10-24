@@ -20,7 +20,7 @@
 
 use crate::pages::{Page, PagesAmount, SizeManager, SizeNumber};
 use core::ops::RangeInclusive;
-use drops::NotEmptyInterval;
+use gear_core::pages::NotEmptyInterval;
 use std::fmt::Debug;
 
 #[derive(Debug, derive_more::Display)]

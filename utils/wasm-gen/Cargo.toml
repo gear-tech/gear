@@ -24,7 +24,6 @@ wat.workspace = true
 indicatif.workspace = true
 proptest.workspace = true
 gear-utils.workspace = true
-drops = { path = "../../../drops" }
 
 gear-core-backend = { workspace = true, features = ["std"] }
 gear-core-processor = { workspace = true, features = ["std", "mock"] }

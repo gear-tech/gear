@@ -20,8 +20,10 @@ use crate::{
     common::Error, init_with_handler, mprotect, pages::GearPage, signal::ExceptionInfo,
     LazyPagesVersion, UserSignalHandler,
 };
-use drops::{Drops, Interval};
-use gear_core::str::LimitedStr;
+use gear_core::{
+    pages::{Drops, Interval},
+    str::LimitedStr,
+};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {

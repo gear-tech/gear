@@ -2754,16 +2754,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
-name = "drops"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "dtoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4053,7 +4043,6 @@ dependencies = [
  "blake2-rfc",
  "byteorder",
  "derive_more",
- "drops",
  "enum-iterator 1.4.1",
  "env_logger",
  "gear-core-errors",
@@ -4062,6 +4051,7 @@ dependencies = [
  "hex",
  "log",
  "num-traits",
+ "numerated",
  "parity-scale-codec",
  "paste",
  "proptest",
@@ -4117,7 +4107,6 @@ version = "1.0.2"
 dependencies = [
  "actor-system-error",
  "derive_more",
- "drops",
  "enum-iterator 1.4.1",
  "env_logger",
  "gear-core",
@@ -4145,7 +4134,6 @@ version = "1.0.2"
 dependencies = [
  "cfg-if",
  "derive_more",
- "drops",
  "env_logger",
  "errno",
  "gear-core",
@@ -4543,7 +4531,6 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "drops",
  "gear-core",
  "gear-core-backend",
  "gear-core-processor",
@@ -7222,6 +7209,19 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
+
+[[package]]
+name = "numerated"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "env_logger",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "scale-info",
+]
 
 [[package]]
 name = "object"

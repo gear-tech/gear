@@ -19,7 +19,7 @@
 //! Module for memory pages.
 
 use core::{cmp::Ordering, num::NonZeroU32};
-pub use drops::{
+pub use numerated::{
     Bound, BoundValue, Drops, Interval, LowerBounded, NotEmptyInterval, Numerated, UpperBounded,
 };
 use scale_info::{

@@ -21,9 +21,8 @@
 use crate::{
     code::InstrumentedCode,
     ids::ProgramId,
-    pages::{WasmPage, WasmPagesAmount},
+    pages::{Drops, WasmPage, WasmPagesAmount},
 };
-use drops::Drops;
 
 /// Program.
 #[derive(Clone, Debug)]

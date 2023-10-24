@@ -21,7 +21,10 @@
 use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
-    pages::{PageNumber, WasmPage, WasmPagesAmount, GEAR_PAGE_SIZE},
+    pages::{
+        Bound, Drops, Interval, Numerated, PageNumber, UpperBounded, WasmPage, WasmPagesAmount,
+        GEAR_PAGE_SIZE,
+    },
 };
 use alloc::format;
 use byteorder::{ByteOrder, LittleEndian};
@@ -30,7 +33,6 @@ use core::{
     fmt::Debug,
     ops::{Deref, DerefMut, Not},
 };
-use drops::{Bound, Drops, Interval, Numerated, UpperBounded};
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,

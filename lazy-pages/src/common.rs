@@ -25,8 +25,7 @@ use crate::{
     mprotect::MprotectError,
     pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
 };
-use drops::Drops;
-use gear_core::str::LimitedStr;
+use gear_core::{pages::Drops, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 
 // TODO: investigate error allocations #2441

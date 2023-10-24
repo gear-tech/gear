@@ -29,12 +29,11 @@ use crate::{
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::vec::Vec;
-use drops::Drops;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
-    pages::{WasmPage, WasmPagesAmount},
+    pages::{Drops, WasmPage, WasmPagesAmount},
 };
 use scale_info::{
     scale::{self, Decode, Encode},

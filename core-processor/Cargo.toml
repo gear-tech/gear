@@ -17,7 +17,6 @@ gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages-interface.workspace = true
-drops = { path = "../../drops" }
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
