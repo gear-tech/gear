@@ -740,8 +740,7 @@ impl Default for Limits {
             // To avoid potential stack overflow problems we have a panic in sandbox in case,
             // execution is ended with stack overflow error. So, process queue execution will be
             // stopped and we will be able to investigate the problem and decrease this constant if needed.
-            // TODO #3435. Disabled stack height is a temp solution.
-            stack_height: cfg!(not(feature = "fuzz")).then_some(20_000),
+            stack_height: Some(20_000),
             globals: 256,
             locals: 1024,
             parameters: 128,

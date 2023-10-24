@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
+use gear_wasm_instrument::{
+    parity_wasm::{
+        builder,
+        elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
+    },
+    wasm_instrument,
 };
 use gsys::HashWithValue;
 use std::{
@@ -213,6 +216,28 @@ fn find_recursion_impl<Callback>(
 
     colored.insert(call_index, Color::Black);
     path.pop();
+}
+
+pub fn inject_stack_limiter(module: Module) -> Module {
+    wasm_instrument::inject_custom_stack_limiter(module, 15_000, |signature| {
+        let results = signature.results();
+        let mut body = Vec::with_capacity(results.len() + 1);
+
+        for result in results {
+            let instruction = match result {
+                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
+            };
+
+            body.push(instruction);
+        }
+
+        body.push(Instruction::Return);
+
+        body
+    })
+    .expect("Failed to inject stack height limits")
 }
 
 pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
