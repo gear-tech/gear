@@ -30,154 +30,106 @@
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
 #![allow(unused_imports)]
-#![allow(clippy::unnecessary_cast)]
+#![allow(missing_docs)]
 
-use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
-use sp_std::marker::PhantomData;
+use frame_support::{traits::Get, weights::Weight};
+use core::marker::PhantomData;
 
-/// Weight functions needed for frame_system.
-pub trait WeightInfo {
-    fn remark(b: u32, ) -> Weight;
-    fn remark_with_event(b: u32, ) -> Weight;
-    fn set_heap_pages() -> Weight;
-    fn set_storage(i: u32, ) -> Weight;
-    fn kill_storage(i: u32, ) -> Weight;
-    fn kill_prefix(p: u32, ) -> Weight;
-}
-
-/// Weights for frame_system using the Gear node and recommended hardware.
-pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> frame_system::WeightInfo for SubstrateWeight<T> {
-    /// The range of component `b` is `[0, 1310720]`.
-    fn remark(b: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_710_000 picoseconds.
-        Weight::from_parts(1_289_458, 0)
-            // Standard Error: 0
-            .saturating_add(Weight::from_parts(460, 0).saturating_mul(b.into()))
-    }
-    /// The range of component `b` is `[0, 1310720]`.
-    fn remark_with_event(b: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 6_172_000 picoseconds.
-        Weight::from_parts(6_411_000, 0)
-            // Standard Error: 0
-            .saturating_add(Weight::from_parts(1_437, 0).saturating_mul(b.into()))
-    }
-    fn set_heap_pages() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `1485`
-        // Minimum execution time: 3_106_000 picoseconds.
-        Weight::from_parts(3_311_000, 1485)
-            .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(T::DbWeight::get().writes(2_u64))
-    }
-    /// The range of component `i` is `[0, 1000]`.
-    fn set_storage(i: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_644_000 picoseconds.
-        Weight::from_parts(1_692_000, 0)
-            // Standard Error: 911
-            .saturating_add(Weight::from_parts(709_529, 0).saturating_mul(i.into()))
-            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(i.into())))
-    }
-    /// The range of component `i` is `[0, 1000]`.
-    fn kill_storage(i: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_682_000 picoseconds.
-        Weight::from_parts(1_767_000, 0)
-            // Standard Error: 672
-            .saturating_add(Weight::from_parts(533_196, 0).saturating_mul(i.into()))
-            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(i.into())))
-    }
-    /// The range of component `p` is `[0, 1000]`.
-    fn kill_prefix(p: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `82 + p * (69 ±0)`
-        //  Estimated: `89 + p * (70 ±0)`
-        // Minimum execution time: 3_377_000 picoseconds.
-        Weight::from_parts(3_492_000, 89)
-            // Standard Error: 1_153
-            .saturating_add(Weight::from_parts(1_093_297, 0).saturating_mul(p.into()))
-            .saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(p.into())))
-            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_parts(0, 70).saturating_mul(p.into()))
-    }
-}
-
-// For backwards compatibility and tests
-impl WeightInfo for () {
-    /// The range of component `b` is `[0, 1310720]`.
-    fn remark(b: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_710_000 picoseconds.
-        Weight::from_parts(1_289_458, 0)
-            // Standard Error: 0
-            .saturating_add(Weight::from_parts(460, 0).saturating_mul(b.into()))
-    }
-    /// The range of component `b` is `[0, 1310720]`.
-    fn remark_with_event(b: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 6_172_000 picoseconds.
-        Weight::from_parts(6_411_000, 0)
-            // Standard Error: 0
-            .saturating_add(Weight::from_parts(1_437, 0).saturating_mul(b.into()))
-    }
-    fn set_heap_pages() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `1485`
-        // Minimum execution time: 3_106_000 picoseconds.
-        Weight::from_parts(3_311_000, 1485)
-            .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(RocksDbWeight::get().writes(2_u64))
-    }
-    /// The range of component `i` is `[0, 1000]`.
-    fn set_storage(i: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_644_000 picoseconds.
-        Weight::from_parts(1_692_000, 0)
-            // Standard Error: 911
-            .saturating_add(Weight::from_parts(709_529, 0).saturating_mul(i.into()))
-            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(i.into())))
-    }
-    /// The range of component `i` is `[0, 1000]`.
-    fn kill_storage(i: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_682_000 picoseconds.
-        Weight::from_parts(1_767_000, 0)
-            // Standard Error: 672
-            .saturating_add(Weight::from_parts(533_196, 0).saturating_mul(i.into()))
-            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(i.into())))
-    }
-    /// The range of component `p` is `[0, 1000]`.
-    fn kill_prefix(p: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `82 + p * (69 ±0)`
-        //  Estimated: `89 + p * (70 ±0)`
-        // Minimum execution time: 3_377_000 picoseconds.
-        Weight::from_parts(3_492_000, 89)
-            // Standard Error: 1_153
-            .saturating_add(Weight::from_parts(1_093_297, 0).saturating_mul(p.into()))
-            .saturating_add(RocksDbWeight::get().reads((1_u64).saturating_mul(p.into())))
-            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_parts(0, 70).saturating_mul(p.into()))
-    }
+/// Weight functions for `frame_system`.
+pub struct WeightInfo<T>(PhantomData<T>);
+impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
+	/// The range of component `b` is `[0, 3932160]`.
+	fn remark(b: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_794_000 picoseconds.
+		Weight::from_parts(691_547, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 0
+			.saturating_add(Weight::from_parts(386, 0).saturating_mul(b.into()))
+	}
+	/// The range of component `b` is `[0, 3932160]`.
+	fn remark_with_event(b: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 6_475_000 picoseconds.
+		Weight::from_parts(58_654_048, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 5
+			.saturating_add(Weight::from_parts(1_656, 0).saturating_mul(b.into()))
+	}
+	/// Storage: `System::Digest` (r:1 w:1)
+	/// Proof: `System::Digest` (`max_values`: Some(1), `max_size`: None, mode: `Measured`)
+	/// Storage: UNKNOWN KEY `0x3a686561707061676573` (r:0 w:1)
+	/// Proof: UNKNOWN KEY `0x3a686561707061676573` (r:0 w:1)
+	fn set_heap_pages() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `1485`
+		// Minimum execution time: 3_393_000 picoseconds.
+		Weight::from_parts(3_660_000, 0)
+			.saturating_add(Weight::from_parts(0, 1485))
+			.saturating_add(T::DbWeight::get().reads(1))
+			.saturating_add(T::DbWeight::get().writes(2))
+	}
+	/// Storage: `System::Digest` (r:1 w:1)
+	/// Proof: `System::Digest` (`max_values`: Some(1), `max_size`: None, mode: `Measured`)
+	/// Storage: UNKNOWN KEY `0x3a636f6465` (r:0 w:1)
+	/// Proof: UNKNOWN KEY `0x3a636f6465` (r:0 w:1)
+	fn set_code() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `1485`
+		// Minimum execution time: 92_055_300_000 picoseconds.
+		Weight::from_parts(95_101_886_000, 0)
+			.saturating_add(Weight::from_parts(0, 1485))
+			.saturating_add(T::DbWeight::get().reads(1))
+			.saturating_add(T::DbWeight::get().writes(2))
+	}
+	/// Storage: `Skipped::Metadata` (r:0 w:0)
+	/// Proof: `Skipped::Metadata` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// The range of component `i` is `[0, 1000]`.
+	fn set_storage(i: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_887_000 picoseconds.
+		Weight::from_parts(1_964_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 1_853
+			.saturating_add(Weight::from_parts(698_445, 0).saturating_mul(i.into()))
+			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(i.into())))
+	}
+	/// Storage: `Skipped::Metadata` (r:0 w:0)
+	/// Proof: `Skipped::Metadata` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// The range of component `i` is `[0, 1000]`.
+	fn kill_storage(i: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_851_000 picoseconds.
+		Weight::from_parts(1_914_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 841
+			.saturating_add(Weight::from_parts(524_502, 0).saturating_mul(i.into()))
+			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(i.into())))
+	}
+	/// Storage: `Skipped::Metadata` (r:0 w:0)
+	/// Proof: `Skipped::Metadata` (`max_values`: None, `max_size`: None, mode: `Measured`)
+	/// The range of component `p` is `[0, 1000]`.
+	fn kill_prefix(p: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `82 + p * (69 ±0)`
+		//  Estimated: `86 + p * (70 ±0)`
+		// Minimum execution time: 3_570_000 picoseconds.
+		Weight::from_parts(3_691_000, 0)
+			.saturating_add(Weight::from_parts(0, 86))
+			// Standard Error: 1_327
+			.saturating_add(Weight::from_parts(1_165_480, 0).saturating_mul(p.into()))
+			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(p.into())))
+			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(p.into())))
+			.saturating_add(Weight::from_parts(0, 70).saturating_mul(p.into()))
+	}
 }
