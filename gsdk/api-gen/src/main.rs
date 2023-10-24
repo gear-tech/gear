@@ -109,7 +109,9 @@ fn metadata() -> Vec<u8> {
         gear_ri::gear_ri::HostFunctions,
         sp_io::SubstrateHostFunctions,
     )>::builder()
-    .with_execution_method(WasmExecutionMethod::Interpreted)
+    .with_execution_method(WasmExecutionMethod::Compiled {
+        instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite,
+    })
     .with_onchain_heap_alloc_strategy(heap_pages)
     .with_offchain_heap_alloc_strategy(heap_pages)
     .with_max_runtime_instances(8)
