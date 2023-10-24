@@ -21,7 +21,7 @@
 use crate::{
     code::InstrumentedCode,
     ids::ProgramId,
-    pages::{Drops, WasmPage, WasmPagesAmount},
+    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
 };
 
 /// Program.
@@ -30,7 +30,7 @@ pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
-    allocations: Drops<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -50,7 +50,7 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: InstrumentedCode,
-        allocations: Drops<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
         is_initialized: bool,
     ) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl Program {
     }
 
     /// +_+_+
-    pub fn into_parts(self) -> (ProgramId, InstrumentedCode, Drops<WasmPage>, bool) {
+    pub fn into_parts(self) -> (ProgramId, InstrumentedCode, IntervalsTree<WasmPage>, bool) {
         (self.id, self.code, self.allocations, self.is_initialized)
     }
 
@@ -100,12 +100,12 @@ impl Program {
     }
 
     /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &Drops<WasmPage> {
+    pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
         &self.allocations
     }
 
     /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: Drops<WasmPage>) {
+    pub fn set_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
         self.allocations = allocations;
     }
 }

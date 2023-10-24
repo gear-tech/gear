@@ -22,8 +22,8 @@ use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
     pages::{
-        Bound, Drops, Interval, Numerated, PageNumber, UpperBounded, WasmPage, WasmPagesAmount,
-        GEAR_PAGE_SIZE,
+        Bound, Interval, IntervalsTree, Numerated, PageNumber, UpperBounded, WasmPage,
+        WasmPagesAmount, GEAR_PAGE_SIZE,
     },
 };
 use alloc::format;
@@ -227,7 +227,7 @@ pub trait Memory {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    allocations: Drops<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
     max_pages: WasmPagesAmount,
     static_pages: WasmPagesAmount,
 }
@@ -278,7 +278,7 @@ impl AllocationsContext {
     /// and allocation manager. Also configurable `static_pages` and `max_pages`
     /// are set.
     pub fn new(
-        allocations: Drops<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
         max_pages: WasmPagesAmount,
     ) -> Self {
@@ -290,7 +290,7 @@ impl AllocationsContext {
     }
 
     /// +_+_+
-    pub fn allocations(&self) -> &Drops<WasmPage> {
+    pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
         &self.allocations
     }
 
@@ -396,7 +396,7 @@ impl AllocationsContext {
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(self) -> (WasmPagesAmount, Drops<WasmPage>) {
+    pub fn into_parts(self) -> (WasmPagesAmount, IntervalsTree<WasmPage>) {
         (self.static_pages, self.allocations)
     }
 }
@@ -544,9 +544,9 @@ mod tests {
             proptest::collection::vec(action, 0..1024)
         }
 
-        fn allocations() -> impl Strategy<Value = Drops<WasmPage>> {
+        fn allocations() -> impl Strategy<Value = IntervalsTree<WasmPage>> {
             proptest::collection::vec(wasm_page(), size_range(0..2048))
-                .prop_map(|pages| pages.into_iter().collect::<Drops<WasmPage>>())
+                .prop_map(|pages| pages.into_iter().collect::<IntervalsTree<WasmPage>>())
         }
 
         fn wasm_page() -> impl Strategy<Value = WasmPage> {

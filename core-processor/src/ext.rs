@@ -39,7 +39,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{Drops, GearPage, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{GearPage, IntervalsTree, PageU32Size, WasmPage, WasmPagesAmount},
     percent::Percent,
     reservation::GasReserver,
 };
@@ -163,7 +163,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Drops<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,

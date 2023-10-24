@@ -30,13 +30,13 @@ pub type SessionId = u128;
 // The entity helps to calculate hash of program's data and memory pages.
 // Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
 struct Item {
-    data: (Drops<WasmPage>, H256, MemoryMap),
+    data: (IntervalsTree<WasmPage>, H256, MemoryMap),
     remaining_pages: MemoryMap,
 }
 
-impl From<(Drops<WasmPage>, H256, MemoryMap)> for Item {
+impl From<(IntervalsTree<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
-        (allocations, code_hash, mut memory_pages): (Drops<WasmPage>, H256, MemoryMap),
+        (allocations, code_hash, mut memory_pages): (IntervalsTree<WasmPage>, H256, MemoryMap),
     ) -> Self {
         let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
         Self {
@@ -75,7 +75,7 @@ pub struct ResumeSession<AccountId, BlockNumber> {
     page_count: u32,
     user: AccountId,
     program_id: ProgramId,
-    allocations: Drops<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
     code_hash: CodeId,
     end_block: BlockNumber,
 }
@@ -165,7 +165,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         user: Self::AccountId,
         end_block: Self::BlockNumber,
         program_id: ProgramId,
-        allocations: Drops<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
         code_hash: CodeId,
     ) -> Result<SessionId, Self::Error> {
         if !Self::paused_program_exists(&program_id) {

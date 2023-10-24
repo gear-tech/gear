@@ -25,7 +25,7 @@ use crate::{
     mprotect::MprotectError,
     pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
 };
-use gear_core::{pages::Drops, str::LimitedStr};
+use gear_core::{pages::IntervalsTree, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 
 // TODO: investigate error allocations #2441
@@ -127,9 +127,9 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Current program prefix in storage
     pub program_storage_prefix: PagePrefix,
     /// Pages which has been accessed by program during current execution
-    pub accessed_pages: Drops<GearPage>,
+    pub accessed_pages: IntervalsTree<GearPage>,
     /// Pages which has been write accessed by program during current execution
-    pub write_accessed_pages: Drops<GearPage>,
+    pub write_accessed_pages: IntervalsTree<GearPage>,
     // +_+_+ correct comment
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify

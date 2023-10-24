@@ -21,7 +21,7 @@ use crate::{
     LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::{
-    pages::{Drops, Interval},
+    pages::{Interval, IntervalsTree},
     str::LimitedStr,
 };
 use region::Protection;
@@ -138,8 +138,9 @@ fn test_mprotect_pages() {
         ((buff + WASM_PAGE_SIZE as usize) / WASM_PAGE_SIZE as usize) * WASM_PAGE_SIZE as usize;
 
     // Randomly choose pages, which will be protected.
-    let pages_protected: Drops<GearPage> = [0, 4, 5].map(new_page).into_iter().collect();
-    let pages_unprotected: Drops<GearPage> = [1, 2, 3, 6, 7].map(new_page).into_iter().collect();
+    let pages_protected: IntervalsTree<GearPage> = [0, 4, 5].map(new_page).into_iter().collect();
+    let pages_unprotected: IntervalsTree<GearPage> =
+        [1, 2, 3, 6, 7].map(new_page).into_iter().collect();
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {

@@ -20,7 +20,8 @@
 
 use core::{cmp::Ordering, num::NonZeroU32};
 pub use numerated::{
-    Bound, BoundValue, Drops, Interval, LowerBounded, NotEmptyInterval, Numerated, UpperBounded,
+    Bound, BoundValue, Interval, IntervalsTree, LowerBounded, NotEmptyInterval, Numerated,
+    UpperBounded,
 };
 use scale_info::{
     scale::{Decode, Encode},

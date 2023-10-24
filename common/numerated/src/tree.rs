@@ -11,17 +11,17 @@ use scale_info::{
 };
 
 #[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
-pub struct Drops<T> {
+pub struct IntervalsTree<T> {
     inner: BTreeMap<T, T>,
 }
 
-impl<T: Numerated> Default for Drops<T> {
+impl<T: Numerated> Default for IntervalsTree<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Debug> Debug for Drops<T> {
+impl<T: Debug> Debug for IntervalsTree<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -31,7 +31,7 @@ impl<T: Debug> Debug for Drops<T> {
     }
 }
 
-impl<T: Numerated> Drops<T> {
+impl<T: Numerated> IntervalsTree<T> {
     pub const fn new() -> Self {
         Self {
             inner: BTreeMap::new(),
@@ -306,10 +306,10 @@ impl<T: Numerated> Drops<T> {
     }
 }
 
-impl<T: Numerated + LowerBounded + UpperBounded> Drops<T> {
+impl<T: Numerated + LowerBounded + UpperBounded> IntervalsTree<T> {
     // TODO: optimize
     pub fn complement(&self) -> Self {
-        let mut res = Drops::<T>::new();
+        let mut res = IntervalsTree::<T>::new();
         let mut start: Option<T> = None;
         for interval in self.iter() {
             if let Some(start) = start {
@@ -479,7 +479,7 @@ impl<
     }
 }
 
-impl<T: Numerated, D: Into<Interval<T>>> FromIterator<D> for Drops<T> {
+impl<T: Numerated, D: Into<Interval<T>>> FromIterator<D> for IntervalsTree<T> {
     fn from_iter<I: IntoIterator<Item = D>>(iter: I) -> Self {
         let mut drops = Self::new();
         for interval in iter {

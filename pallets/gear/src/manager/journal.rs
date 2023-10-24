@@ -348,7 +348,7 @@ where
     fn update_allocations(
         &mut self,
         program_id: ProgramId,
-        allocations: gear_core::pages::Drops<WasmPage>,
+        allocations: gear_core::pages::IntervalsTree<WasmPage>,
     ) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             if p.allocations != allocations {

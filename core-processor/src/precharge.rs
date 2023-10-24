@@ -33,7 +33,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
-    pages::{Drops, WasmPage, WasmPagesAmount},
+    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
 };
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -157,7 +157,7 @@ impl<'a> GasPrecharger<'a> {
     pub fn charge_gas_for_pages(
         &mut self,
         costs: &PageCosts,
-        allocations: &Drops<WasmPage>,
+        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
     ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.

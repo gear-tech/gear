@@ -1,5 +1,5 @@
 use num_traits::bounds::{LowerBounded, UpperBounded};
-use numerated::{BoundValue, Drops, Interval, Numerated};
+use numerated::{BoundValue, Interval, IntervalsTree, Numerated};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::BTreeSet;
 
@@ -62,7 +62,7 @@ fn stress_test<const MAX: u32>(
 
     for i in 0..iterations {
         log::debug!("Iteration: {}", i);
-        let mut drops = Drops::new();
+        let mut drops = IntervalsTree::new();
         let mut expected = BTreeSet::new();
         for _ in 0..actions_per_test {
             let interval = Number::<MAX>::rand_interval(&mut rng, max_interval_length);
@@ -80,7 +80,7 @@ fn stress_test<const MAX: u32>(
         }
         let drops_set: BTreeSet<_> = drops.points_iter().collect();
         assert_eq!(drops_set, expected);
-        let expected_drops: Drops<_> = expected.iter().collect();
+        let expected_drops: IntervalsTree<_> = expected.iter().collect();
         assert_eq!(drops, expected_drops);
 
         let complement = drops.complement();

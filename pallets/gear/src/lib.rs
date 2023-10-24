@@ -141,7 +141,7 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use gear_core::pages::Drops;
+    use gear_core::pages::IntervalsTree;
 
     use super::*;
 
@@ -1692,7 +1692,7 @@ pub mod pallet {
         pub fn resume_session_init(
             origin: OriginFor<T>,
             program_id: ProgramId,
-            allocations: Drops<WasmPage>,
+            allocations: IntervalsTree<WasmPage>,
             code_hash: CodeId,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;

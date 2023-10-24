@@ -1,30 +1,30 @@
 #![allow(clippy::reversed_empty_ranges)]
 
-use numerated::{Drops, Interval};
+use numerated::{Interval, IntervalsTree};
 use std::{ops::RangeInclusive, vec};
 
 #[test]
 fn test_insert() {
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     assert_eq!(drops.to_vec(), vec![1..=2]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=2, 4..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(3..=4).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=4]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.insert(1);
     drops.insert(2);
     assert_eq!(drops.to_vec(), vec![1..=2]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=3).unwrap();
     drops.try_insert(5..=7).unwrap();
     drops.try_insert(2..=6).unwrap();
@@ -32,24 +32,24 @@ fn test_insert() {
     drops.try_insert(19..=25).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=7, 19..=25]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=3).unwrap();
     drops.try_insert(10..=14).unwrap();
     drops.try_insert(4..=9).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=14]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-111..=3).unwrap();
     drops.try_insert(10..=14).unwrap();
     drops.try_insert(3..=10).unwrap();
     assert_eq!(drops.to_vec(), vec![-111..=14]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(i32::MIN..=10).unwrap();
     drops.try_insert(3..=4).unwrap();
     assert_eq!(drops.to_vec(), vec![i32::MIN..=10]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=10).unwrap();
     drops.try_insert(3..=4).unwrap();
     drops.try_insert(5..=6).unwrap();
@@ -58,65 +58,65 @@ fn test_insert() {
 
 #[test]
 fn test_remove() {
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.insert(1);
     drops.remove(1);
     assert_eq!(drops.to_vec(), vec![]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     drops.try_remove(1..=2).unwrap();
     assert_eq!(drops.to_vec(), vec![]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(-1..=2).unwrap();
     assert_eq!(drops.to_vec(), vec![4..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(4..=5).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=2]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(2..=4).unwrap();
     assert_eq!(drops.to_vec(), vec![1..=1, 5..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(3..=4).unwrap();
     assert_eq!(drops.to_vec(), vec![-1..=2, 5..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(-1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(-1..=5).unwrap();
     assert_eq!(drops.to_vec(), vec![]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(2..=5).unwrap();
     assert_eq!(drops.to_vec(), vec![1..=1]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(1..=4).unwrap();
     assert_eq!(drops.to_vec(), vec![5..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=2).unwrap();
     drops.try_insert(4..=5).unwrap();
     drops.try_remove(1..=3).unwrap();
     assert_eq!(drops.to_vec(), vec![4..=5]);
 
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1..=10).unwrap();
     assert_eq!(drops.clone().to_vec(), vec![1..=10]);
     drops.remove(10..);
@@ -206,7 +206,7 @@ fn test_interval_count_from() {
 
 #[test]
 fn test_try_voids() {
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1u32..=7).unwrap();
     drops.try_insert(19..=25).unwrap();
     assert_eq!(drops.clone().to_vec(), vec![1..=7, 19..=25]);
@@ -256,7 +256,7 @@ fn test_try_voids() {
 
 #[test]
 fn test_try_insert() {
-    let mut drops = Drops::new();
+    let mut drops = IntervalsTree::new();
     drops.try_insert(1u32..=2).unwrap();
     assert_eq!(drops.to_vec(), vec![1..=2]);
     drops.try_insert(4..=5).unwrap();
@@ -274,7 +274,7 @@ fn test_try_insert() {
 fn test_try_remove() {
     let mut drops = [1u32, 2, 5, 6, 7, 9, 10, 11]
         .into_iter()
-        .collect::<Drops<_>>();
+        .collect::<IntervalsTree<_>>();
     assert_eq!(drops.to_vec(), vec![1..=2, 5..=7, 9..=11]);
     assert!(drops.try_remove(0..0).is_ok());
     assert_eq!(drops.to_vec(), vec![1..=2, 5..=7, 9..=11]);
@@ -294,7 +294,7 @@ fn test_try_remove() {
 
 #[test]
 fn test_contains() {
-    let drops: Drops<u64> = [0, 100, 101, 102, 45678, 45679, 1, 2, 3]
+    let drops: IntervalsTree<u64> = [0, 100, 101, 102, 45678, 45679, 1, 2, 3]
         .into_iter()
         .collect();
     assert_eq!(drops.to_vec(), vec![0..=3, 100..=102, 45678..=45679]);
@@ -323,22 +323,22 @@ fn test_contains() {
 
 #[test]
 fn test_amount() {
-    let drops: Drops<i32> = [-100, -99, 100, 101, 102, 1000].into_iter().collect();
+    let drops: IntervalsTree<i32> = [-100, -99, 100, 101, 102, 1000].into_iter().collect();
     assert_eq!(drops.intervals_amount(), 3);
     assert_eq!(drops.points_amount(), Some(6));
 
-    let drops: Drops<i32> = [..].into_iter().collect();
+    let drops: IntervalsTree<i32> = [..].into_iter().collect();
     assert_eq!(drops.intervals_amount(), 1);
     assert_eq!(drops.points_amount(), None);
 
-    let drops: Drops<i32> = Default::default();
+    let drops: IntervalsTree<i32> = Default::default();
     assert_eq!(drops.intervals_amount(), 0);
     assert_eq!(drops.points_amount(), Some(0));
 }
 
 #[test]
 fn test_start_end() {
-    let drops: Drops<u64> = [0u64, 100, 101, 102, 45678, 45679, 1, 2, 3]
+    let drops: IntervalsTree<u64> = [0u64, 100, 101, 102, 45678, 45679, 1, 2, 3]
         .into_iter()
         .collect();
     assert_eq!(drops.to_vec(), vec![0..=3, 100..=102, 45678..=45679]);
@@ -348,24 +348,24 @@ fn test_start_end() {
 
 #[test]
 fn test_and_not_iter() {
-    let drops: Drops<u64> = [0, 1, 2, 3, 4, 8, 9, 100, 101, 102].into_iter().collect();
-    let drops1: Drops<u64> = [3, 4, 7, 8, 9, 10, 45, 46, 100, 102].into_iter().collect();
+    let drops: IntervalsTree<u64> = [0, 1, 2, 3, 4, 8, 9, 100, 101, 102].into_iter().collect();
+    let drops1: IntervalsTree<u64> = [3, 4, 7, 8, 9, 10, 45, 46, 100, 102].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![0..=2, 101..=101]);
 
-    let drops1: Drops<u64> = [..].into_iter().collect();
+    let drops1: IntervalsTree<u64> = [..].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![]);
 
-    let drops1: Drops<u64> = [..=100].into_iter().collect();
+    let drops1: IntervalsTree<u64> = [..=100].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![101..=102]);
 
-    let drops1: Drops<u64> = [101..].into_iter().collect();
+    let drops1: IntervalsTree<u64> = [101..].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![0..=4, 8..=9, 100..=100]);
 
-    let drops1: Drops<u64> = [6, 10, 110].into_iter().collect();
+    let drops1: IntervalsTree<u64> = [6, 10, 110].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![0..=4, 8..=9, 100..=102]);
 }

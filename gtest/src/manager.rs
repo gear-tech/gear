@@ -37,7 +37,7 @@ use gear_core::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
-    pages::{Drops, GearPage, Interval, PageU32Size, WasmPage},
+    pages::{GearPage, Interval, IntervalsTree, PageU32Size, WasmPage},
     percent::Percent,
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
@@ -1028,7 +1028,7 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: Drops<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)

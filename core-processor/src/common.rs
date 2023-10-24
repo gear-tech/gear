@@ -35,7 +35,7 @@ use gear_core::{
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{Drops, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, IntervalsTree, WasmPage, WasmPagesAmount},
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -90,7 +90,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program.
-    pub allocations: Drops<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
 }
 
 impl DispatchResult {
@@ -256,7 +256,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: Drops<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -394,7 +394,7 @@ pub trait JournalHandler {
     /// Process page update.
     fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: Drops<WasmPage>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -523,9 +523,9 @@ pub struct Actor {
 #[codec(crate = scale)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: Drops<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: Drops<GearPage>,
+    pub pages_with_data: IntervalsTree<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.

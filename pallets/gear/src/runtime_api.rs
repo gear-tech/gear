@@ -23,7 +23,7 @@ use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
 use gear_core::{
     code::TryNewCodeConfig,
-    pages::{Drops, WasmPage},
+    pages::{IntervalsTree, WasmPage},
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -33,7 +33,7 @@ pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
-    pub allocations: Drops<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
 }
 
 impl<T: Config> Pallet<T>

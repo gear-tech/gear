@@ -8,7 +8,7 @@ mod tree;
 
 pub use interval::{Interval, IntoIntervalError, NotEmptyInterval};
 pub use numerated::{Bound, BoundValue, Numerated};
-pub use tree::{Drops, VoidsIterator};
+pub use tree::{IntervalsTree, VoidsIterator};
 
 pub use num_traits::{
     self,

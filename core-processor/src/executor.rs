@@ -36,7 +36,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{Drops, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{IntervalsTree, PageU32Size, WasmPage, WasmPagesAmount},
     percent::Percent,
     program::Program,
     reservation::GasReserver,
@@ -335,7 +335,7 @@ where
 pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
-    allocations: Option<Drops<WasmPage>>,
+    allocations: Option<IntervalsTree<WasmPage>>,
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
