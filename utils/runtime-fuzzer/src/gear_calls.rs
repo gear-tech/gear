@@ -40,8 +40,10 @@ use gear_wasm_gen::{
 };
 use std::mem;
 
-/// Maximum payload size for the fuzzer - 512 KiB.
-const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
+/// Maximum payload size for the fuzzer - 1 KiB.
+///
+/// TODO: #3442
+const MAX_PAYLOAD_SIZE: usize = 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
@@ -254,8 +256,8 @@ impl UploadProgramGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // Max code size - 50 KiB.
-        const MAX_CODE_SIZE: usize = 50 * 1024;
+        // Max code size - 25 KiB.
+        const MAX_CODE_SIZE: usize = 25 * 1024;
 
         MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
@@ -411,6 +413,7 @@ fn config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
+            (SysCallName::EnvVars, 0..=0),
             (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
             (SysCallName::Alloc, 3..=6),

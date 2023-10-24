@@ -19,11 +19,11 @@
 //! Environment for running a module.
 
 use crate::{
+    env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
     pages::WasmPage,
-    percent::Percent,
 };
 use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
@@ -198,14 +198,15 @@ pub trait Externalities {
     /// should be `free`-d separately.
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
+    /// Get environment variables currently set in the system and in the form
+    /// corresponded to the requested version.
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError>;
+
     /// Get the current block height.
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError>;
 
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError>;
-
-    /// Get current performance multiplier.
-    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::FallibleError>;

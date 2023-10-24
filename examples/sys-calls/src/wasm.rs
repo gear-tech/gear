@@ -264,6 +264,36 @@ fn process(syscall_kind: Kind) {
         Kind::SignalDetailsWake => {
             panic!("must be called in handle_reply");
         }
+        Kind::EnvVars {
+            performance_multiplier: expected_performance_multiplier_percent,
+            existential_deposit: expected_existential_deposit,
+            mailbox_threshold: expected_mailbox_threshold,
+            gas_to_value_multiplier: expected_gas_to_value_multiplier,
+        } => {
+            let env_vars = exec::env_vars();
+            let actual_performance_multiplier = env_vars.performance_multiplier;
+            assert_eq!(
+                actual_performance_multiplier.value(),
+                expected_performance_multiplier_percent,
+                "Kind::EnvVars: performance_multiplier test failed"
+            );
+            let actual_existential_deposit = env_vars.existential_deposit;
+            assert_eq!(
+                actual_existential_deposit, expected_existential_deposit,
+                "Kind::EnvVars: existential_deposit test failed"
+            );
+            let actual_mailbox_threshold = env_vars.mailbox_threshold;
+            assert_eq!(
+                actual_mailbox_threshold, expected_mailbox_threshold,
+                "Kind::EnvVars: mailbox_threshold test failed"
+            );
+            let actual_gas_multiplier = env_vars.gas_multiplier;
+            assert_eq!(
+                actual_gas_multiplier.gas_to_value(1),
+                expected_gas_to_value_multiplier,
+                "Kind::EnvVars: gas_to_value_multiplier test failed"
+            );
+        }
         Kind::BlockHeight(expected_height) => {
             let actual_height = exec::block_height();
             assert_eq!(

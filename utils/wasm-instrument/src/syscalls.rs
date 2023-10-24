@@ -74,6 +74,7 @@ pub enum SysCallName {
     // Program execution related
     // --
     // Execution environmental data
+    EnvVars,
     BlockHeight,
     BlockTimestamp,
     GasAvailable,
@@ -108,6 +109,7 @@ impl SysCallName {
     pub fn to_str(&self) -> &'static str {
         match self {
             SysCallName::Alloc => "alloc",
+            SysCallName::EnvVars => "gr_env_vars",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
@@ -241,13 +243,13 @@ impl SysCallName {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
             Self::Debug => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
             ]),
             Self::Panic => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -293,19 +295,19 @@ impl SysCallName {
             Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(
                 HashType::MessageId,
             )))]),
+            Self::EnvVars => {
+                SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
+            }
             Self::Read => SysCallSignature::gr([
                 MessagePosition,
                 Size,
-                // TODO #3375, the PtrType::BlockNumber is incorrect here.
-                // Should be:
-                // Ptr(PtrInfo::new_mutable(PtrType::BufferStart {
-                //     length_param_idx: 1,
-                // }))
-                Ptr(PtrInfo::new_mutable(PtrType::BlockNumber)),
+                Ptr(PtrInfo::new_mutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
             Self::Reply => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -323,7 +325,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyWGas => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -359,7 +361,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ReservationId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -376,7 +378,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyPush => SysCallSignature::gr([
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Size,
@@ -395,7 +397,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -419,7 +421,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -467,7 +469,7 @@ impl SysCallName {
             }
             Self::SendPush => SysCallSignature::gr([
                 Handler,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -484,7 +486,7 @@ impl SysCallName {
                     HashType::ReservationId,
                     HashType::ActorId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
@@ -513,11 +515,11 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 4,
                 })),
                 Size,
@@ -531,11 +533,11 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
                 })),
                 Size,
-                Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 4,
                 })),
                 Size,
@@ -606,6 +608,7 @@ pub enum ParamType {
     Handler,         // i32 handler number
     Alloc,           // i32 alloc pages
     Free,            // i32 free page
+    Version,         // i32 version number of exec settings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -645,7 +648,8 @@ pub enum HashType {
 pub enum PtrType {
     BlockNumber,
     BlockTimestamp,
-    BufferStart { length_param_idx: usize },
+    SizedBufferStart { length_param_idx: usize },
+    BufferStart,
     Hash(HashType),
     Gas,
     Length,
@@ -682,7 +686,8 @@ impl PtrType {
             | ErrorWithBlockNumberAndValue => true,
             BlockNumber
             | BlockTimestamp
-            | BufferStart { .. }
+            | SizedBufferStart { .. }
+            | BufferStart
             | Hash(_)
             | Gas
             | Length

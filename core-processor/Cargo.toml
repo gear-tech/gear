@@ -17,11 +17,11 @@ gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages-interface.workspace = true
+gsys.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
 derive_more.workspace = true
-static_assertions.workspace = true
 actor-system-error.workspace = true
 
 [dev-dependencies]
