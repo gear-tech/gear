@@ -124,7 +124,7 @@ mod env {
                 return Err(anyhow!("module \"{}\" not found", module));
             }
 
-            let memory = self.memory.clone();
+            let memory = self.memory;
             let store = &mut self.store;
 
             let external = match name {
