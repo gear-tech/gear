@@ -4,11 +4,50 @@ use num_traits::{bounds::UpperBounded, One, PrimInt, Unsigned};
 pub enum BoundValue<T: Sized> {
     /// The bound is a value.
     Value(T),
-    /// The bound is an upper bound. Contains max value.
+    /// The bound is an upper bound. Contains `T` max value.
     Upper(T),
 }
 
+/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one element.
+/// - Each value from `T` has unambiguous mapping to `Bound<T>`.
+/// - Each value from `Bound<T>`, except one called __upper__, has unambiguous mapping to `T`.
+/// - __upper__ value has no mapping to `T`, but can be used to get `T` max value.
+///
+/// # Examples
+/// 1) For any `T`, which max value can be get by calling some static live time function,
+/// Option<T> can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
+///
+/// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
+/// ```
+/// use numerated::{Bound, BoundValue};
+///
+/// /// `inner` is a value from 0 to 99.
+/// struct T { inner: u32 }
+///
+/// /// `inner` is a value from 0 to 100.
+/// #[derive(Clone, Copy)]
+/// struct B { inner: u32 }
+///
+/// impl From<T> for B {
+///     fn from(t: T) -> Self {
+///         Self { inner: t.inner }
+///     }
+/// }
+///
+/// impl Bound<T> for B {
+///    fn unbound(self) -> BoundValue<T> {
+///        if self.inner == 100 {
+///            BoundValue::Upper(T { inner: 99 })
+///        } else {
+///            BoundValue::Value(T { inner: self.inner })
+///        }
+///    }
+/// }
+/// ```
 pub trait Bound<T: Sized>: From<T> + Copy {
+    /// Unbound means mapping bound back to value if possible.
+    /// - In case bound is __upper__, then returns Upper(max), where `max` is `T` max value.
+    /// - Otherwise returns Value(value).
     fn unbound(self) -> BoundValue<T>;
     fn get(self) -> Option<T> {
         match self.unbound() {
