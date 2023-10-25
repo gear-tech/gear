@@ -205,6 +205,7 @@ where
         allocations_context,
         message_context,
         block_info: settings.block_info,
+        performance_multiplier: settings.performance_multiplier,
         max_pages: settings.max_pages,
         page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
@@ -220,6 +221,7 @@ where
         reservation: settings.reservation,
         random_data: settings.random_data,
         rent_cost: settings.rent_cost,
+        gas_multiplier: settings.gas_multiplier,
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
@@ -399,6 +401,7 @@ where
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,
+        performance_multiplier: gsys::Percent::new(100),
         max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),
@@ -415,6 +418,7 @@ where
         random_data: Default::default(),
         system_reservation: Default::default(),
         rent_cost: Default::default(),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();

@@ -116,6 +116,7 @@ parameter_types! {
     pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
     pub const BlockGasLimit: u64 = 100_000_000_000;
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -150,6 +151,7 @@ impl pallet_gear::Config for Test {
     type Randomness = TestRandomness<Self>;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = super::Pallet<Test>;
     type Schedule = ();
     type CodeStorage = GearProgram;

@@ -363,6 +363,28 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    pub fn gr_env_vars(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let settings_offset = COMMON_OFFSET;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::EnvVars],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // version. TODO: Should it be benched based on version?
+                    InstrI32Const(1),
+                    // offset where to write settings
+                    InstrI32Const(settings_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let buffer_offset = COMMON_OFFSET;
@@ -1208,23 +1230,20 @@ where
             &[],
         );
 
-        instructions.extend(
-            body::fallible_syscall_instr(
-                repetitions,
-                0,
-                InstrI32Const(res_offset),
-                &[
-                    // get handle from send init results
-                    Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
-                    InstrI32Load(2, 0),
-                    // input at
-                    InstrI32Const(input_at),
-                    // input len
-                    InstrI32Const(input_len),
-                ],
-            )
-            .into_iter(),
-        );
+        instructions.extend(body::fallible_syscall_instr(
+            repetitions,
+            0,
+            InstrI32Const(res_offset),
+            &[
+                // get handle from send init results
+                Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+                InstrI32Load(2, 0),
+                // input at
+                InstrI32Const(input_at),
+                // input len
+                InstrI32Const(input_len),
+            ],
+        ));
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

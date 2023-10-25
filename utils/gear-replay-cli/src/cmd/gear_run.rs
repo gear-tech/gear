@@ -23,8 +23,6 @@ use clap::Parser;
 use codec::{Decode, Encode, Joiner};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
-#[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
-use service::GearExecutorDispatch;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
 use service::VaraExecutorDispatch;
 use sp_runtime::{
@@ -113,8 +111,6 @@ where
     // Create executor, suitable for usage in conjunction with the preferred execution strategy.
     #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
     let executor = build_executor::<VaraExecutorDispatch>();
-    #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
-    let executor = build_executor::<GearExecutorDispatch>();
     #[cfg(feature = "always-wasm")]
     let executor = build_executor::<
         ExtendedHostFunctions<

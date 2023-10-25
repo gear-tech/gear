@@ -20,12 +20,9 @@ gear-wasm-gen.workspace = true
 
 # external dependencies
 anyhow.workspace = true
-arbitrary.workspace = true
 clap = { workspace = true, features = ["derive"] }
-dyn-clonable.workspace = true
 futures.workspace = true
 futures-timer.workspace = true
-hex.workspace = true
 names = "0.14.0"
 once_cell.workspace = true
 parking_lot.workspace = true

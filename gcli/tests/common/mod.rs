@@ -38,12 +38,10 @@ pub mod logs;
 mod result;
 pub mod traits;
 
-#[cfg(not(feature = "vara-testing"))]
 mod prelude {
     pub use scale_info::scale::Encode;
 
-    pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-    pub const MESSAGER_SENT_VALUE: u128 = 5_000;
+    pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
 }
 
 #[cfg(not(feature = "vara-testing"))]
@@ -73,16 +71,7 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
-    #[cfg(feature = "vara-testing")]
     let args = vec!["--tmp", "--dev"];
-    #[cfg(not(feature = "vara-testing"))]
-    let args = vec![
-        "--tmp",
-        "--chain=gear-dev",
-        "--alice",
-        "--validator",
-        "--reserved-only",
-    ];
 
     Node::try_from_path(env::bin("gear"), args).map_err(Into::into)
 }
@@ -107,7 +96,7 @@ pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
 
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+    AccountId32::from_ss58check("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW")
         .expect("Invalid address")
 }
 
@@ -118,11 +107,6 @@ pub async fn create_messager() -> Result<Node> {
     node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
-
-    #[cfg(not(feature = "vara-testing"))]
-    let args = args
-        .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))
-        .value("10000000");
 
     let _ = node.run(args)?;
     Ok(node)

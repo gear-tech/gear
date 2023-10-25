@@ -123,7 +123,10 @@ where
 
         let pages_with_data = program.pages_with_data.len() as u32;
 
-        let ProgramState::Uninitialized{ message_id: init_message_id } = program.state else {
+        let ProgramState::Uninitialized {
+            message_id: init_message_id,
+        } = program.state
+        else {
             // pause initialized program
             let gas_reservation_map =
                 ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())

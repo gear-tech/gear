@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing sys-call param, more precisely, it's allowed values.
+//! Entities describing syscall param, more precisely, it's allowed values.
 //!
 //! Types here are used to create [`crate::SysCallsConfig`].
 
@@ -26,10 +26,10 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::ParamType;
 
-/// Sys-calls params config.
+/// Syscalls params config.
 ///
 /// This is basically a map, which creates a relationship between each kind of
-/// param, that a sys-call can have, and allowed values ("rules") for each of
+/// param, that a syscall can have, and allowed values ("rules") for each of
 /// the params.
 ///
 /// # Note:
@@ -60,6 +60,7 @@ impl SysCallsParamsConfig {
                 ParamType::Delay,
                 ParamType::Handler,
                 ParamType::Free,
+                ParamType::Version,
             ]
             .into_iter()
             .map(|param_type| (param_type, allowed_values.clone()))
@@ -96,6 +97,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
                 (ParamType::Free, (free_start..=free_end).into()),
+                (ParamType::Version, (1..=1).into()),
             ]
             .into_iter()
             .collect(),
@@ -103,7 +105,7 @@ impl Default for SysCallsParamsConfig {
     }
 }
 
-/// Range of allowed values for the sys-call param.
+/// Range of allowed values for the syscall param.
 #[derive(Debug, Clone)]
 pub struct SysCallParamAllowedValues(RangeInclusive<i64>);
 

@@ -21,7 +21,6 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 mimalloc = { workspace = true, default-features = false }
-scale-info.workspace = true
 log = { workspace = true, features = ["std"] }
 futures.workspace = true
 
@@ -33,7 +32,6 @@ pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
 # Gear Runtimes
-gear-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate client
@@ -63,25 +61,24 @@ gcli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-default = ["gear-native", "vara-native"]
-gear-native = [
-	"gear-runtime",
-	"service/gear-native",
-]
+default = ["vara-native"]
 vara-native = [
 	"vara-runtime",
 	"service/vara-native",
 	"pallet-gear-staking-rewards",
 ]
 runtime-benchmarks = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
+	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks-checkers",
 ]
 try-runtime = [
+	"vara-runtime?/try-runtime",
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
 ]

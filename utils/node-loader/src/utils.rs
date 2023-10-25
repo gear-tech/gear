@@ -8,7 +8,7 @@ use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionAmounts, SysCallsParamsConfig,
+    SysCallsInjectionTypes, SysCallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -213,33 +213,33 @@ pub fn get_wasm_gen_config(
     existing_programs: impl Iterator<Item = ProgramId>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_amounts = SysCallsInjectionAmounts::all_once();
-    injection_amounts.set_multiple(
+    let mut injection_types = SysCallsInjectionTypes::all_once();
+    injection_types.set_multiple(
         [
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
-            (SysCallName::Send, 20..=30),
+            (SysCallName::EnvVars, 0..=0),
+            (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 5..=10),
-            (SysCallName::Free, 5..=10),
+            (SysCallName::Alloc, 3..=6),
+            (SysCallName::Free, 3..=6),
         ]
-        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
         .into_iter(),
     );
 
     let mut params_config = SysCallsParamsConfig::default();
     params_config.add_rule(ParamType::Alloc, (1..=10).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 25).into());
+    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 50).into());
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),
         existing_addresses: NonEmpty::collect(existing_programs),
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_amounts,
+        injection_types,
         params_config,
         initial_pages: initial_pages as u32,
-        unreachable_enabled: false,
         ..Default::default()
     }
 }

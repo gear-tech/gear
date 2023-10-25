@@ -71,16 +71,25 @@ where
         match kind {
             HandleKind::Init(code) => {
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::upload_program(who.into(), code, salt, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: upload_program failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::upload_program(who.into(), code, salt, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: upload_program failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::InitByHash(code_id) => {
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
-                    .map_err(|e| {
-                        format!("Internal error: create_program failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::create_program(
+                    who.into(),
+                    code_id,
+                    salt,
+                    payload,
+                    initial_gas,
+                    value,
+                    false,
+                )
+                .map_err(|e| {
+                    format!("Internal error: create_program failed with '{e:?}'").into_bytes()
+                })?;
             }
             HandleKind::Handle(destination) => {
                 Self::send_message(who.into(), destination, payload, initial_gas, value, false)

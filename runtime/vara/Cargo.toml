@@ -49,6 +49,7 @@ pallet-referenda.workspace = true
 pallet-scheduler.workspace = true
 pallet-session = { workspace = true, features = [ "historical" ] }
 pallet-staking.workspace = true
+pallet-staking-runtime-api.workspace = true
 pallet-sudo = { workspace = true, optional = true }
 pallet-timestamp.workspace = true
 pallet-transaction-payment.workspace = true
@@ -159,6 +160,7 @@ std = [
 	"pallet-session/std",
 	"pallet-scheduler/std",
 	"pallet-staking/std",
+	"pallet-staking-runtime-api/std",
 	"pallet-sudo?/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
@@ -256,6 +258,11 @@ try-runtime = [
 	"pallet-whitelist/try-runtime",
 	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
+]
+fuzz = [
+	"common/fuzz",
+	"pallet-gear/fuzz",
+	"pallet-gear-gas/fuzz"
 ]
 dev = [
 	"pallet-gear-debug",

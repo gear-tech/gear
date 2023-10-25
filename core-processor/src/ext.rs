@@ -27,6 +27,7 @@ use alloc::{
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, Token, ValueCounter,
@@ -75,6 +76,8 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: gsys::Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -106,6 +109,8 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
 }
 
 #[cfg(any(feature = "mock", test))]
@@ -135,6 +140,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
+            performance_multiplier: gsys::Percent::new(100),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
@@ -150,6 +156,7 @@ impl ProcessorContext {
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             rent_cost: 0,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
         }
     }
 }
@@ -715,6 +722,18 @@ impl Externalities for Ext {
             .allocations_context
             .free(page)
             .map_err(Into::into)
+    }
+
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
+        match version {
+            1 => Ok(EnvVars::V1(EnvVarsV1 {
+                performance_multiplier: self.context.performance_multiplier,
+                existential_deposit: self.context.existential_deposit,
+                mailbox_threshold: self.context.mailbox_threshold,
+                gas_multiplier: self.context.gas_multiplier,
+            })),
+            _ => Err(UnrecoverableExecutionError::UnsupportedEnvVarsVersion.into()),
+        }
     }
 
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {

@@ -153,6 +153,19 @@ impl HandlePacket {
         }
     }
 
+    /// Create new packet with optional gas.
+    pub fn maybe_with_gas(
+        destination: ProgramId,
+        payload: Payload,
+        gas_limit: Option<GasLimit>,
+        value: Value,
+    ) -> Self {
+        match gas_limit {
+            None => Self::new(destination, payload, value),
+            Some(gas_limit) => Self::new_with_gas(destination, payload, gas_limit, value),
+        }
+    }
+
     /// Prepend payload.
     pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
         self.payload.try_prepend(data)

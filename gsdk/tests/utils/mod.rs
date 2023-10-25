@@ -25,16 +25,7 @@ pub fn dev_node() -> Node {
     // Use release build because of performance reasons.
     let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
 
-    #[cfg(not(feature = "vara-testing"))]
     let args = vec!["--tmp", "--dev"];
-    #[cfg(feature = "vara-testing")]
-    let args = vec![
-        "--tmp",
-        "--chain=vara-dev",
-        "--alice",
-        "--validator",
-        "--reserved-only",
-    ];
 
     Node::try_from_path(bin_path, args)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
