@@ -27,6 +27,7 @@ extern "C" fn handle() {
             FIRST_EXEC = false;
         }
         gstd::exec::system_reserve_gas(1_000_000_000).unwrap();
+        exec::wait_for(1);
     } else {
         panic!();
     }

@@ -14502,7 +14502,7 @@ fn test_handle_signal_wait() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
+            100_000_000_000,
             0,
         ));
 
@@ -14522,26 +14522,19 @@ fn test_handle_signal_wait() {
             false,
         ));
 
-        let mid = get_last_message_id();
+        let mid1 = get_last_message_id();
+
+        println!("{}", mid1);
 
         run_to_next_block(None);
 
-        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        ));
-
-        let mid = get_last_message_id();
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid1));
 
         run_to_next_block(None);
 
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+        let mid2 = get_last_message_id();
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid2).is_err());
     });
 }
 
