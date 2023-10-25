@@ -19,8 +19,8 @@
 use crate::*;
 use proptest::prelude::*;
 
-const MAX_GEAR_CALLS_BYTES: usize = 450_000;
-const MIN_GEAR_CALLS_BYTES: usize = 350_000;
+const MAX_GEAR_CALLS_BYTES: usize = 30_000_000;
+const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
 
 #[test]
 fn proptest_input_validity() {
