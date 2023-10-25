@@ -14673,6 +14673,7 @@ fn test_handle_signal_wait() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
