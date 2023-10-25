@@ -14522,19 +14522,17 @@ fn test_handle_signal_wait() {
             false,
         ));
 
-        let mid1 = get_last_message_id();
-
-        println!("{}", mid1);
+        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
-        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid1));
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
 
         run_to_next_block(None);
 
-        let mid2 = get_last_message_id();
-
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid2).is_err());
+        let signal_mid = MessageId::generate_signal(mid);
+        assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
     });
 }
 
