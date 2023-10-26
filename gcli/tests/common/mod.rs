@@ -20,7 +20,7 @@
 pub use self::{
     args::Args,
     result::{Error, Result},
-    traits::NodeExec,
+    traits::{Convert, NodeExec},
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
@@ -60,13 +60,14 @@ impl NodeExec for Node {
 
 /// Run binary `gcli`
 pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
-    Ok(Command::new(env::bin("gcli"))
+    Command::new(env::bin("gcli"))
         .args(
             args.into_iter()
                 .map(|v| v.to_string())
                 .collect::<Vec<String>>(),
         )
-        .output()?)
+        .output()
+        .map_err(Into::into)
 }
 
 /// Run the dev node
