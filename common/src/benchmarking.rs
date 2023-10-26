@@ -18,7 +18,10 @@
 
 use super::*;
 
-use gear_core::pages::{PageNumber, PageU32Size, WasmPage};
+use gear_core::{
+    pages::{PageNumber, PageU32Size, WasmPage},
+    program::MemoryInfix,
+};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -150,22 +153,22 @@ pub fn set_program<
         .collect();
     let pages_with_data = persistent_pages_data.keys().copied().collect();
 
+    let memory_infix = MemoryInfix::new(1u32);
+    let program = ActiveProgram {
+        allocations,
+        pages_with_data,
+        code_hash: code_id,
+        code_exports: Default::default(),
+        static_pages,
+        state: ProgramState::Initialized,
+        gas_reservation_map: GasReservationMap::default(),
+        expiration_block: Zero::zero(),
+        memory_infix,
+    };
     for (page, page_buf) in persistent_pages_data {
-        ProgramStorage::set_program_page_data(program_id, page, page_buf);
+        ProgramStorage::set_program_page_data(program_id, memory_infix, page, page_buf);
     }
 
-    ProgramStorage::add_program(
-        program_id,
-        ActiveProgram {
-            allocations,
-            pages_with_data,
-            code_hash: code_id,
-            code_exports: Default::default(),
-            static_pages,
-            state: ProgramState::Initialized,
-            gas_reservation_map: GasReservationMap::default(),
-            expiration_block: Zero::zero(),
-        },
-    )
-    .expect("benchmarking; program duplicates should not exist");
+    ProgramStorage::add_program(program_id, program)
+        .expect("benchmarking; program duplicates should not exist");
 }

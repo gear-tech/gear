@@ -392,6 +392,7 @@ fn execute_wasm_with_custom_configs(
             gear_core_processor::Ext::lazy_pages_init_for_program(
                 mem,
                 program_id,
+                Default::default(),
                 Some(mem.size()),
                 globals_config,
                 Default::default(),

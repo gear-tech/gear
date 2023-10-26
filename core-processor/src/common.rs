@@ -36,7 +36,7 @@ use gear_core::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
     pages::{GearPage, WasmPage},
-    program::Program,
+    program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_backend::{
@@ -524,6 +524,8 @@ pub struct Actor {
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
+    /// The infix of memory pages in a storage.
+    pub memory_infix: MemoryInfix,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.

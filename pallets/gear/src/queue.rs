@@ -302,6 +302,7 @@ where
             initialized: matches!(program.state, ProgramState::Initialized),
             pages_with_data: program.pages_with_data,
             gas_reservation_map: program.gas_reservation_map,
+            memory_infix: program.memory_infix,
         }))
     }
 }
