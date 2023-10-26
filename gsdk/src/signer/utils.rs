@@ -196,6 +196,7 @@ impl Inner {
         call: Call,
         fields: impl Into<Composite<()>>,
     ) -> Result<TxInBlock> {
+        log::info!("Run tx: {}::{}", Call::PALLET, call.call_name());
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await
