@@ -27,6 +27,7 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
+        builder::ModuleBuilder,
         elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
     },
     wasm_instrument::{
@@ -295,6 +296,22 @@ fn check_start_section(module: &Module) -> Result<(), CodeError> {
     }
 }
 
+fn export_stack_height(module: Module) -> Module {
+    let globals = module
+        .global_section()
+        .expect("Global section must be create by `inject_stack_limiter` before")
+        .entries()
+        .len();
+    ModuleBuilder::new()
+        .with_module(module)
+        .export()
+        .field("__gear_stack_height")
+        .internal()
+        .global(globals as u32 - 1)
+        .build()
+        .build()
+}
+
 /// Configuration for `Code::try_new_mock_`.
 /// By default all checks enabled.
 pub struct TryNewCodeConfig {
@@ -302,6 +319,8 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
+    /// Export `__gear_stack_height` global
+    pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
     /// Check and canonize stack end
@@ -319,6 +338,7 @@ impl Default for TryNewCodeConfig {
         Self {
             version: 1,
             stack_height: None,
+            export_stack_height: true,
             check_exports: true,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
@@ -398,10 +418,20 @@ impl Code {
         }
 
         if let Some(stack_limit) = config.stack_height {
+            let globals = config.export_stack_height.then(|| module.globals_space());
+
             module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
                 log::trace!("Failed to inject stack height limits: {err}");
                 CodeError::StackLimitInjection
             })?;
+
+            if let Some(globals_before) = globals {
+                // ensure stack limiter injector has created global
+                let globals_after = module.globals_space();
+                assert_eq!(globals_after, globals_before + 1);
+
+                module = export_stack_height(module);
+            }
         }
 
         if let Some(mut get_gas_rules) = get_gas_rules {
@@ -515,6 +545,7 @@ impl Code {
             TryNewCodeConfig {
                 version,
                 stack_height,
+                export_stack_height: true,
                 ..Default::default()
             },
         )
