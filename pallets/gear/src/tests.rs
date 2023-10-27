@@ -64,7 +64,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::Code,
+    code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::PageNumber,
@@ -10343,43 +10343,48 @@ fn missing_handle_is_not_executed() {
     });
 }
 
-/// +_+_+
-// #[test]
-// fn invalid_memory_page_count_rejected() {
-//     let wat = format!(
-//         r#"
-//     (module
-//         (import "env" "memory" (memory {}))
-//         (export "init" (func $init))
-//         (func $init)
-//     )"#,
-//         code::MAX_WASM_PAGES_AMOUNT + 1
-//     );
+#[test]
+fn invalid_memory_page_amount_rejected() {
+    let Some(incorrect_amount) = code::MAX_WASM_PAGES_AMOUNT.to_page().map(|p| p.inc().raw())
+    else {
+        // In case max memory is 4GB, then it's impossible to make invalid memory pages amount.
+        return;
+    };
 
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         assert_noop!(
-//             Gear::upload_code(
-//                 RuntimeOrigin::signed(USER_1),
-//                 ProgramCodeKind::Custom(&wat).to_bytes(),
-//             ),
-//             Error::<Test>::ProgramConstructionFailed
-//         );
+    let wat = format!(
+        r#"
+            (module
+                (import "env" "memory" (memory {incorrect_amount}))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#
+    );
 
-//         assert_noop!(
-//             Gear::upload_program(
-//                 RuntimeOrigin::signed(USER_1),
-//                 ProgramCodeKind::Custom(&wat).to_bytes(),
-//                 vec![],
-//                 EMPTY_PAYLOAD.to_vec(),
-//                 1_000_000_000,
-//                 0,
-//                 false,
-//             ),
-//             Error::<Test>::ProgramConstructionFailed
-//         );
-//     });
-// }
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(&wat).to_bytes(),
+            ),
+            Error::<Test>::ProgramConstructionFailed
+        );
+
+        assert_noop!(
+            Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(&wat).to_bytes(),
+                vec![],
+                EMPTY_PAYLOAD.to_vec(),
+                1_000_000_000,
+                0,
+                false,
+            ),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
 
 #[test]
 fn test_reinstrumentation_works() {
