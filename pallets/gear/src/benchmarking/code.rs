@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
@@ -497,8 +497,7 @@ pub mod body {
         mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_pages_iter::<GearPage>())
-        {
+        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_interval::<GearPage>()) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
             head.push(Instruction::I32Store(2, 0));
@@ -510,8 +509,7 @@ pub mod body {
         mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_pages_iter::<GearPage>())
-        {
+        for page in Interval::from(..mem_size).flat_map(|p: WasmPage| p.to_interval::<GearPage>()) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));
             head.push(Instruction::Drop);

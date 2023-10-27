@@ -33,7 +33,7 @@ use frame_support::codec::MaxEncodedLen;
 use gear_core::{
     ids::ProgramId,
     memory::{MemoryInterval, PageBuf},
-    pages::{GearPage, GearPagesAmount, Interval, PageU32Size},
+    pages::{GearPage, GearPagesAmount, Interval, PageNumber, PageU32Size},
 };
 use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
@@ -163,7 +163,7 @@ impl PageSets {
         accessed_pages
     }
 
-    fn loaded_pages_count(&self) -> GearPage {
+    fn loaded_pages_count(&self) -> GearPagesAmount {
         let c = self
             .accessed_pages()
             .intersection(self.get(SetNo::WithData))

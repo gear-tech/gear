@@ -67,6 +67,7 @@ use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
+    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,

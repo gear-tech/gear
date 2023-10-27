@@ -392,7 +392,11 @@ fn execute_wasm_with_custom_configs(
             gear_core_processor::Ext::lazy_pages_init_for_program(
                 mem,
                 program_id,
-                Some(mem.size().get().expect("+_+_+")),
+                Some(
+                    mem.size()
+                        .get()
+                        .expect("Memory size is 4GB, so cannot be stack end"),
+                ),
                 globals_config,
                 Default::default(),
             );

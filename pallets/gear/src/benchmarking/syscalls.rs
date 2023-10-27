@@ -38,7 +38,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{GearPage, Interval, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{GearPage, Interval, PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
@@ -1533,7 +1533,7 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let exec = Self::lazy_pages_signal_read(pages)?;
         let program_id = exec.context.program().id();
-        for page in Interval::from(..pages).flat_map(|p: WasmPage| p.to_pages_iter::<GearPage>()) {
+        for page in Interval::from(..pages).flat_map(|p: WasmPage| p.to_interval::<GearPage>()) {
             ProgramStorageOf::<T>::set_program_page_data(
                 program_id,
                 page,

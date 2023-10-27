@@ -414,7 +414,7 @@ mod tests {
         let wasm_pages: Vec<WasmPage> = [0u16, 10].iter().copied().map(WasmPage::from).collect();
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
+            .flat_map(|p| p.to_interval::<GearPage>())
             .map(|p| p.raw())
             .collect();
 

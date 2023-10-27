@@ -312,7 +312,7 @@ struct LazyGrowHandler {
     old_mem_size: WasmPagesAmount,
 }
 
-// +_+_+ remove GrowHandler
+// TODO: remove GrowHandler after grows removing #_+_+_
 impl GrowHandler for LazyGrowHandler {
     fn before_grow_action(mem: &mut impl Memory) -> Self {
         // New pages allocation may change wasm memory buffer location.

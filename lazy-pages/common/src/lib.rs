@@ -22,7 +22,7 @@
 
 use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
-use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage, str::LimitedStr};
+use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPagesAmount, str::LimitedStr};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Memory access error during sys-call that lazy-pages have caught.
@@ -49,19 +49,19 @@ pub enum GlobalsAccessMod {
 #[codec(crate = codec)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
-    pub signal_read: CostPerPage<GearPage>,
+    pub signal_read: CostPerPage<GearPagesAmount>,
     /// First write page access cost.
-    pub signal_write: CostPerPage<GearPage>,
+    pub signal_write: CostPerPage<GearPagesAmount>,
     /// First write access cost for page, which has been already read accessed.
-    pub signal_write_after_read: CostPerPage<GearPage>,
+    pub signal_write_after_read: CostPerPage<GearPagesAmount>,
     /// First read page access cost from host function call.
-    pub host_func_read: CostPerPage<GearPage>,
+    pub host_func_read: CostPerPage<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write: CostPerPage<GearPage>,
+    pub host_func_write: CostPerPage<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write_after_read: CostPerPage<GearPage>,
+    pub host_func_write_after_read: CostPerPage<GearPagesAmount>,
     /// Loading page data from storage cost.
-    pub load_page_storage_data: CostPerPage<GearPage>,
+    pub load_page_storage_data: CostPerPage<GearPagesAmount>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.

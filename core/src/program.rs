@@ -61,7 +61,8 @@ impl Program {
         }
     }
 
-    /// +_+_+
+    // TODO: is_initialized is used only in gtest, so may be we should remove it #_+_+_
+    /// Get program parts
     pub fn into_parts(self) -> (ProgramId, InstrumentedCode, IntervalsTree<WasmPage>, bool) {
         (self.id, self.code, self.allocations, self.is_initialized)
     }
@@ -115,7 +116,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId};
+    use crate::{code::Code, ids::ProgramId, pages::PageNumber};
     use alloc::vec::Vec;
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 

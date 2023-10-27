@@ -1052,7 +1052,7 @@ impl JournalHandler for ExtManager {
                     .allocations()
                     .and_not_iter(&allocations)
                     .flat_map(Interval::from)
-                    .flat_map(|p| p.to_pages_iter())
+                    .flat_map(|p| p.to_interval())
                 {
                     pages_data.remove(&page);
                 }

@@ -130,13 +130,12 @@ pub(crate) struct LazyPagesExecutionContext {
     pub accessed_pages: IntervalsTree<GearPage>,
     /// Pages which has been write accessed by program during current execution
     pub write_accessed_pages: IntervalsTree<GearPage>,
-    // +_+_+ correct comment
-    /// End of stack wasm address. Default is `0`, which means,
+    /// End of stack page (not inclusive). Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
     /// which lies before this value will never get into `write_accessed_pages`,
-    /// which means that they will never be updated in storage.
+    /// which means that they will never be uploaded to storage.
     pub stack_end: WasmPage,
     /// Context to access globals and works with them: charge gas, set status global.
     pub globals_context: Option<GlobalsContext>,

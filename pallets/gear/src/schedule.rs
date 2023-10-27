@@ -32,7 +32,7 @@ use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -591,7 +591,7 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
-    /// +_+_+
+    /// Cost per one [WasmPage] for memory growing.
     pub mem_grow_per_page: Weight,
 
     /// Cost per one [GearPage].

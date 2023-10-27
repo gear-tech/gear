@@ -37,10 +37,10 @@ impl<T: Numerated> From<NotEmptyInterval<T>> for RangeInclusive<T> {
 }
 
 impl<T: Numerated> NotEmptyInterval<T> {
+    /// +_+_+ make unsafe
     /// Creates new interval start..=end with checks only in debug mode.
-    /// Pub is only for crate, so supposed to be safe.
     #[track_caller]
-    pub(crate) fn new_unchecked(start: T, end: T) -> Self {
+    pub fn new_unchecked(start: T, end: T) -> Self {
         debug_assert!(start <= end);
         Self { start, end }
     }

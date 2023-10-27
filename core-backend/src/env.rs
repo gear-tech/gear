@@ -399,7 +399,7 @@ where
             funcs_count: 0,
         };
 
-        // TODO: make refactoring for mem size #+_+_+
+        // TODO: make mem size always 4GB #_+_+_
         let memory: DefaultExecutorMemory =
             match SandboxMemory::new(&mut store, mem_size.into(), None) {
                 Ok(mem) => mem,
