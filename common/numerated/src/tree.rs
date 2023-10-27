@@ -307,7 +307,7 @@ impl<T: Numerated> IntervalsTree<T> {
 }
 
 impl<T: Numerated + LowerBounded + UpperBounded> IntervalsTree<T> {
-    // TODO: optimize
+    // TODO: optimize #_+_+_
     pub fn complement(&self) -> Self {
         let mut res = IntervalsTree::<T>::new();
         let mut start: Option<T> = None;
@@ -345,7 +345,7 @@ impl<T: Numerated + LowerBounded + UpperBounded> IntervalsTree<T> {
         res
     }
 
-    // TODO: optimize
+    // TODO: optimize #_+_+_
     pub fn crop<I: Into<Interval<T>>>(&mut self, interval: I) {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - just clear.
