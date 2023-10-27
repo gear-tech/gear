@@ -68,6 +68,11 @@ impl<T: Numerated> NotEmptyInterval<T> {
 }
 
 impl<T: Numerated> Interval<T> {
+    /// Creates new interval start..end if start <= end, else returns None.
+    /// If start == end, then returns empty interval.
+    pub fn new<S: Into<T::B>, E: Into<T::B>>(start: S, end: E) -> Option<Self> {
+        Self::try_from((start, end)).ok()
+    }
     pub fn start(&self) -> T {
         self.start
     }

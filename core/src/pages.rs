@@ -29,25 +29,23 @@ use scale_info::{
 };
 
 /// A WebAssembly page has a constant size of 64KiB.
-pub const WASM_PAGE_SIZE: usize = 0x10000;
-/// +_+_+
-pub const WASM_PAGE_SIZE32: u32 = 0x10000;
+pub const WASM_PAGE_SIZE: usize = WASM_PAGE_SIZE32 as usize;
+const WASM_PAGE_SIZE32: u32 = 0x10000;
 
-// +_+_+ change comment
-/// A gear page size, currently 16KiB to fit the most common native page size.
-/// This is size of memory data pages in storage.
-/// So, in lazy-pages, when program tries to access some memory interval -
-/// we can download just some number of gear pages instead of whole wasm page.
-/// The number of small pages, which must be downloaded, is depends on host
-/// native page size, so can vary.
-pub const GEAR_PAGE_SIZE: usize = 0x4000;
-/// +_+_+
-pub const GEAR_PAGE_SIZE32: u32 = 0x4000;
+/// A size of memory pages in program data storage.
+/// If program changes some memory page during execution, then page of this size will be uploaded to the storage.
+/// If during execution program accesses some data in memory, then data of this size will be downloaded from the storage.
+/// Currently equal to 16KiB to be bigger than most common host page sizes.
+pub const GEAR_PAGE_SIZE: usize = GEAR_PAGE_SIZE32 as usize;
+const GEAR_PAGE_SIZE32: u32 = 0x4000;
 
 static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 
-/// +_+_+
+/// Struct represents memory pages amount with some constant size `SIZE` in bytes.
+/// `SIZE` type is u32, so page cannot be bigger than 4GiB (wasm32 memory size limit).
+/// Also `SIZE` must be power of two, not equal to one or zero bytes.
+/// This struct is suitable to be storage value.
 #[derive(
     Clone,
     Copy,
@@ -74,13 +72,6 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
     ///
     /// NOTE: const computation contains checking in order to prevent incorrect SIZE.
     pub const UPPER: Self = Self(u32::MAX / SIZE + 1 / if SIZE.is_power_of_two() { 1 } else { 0 });
-
-    /// +_+_+
-    pub fn distance_inclusive<A: Into<Self>, B: Into<Self>>(a: A, b: B) -> Option<Self> {
-        let a: Self = a.into();
-        let b: Self = b.into();
-        a.0.checked_sub(b.0).map(|c| Self(c + 1))
-    }
 
     /// +_+_+
     pub fn add<A: Into<Self>, B: Into<Self>>(a: A, b: B) -> Option<Self> {
@@ -331,24 +322,6 @@ pub trait PageNumber: Numerated + Into<u32> {
     fn is_zero(&self) -> bool {
         self.raw() == 0
     }
-
-    // /// Returns iterator `self`..=`end`.
-    // fn iter_end_inclusive(&self, end: Self) -> Option<Interval<Self>> {
-    //     Interval::try_from(*self..=end).ok()
-    // }
-
-    // /// Returns iterator `0`..=`self`
-    // fn iter_from_zero_inclusive(&self) -> Interval<Self> {
-    //     (..=*self).into()
-    // }
-    // /// Returns iterator `0`..`self`
-    // fn iter_from_zero(&self) -> Interval<Self> {
-    //     Interval::from(..*self)
-    // }
-    // /// Returns iterator `self`..=`self`
-    // fn iter_once(&self) -> Interval<Self> {
-    //     Interval::from(self)
-    // }
 }
 
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
@@ -386,27 +359,6 @@ pub trait PageU32Size: PageNumber {
     fn align_down(&self, size: NonZeroU32) -> Self {
         let size: u32 = size.into();
         Self::from_offset((self.offset() / size) * size)
-    }
-    /// Returns iterator `0`..=`self`
-    fn iter_from_zero_inclusive(&self) -> PagesIterInclusive<Self> {
-        PagesIterInclusive {
-            page: Some(unsafe { Self::from_raw(0) }),
-            end: *self,
-        }
-    }
-    /// Returns iterator `0`..`self`
-    fn iter_from_zero(&self) -> PagesIter<Self> {
-        PagesIter {
-            page: unsafe { Self::from_raw(0) },
-            end: *self,
-        }
-    }
-    /// Returns iterator `self`..=`self`
-    fn iter_once(&self) -> PagesIterInclusive<Self> {
-        PagesIterInclusive {
-            page: Some(*self),
-            end: *self,
-        }
     }
     /// Returns an iterator that iterates over the range of pages from `self` to the end page,
     /// inclusive. Each iteration yields a page of type `P`.
@@ -499,42 +451,3 @@ impl<P: PageNumber> PagesIterInclusive<P> {
         self.end
     }
 }
-
-// impl<P: PageU32Size> PagesIterInclusive<P> {
-//     /// Converts a page iterator from one page type to another.
-//     ///
-//     /// Given a page iterator `iter` of type `P1`, this function returns a new page iterator
-//     /// where each page in `iter` is converted to type `P2`. The resulting iterator will
-//     /// iterate over pages of type `P2`.
-//     ///
-//     /// # Example
-//     ///
-//     /// Converting a `PagesIterInclusive<GearPage>` to `PagesIterInclusive<WasmPage>`:
-//     ///
-//     /// ```
-//     /// use gear_core::pages::{PageU32Size, PagesIterInclusive, GearPage, WasmPage, PageNumber};
-//     ///
-//     /// let start_page = GearPage::from(5);
-//     /// let end_page = GearPage::from(10);
-//     ///
-//     /// let gear_iter = start_page
-//     ///     .iter_end_inclusive(end_page)
-//     ///     .expect("cannot iterate");
-//     ///
-//     /// let wasm_iter = gear_iter.convert::<WasmPage>();
-//     /// ```
-//     ///
-//     /// # Generic parameters
-//     ///
-//     /// - `P1`: The type of the pages to convert to.
-//     ///
-//     /// # Returns
-//     ///
-//     /// A new page iterator of type `P1`.
-//     pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
-//         PagesIterInclusive::<P1> {
-//             page: self.page.map(|p| p.to_page()),
-//             end: self.end.to_last_page(),
-//         }
-//     }
-// }

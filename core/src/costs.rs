@@ -85,17 +85,17 @@ impl<P: Into<u32>> Default for CostPerPage<P> {
     }
 }
 
-// TODO: rename, cause HostFn is already used as name for RuntimeInterface host calls #+_+_+
+// TODO: rename, cause HostFn is already used as name for RuntimeInterface host calls #_+_+_
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
 pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
-    /// Weight per allocated page for `alloc`.
+    /// Weight per allocated pages amount for `alloc`.
     pub alloc_per_page: u64,
 
-    /// +_+_+
+    /// Weight per already allocated intervals amount for `alloc`.
     pub alloc_per_intervals_amount: u64,
 
     /// Weight of calling `alloc`.

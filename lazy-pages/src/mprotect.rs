@@ -44,22 +44,22 @@ pub enum MprotectError {
 unsafe fn sys_mprotect_interval(
     addr: usize,
     size: usize,
-    prot_read: bool,
-    prot_write: bool,
-    prot_exec: bool,
+    allow_read: bool,
+    allow_write: bool,
+    allow_exec: bool,
 ) -> Result<(), MprotectError> {
     if size == 0 {
         return Err(MprotectError::ZeroSizeError);
     }
 
     let mut mask = region::Protection::NONE;
-    if prot_read {
+    if allow_read {
         mask |= region::Protection::READ;
     }
-    if prot_write {
+    if allow_write {
         mask |= region::Protection::WRITE;
     }
-    if prot_exec {
+    if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
     let res = region::protect(addr as *mut (), size, mask);
@@ -79,10 +79,10 @@ unsafe fn sys_mprotect_interval(
 pub(crate) fn mprotect_interval(
     addr: usize,
     size: usize,
-    prot_read: bool,
-    prot_write: bool,
+    allow_read: bool,
+    allow_write: bool,
 ) -> Result<(), MprotectError> {
-    unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
+    unsafe { sys_mprotect_interval(addr, size, allow_read, allow_write, false) }
 }
 
 /// Mprotect all pages from `pages`.
@@ -90,8 +90,8 @@ pub(crate) fn mprotect_pages<M: SizeManager, S: SizeNumber, I: Into<NotEmptyInte
     mem_addr: usize,
     pages: impl Iterator<Item = I>,
     size_ctx: &M,
-    prot_read: bool,
-    prot_write: bool,
+    allow_read: bool,
+    allow_write: bool,
 ) -> Result<(), MprotectError> {
     for interval in pages {
         let interval: NotEmptyInterval<Page<S>> = interval.into();
@@ -109,7 +109,7 @@ pub(crate) fn mprotect_pages<M: SizeManager, S: SizeNumber, I: Into<NotEmptyInte
             .offset(size_ctx);
 
         unsafe {
-            sys_mprotect_interval(addr, size, prot_read, prot_write, false)?;
+            sys_mprotect_interval(addr, size, allow_read, allow_write, false)?;
         }
     }
     Ok(())

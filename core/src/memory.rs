@@ -289,7 +289,7 @@ impl AllocationsContext {
         }
     }
 
-    /// +_+_+
+    /// Returns allocations.
     pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
         &self.allocations
     }
@@ -364,11 +364,12 @@ impl AllocationsContext {
             })
             .ok_or(AllocError::ProgramAllocOutOfBounds)?;
 
-        // Panic is impossible, if `end` is less than `mem_size`, than it would found interval inside existing memory.
-        let grow_size = WasmPagesAmount::distance_inclusive(interval.end(), mem_size)
+        // Panic is impossible, if `end` is less than `mem_size`, than suitable interval inside existing memory would be found.
+        let grow_size = Interval::new(mem_size, interval.end().inc())
+            .map(|i| WasmPagesAmount::from(i.size()))
             .and_then(|size| size.is_zero().not().then_some(size))
             .unwrap_or_else(|| {
-                unreachable!("new allocated interval end must be bigger than current `mem_size`");
+                unreachable!("new allocated interval end must be >= current mem end page");
             });
 
         charge_gas_for_grow(grow_size)?;
@@ -386,7 +387,6 @@ impl AllocationsContext {
     ///
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        // +_+_+ optimize
         if self.static_pages > page || self.max_pages <= page || !self.allocations.contains(page) {
             Err(AllocError::InvalidFree(page.raw()))
         } else {
@@ -408,7 +408,6 @@ mod tests {
     use crate::pages::{GearPage, PageU32Size};
     use alloc::vec::Vec;
 
-    // +_+_+ add test?
     #[test]
     /// Test that [WasmPage] set transforms correctly to [GearPage] set.
     fn wasm_pages_to_gear_pages() {
@@ -450,53 +449,11 @@ mod tests {
         assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1)));
     }
 
-    // +_+_+ make tests may be for intervals
-    // #[test]
-    // fn page_iterator() {
-    //     let test = |num1, num2| {
-    //         let p1 = GearPage::from(num1);
-    //         let p2 = GearPage::from(num2);
-
-    //         assert_eq!(
-    //             p1.iter_end(p2).unwrap().collect::<Vec<GearPage>>(),
-    //             (num1..num2).map(GearPage::from).collect::<Vec<GearPage>>(),
-    //         );
-    //         assert_eq!(
-    //             p1.iter_end_inclusive(p2)
-    //                 .unwrap()
-    //                 .collect::<Vec<GearPage>>(),
-    //             (num1..=num2).map(GearPage::from).collect::<Vec<GearPage>>(),
-    //         );
-    //         assert_eq!(
-    //             p1.iter_count(p2).unwrap().collect::<Vec<GearPage>>(),
-    //             (num1..num1 + num2)
-    //                 .map(GearPage::from)
-    //                 .collect::<Vec<GearPage>>(),
-    //         );
-    //         assert_eq!(
-    //             p1.iter_from_zero().collect::<Vec<GearPage>>(),
-    //             (0..num1).map(GearPage::from).collect::<Vec<GearPage>>(),
-    //         );
-    //         assert_eq!(
-    //             p1.iter_from_zero_inclusive().collect::<Vec<GearPage>>(),
-    //             (0..=num1).map(GearPage::from).collect::<Vec<GearPage>>(),
-    //         );
-    //     };
-
-    //     test(0, 1);
-    //     test(111, 365);
-    //     test(1238, 3498);
-    //     test(0, 64444);
-    // }
-
     mod property_tests {
         use super::*;
         use crate::memory::HostPointer;
         use proptest::{
-            arbitrary::any,
-            collection::size_range,
-            prop_oneof, proptest,
-            strategy::{Just, Strategy},
+            arbitrary::any, collection::size_range, prop_oneof, proptest, strategy::Strategy,
             test_runner::Config as ProptestConfig,
         };
 
@@ -529,18 +486,15 @@ mod tests {
 
         #[derive(Debug, Clone)]
         enum Action {
-            // +_+_+ change to WasmPagesAmount
-            Alloc { pages: WasmPage },
+            Alloc { pages: WasmPagesAmount },
             Free { page: WasmPage },
         }
 
         fn actions() -> impl Strategy<Value = Vec<Action>> {
-            let action = wasm_page().prop_flat_map(|page| {
-                prop_oneof![
-                    Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
-                ]
-            });
+            let action = prop_oneof![
+                wasm_pages_amount().prop_map(|pages| Action::Alloc { pages }),
+                wasm_page().prop_map(|page| Action::Free { page }),
+            ];
             proptest::collection::vec(action, 0..1024)
         }
 
@@ -553,7 +507,7 @@ mod tests {
             any::<u16>().prop_map(WasmPage::from)
         }
 
-        fn wasm_page_bound() -> impl Strategy<Value = WasmPagesAmount> {
+        fn wasm_pages_amount() -> impl Strategy<Value = WasmPagesAmount> {
             (0..u16::MAX as u32 + 1).prop_map(|x| {
                 if x == u16::MAX as u32 + 1 {
                     WasmPagesAmount::UPPER
@@ -604,10 +558,10 @@ mod tests {
             #![proptest_config(proptest_config())]
             #[test]
             fn alloc(
-                static_pages in wasm_page_bound(),
+                static_pages in wasm_pages_amount(),
                 allocations in allocations(),
-                max_pages in wasm_page_bound(),
-                mem_size in wasm_page_bound(),
+                max_pages in wasm_pages_amount(),
+                mem_size in wasm_pages_amount(),
                 actions in actions(),
             ) {
                 let _ = env_logger::try_init();
@@ -618,7 +572,7 @@ mod tests {
                 for action in actions {
                     match action {
                         Action::Alloc { pages } => {
-                            match ctx.alloc::<NoopGrowHandler>(pages.into(), &mut mem, |_| Ok(())) {
+                            match ctx.alloc::<NoopGrowHandler>(pages, &mut mem, |_| Ok(())) {
                                 Err(AllocError::IncorrectAllocationData) => {
                                     assert!(
                                         static_pages > mem_size

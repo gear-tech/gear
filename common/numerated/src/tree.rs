@@ -284,7 +284,7 @@ impl<T: Numerated> IntervalsTree<T> {
         self.inner.len()
     }
 
-    // +_+_+ TODO: may be better to store points amount as field.
+    // TODO: may be better to store points amount as field #_+_+_
     /// Number of points in tree set.
     pub fn points_amount(&self) -> Option<T::N> {
         let mut res = T::N::zero();

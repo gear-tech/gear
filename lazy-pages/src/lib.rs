@@ -205,7 +205,7 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
         let ctx = ctx.execution_context()?;
         let mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
-        let s = GearPagesAmount::from(ctx.stack_end.to_page(ctx));
+        let s = ctx.stack_end.to_page(ctx);
         let e = GearPagesAmount::from_option(ctx, ctx.wasm_mem_size.get().map(|p| p.to_page(ctx)));
 
         // Set r/w protection for all pages except stack pages and write accessed pages.
@@ -213,7 +213,9 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
             mem_addr,
             ctx.write_accessed_pages
                 .try_voids((s, e))
-                .unwrap_or_else(|_| unreachable!("+_+_+")),
+                .unwrap_or_else(|_| {
+                    unreachable!("`stack_end` must be less or equal to `wasm_mem_size`")
+                }),
             ctx,
             false,
             false,
