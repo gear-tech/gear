@@ -37,10 +37,11 @@ impl<T: Numerated> From<NotEmptyInterval<T>> for RangeInclusive<T> {
 }
 
 impl<T: Numerated> NotEmptyInterval<T> {
-    /// +_+_+ make unsafe
     /// Creates new interval start..=end with checks only in debug mode.
+    /// # Safety
+    /// Unsafe, because allows to create invalid interval.
     #[track_caller]
-    pub fn new_unchecked(start: T, end: T) -> Self {
+    pub unsafe fn new_unchecked(start: T, end: T) -> Self {
         debug_assert!(start <= end);
         Self { start, end }
     }
@@ -80,8 +81,10 @@ impl<T: Numerated> Interval<T> {
         self.end.is_none()
     }
     pub fn into_not_empty(self) -> Option<NotEmptyInterval<T>> {
-        self.end
-            .map(|end| NotEmptyInterval::new_unchecked(self.start, end))
+        self.end.map(|end| unsafe {
+            // Guaranteed by `Self` that start <= end
+            NotEmptyInterval::new_unchecked(self.start, end)
+        })
     }
     pub fn into_inner(self) -> Option<(T, T)> {
         self.into_not_empty().map(Into::into)
@@ -129,19 +132,28 @@ impl<T: Numerated> Iterator for Interval<T> {
 
 impl<T: Numerated> From<T> for Interval<T> {
     fn from(point: T) -> Self {
-        NotEmptyInterval::new_unchecked(point, point).into()
+        unsafe {
+            // Safe cause point <= point
+            NotEmptyInterval::new_unchecked(point, point).into()
+        }
     }
 }
 
 impl<T: Numerated> From<&T> for Interval<T> {
     fn from(point: &T) -> Self {
-        NotEmptyInterval::new_unchecked(*point, *point).into()
+        Self::from(*point)
     }
 }
 
 impl<T: Numerated + LowerBounded> From<RangeToInclusive<T>> for Interval<T> {
     fn from(range: RangeToInclusive<T>) -> Self {
-        NotEmptyInterval::new_unchecked(T::min_value(), range.end).into()
+        NotEmptyInterval::new(T::min_value(), range.end)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "`T: LowerBounded` impl error: for each x: T must be T::min_value() <= x"
+                )
+            })
+            .into()
     }
 }
 
@@ -149,9 +161,13 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
     fn from(range: RangeFrom<I>) -> Self {
         let start: T::B = range.start.into();
         match start.unbound() {
-            BoundValue::Value(start) => {
-                NotEmptyInterval::new_unchecked(start, T::max_value()).into()
-            }
+            BoundValue::Value(start) => NotEmptyInterval::new(start, T::max_value())
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "`T: UpperBounded` impl error: for each x: T must be x <= T::max_value()"
+                    )
+                })
+                .into(),
             BoundValue::Upper(start) => Self { start, end: None },
         }
     }
@@ -159,7 +175,9 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
 
 impl<T: Numerated + UpperBounded + LowerBounded> From<RangeFull> for Interval<T> {
     fn from(_: RangeFull) -> Self {
-        NotEmptyInterval::new_unchecked(T::min_value(), T::max_value()).into()
+        NotEmptyInterval::new(T::min_value(), T::max_value()).unwrap_or_else(|| {
+            unreachable!("`T: UpperBounded + LowerBounded` impl error: must be T::min_value() <= T::max_value()")
+        }).into()
     }
 }
 

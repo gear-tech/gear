@@ -22,7 +22,7 @@ use gear_core::pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 
-/// +_+_+ TODO
+/// TODO: need to make full refactoring of program pages data pausing #_+_+_
 const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * 256;
 
 pub type SessionId = u128;

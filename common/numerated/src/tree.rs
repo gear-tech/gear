@@ -39,10 +39,10 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = NotEmptyInterval<T>> + '_ {
-        // `Self` guaranties, that contains only `start` <= `end`
-        self.inner
-            .iter()
-            .map(|(&start, &end)| NotEmptyInterval::<T>::new_unchecked(start, end))
+        self.inner.iter().map(|(&start, &end)| unsafe {
+            // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
+            NotEmptyInterval::<T>::new_unchecked(start, end)
+        })
     }
 
     pub fn contains<I: Into<Interval<T>>>(&self, interval: I) -> bool {
@@ -236,12 +236,12 @@ impl<T: Numerated> IntervalsTree<T> {
         }
 
         let iter = self.inner.range(start..=end).map(|(&start, &end)| {
-            // `Self` guaranties, that it contains only `start` <= `end`.
-            NotEmptyInterval::new_unchecked(start, end)
+            // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
+            unsafe { NotEmptyInterval::new_unchecked(start, end) }
         });
 
-        // Already checked, that `start` <= `end`.
-        let interval = NotEmptyInterval::new_unchecked(start, end);
+        // Safe, because we have already checked, that `start` <= `end`.
+        let interval = unsafe { NotEmptyInterval::new_unchecked(start, end) };
 
         VoidsIterator {
             inner: Some((iter, interval)),
@@ -295,10 +295,10 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     pub fn points_iter(&self) -> impl Iterator<Item = T> + '_ {
-        // `Self` guaranties, that contains only `end` >= `start`
-        self.inner
-            .iter()
-            .flat_map(|(&s, &e)| NotEmptyInterval::new_unchecked(s, e).iter())
+        self.inner.iter().flat_map(|(&s, &e)| unsafe {
+            // Safe, because `Self` guaranties, that it contains only `start` <= `end`
+            NotEmptyInterval::new_unchecked(s, e).iter()
+        })
     }
 
     pub fn to_vec(&self) -> Vec<RangeInclusive<T>> {

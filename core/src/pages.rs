@@ -400,6 +400,7 @@ pub trait PageU32Size: Numerated + PageNumber {
     fn to_interval<P: PageU32Size>(&self) -> Interval<P> {
         let start: P = self.to_page();
         let end: P = P::from_offset(self.end_offset());
-        NotEmptyInterval::new_unchecked(start, end).into()
+        // Safe, cause end_offset is always greater or equal to offset, so start <= end.
+        unsafe { NotEmptyInterval::new_unchecked(start, end).into() }
     }
 }
