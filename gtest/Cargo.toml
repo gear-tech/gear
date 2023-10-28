@@ -8,13 +8,13 @@ license.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-backend-common.workspace = true
-gear-backend-sandbox = { workspace = true, features = ["std"] }
-core-processor.workspace = true
-gear-wasm-builder.workspace = true
+core-processor = { workspace = true, features = ["std"] }
+gear-lazy-pages-interface = { workspace = true, features = ["std"] }
 gear-utils.workspace = true
+gsys.workspace = true
 
-anyhow.workspace = true
+sp-io = { workspace = true, features = ["std"] }
+
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 colored.workspace = true

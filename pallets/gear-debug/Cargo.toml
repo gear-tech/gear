@@ -37,7 +37,6 @@ pallet-authorship.workspace = true
 serde.workspace = true
 env_logger.workspace = true
 wabt.workspace = true
-gear-backend-sandbox.workspace = true
 hex-literal.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
@@ -45,7 +44,7 @@ pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
-pallet-gear-program = { workspace = true, features = ["dev", "std"] }
+pallet-gear-program = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
 demo-vec.workspace = true
 test-syscalls.workspace = true
@@ -75,5 +74,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 ]
-lazy-pages = ["pallet-gear/lazy-pages"]
 try-runtime = ["frame-support/try-runtime"]

@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Program metadata parser
+mod executor;
 mod registry;
 #[cfg(test)]
 mod tests;
 
 use crate::result::{Error, Result};
-use core_processor::configs::BlockInfo;
-use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig};
+use gear_core::code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -105,24 +105,6 @@ impl Meta {
         display.finish()
     }
 
-    /// Execute meta method.
-    fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
-        core_processor::informational::execute_for_reply::<
-            gear_backend_sandbox::SandboxEnvironment<core_processor::Ext, String>,
-            String,
-        >(
-            method.into(),
-            wasm,
-            None,
-            None,
-            None,
-            Default::default(),
-            u64::MAX,
-            BlockInfo::default(),
-        )
-        .map_err(Error::WasmExecution)
-    }
-
     /// Decode metawasm from wasm binary.
     pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
         let code = Code::try_new_mock_const_or_no_rules(
@@ -131,10 +113,9 @@ impl Meta {
             TryNewCodeConfig::new_no_exports_check(),
         )?;
         let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
+        let result = executor::call_metadata(code.code())?;
 
-        Ok(Self::Wasm(MetawasmData::decode(
-            &mut Self::execute(code, "metadata")?.as_ref(),
-        )?))
+        Ok(Self::Wasm(MetawasmData::decode(&mut result.as_ref())?))
     }
 
     /// Decode metadata from hex bytes.

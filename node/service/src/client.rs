@@ -40,39 +40,8 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 pub type FullClient<RuntimeApi, ExecutorDispatch> =
     sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
-#[cfg(not(any(feature = "gear-native", feature = "vara-native",)))]
+#[cfg(not(feature = "vara-native"))]
 compile_error!("at least one runtime feature must be enabled");
-
-/// The native executor instance for default network.
-#[cfg(feature = "gear-native")]
-pub struct GearExecutorDispatch;
-
-#[cfg(feature = "gear-native")]
-impl sc_executor::NativeExecutionDispatch for GearExecutorDispatch {
-    /// Only enable the benchmarking host functions when we actually want to benchmark.
-    #[cfg(feature = "runtime-benchmarks")]
-    type ExtendHostFunctions = (
-        // Only for runtime-benchmarks host functions.
-        gear_ri::gear_debug::HostFunctions,
-        frame_benchmarking::benchmarking::HostFunctions,
-        gear_ri::gear_ri::HostFunctions,
-        gear_ri::sandbox::HostFunctions,
-    );
-    /// Otherwise we only use the default Substrate host functions.
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type ExtendHostFunctions = (
-        gear_ri::gear_ri::HostFunctions,
-        gear_ri::sandbox::HostFunctions,
-    );
-
-    fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-        gear_runtime::api::dispatch(method, data)
-    }
-
-    fn native_version() -> sc_executor::NativeVersion {
-        gear_runtime::native_version()
-    }
-}
 
 /// The native executor instance for standalone network.
 #[cfg(feature = "vara-native")]
@@ -119,6 +88,7 @@ pub trait RuntimeApiCollection:
     + sp_offchain::OffchainWorkerApi<Block>
     + sp_session::SessionKeys<Block>
     + pallet_gear_rpc_runtime_api::GearApi<Block>
+    + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
 where
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
@@ -136,7 +106,8 @@ where
         + sp_api::Metadata<Block>
         + sp_offchain::OffchainWorkerApi<Block>
         + sp_session::SessionKeys<Block>
-        + pallet_gear_rpc_runtime_api::GearApi<Block>,
+        + pallet_gear_rpc_runtime_api::GearApi<Block>
+        + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>,
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
@@ -236,8 +207,6 @@ macro_rules! with_client {
         }
     } => {
         match $self {
-            #[cfg(feature = "gear-native")]
-            Self::Gear($client) => { $( $code )* },
             #[cfg(feature = "vara-native")]
             Self::Vara($client) => { $( $code )* },
         }
@@ -247,19 +216,8 @@ macro_rules! with_client {
 /// A client instance of Gear.
 #[derive(Clone)]
 pub enum Client {
-    #[cfg(feature = "gear-native")]
-    Gear(Arc<crate::FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>>),
     #[cfg(feature = "vara-native")]
     Vara(Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>),
-}
-
-#[cfg(feature = "gear-native")]
-impl From<Arc<crate::FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>>> for Client {
-    fn from(
-        client: Arc<crate::FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>>,
-    ) -> Self {
-        Self::Gear(client)
-    }
 }
 
 #[cfg(feature = "vara-native")]

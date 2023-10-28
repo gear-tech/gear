@@ -19,30 +19,30 @@
 //! Gear api
 pub use crate::{
     api::Api,
+    config::GearConfig,
     metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
     subscription::{Blocks, Events},
 };
-use crate::{
-    config::GearConfig,
-    metadata::runtime_types::gear_common::{
-        gas_provider::node::{GasNode, GasNodeId},
-        ActiveProgram,
-    },
+pub use gear_core::gas::GasInfo;
+pub use subxt::dynamic::Value;
+
+use crate::metadata::runtime_types::gear_common::{
+    gas_provider::node::{GasNode, GasNodeId},
+    ActiveProgram,
 };
 use gear_core::ids::{MessageId, ReservationId};
-use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::Decode;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
-pub use subxt::dynamic::Value;
 use subxt::{
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
     OnlineClient,
 };
 
 mod api;
+pub mod backtrace;
 mod client;
 pub mod config;
 mod constants;
@@ -70,17 +70,6 @@ pub mod gp {
 
 /// Block number type
 pub type BlockNumber = u32;
-
-/// Information of gas
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GasInfo {
-    /// Represents minimum gas limit required for execution.
-    pub min_limit: u64,
-    /// Gas amount that we reserve for some other on-chain interactions.
-    pub reserved: u64,
-    /// Contains number of gas burned during message processing.
-    pub burned: u64,
-}
 
 /// Gear gas node id.
 pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;

@@ -133,6 +133,8 @@ use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
+pub mod migrations;
+
 #[cfg(test)]
 mod mock;
 
@@ -145,10 +147,12 @@ pub mod pallet {
         storage::*,
         CodeMetadata, Program,
     };
-    #[cfg(feature = "dev")]
-    use frame_support::storage::PrefixIterator;
     use frame_support::{
-        dispatch::EncodeLike, pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap,
+        dispatch::EncodeLike,
+        pallet_prelude::*,
+        storage::{Key, PrefixIterator},
+        traits::StorageVersion,
+        StoragePrefixedMap,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
@@ -156,12 +160,13 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::PageBuf,
         pages::GearPage,
+        program::MemoryInfix,
     };
     use primitive_types::H256;
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -287,14 +292,22 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type MemoryPageStorage<T: Config> =
-        StorageDoubleMap<_, Identity, ProgramId, Identity, GearPage, PageBuf>;
+    pub(crate) type MemoryPages<T: Config> = StorageNMap<
+        _,
+        (
+            Key<Identity, ProgramId>,
+            Key<Identity, MemoryInfix>,
+            Key<Identity, GearPage>,
+        ),
+        PageBuf,
+    >;
 
-    common::wrap_storage_double_map!(
-        storage: MemoryPageStorage,
+    common::wrap_storage_triple_map!(
+        storage: MemoryPages,
         name: MemoryPageStorageWrap,
         key1: ProgramId,
-        key2: GearPage,
+        key2: MemoryInfix,
+        key3: GearPage,
         value: PageBuf
     );
 
@@ -346,18 +359,6 @@ pub mod pallet {
         value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
     );
 
-    #[pallet::storage]
-    #[pallet::unbounded]
-    pub(crate) type SessionMemoryPages<T: Config> =
-        StorageMap<_, Identity, SessionId, Vec<(GearPage, PageBuf)>>;
-
-    common::wrap_storage_map!(
-        storage: SessionMemoryPages,
-        name: SessionMemoryPagesWrap,
-        key: SessionId,
-        value: Vec<(GearPage, PageBuf)>
-    );
-
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -376,7 +377,7 @@ pub mod pallet {
         type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
-            MemoryPageStorage::<T>::final_prefix()
+            MemoryPages::<T>::final_prefix()
         }
     }
 
@@ -385,10 +386,8 @@ pub mod pallet {
         type CodeStorage = Self;
         type NonceStorage = ResumeSessionsNonceWrap<T>;
         type ResumeSessions = ResumeSessionsWrap<T>;
-        type SessionMemoryPages = SessionMemoryPagesWrap<T>;
     }
 
-    #[cfg(feature = "dev")]
     impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
         type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
         type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
@@ -411,18 +410,6 @@ pub mod pallet {
             EncodeLikeItem: EncodeLike<MessageId>,
         {
             WaitingInitStorage::<T>::append(key, item);
-        }
-    }
-
-    impl<T: Config> AppendMapStorage<(GearPage, PageBuf), SessionId, Vec<(GearPage, PageBuf)>>
-        for SessionMemoryPagesWrap<T>
-    {
-        fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
-        where
-            EncodeLikeKey: EncodeLike<Self::Key>,
-            EncodeLikeItem: EncodeLike<(GearPage, PageBuf)>,
-        {
-            SessionMemoryPages::<T>::append(key, item);
         }
     }
 }

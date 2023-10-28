@@ -21,7 +21,6 @@ use core_processor::{common::PrechargedDispatch, ContextChargedForInstrumentatio
 
 pub(crate) struct QueueStep<'a, T: Config, F> {
     pub block_config: &'a BlockConfig,
-    pub lazy_pages_enabled: bool,
     pub ext_manager: &'a mut ExtManager<T>,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
@@ -31,7 +30,6 @@ pub(crate) struct QueueStep<'a, T: Config, F> {
 
 #[derive(Debug)]
 pub(crate) enum QueueStepError {
-    NoMemoryPages,
     ActorData(PrechargedDispatch),
 }
 
@@ -46,7 +44,6 @@ where
     pub(crate) fn execute(self) -> Result<Vec<JournalNote>, QueueStepError> {
         let Self {
             block_config,
-            lazy_pages_enabled,
             ext_manager,
             gas_limit,
             dispatch,
@@ -136,21 +133,14 @@ where
         };
 
         // Load program memory pages.
-        let memory_pages = Pallet::<T>::get_and_track_memory_pages(
-            ext_manager,
-            program_id,
-            &context.actor_data().pages_with_data,
-            lazy_pages_enabled,
-        )
-        .ok_or(QueueStepError::NoMemoryPages)?;
+        ext_manager.insert_program_id_loaded_pages(program_id);
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
-        let journal = core_processor::process::<ExecutionEnvironment>(
+        let journal = core_processor::process::<Ext>(
             block_config,
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
-            memory_pages,
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
@@ -169,13 +159,13 @@ where
 {
     /// Message Queue processing.
     pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
+        Self::enable_lazy_pages();
+
         let block_config = Self::block_config();
 
         if T::DebugInfo::is_remap_id_enabled() {
             T::DebugInfo::remap_id();
         }
-
-        let lazy_pages_enabled = Self::enable_lazy_pages();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
@@ -226,7 +216,6 @@ where
 
             let step = QueueStep {
                 block_config: &block_config,
-                lazy_pages_enabled,
                 ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch,
@@ -257,7 +246,6 @@ where
                         MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
                     );
                 }
-                Err(QueueStepError::NoMemoryPages) => continue,
             }
         }
 
@@ -314,6 +302,7 @@ where
             initialized: matches!(program.state, ProgramState::Initialized),
             pages_with_data: program.pages_with_data,
             gas_reservation_map: program.gas_reservation_map,
+            memory_infix: program.memory_infix,
         }))
     }
 }

@@ -56,6 +56,7 @@ use gear_core::{
     memory::PageBuf,
     message::DispatchKind,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -71,6 +72,9 @@ extern crate alloc;
 pub use gas_provider::{
     LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
 };
+
+/// Type alias for gas entity.
+pub type Gas = u64;
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
@@ -178,6 +182,23 @@ where
     }
 }
 
+impl<Balance, Gas> From<GasMultiplier<Balance, Gas>> for gsys::GasMultiplier
+where
+    Balance: Copy + UniqueSaturatedInto<gsys::Value>,
+    Gas: Copy + UniqueSaturatedInto<gsys::Gas>,
+{
+    fn from(multiplier: GasMultiplier<Balance, Gas>) -> Self {
+        match multiplier {
+            GasMultiplier::ValuePerGas(multiplier) => {
+                Self::from_value_per_gas((multiplier).unique_saturated_into())
+            }
+            GasMultiplier::GasPerValue(multiplier) => {
+                Self::from_gas_per_value((multiplier).unique_saturated_into())
+            }
+        }
+    }
+}
+
 pub trait QueueRunner {
     type Gas;
 
@@ -227,18 +248,6 @@ impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
             })
         )
     }
-
-    pub fn is_uninitialized(&self) -> Option<MessageId> {
-        if let Program::Active(ActiveProgram {
-            state: ProgramState::Uninitialized { message_id },
-            ..
-        }) = self
-        {
-            Some(*message_id)
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Clone, Debug, derive_more::Display)]
@@ -266,6 +275,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
+    pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,

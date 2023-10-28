@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod tasks;
 mod utils;
 use syscalls::Benches;
 
@@ -57,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, ExecutionEnvironment,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
+    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -68,6 +69,7 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
+    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
@@ -75,7 +77,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -83,8 +85,6 @@ use frame_support::{
     traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_backend_common::Environment;
-use gear_backend_sandbox::{DefaultExecutorMemory, MemoryWrap};
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
@@ -93,6 +93,10 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    env::Environment,
+    memory::{ExecutorMemory, MemoryWrap},
 };
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
@@ -183,21 +187,23 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
+        performance_multiplier: gsys::Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
-        existential_deposit: 0,
+        existential_deposit: 42,
         program_id: Default::default(),
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
-        mailbox_threshold: 0,
+        mailbox_threshold: 500,
         waitlist_cost: 0,
         dispatch_hold_cost: 0,
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
         rent_cost: 0,
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
     }
 }
 
@@ -232,15 +238,35 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-        exec.memory_pages,
-    )
-    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
+fn get_last_session_id<T: Config>() -> Option<SessionId> {
+    find_latest_event::<T, _, _>(|event| match event {
+        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
+        _ => None,
+    })
+}
+
+pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
+where
+    T: Config,
+    F: Fn(Event<T>) -> Option<R>,
+{
+    SystemPallet::<T>::events()
+        .into_iter()
+        .rev()
+        .filter_map(|event_record| {
+            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+            let event: Result<Event<T>, _> = event.try_into();
+
+            event.ok()
+        })
+        .find_map(mapping_filter)
+}
+
+#[track_caller]
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -261,14 +287,6 @@ where
     )
     .expect("failed to start resume session");
 
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    let session_id = match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
-        _ => unreachable!(),
-    };
-
     let memory_pages = {
         let mut pages = Vec::with_capacity(c as usize);
         for i in 0..c {
@@ -278,7 +296,7 @@ where
         pages
     };
 
-    (session_id, memory_pages)
+    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -320,7 +338,7 @@ where
         let value = CurrencyOf::<T>::minimum_balance();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -350,7 +368,6 @@ pub struct Exec<T: Config> {
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<GearPage, PageBuf>,
 }
 
 benchmarks! {
@@ -369,12 +386,10 @@ benchmarks! {
     check_all {
         syscalls_integrity::main_test::<T>();
         tests::check_stack_overflow::<T>();
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -384,12 +399,9 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_all {
-        #[cfg(feature = "lazy-pages")]
-        {
-            tests::lazy_pages::lazy_pages_charging::<T>();
-            tests::lazy_pages::lazy_pages_charging_special::<T>();
-            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
-        }
+        tests::lazy_pages::lazy_pages_charging::<T>();
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     } : {}
 
     #[extra]
@@ -399,19 +411,16 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_charging_special {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_charging_special::<T>();
     }: {}
 
     #[extra]
     check_lazy_pages_gas_exceed {
-        #[cfg(feature = "lazy-pages")]
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
@@ -451,7 +460,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -466,8 +475,8 @@ benchmarks! {
         let value = 10000u32.into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -492,8 +501,8 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
 
         let block_count = 1_000u32.into();
 
@@ -512,8 +521,8 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -537,8 +546,8 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -573,8 +582,8 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
-        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
 
         init_block::<T>(None);
 
@@ -585,12 +594,12 @@ benchmarks! {
             page
         };
 
-        for i in 0 .. c {
-            ProgramStorageOf::<T>::set_program_page_data(program_id, GearPage::from(i as u16), memory_page.clone());
-        }
-
         let program: ActiveProgram<_> = ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+            for i in 0 .. c {
+                let page = GearPage::from(i as u16);
+                ProgramStorageOf::<T>::set_program_page_data(program_id, program.memory_infix, page, memory_page.clone());
+                program.pages_with_data.insert(page);
+            }
 
             let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
             program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
@@ -648,7 +657,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value)
+    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
@@ -676,7 +685,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code, salt, vec![], 100_000_000_u64, value)
+    }: _(origin, code, salt, vec![], 100_000_000_u64, value, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -690,10 +699,9 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
-        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance, prepaid)
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -712,8 +720,8 @@ benchmarks! {
         let value = (p % 2).into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
         GasHandlerOf::<T>::create(program_id.clone(), multiplier, original_message_id, gas_limit).expect("Failed to create gas handler");
-        GearBank::<T>::deposit_gas(&program_id, gas_limit).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
-        GearBank::<T>::deposit_value(&program_id, value).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_gas(&program_id, gas_limit, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
             ProgramId::from_origin(program_id.into_origin()),
@@ -723,10 +731,9 @@ benchmarks! {
             None,
         ).try_into().unwrap_or_else(|_| unreachable!("Signal message sent to user")), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
-        let prepaid = false;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance, prepaid)
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
@@ -740,7 +747,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
         process_queue::<T>();
     }
     verify {
@@ -755,7 +762,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
         process_queue::<T>();
     }
     verify {
@@ -944,6 +951,17 @@ benchmarks! {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_env_vars {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_env_vars(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1330,6 +1348,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_signal_code {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_signal_code(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_signal_from {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -1635,8 +1664,8 @@ benchmarks! {
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::new(None);
-        let mem = DefaultExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_backend_common::mock::MockExt>::new(mem, store);
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(1.into()).unwrap();
@@ -2739,6 +2768,89 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
+    }
+
+    tasks_remove_resume_session {
+        let session_id = tasks::remove_resume_session::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_resume_session(session_id);
+    }
+
+    tasks_remove_gas_reservation {
+        let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_gas_reservation(program_id, reservation_id);
+    }
+
+    tasks_send_user_message_to_mailbox {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, true);
+    }
+
+    tasks_send_user_message {
+        let message_id = tasks::send_user_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, false);
+    }
+
+    tasks_send_dispatch {
+        let message_id = tasks::send_dispatch::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_dispatch(message_id);
+    }
+
+    tasks_wake_message {
+        let (program_id, message_id) = tasks::wake_message::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(program_id, message_id);
+    }
+
+    tasks_wake_message_no_wake {
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(Default::default(), Default::default());
+    }
+
+    tasks_remove_from_waitlist {
+        let (program_id, message_id) = tasks::remove_from_waitlist::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_waitlist(program_id, message_id);
+    }
+
+    tasks_remove_from_mailbox {
+        let (user, message_id) = tasks::remove_from_mailbox::<T>();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+    }
+
+    tasks_pause_program {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_uninited {
+        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

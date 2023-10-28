@@ -18,18 +18,32 @@
 
 //! Utils
 
-use std::sync::Arc;
-
-use super::SignerInner;
+use super::Inner;
 use crate::{
-    config::GearConfig, metadata::CallInfo, result::Result, signer::SignerRpc, Error, TxInBlock,
+    backtrace::BacktraceStatus,
+    config::GearConfig,
+    metadata::{
+        calls::SudoCall, sudo::Event as SudoEvent, vara_runtime::RuntimeCall, CallInfo, Event,
+    },
+    result::Result,
+    signer::SignerRpc,
+    Error, TxInBlock, TxStatus,
 };
+use anyhow::anyhow;
 use scale_value::Composite;
-use subxt::blocks::ExtrinsicEvents;
+use sp_core::H256;
+use std::sync::Arc;
+use subxt::{
+    blocks::ExtrinsicEvents,
+    dynamic::Value,
+    tx::{DynamicPayload, TxProgress},
+    Error as SubxtError, OnlineClient,
+};
 
+type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-impl SignerInner {
+impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
         let signer_rpc = SignerRpc(Arc::new(self.clone()));
@@ -37,6 +51,105 @@ impl SignerInner {
         log::info!("	Balance spent: {after}");
 
         Ok(())
+    }
+
+    /// Propagates log::info for given status.
+    pub(crate) fn log_status(status: &TxStatus) {
+        match status {
+            TxStatus::Validated => log::info!("	Status: Validated"),
+            TxStatus::Broadcasted { num_peers } => log::info!("	Status: Broadcast( {num_peers} )"),
+            TxStatus::NoLongerInBestBlock => log::info!("	Status: NoLongerInBestBlock"),
+            TxStatus::InBestBlock(b) => log::info!(
+                "	Status: InBestBlock( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::InFinalizedBlock(b) => log::info!(
+                "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::Error { message: e } => log::error!("	Status: Error( {e} )"),
+            TxStatus::Dropped { message: e } => log::error!("	Status: Dropped( {e} )"),
+            TxStatus::Invalid { message: e } => log::error!("	Status: Invalid( {e} )"),
+        }
+    }
+
+    /// Listen transaction process and print logs.
+    pub async fn process<'a>(&self, tx: DynamicPayload) -> Result<TxInBlock> {
+        use subxt::tx::TxStatus::*;
+
+        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+        let before = signer_rpc.get_balance().await?;
+
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
+        let (pallet, name) = (tx.pallet_name(), tx.call_name());
+
+        log::info!("Submitted extrinsic {}::{}", pallet, name);
+
+        let mut queue: Vec<BacktraceStatus> = Default::default();
+        let mut hash: Option<H256> = None;
+
+        while let Some(status) = process.next().await {
+            let status = status?;
+            Self::log_status(&status);
+
+            if let Some(h) = &hash {
+                self.backtrace
+                    .clone()
+                    .append(*h, BacktraceStatus::from(&status));
+            } else {
+                queue.push((&status).into());
+            }
+
+            match status {
+                Validated | Broadcasted { .. } | NoLongerInBestBlock => (),
+                InBestBlock(b) => {
+                    hash = Some(b.extrinsic_hash());
+                    self.backtrace.append(
+                        b.extrinsic_hash(),
+                        BacktraceStatus::InBestBlock {
+                            block_hash: b.block_hash(),
+                            extrinsic_hash: b.extrinsic_hash(),
+                        },
+                    );
+                }
+                InFinalizedBlock(b) => {
+                    log::info!(
+                        "Successfully submitted call {}::{} {} at {}!",
+                        pallet,
+                        name,
+                        b.extrinsic_hash(),
+                        b.block_hash()
+                    );
+                    self.log_balance_spent(before).await?;
+                    return Ok(b);
+                }
+                _ => {
+                    self.log_balance_spent(before).await?;
+                    return Err(status.into());
+                }
+            }
+        }
+
+        Err(anyhow!("Transaction wasn't found").into())
+    }
+
+    /// Process sudo transaction.
+    pub async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
+        let tx = self.process(tx).await?;
+        let events = tx.wait_for_success().await?;
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.api().decode_error(err).into());
+            }
+        }
+
+        Ok(events)
     }
 
     /// Run transaction.
@@ -83,6 +196,7 @@ impl SignerInner {
         call: Call,
         fields: impl Into<Composite<()>>,
     ) -> Result<TxInBlock> {
+        log::info!("Run tx: {}::{}", Call::PALLET, call.call_name());
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await
@@ -97,5 +211,30 @@ impl SignerInner {
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process_sudo(tx).await
+    }
+
+    /// `pallet_sudo::sudo`
+    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
+        self.sudo_run_tx(SudoCall::Sudo, vec![Value::from(call)])
+            .await
+    }
+
+    /// Wrapper for submit and watch with nonce.
+    async fn sign_and_submit_then_watch<'a>(
+        &self,
+        tx: &DynamicPayload,
+    ) -> Result<TxProgressT, SubxtError> {
+        if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(tx, &self.signer)
+                .await
+        }
     }
 }

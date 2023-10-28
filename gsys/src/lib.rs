@@ -329,8 +329,90 @@ impl TwoHashesWithValue {
     }
 }
 
+/// Current version of execution settings.
+///
+/// Backend maintains backward compatibility with previous versions of execution
+/// settings. This structure matches to the most recent version of execution
+/// settings supported by backend.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct EnvVars {
+    /// Current performance multiplier.
+    pub performance_multiplier: Percent,
+    /// Current value of existential deposit.
+    pub existential_deposit: Value,
+    /// Current value of mailbox threshold.
+    pub mailbox_threshold: Gas,
+    /// Current gas multiplier.
+    pub gas_multiplier: GasMultiplier,
+}
+
+/// Basic struct for working with integer percentages allowing
+/// values greater than 100.
+// This is a "copy-paste" of the similar struct from the `core` crate
+// which can't be used here due to its dependencies from codec and TypeInfo.
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Percent(u32);
+
+impl Percent {
+    pub fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
+
+/// Type representing converter between gas and value.
+// This is an FFI-friendly "copy-paste" of the similar enum from the `common` crate
+// which can't be used here due to its dependencies from codec and TypeInfo as well
+// as FFI.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct GasMultiplier {
+    gas_per_value: Gas,
+    value_per_gas: Value,
+}
+
+impl GasMultiplier {
+    /// Creates GasMultiplier from gas per value multiplier.
+    pub fn from_gas_per_value(gas_per_value: Gas) -> Self {
+        Self {
+            gas_per_value,
+            value_per_gas: 0,
+        }
+    }
+
+    /// Creates GasMultiplier from value per gas multiplier.
+    pub fn from_value_per_gas(value_per_gas: Value) -> Self {
+        Self {
+            gas_per_value: 0,
+            value_per_gas,
+        }
+    }
+
+    /// Converts given gas amount into its value equivalent.
+    pub fn gas_to_value(&self, gas: Gas) -> Value {
+        if self.value_per_gas == 0 {
+            // Consider option to return `(*cost*, *amount of gas to be bought*)`.
+            unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+        }
+        (gas as u128).saturating_mul(self.value_per_gas)
+    }
+}
+
 #[allow(improper_ctypes)]
 extern "C" {
+    /// Infallible `gr_env_vars` get syscall.
+    /// It leaves backend with unrecoverable error if incorrect version is passed.
+    ///
+    /// Arguments type:
+    /// - `version`: `u32` defining version of vars to get.
+    /// - `settings`: `mut ptr` for buffer to store requested version of vars.
+    pub fn gr_env_vars(version: u32, vars: *mut BufferStart);
+
     /// Infallible `gr_block_height` get syscall.
     ///
     /// Arguments type:
@@ -467,9 +549,9 @@ extern "C" {
     /// Infallible `gr_random` calculate syscall.
     ///
     /// Arguments type:
-    /// - `subject`: `const ptr` for the begging of the payload buffer.
+    /// - `subject`: `const ptr` for the subject.
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
-    pub fn gr_random(subject: *const BufferStart, bn_random: *mut BlockNumberWithHash);
+    pub fn gr_random(subject: *const Hash, bn_random: *mut BlockNumberWithHash);
 
     // TODO: issue #1859
     /// Fallible `gr_read` get syscall.

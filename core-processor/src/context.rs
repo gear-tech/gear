@@ -130,6 +130,7 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
 
         let program = Program::from_parts(
             destination_id,
+            actor_data.memory_infix,
             code,
             actor_data.allocations,
             actor_data.initialized,
@@ -155,5 +156,29 @@ impl ProcessExecutionContext {
     /// Returns ref to program.
     pub fn program(&self) -> &Program {
         &self.program
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct SystemReservationContext {
+    /// Reservation created in current execution.
+    pub current_reservation: Option<u64>,
+    /// Reservation from `ContextStore`.
+    pub previous_reservation: Option<u64>,
+}
+
+impl SystemReservationContext {
+    pub fn from_dispatch(dispatch: &IncomingDispatch) -> Self {
+        Self {
+            current_reservation: None,
+            previous_reservation: dispatch
+                .context()
+                .as_ref()
+                .and_then(|ctx| ctx.system_reservation()),
+        }
+    }
+
+    pub fn has_any(&self) -> bool {
+        self.current_reservation.is_some() || self.previous_reservation.is_some()
     }
 }

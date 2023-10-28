@@ -22,8 +22,8 @@ use crate::{
     common::{Error, LazyPagesExecutionContext},
     mprotect,
 };
-use gear_backend_common::lazy_pages::Status;
 use gear_core::pages::{GearPage, PageDynSize};
+use gear_lazy_pages_common::Status;
 use std::slice;
 
 /// `process_lazy_pages` use struct which implements this trait,

@@ -22,7 +22,7 @@
 // Reexports from Rust's libraries
 
 pub use ::alloc::{
-    alloc, borrow,
+    borrow,
     borrow::ToOwned,
     boxed,
     boxed::Box,

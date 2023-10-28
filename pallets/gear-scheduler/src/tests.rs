@@ -73,7 +73,7 @@ fn populate_wl_from(
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
     WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
-    GearBank::deposit_gas(&src, DEFAULT_GAS).expect("Cannot reserve gas");
+    GearBank::deposit_gas(&src, DEFAULT_GAS, false).expect("Cannot reserve gas");
 
     let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
     GasHandlerOf::<Test>::create(src, multiplier, mid, DEFAULT_GAS)
@@ -89,6 +89,7 @@ fn populate_wl_from(
     (mid, pid)
 }
 
+#[track_caller]
 fn task_and_wl_message_exist(
     mid: impl Into<MessageId>,
     pid: impl Into<ProgramId>,
@@ -100,9 +101,7 @@ fn task_and_wl_message_exist(
     let ts = TaskPoolOf::<Test>::contains(&bn, &ScheduledTask::RemoveFromWaitlist(pid, mid));
     let wl = WaitlistOf::<Test>::contains(&pid, &mid);
 
-    if ts != wl {
-        panic!("Logic invalidated");
-    }
+    assert_eq!(ts, wl, "Logic invalidated");
 
     ts
 }
@@ -196,12 +195,14 @@ fn gear_handles_tasks() {
         );
         assert_eq!(GearBank::account_total(&USER_1), gas_price(DEFAULT_GAS));
 
+        let task = ScheduledTask::RemoveFromWaitlist(Default::default(), Default::default());
+        let task_gas = pallet_gear::manager::get_maximum_task_gas::<Test>(&task);
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
         // Read of the first block of incomplete tasks and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(1, 1).ref_time()
+            u64::MAX - db_r_w(1, 1).ref_time() - task_gas
         );
 
         // Storages checking.
@@ -298,7 +299,9 @@ fn gear_handles_outdated_tasks() {
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
-        run_to_block(bn, Some(db_r_w(1, 2).ref_time() + 1));
+        let task = ScheduledTask::RemoveFromWaitlist(Default::default(), Default::default());
+        let task_gas = pallet_gear::manager::get_maximum_task_gas::<Test>(&task);
+        run_to_block(bn, Some(db_r_w(2, 2).ref_time() + task_gas + 1));
         // Read of the first block of incomplete tasks, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
@@ -329,7 +332,7 @@ fn gear_handles_outdated_tasks() {
         // Delete of the first block of incomplete tasks + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(0, 2).ref_time()
+            u64::MAX - db_r_w(0, 2).ref_time() - task_gas
         );
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);

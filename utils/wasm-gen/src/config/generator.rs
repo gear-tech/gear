@@ -20,6 +20,8 @@
 
 use crate::SysCallsConfig;
 
+pub(crate) const DEFAULT_INITIAL_SIZE: u32 = 16;
+
 /// Builder for [`GearWasmGeneratorConfig`].
 pub struct GearWasmGeneratorConfigBuilder(GearWasmGeneratorConfig);
 
@@ -44,9 +46,9 @@ impl GearWasmGeneratorConfigBuilder {
         self
     }
 
-    /// Defines sys-calls config for the gear wasm generator.
-    pub fn with_sys_calls_config(mut self, sys_calls_config: SysCallsConfig) -> Self {
-        self.0.sys_calls_config = sys_calls_config;
+    /// Defines syscalls config for the gear wasm generator.
+    pub fn with_syscalls_config(mut self, syscalls_config: SysCallsConfig) -> Self {
+        self.0.syscalls_config = syscalls_config;
 
         self
     }
@@ -74,8 +76,8 @@ pub struct GearWasmGeneratorConfig {
     pub memory_config: MemoryPagesConfig,
     /// Entry points config.
     pub entry_points_config: EntryPointsSet,
-    /// Sys-calls generator module config.
-    pub sys_calls_config: SysCallsConfig,
+    /// Syscalls generator module config.
+    pub syscalls_config: SysCallsConfig,
     /// Flag, signalizing whether recursions
     /// should be removed from resulting module.
     pub remove_recursions: bool,
@@ -95,9 +97,9 @@ pub struct MemoryPagesConfig {
 impl Default for MemoryPagesConfig {
     fn default() -> Self {
         Self {
-            initial_size: Self::MAX_VALUE / 2 + 5,
+            initial_size: DEFAULT_INITIAL_SIZE,
             upper_limit: None,
-            stack_end_page: Some(Self::MAX_VALUE / 2),
+            stack_end_page: None,
         }
     }
 }

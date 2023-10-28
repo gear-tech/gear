@@ -29,10 +29,6 @@
 #![allow(clippy::items_after_test_module)]
 
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, Status},
-    LimitedStr,
-};
 use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
@@ -57,6 +53,8 @@ use crate::{
 mod tests;
 
 pub use common::LazyPagesVersion;
+use gear_core::str::LimitedStr;
+use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
 pub use host_func::pre_process_memory_accesses;
 
 use mprotect::MprotectError;
@@ -112,7 +110,7 @@ pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: u32,
     stack_end: Option<u32>,
-    program_id: Vec<u8>,
+    program_key: Vec<u8>,
     globals_config: Option<GlobalsAccessConfig>,
     weights: Vec<u64>,
 ) -> Result<(), Error> {
@@ -160,7 +158,7 @@ pub fn initialize_for_program(
                 runtime_ctx
                     .pages_storage_prefix
                     .iter()
-                    .chain(program_id.iter())
+                    .chain(program_key.iter())
                     .copied()
                     .collect(),
             ),

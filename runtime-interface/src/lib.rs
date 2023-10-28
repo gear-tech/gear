@@ -21,31 +21,24 @@
 #![allow(useless_deprecated, deprecated)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, Status},
-    memory::ProcessAccessError,
-    LimitedStr,
-};
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
+    str::LimitedStr,
 };
+use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
-use sp_std::mem;
-
-extern crate alloc;
-
-#[cfg(feature = "std")]
-use gear_lazy_pages as lazy_pages;
-
-pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
+use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
 
 mod gear_sandbox;
+
 #[cfg(feature = "std")]
 pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
@@ -63,8 +56,9 @@ pub struct LazyPagesProgramContext {
     pub wasm_mem_size: u32,
     /// Wasm program stack end page.
     pub stack_end: Option<u32>,
-    /// Wasm program id.
-    pub program_id: Vec<u8>,
+    /// The field contains prefix to a program's memory pages, i.e.
+    /// `program_id` + `memory_infix`.
+    pub program_key: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
     pub globals_config: GlobalsAccessConfig,
     /// Lazy-pages access weights.
@@ -114,7 +108,7 @@ pub trait GearRI {
     ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
         let mut gas_left = gas_left.0;
         let gas_before = gas_left.gas;
-        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
+        let res = gear_lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
 
         // Support charge for allowance otherwise DB will be corrupted.
         gas_left.allowance = gas_left
@@ -151,7 +145,7 @@ pub trait GearRI {
 
         let mut gas_counter = LittleEndian::read_u64(gas_bytes);
 
-        let res = match lazy_pages::pre_process_memory_accesses(
+        let res = match gear_lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
             &writes_intervals,
             &mut gas_counter,
@@ -166,16 +160,16 @@ pub trait GearRI {
     }
 
     fn lazy_pages_status() -> (Status,) {
-        (lazy_pages::status()
+        (gear_lazy_pages::status()
             .unwrap_or_else(|err| unreachable!("Cannot get lazy-pages status: {err}")),)
     }
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
     fn init_lazy_pages(ctx: LazyPagesRuntimeContext) -> bool {
-        use lazy_pages::LazyPagesVersion;
+        use gear_lazy_pages::LazyPagesVersion;
 
-        lazy_pages::init(
+        gear_lazy_pages::init(
             LazyPagesVersion::Version1,
             ctx.page_sizes,
             ctx.global_names,
@@ -193,11 +187,11 @@ pub trait GearRI {
                 .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
         });
 
-        lazy_pages::initialize_for_program(
+        gear_lazy_pages::initialize_for_program(
             wasm_mem_addr,
             ctx.wasm_mem_size,
             ctx.stack_end,
-            ctx.program_id,
+            ctx.program_key,
             Some(ctx.globals_config),
             ctx.weights,
         )
@@ -210,9 +204,9 @@ pub trait GearRI {
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(protect: bool) {
         if protect {
-            lazy_pages::set_lazy_pages_protection()
+            gear_lazy_pages::set_lazy_pages_protection()
         } else {
-            lazy_pages::unset_lazy_pages_protection()
+            gear_lazy_pages::unset_lazy_pages_protection()
         }
         .map_err(|err| err.to_string())
         .expect("Cannot set/unset mprotection for lazy pages");
@@ -225,7 +219,7 @@ pub trait GearRI {
     }
 
     fn write_accessed_pages() -> Vec<u32> {
-        lazy_pages::write_accessed_pages()
+        gear_lazy_pages::write_accessed_pages()
             .unwrap_or_else(|err| unreachable!("Cannot get write accessed pages: {err}"))
     }
 

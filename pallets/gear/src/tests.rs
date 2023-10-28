@@ -63,24 +63,80 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{
-    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
-};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
 };
+use gear_core_backend::error::{
+    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
+};
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
+use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn default_wait_lock_timeout() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            Kind::Send.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        let expiration_block = get_waitlist_expiration(mid);
+
+        run_to_block(expiration_block, None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "ran into error-reply: {:?}",
+                GstdError::Timeout(expiration_block, expiration_block)
+            )
+        } else {
+            String::from("no info")
+        };
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
+    })
+}
 
 #[test]
 fn value_counter_set_correctly_for_interruptions() {
@@ -126,7 +182,7 @@ fn value_counter_set_correctly_for_interruptions() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             VALUE,
-            false
+            false,
         ));
 
         run_to_next_block(None);
@@ -158,6 +214,7 @@ fn calculate_gas_returns_not_block_limit() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let generator_id = get_last_program_id();
@@ -193,6 +250,7 @@ fn read_big_state() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -232,7 +290,7 @@ fn read_big_state() {
 
             assert_succeed(mid);
             let state =
-                Gear::read_state_impl(pid, Default::default()).expect("Failed to read state");
+                Gear::read_state_impl(pid, Default::default(), None).expect("Failed to read state");
             assert_eq!(approx_size(state.len(), i), expected_size(i));
         }
     });
@@ -375,6 +433,7 @@ fn auto_reply_out_of_rent_waitlist() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let waiter_id = get_last_program_id();
 
@@ -388,6 +447,7 @@ fn auto_reply_out_of_rent_waitlist() {
             .encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
         let proxy_id = get_last_program_id();
 
@@ -457,6 +517,7 @@ fn auto_reply_out_of_rent_mailbox() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             value,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -841,6 +902,7 @@ fn reply_deposit_gstd_async() {
             (USER_2.into_origin().as_fixed_bytes(), 10_000_000_000u64).encode(),
             30_000_000_000,
             0,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -968,6 +1030,7 @@ fn gasfull_after_gasless() {
             EMPTY_PAYLOAD.to_vec(),
             min_limit - 1,
             0,
+            false,
         ));
 
         // Make sure nothing panics.
@@ -988,6 +1051,7 @@ fn backend_errors_handled_in_program() {
             InitMessage::BackendError.encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let mid = utils::get_last_message_id();
@@ -1038,6 +1102,7 @@ fn non_existent_code_id_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         run_to_next_block(None);
@@ -1105,6 +1170,7 @@ fn waited_with_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             min_limit,
             0,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -1155,6 +1221,7 @@ fn terminated_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -1201,6 +1268,7 @@ fn exited_program_zero_gas() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -1228,7 +1296,8 @@ fn delayed_user_replacement() {
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+        let future_program_address =
+            ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
@@ -1256,6 +1325,7 @@ fn delayed_user_replacement() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         assert_eq!(future_program_address, utils::get_last_program_id());
@@ -1420,6 +1490,7 @@ fn delayed_send_user_message_with_reservation() {
             .encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy = utils::get_last_program_id();
@@ -1527,6 +1598,7 @@ fn delayed_send_program_message_payment() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let program_address = utils::get_last_program_id();
@@ -1613,6 +1685,7 @@ fn delayed_send_program_message_with_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let program_address = utils::get_last_program_id();
@@ -1631,6 +1704,7 @@ fn delayed_send_program_message_with_reservation() {
             .encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy = utils::get_last_program_id();
@@ -1724,6 +1798,7 @@ fn delayed_send_program_message_with_low_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let program_address = utils::get_last_program_id();
@@ -1742,6 +1817,7 @@ fn delayed_send_program_message_with_low_reservation() {
             .encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let proxy = utils::get_last_program_id();
@@ -1861,6 +1937,7 @@ fn delayed_program_creation_no_code() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
+            false,
         ));
 
         let creator = utils::get_last_program_id();
@@ -1988,6 +2065,7 @@ fn read_state_works() {
             <MessageInitIn as Default>::default().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -1998,8 +2076,8 @@ fn read_state_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res =
-            Gear::read_state_impl(program_id, Default::default()).expect("Failed to read state");
+        let res = Gear::read_state_impl(program_id, Default::default(), None)
+            .expect("Failed to read state");
 
         assert_eq!(res, expected);
     });
@@ -2021,6 +2099,7 @@ fn read_state_using_wasm_works() {
             <MessageInitIn as Default>::default().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -2039,6 +2118,7 @@ fn read_state_using_wasm_works() {
             Default::default(),
             func1,
             META_WASM_V1.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2065,6 +2145,7 @@ fn read_state_using_wasm_works() {
             func2,
             META_WASM_V2.to_vec(),
             Some(id.encode()),
+            None,
         )
         .expect("Failed to read state");
 
@@ -2085,6 +2166,7 @@ fn read_state_bn_and_timestamp_works() {
             "block_number",
             META_WASM_V3.to_vec(),
             None,
+            None,
         )
         .expect("Failed to read state");
         let res = u32::decode(&mut res.as_ref()).unwrap();
@@ -2098,6 +2180,7 @@ fn read_state_bn_and_timestamp_works() {
             Default::default(),
             "block_timestamp",
             META_WASM_V3.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2115,6 +2198,7 @@ fn read_state_bn_and_timestamp_works() {
             <MessageInitIn as Default>::default().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -2146,6 +2230,7 @@ fn wasm_metadata_generation_works() {
             <MessageInitIn as Default>::default().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -2159,6 +2244,7 @@ fn wasm_metadata_generation_works() {
             Default::default(),
             "metadata",
             META_WASM_V1.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2177,6 +2263,7 @@ fn wasm_metadata_generation_works() {
             Default::default(),
             "metadata",
             META_WASM_V2.to_vec(),
+            None,
             None,
         )
         .expect("Failed to read state");
@@ -2217,6 +2304,7 @@ fn read_state_using_wasm_errors() {
             <MessageInitIn as Default>::default().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -2230,7 +2318,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "inexistent",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Empty function
@@ -2239,7 +2328,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "empty",
             meta_wasm.clone(),
-            None
+            None,
+            None,
         )
         .is_err());
         // Greed function
@@ -2248,7 +2338,8 @@ fn read_state_using_wasm_errors() {
             Default::default(),
             "loop",
             meta_wasm,
-            None
+            None,
+            None,
         )
         .is_err());
     });
@@ -2530,7 +2621,8 @@ fn upload_program_expected_failure() {
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
-                balance + 1
+                balance + 1,
+                false,
             ),
             pallet_gear_bank::Error::<Test>::InsufficientBalance
         );
@@ -2549,7 +2641,8 @@ fn upload_program_expected_failure() {
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
-                0
+                0,
+                false,
             ),
             Error::<Test>::GasLimitTooHigh
         );
@@ -2751,6 +2844,7 @@ fn send_message_uninitialized_program() {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -2984,12 +3078,12 @@ fn restrict_start_section() {
             EMPTY_PAYLOAD.to_vec(),
             5_000_000,
             0,
+            false,
         )
         .expect_err("Must throw err, because code contains start section");
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -3191,6 +3285,7 @@ fn memory_access_cases() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .map(|_| prog_id);
         let pid = res.expect("submit result is not ok");
@@ -3231,7 +3326,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
@@ -3293,6 +3387,7 @@ fn lazy_pages() {
                 EMPTY_PAYLOAD.to_vec(),
                 10_000_000_000,
                 0,
+                false,
             )
             .map(|_| prog_id);
             assert_ok!(res);
@@ -3418,6 +3513,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 EMPTY_PAYLOAD.to_vec(),
                 100_000_000_000,
                 0,
+                false,
             );
             assert_ok!(res);
 
@@ -4170,16 +4266,12 @@ fn claim_value_works() {
 
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
-        let charged_for_page_load = if cfg!(feature = "lazy-pages") {
-            gas_price(
-                <Test as Config>::Schedule::get()
-                    .memory_weights
-                    .load_page_data
-                    .ref_time(),
-            )
-        } else {
-            0
-        };
+        let charged_for_page_load = gas_price(
+            <Test as Config>::Schedule::get()
+                .memory_weights
+                .load_page_data
+                .ref_time(),
+        );
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =
@@ -4219,7 +4311,8 @@ fn uninitialized_program_zero_gas() {
             vec![],
             Vec::new(),
             50_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let init_message_id = utils::get_last_message_id();
@@ -4262,6 +4355,7 @@ fn distributor_initialize() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             0,
+            false,
         ));
 
         run_to_block(2, None);
@@ -4295,6 +4389,7 @@ fn distributor_distribute() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(2, None);
@@ -4403,7 +4498,8 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
-            0
+            0,
+            false,
         ));
 
         // TODO: replace this temporary (`None`) value
@@ -4450,7 +4546,8 @@ fn test_code_is_not_reset_within_program_submission() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
-            0
+            0,
+            false,
         ));
         let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         let actual_code_saved_events = System::events()
@@ -4485,7 +4582,8 @@ fn messages_to_uninitialized_program_wait() {
             vec![],
             Vec::new(),
             50_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -4530,7 +4628,8 @@ fn uninitialized_program_should_accept_replies() {
             vec![],
             Vec::new(),
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -4576,7 +4675,8 @@ fn defer_program_initialization() {
             vec![],
             Vec::new(),
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -4634,7 +4734,8 @@ fn wake_messages_after_program_inited() {
             vec![],
             Vec::new(),
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -4702,7 +4803,8 @@ fn test_different_waits_success() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -4846,7 +4948,8 @@ fn test_different_waits_fail() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5060,7 +5163,8 @@ fn wait_after_reply() {
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 100_000_000u64,
-                0u128
+                0u128,
+                false,
             ));
 
             let program_id = get_last_program_id();
@@ -5110,7 +5214,8 @@ fn test_requeue_after_wait_for_timeout() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5118,7 +5223,7 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
 
         let duration = 10;
-        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        let payload = Command::SendAndWaitFor(duration, USER_1.into_origin().into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5178,7 +5283,8 @@ fn test_sending_waits() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             20_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5189,7 +5295,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_for.
         let duration = 5;
-        let payload = Command::SendFor(USER_1.into(), duration).encode();
+        let payload = Command::SendFor(USER_1.into_origin().into(), duration).encode();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -5209,7 +5315,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_up_to.
         let duration = 10;
-        let payload = Command::SendUpTo(USER_1.into(), duration).encode();
+        let payload = Command::SendUpTo(USER_1.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5228,7 +5334,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait no_more, wake, wait no_more again.
         let duration = 10;
-        let payload = Command::SendUpToWait(USER_2.into(), duration).encode();
+        let payload = Command::SendUpToWait(USER_2.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5279,7 +5385,8 @@ fn test_wait_timeout() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5337,7 +5444,8 @@ fn test_join_wait_timeout() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5396,7 +5504,8 @@ fn test_select_wait_timeout() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5444,7 +5553,8 @@ fn test_wait_lost() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -5681,7 +5791,8 @@ fn terminated_locking_funds() {
             DEFAULT_SALT.to_vec(),
             USER_3.into_origin().encode(),
             gas_spent_init + gas_for_second_init_execution,
-            5_000u128
+            5_000u128,
+            false
         ));
 
         let program_id = get_last_program_id();
@@ -5805,7 +5916,8 @@ fn pause_terminated_exited_program() {
                 DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
-                0u128
+                0u128,
+                false,
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
@@ -5868,7 +5980,8 @@ fn test_create_program_works() {
             //
             // Calculate the gas spent after #1242.
             10_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -5929,6 +6042,7 @@ fn test_create_program_no_code_hash() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
 
         // Try to create a program with non existing code hash
@@ -6027,6 +6141,7 @@ fn test_create_program_simple() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_block(2, None);
 
@@ -6106,7 +6221,6 @@ fn test_pausing_programs_works() {
         let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
-        let child_program_id = generate_program_id(&child_code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), child_code,));
 
@@ -6117,6 +6231,7 @@ fn test_pausing_programs_works() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let factory_bn = System::block_number();
@@ -6135,6 +6250,13 @@ fn test_pausing_programs_works() {
             0,
             false,
         ));
+
+        let child_program_id = ProgramId::generate_from_program(
+            child_code_hash.into(),
+            DEFAULT_SALT,
+            get_last_message_id(),
+        );
+
         run_to_next_block(None);
 
         let child_bn = System::block_number();
@@ -6304,6 +6426,7 @@ fn state_request() {
             InitMessage::BTree.encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let data = [(0u32, 1u32), (2, 4), (7, 8)];
@@ -6321,15 +6444,15 @@ fn state_request() {
         run_to_next_block(None);
 
         for (key, value) in data {
-            let ret =
-                Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode()).unwrap();
+            let ret = Gear::read_state_impl(program_id, StateRequest::ForKey(key).encode(), None)
+                .unwrap();
             assert_eq!(
                 Option::<u32>::decode(&mut ret.as_slice()).unwrap().unwrap(),
                 value
             );
         }
 
-        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode()).unwrap();
+        let ret = Gear::read_state_impl(program_id, StateRequest::Full.encode(), None).unwrap();
         let ret = BTreeMap::<u32, u32>::decode(&mut ret.as_slice()).unwrap();
         let expected: BTreeMap<u32, u32> = data.into_iter().collect();
         assert_eq!(ret, expected);
@@ -6352,6 +6475,7 @@ fn resume_session_push_works() {
             InitMessage::BTree.encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let request = Request::Insert(0, 1).encode();
@@ -6373,6 +6497,7 @@ fn resume_session_push_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6439,6 +6564,7 @@ fn resume_session_push_works() {
         assert!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none());
         assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .is_err());
@@ -6467,6 +6593,7 @@ fn resume_program_works() {
             InitMessage::BTree.encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let request = Request::Insert(0, 1).encode();
@@ -6488,6 +6615,7 @@ fn resume_program_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6499,7 +6627,19 @@ fn resume_program_works() {
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
-        let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        let old_nonce = <ProgramStorageOf<Test> as PausedProgramStorage>::NonceStorage::get();
+        // start a session to bump nonce
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+        ));
+        assert_ne!(
+            old_nonce,
+            <ProgramStorageOf::<Test> as PausedProgramStorage>::NonceStorage::get()
+        );
+
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_3),
             program_id,
@@ -6526,6 +6666,7 @@ fn resume_program_works() {
             memory_pages.into_iter().collect()
         ));
 
+        let block_count = ResumeMinimalPeriodOf::<Test>::get();
         // access to finish session by another user is denied
         assert_err!(
             Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
@@ -6664,6 +6805,7 @@ fn test_no_messages_to_paused_program() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
         run_to_next_block(None);
 
@@ -6706,6 +6848,7 @@ fn reservations_cleaned_in_paused_program() {
                 .encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -6762,6 +6905,7 @@ fn uninitialized_program_terminates_on_pause() {
             InitAction::Wait.encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let program_id = get_last_program_id();
@@ -6820,6 +6964,7 @@ fn uninitialized_program_terminates_on_pause() {
             assert_err!(
                 ProgramStorageOf::<Test>::get_program_data_for_pages(
                     program_id,
+                    program.memory_infix,
                     Some(*page).iter()
                 ),
                 pallet_gear_program::Error::<Test>::CannotFindDataForPage
@@ -6844,6 +6989,7 @@ fn pay_program_rent_syscall_works() {
             pay_rent_id.into_bytes().to_vec(),
             20_000_000_000,
             program_value,
+            false,
         ));
 
         run_to_next_block(None);
@@ -7125,6 +7271,7 @@ fn test_create_program_duplicate() {
             EMPTY_PAYLOAD.to_vec(),
             20_000_000_000,
             0,
+            false,
         ));
         run_to_block(2, None);
 
@@ -7132,7 +7279,7 @@ fn test_create_program_duplicate() {
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(3, None);
 
-        // Program tries to create the same
+        // Program creates identical program
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             factory_id,
@@ -7148,11 +7295,8 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(4, None);
 
-        // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
-        // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
-        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(3 + 3 + 1); // +3 from extrinsics (2 upload_program, 1 send_message) +1 for auto generated reply
-        assert_init_success(2); // +2 from extrinsics (2 upload_program)
+        assert_init_success(3); // (3 upload_program)
 
         System::reset_events();
         MailboxOf::<Test>::clear();
@@ -7169,7 +7313,7 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(5, None);
 
-        // Try to create the same
+        // Create an identical program from program
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             factory_id,
@@ -7181,24 +7325,18 @@ fn test_create_program_duplicate() {
         ));
         run_to_block(6, None);
 
-        // First call successfully creates a program and sends a messages to it (+2 dequeued, +1 dispatched)
-        // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
-        // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
-        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(5 + 2 + 3); // +2 from extrinsics (send_message) +3 for auto generated replies
-        assert_init_success(1);
+        assert_init_success(2); // Both uploads succeed due to unique program id generation
 
-        assert_noop!(
-            Gear::upload_program(
-                RuntimeOrigin::signed(USER_1),
-                child_code,
-                b"salt1".to_vec(),
-                EMPTY_PAYLOAD.to_vec(),
-                10_000_000_000,
-                0,
-            ),
-            Error::<Test>::ProgramAlreadyExists,
-        );
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            child_code,
+            b"salt1".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
     });
 }
 
@@ -7224,6 +7362,7 @@ fn test_create_program_duplicate_in_one_execution() {
             EMPTY_PAYLOAD.to_vec(),
             2_000_000_000,
             0,
+            false,
         ));
         run_to_block(2, None);
 
@@ -7311,6 +7450,7 @@ fn test_create_program_miscellaneous() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(2, None);
@@ -7355,7 +7495,7 @@ fn test_create_program_miscellaneous() {
             RuntimeOrigin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
-                // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
+                // duplicate in the next block: init is executed due to new ProgramId generation, replies are generated (+4 dequeue, +2 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt3".to_vec(), 200_000_000),
@@ -7369,7 +7509,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(5, None);
 
         assert_total_dequeued(18 + 4 + 6); // +4 for 3 send_message calls and 1 upload_program call +6 for auto generated replies
-        assert_init_success(3 + 1); // +1 for submitting factory
+        assert_init_success(4 + 1); // +1 for submitting factory
     });
 }
 
@@ -7410,7 +7550,8 @@ fn exit_handle() {
                 DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
-                0u128
+                0u128,
+                false,
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
@@ -7489,7 +7630,8 @@ fn init_wait_reply_exit_cleaned_storage() {
             EMPTY_PAYLOAD.to_vec(),
             Vec::new(),
             50_000_000_000u64,
-            0u128
+            0u128,
+            false,
         ));
         let pid = get_last_program_id();
 
@@ -7574,7 +7716,8 @@ fn locking_gas_for_waitlist() {
             Default::default(),
             Default::default(),
             100_000_000_000,
-            0
+            0,
+            false,
         ));
         let calculator = get_last_program_id();
 
@@ -7668,7 +7811,8 @@ fn calculate_init_gas() {
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             gas_info.min_limit,
-            0
+            0,
+            false,
         ));
 
         let init_message_id = get_last_message_id();
@@ -7698,6 +7842,7 @@ fn gas_spent_vs_balance() {
             InitMessage::BTree.encode(),
             50_000_000_000,
             0,
+            false,
         ));
 
         let prog_id = utils::get_last_program_id();
@@ -8027,6 +8172,7 @@ fn test_two_contracts_composition_works() {
             50_u64.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         assert_ok!(Gear::create_program(
@@ -8036,6 +8182,7 @@ fn test_two_contracts_composition_works() {
             75_u64.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         assert_ok!(Gear::upload_program(
@@ -8049,6 +8196,7 @@ fn test_two_contracts_composition_works() {
                 .encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(2, None);
@@ -8113,6 +8261,7 @@ fn test_create_program_with_value_lt_ed() {
                 EMPTY_PAYLOAD.to_vec(),
                 100_000_000,
                 ed - 1,
+                false,
             ),
             Error::<Test>::ValueLessThanMinimal,
         );
@@ -8158,6 +8307,7 @@ fn test_create_program_with_value_lt_ed() {
             Scheme::direct(calls).encode(),
             10_000_000_000,
             10_000,
+            false,
         ));
 
         let msg_id = get_last_message_id();
@@ -8211,6 +8361,7 @@ fn test_create_program_with_exceeding_value() {
             Scheme::direct(calls).encode(),
             10_000_000_000,
             msg_value - 1,
+            false,
         ));
 
         let msg_id = get_last_message_id();
@@ -8476,7 +8627,7 @@ fn test_reply_to_terminated_program() {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
             value: 0,
-            prepaid: false,
+            keep_alive: false,
         });
         assert_noop!(
             reply_call.dispatch(RuntimeOrigin::signed(USER_1)),
@@ -8531,7 +8682,8 @@ fn delayed_sending() {
             DEFAULT_SALT.to_vec(),
             delay.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let prog = utils::get_last_program_id();
@@ -8576,7 +8728,8 @@ fn delayed_wake() {
             DEFAULT_SALT.to_vec(),
             0u32.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
-            0
+            0,
+            false,
         ));
 
         let prog = utils::get_last_program_id();
@@ -8645,6 +8798,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             50_u64.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         assert_ok!(Gear::upload_program(
@@ -8654,6 +8808,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             (<[u8; 32]>::from(contract_id), 0u64).encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         run_to_block(2, None);
@@ -8809,6 +8964,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
 #[test]
 fn execution_over_blocks() {
+    const MAX_BLOCK: u64 = 10_000_000_000;
+
     init_logger();
 
     let assert_last_message = |src: [u8; 32], count: u128| {
@@ -8846,10 +9003,11 @@ fn execution_over_blocks() {
             EMPTY_PAYLOAD.to_vec(),
             init_gas.burned,
             0,
+            false,
         ));
         let in_one_block = get_last_program_id();
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         // estimate start cost
         let pkg = Package::new(times, src);
@@ -8870,7 +9028,7 @@ fn execution_over_blocks() {
         use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
         // We suppose that gas limit is less than gas allowance
-        let block_gas_limit = BlockGasLimitOf::<Test>::get() - 10000;
+        let block_gas_limit = MAX_BLOCK - 10_000;
 
         // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::upload_program(
@@ -8880,6 +9038,7 @@ fn execution_over_blocks() {
             EMPTY_PAYLOAD.to_vec(),
             5_000_000_000,
             0,
+            false,
         ));
         let in_one_block = get_last_program_id();
 
@@ -8887,30 +9046,31 @@ fn execution_over_blocks() {
 
         let src = [0; 32];
 
+        let expected = 64;
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(128, src).encode(),
+            Package::new(expected, src).encode(),
             block_gas_limit,
             0,
             false,
         ));
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
-        assert_last_message([0; 32], 128);
+        assert_last_message([0; 32], expected);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(17_384, src).encode(),
+            Package::new(1_024, src).encode(),
             block_gas_limit,
             0,
             false,
         ));
 
         let message_id = get_last_message_id();
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         assert_failed(
             message_id,
@@ -8921,7 +9081,7 @@ fn execution_over_blocks() {
     new_test_ext().execute_with(|| {
         use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
-        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+        let block_gas_limit = MAX_BLOCK;
 
         let (_, calc_threshold) = estimate_gas_per_calc();
 
@@ -8931,26 +9091,27 @@ fn execution_over_blocks() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             calc_threshold.encode(),
-            10_000_000_000,
+            9_000_000_000,
             0,
+            false,
         ));
         let over_blocks = get_last_program_id();
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 16_384);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 512);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             over_blocks,
             Method::Start { src, id, expected }.encode(),
-            10_000_000_000,
+            9_000_000_000,
             0,
             false,
         ));
 
-        run_to_next_block(None);
+        run_to_next_block(Some(MAX_BLOCK));
 
         let mut count = 0;
         loop {
@@ -8970,7 +9131,7 @@ fn execution_over_blocks() {
             ));
 
             count += 1;
-            run_to_next_block(None);
+            run_to_next_block(Some(MAX_BLOCK));
         }
 
         assert!(count > 1);
@@ -9033,6 +9194,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .expect("Failed to upload Waiter");
         let waiter_prog_id = get_last_program_id();
@@ -9057,19 +9219,19 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
 
         let (lock_owner_msg_id, _lock_owner_msg_block_number) =
             send_command_to_waiter(WaiterCommand::MxLock(
-                u32::MAX,
+                None,
                 MxLockContinuation::General(LockContinuation::SleepFor(4)),
             ));
 
         let (lock_rival_1_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-            u32::MAX,
+            None,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
         send_command_to_waiter(WaiterCommand::WakeUp(lock_rival_1_msg_id.into()));
 
         let (lock_rival_2_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-            u32::MAX,
+            None,
             MxLockContinuation::General(LockContinuation::Nothing),
         ));
 
@@ -9117,6 +9279,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .expect("Failed to upload Waiter");
         let waiter_prog_id = get_last_program_id();
@@ -9248,6 +9411,7 @@ fn mx_lock_ownership_exceedance() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .expect("Failed to upload Waiter");
         let waiter_prog_id = get_last_program_id();
@@ -9285,7 +9449,7 @@ fn mx_lock_ownership_exceedance() {
                     assert_command_result(command_msg_id);
 
                     let (lock_msg_id, _) = send_command_to_waiter(WaiterCommand::MxLock(
-                        1,
+                        Some(1),
                         MxLockContinuation::General(LockContinuation::Nothing),
                     ));
 
@@ -9309,7 +9473,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Wait),
             ),
             LOCK_HOLD_DURATION,
@@ -9332,7 +9496,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Wait),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9351,11 +9515,43 @@ fn mx_lock_ownership_exceedance() {
             },
         );
 
+        // Msg1 acquires lock and goes into waitlist
+        // Msg2 fails to acquire the lock at the first attempt because Msg1's lock ownership
+        // time has not exceeded, but succeeds at the second one after Msg1's lock ownership
+        // time has exceeded
+        run_test_case(
+            WaiterCommand::MxLock(
+                Some(LOCK_HOLD_DURATION),
+                MxLockContinuation::General(LockContinuation::Wait),
+            ),
+            LOCK_HOLD_DURATION - 1,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+
+                run_for_blocks(1, None);
+                assert_failed(
+                    command_msg_id,
+                    get_lock_ownership_exceeded_trap(command_msg_id),
+                );
+                assert_succeed(lock_msg_id);
+            },
+        );
+
         // Msg1 acquires lock and forgets its lock guard
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Forget),
             ),
             LOCK_HOLD_DURATION,
@@ -9371,7 +9567,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::Forget),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9387,7 +9583,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
             ),
             LOCK_HOLD_DURATION,
@@ -9410,7 +9606,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
             WaiterCommand::MxLock(
-                LOCK_HOLD_DURATION,
+                Some(LOCK_HOLD_DURATION),
                 MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION * 2)),
             ),
             LOCK_HOLD_DURATION - 1,
@@ -9429,10 +9625,38 @@ fn mx_lock_ownership_exceedance() {
             },
         );
 
+        // Msg1 acquires lock and goes into sleep for shorter than its lock ownership time
+        // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded,
+        // but succeeds after Msg1 releases the lock after the sleep
+        run_test_case(
+            WaiterCommand::MxLock(
+                Some(LOCK_HOLD_DURATION + 1),
+                MxLockContinuation::General(LockContinuation::SleepFor(LOCK_HOLD_DURATION)),
+            ),
+            2,
+            &|command_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+            },
+            &|command_msg_id, lock_msg_id| {
+                assert!(WaitlistOf::<Test>::contains(
+                    &waiter_prog_id,
+                    &command_msg_id
+                ));
+                assert!(WaitlistOf::<Test>::contains(&waiter_prog_id, &lock_msg_id));
+
+                run_for_blocks(1, None);
+                assert_succeed(command_msg_id);
+                assert_succeed(lock_msg_id);
+            },
+        );
+
         // Msg1 acquires lock and tries to re-enter the same lock
         // Msg2 acquires the lock after Msg1's lock ownership time has exceeded
         run_test_case(
-            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            WaiterCommand::MxLock(Some(LOCK_HOLD_DURATION), MxLockContinuation::Lock),
             LOCK_HOLD_DURATION,
             &|command_msg_id| {
                 assert!(WaitlistOf::<Test>::contains(
@@ -9452,7 +9676,7 @@ fn mx_lock_ownership_exceedance() {
         // Msg1 acquires lock and tries to re-enter the same lock
         // Msg2 fails to acquire the lock because Msg1's lock ownership time has not exceeded
         run_test_case(
-            WaiterCommand::MxLock(LOCK_HOLD_DURATION, MxLockContinuation::Lock),
+            WaiterCommand::MxLock(Some(LOCK_HOLD_DURATION), MxLockContinuation::Lock),
             LOCK_HOLD_DURATION - 1,
             &|command_msg_id| {
                 assert!(WaitlistOf::<Test>::contains(
@@ -9496,6 +9720,7 @@ fn async_sleep_for() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .expect("Failed to upload Waiter");
         let waiter_prog_id = get_last_program_id();
@@ -9754,6 +9979,7 @@ fn test_async_messages() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -9823,6 +10049,7 @@ fn program_generator_works() {
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let generator_id = get_last_program_id();
@@ -9846,7 +10073,8 @@ fn program_generator_works() {
 
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
-        let expected_child_id = ProgramId::generate(code_id, &expected_salt);
+        let expected_child_id =
+            ProgramId::generate_from_program(code_id, &expected_salt, message_id);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -9865,6 +10093,7 @@ fn wait_state_machine() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let wait_id = get_last_program_id();
@@ -10044,6 +10273,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .expect("submit_program failed");
@@ -10055,6 +10285,7 @@ fn missing_handle_is_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             1_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .expect("submit_program failed");
@@ -10121,6 +10352,7 @@ fn invalid_memory_page_count_rejected() {
                 EMPTY_PAYLOAD.to_vec(),
                 1_000_000_000,
                 0,
+                false,
             ),
             Error::<Test>::ProgramConstructionFailed
         );
@@ -10239,6 +10471,7 @@ fn send_from_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -10250,6 +10483,7 @@ fn send_from_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -10376,6 +10610,7 @@ fn reply_from_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -10387,6 +10622,7 @@ fn reply_from_reservation() {
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -10456,6 +10692,7 @@ fn signal_recursion_not_occurs() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10529,6 +10766,7 @@ fn signal_during_precharge() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10593,6 +10831,7 @@ fn signal_during_prepare() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10664,6 +10903,7 @@ fn signal_async_wait_works() {
             InitAction::None.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10751,6 +10991,7 @@ fn signal_run_out_of_gas_memory_access_works() {
             USER_1.encode(),
             GAS_LIMIT,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10880,6 +11121,7 @@ fn signal_removed_from_waitlist_works() {
             USER_1.encode(),
             GAS_LIMIT,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -10948,6 +11190,7 @@ fn system_reservation_unreserve_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11002,6 +11245,7 @@ fn few_system_reservations_across_waits_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11054,6 +11298,7 @@ fn system_reservation_panic_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11094,6 +11339,7 @@ fn system_reservation_exit_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11136,6 +11382,7 @@ fn system_reservation_wait_and_panic_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11187,6 +11434,7 @@ fn system_reservation_wait_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11247,6 +11495,7 @@ fn system_reservation_wait_and_exit_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11302,6 +11551,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11359,6 +11609,7 @@ fn system_reservation_accumulate_works() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11397,6 +11648,7 @@ fn system_reservation_zero_amount_panics() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11439,6 +11691,7 @@ fn gas_reservation_works() {
             .encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11537,6 +11790,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
             InitAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11587,6 +11841,7 @@ fn gas_reservation_wait_wake_exit() {
             InitAction::Wait.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11640,6 +11895,7 @@ fn gas_reservations_check_params() {
             .encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let mid = get_last_message_id();
@@ -11663,6 +11919,7 @@ fn gas_reservations_fresh_reserve_unreserve() {
             InitAction::FreshReserveUnreserve.encode(),
             10_000_000_000,
             0,
+            false,
         ));
         let mid = get_last_message_id();
 
@@ -11687,6 +11944,7 @@ fn gas_reservations_existing_reserve_unreserve() {
             InitAction::Normal(vec![]).encode(),
             10_000_000_000,
             0,
+            false,
         ));
         let mid = get_last_message_id();
         let pid = get_last_program_id();
@@ -11727,6 +11985,7 @@ fn custom_async_entrypoint_works() {
             USER_1.encode(),
             30_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11776,6 +12035,7 @@ fn dispatch_kind_forbidden_function() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11849,6 +12109,7 @@ fn system_reservation_gas_allowance_rollbacks() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11895,6 +12156,7 @@ fn system_reservation_wait_and_exit_across_executions() {
             USER_1.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -11972,6 +12234,7 @@ fn signal_on_uninitialized_program() {
             InitAction::Panic.encode(),
             10_000_000_000,
             0,
+            false,
         ));
 
         let pid = get_last_program_id();
@@ -12074,6 +12337,7 @@ fn async_does_not_duplicate_sync() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12085,6 +12349,7 @@ fn async_does_not_duplicate_sync() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let sync = get_last_program_id();
@@ -12122,6 +12387,7 @@ fn state_rollback() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let rollback = get_last_program_id();
@@ -12191,6 +12457,7 @@ fn incomplete_async_payloads_kept() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12202,6 +12469,7 @@ fn incomplete_async_payloads_kept() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let incomplete = get_last_program_id();
@@ -12256,6 +12524,7 @@ fn rw_lock_works() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12267,6 +12536,7 @@ fn rw_lock_works() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let prog_id = get_last_program_id();
@@ -12386,6 +12656,7 @@ fn async_works() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12397,6 +12668,7 @@ fn async_works() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let prog_id = get_last_program_id();
@@ -12450,6 +12722,7 @@ fn futures_unordered() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12461,6 +12734,7 @@ fn futures_unordered() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let demo_async = get_last_program_id();
@@ -12472,6 +12746,7 @@ fn futures_unordered() {
             (demo_async, ping).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let prog_id = get_last_program_id();
@@ -12544,6 +12819,7 @@ fn async_recursion() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12555,6 +12831,7 @@ fn async_recursion() {
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let prog_id = get_last_program_id();
@@ -12575,7 +12852,8 @@ fn async_recursion() {
 
         let mut to_assert = (1..=arg)
             .rev()
-            .filter_map(|i| (i % 4 == 0).then(|| Assertion::Payload(i.encode())))
+            .filter(|&i| i % 4 == 0)
+            .map(|i| Assertion::Payload(i.encode()))
             .collect::<Vec<_>>();
         to_assert.insert(
             to_assert.len() - 1,
@@ -12600,6 +12878,7 @@ fn async_init() {
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         let ping = get_last_program_id();
@@ -12611,6 +12890,7 @@ fn async_init() {
             InputArgs::from_two(ping, ping).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         ));
 
         get_last_program_id()
@@ -12659,6 +12939,7 @@ fn check_gear_stack_end_fail() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12685,6 +12966,7 @@ fn check_gear_stack_end_fail() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12708,6 +12990,7 @@ fn check_gear_stack_end_fail() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12750,6 +13033,7 @@ fn check_gr_read_error_works() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12800,6 +13084,7 @@ fn check_reply_push_payload_exceed() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12849,6 +13134,7 @@ fn check_random_works() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .expect("Failed to upload program");
 
@@ -12910,7 +13196,8 @@ fn reply_with_small_non_zero_gas() {
             DEFAULT_SALT.to_vec(),
             RelayCall::RereplyWithGas(gas_limit).encode(),
             50_000_000_000,
-            0u128
+            0u128,
+            false,
         ));
 
         let proxy = utils::get_last_program_id();
@@ -12957,7 +13244,8 @@ fn replies_denied_in_handle_reply() {
             }
             .encode(),
             50_000_000_000,
-            0u128
+            0u128,
+            false,
         ));
 
         let proxy = utils::get_last_program_id();
@@ -13021,7 +13309,8 @@ fn relay_messages() {
                     vec![],
                     relay_call.encode(),
                     50_000_000_000u64,
-                    0u128
+                    0u128,
+                    false,
                 )
                 .is_ok(),
                 "{}",
@@ -13218,6 +13507,7 @@ fn module_instantiation_error() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .map(|_| prog_id);
         let mid = get_last_message_id();
@@ -13252,6 +13542,7 @@ fn wrong_entry_type() {
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -13278,6 +13569,7 @@ fn oom_handler_works() {
             EMPTY_PAYLOAD.to_vec(),
             100_000_000_000_u64,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -13320,6 +13612,7 @@ fn alloc_charge_error() {
             EMPTY_PAYLOAD.to_vec(),
             500_000_000_u64,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -13364,6 +13657,7 @@ fn free_usage_error() {
             EMPTY_PAYLOAD.to_vec(),
             500_000_000_u64,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .unwrap();
@@ -13424,6 +13718,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
             Init::Normal(vec![]).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .expect("Program uploading failed");
@@ -13461,6 +13756,20 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
         );
+
+        // ok result when we use custom multiplier
+        let gas_info_result = Gear::calculate_gas_info_impl(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            BlockGasLimitOf::<Test>::get(),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            false,
+            Some(64),
+        );
+
+        assert!(gas_info_result.is_ok());
     });
 }
 
@@ -13478,6 +13787,7 @@ fn reservation_manager() {
             vec![],
             BlockGasLimitOf::<Test>::get(),
             0,
+            false,
         )
         .map(|_| get_last_program_id())
         .expect("Program uploading failed");
@@ -13606,13 +13916,15 @@ fn send_gasless_message_works() {
         // Test 1: USER_2 sends a gasless message to the program (intending to use a voucher).
         // Expect failure because USER_2 has no voucher.
         assert_noop!(
-            Gear::send_message(
+            GearVoucher::call(
                 RuntimeOrigin::signed(USER_2),
-                program_id,
-                EMPTY_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                0,
-                true,
+                PrepaidCall::SendMessage {
+                    destination: program_id,
+                    payload: EMPTY_PAYLOAD.to_vec(),
+                    gas_limit: DEFAULT_GAS_LIMIT,
+                    value: 0,
+                    keep_alive: false,
+                }
             ),
             Error::<Test>::FailureRedeemingVoucher
         );
@@ -13646,13 +13958,15 @@ fn send_gasless_message_works() {
 
         // Test 2: USER_2 sends a gasless message to the program (intending to use a voucher).
         // Now that voucher is issued, the message should be sent successfully.
-        assert_ok!(Gear::send_message(
+        assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_2),
-            program_id,
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            1_000_000_u128,
-            true,
+            PrepaidCall::SendMessage {
+                destination: program_id,
+                payload: EMPTY_PAYLOAD.to_vec(),
+                gas_limit: DEFAULT_GAS_LIMIT,
+                value: 1_000_000,
+                keep_alive: false,
+            }
         ));
 
         // Balances check
@@ -13730,13 +14044,15 @@ fn send_gasless_reply_works() {
 
         // USER_1 sends a gasless reply using a voucher
         let gas_limit = 10_000_000_u64;
-        assert_ok!(Gear::send_reply(
+        assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_1),
-            reply_to_id,
-            EMPTY_PAYLOAD.to_vec(),
-            gas_limit,
-            1000, // `prog_id` sent message with value of 1000 (see program code)
-            true,
+            PrepaidCall::SendReply {
+                reply_to_id,
+                payload: EMPTY_PAYLOAD.to_vec(),
+                gas_limit,
+                value: 1_000,
+                keep_alive: false,
+            }
         ));
         let expected_reply_message_id = get_last_message_id();
 
@@ -14089,7 +14405,8 @@ fn pause_waited_uninited_program() {
             current_gas.to_le_bytes().to_vec(),
             Vec::new(),
             current_gas,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -14147,7 +14464,8 @@ fn pause_waited_uninited_program() {
             vec![],
             Vec::new(),
             gas,
-            0u128
+            0u128,
+            false,
         ));
 
         let program_id = utils::get_last_program_id();
@@ -14227,7 +14545,7 @@ fn remove_from_waitlist_after_exit_reply() {
             RuntimeOrigin::signed(USER_1),
             reply.id(),
             vec![],
-            1_000_000_000,
+            1_500_000_000,
             0,
             false,
         ));
@@ -14320,6 +14638,45 @@ fn gear_block_number_math_adds_up() {
     })
 }
 
+#[test]
+fn test_gas_info_of_terminated_program() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Dies in init
+        let init_dead = Calls::builder().panic("Die in init");
+        let handle_dead = Calls::builder().panic("Called after being terminated!");
+        let (_, pid_dead) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt1",
+            Scheme::predefined(init_dead, handle_dead, Calls::default()),
+            0,
+        );
+
+        // Sends in handle message do dead program
+        let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
+        let (_, proxy_pid) = utils::submit_constructor_with_args(
+            USER_1,
+            b"salt2",
+            Scheme::predefined(Calls::default(), handle_proxy, Calls::default()),
+            0,
+        );
+
+        run_to_next_block(None);
+
+        let _gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(proxy_pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed getting gas info");
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -14346,7 +14703,6 @@ mod utils {
         traits::tokens::{currency::Currency, Balance},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
-    use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
@@ -14403,6 +14759,7 @@ mod utils {
             scheme.encode(),
             min_limit,
             value,
+            false,
         ));
 
         (get_last_message_id(), get_last_program_id())
@@ -14638,12 +14995,13 @@ mod utils {
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
+            false,
         )
         .map(|_| get_last_program_id())
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
-        ProgramId::generate(CodeId::generate(code), salt)
+        ProgramId::generate_from_user(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
@@ -14670,7 +15028,7 @@ mod utils {
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,
             value: 0,
-            prepaid: false,
+            keep_alive: false,
         })
     }
 
@@ -15200,6 +15558,7 @@ mod utils {
                 USER_1.encode(),
                 GAS_LIMIT,
                 0,
+                false,
             ));
 
             let pid = get_last_program_id();

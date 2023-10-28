@@ -44,6 +44,18 @@ impl AccessQueue {
         inner.as_ref().map_or(false, |v| v.contains(message_id))
     }
 
+    pub fn len(&self) -> usize {
+        let inner = unsafe { &*self.0.get() };
+
+        inner.as_ref().map_or(0, |v| v.len())
+    }
+
+    pub fn first(&self) -> Option<&MessageId> {
+        let inner = unsafe { &*self.0.get() };
+
+        inner.as_ref().and_then(|v| v.front())
+    }
+
     pub const fn new() -> Self {
         AccessQueue(UnsafeCell::new(None))
     }

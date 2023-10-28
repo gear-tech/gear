@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys-calls generators entities.
+//! Syscalls generators entities.
 //!
 //! Generators from this module form a state machine:
 //! ```text
-//! # Zero sys-calls generators nesting level.
+//! # Zero syscalls generators nesting level.
 //! SysCallsImport--->DisabledSysCallsImport--->ModuleWithCallIndexes--->WasmModule
 //!
-//! # First sys-calls generators nesting level.
+//! # First syscalls generators nesting level.
 //! SysCallsImport--->DisabledSysCallsImport--(SysCallsImportsGenerationProof)-->AdditionalDataInjector---\
 //! |--->DisabledAdditionalDataInjector--->ModuleWithCallIndexes--->WasmModule
 //!
-//! # Third sys-calls generators nesting level
+//! # Third syscalls generators nesting level
 //! SysCallsImport--->DisabledSysCallsImport--(SysCallsImportsGenerationProof)-->AdditionalDataInjector---\
 //! |--->DisabledAdditionalDataInjector--(AddressesInjectionOutcome)-->SysCallsInvocator--->DisabledSysCallsInvocator--->ModuleWithCallIndexes--->WasmModule
 //! ```
@@ -42,18 +42,20 @@ pub use additional_data::*;
 pub use imports::*;
 pub use invocator::*;
 
-use gear_wasm_instrument::syscalls::{ParamType, SysCallName, SysCallSignature};
+use gear_wasm_instrument::syscalls::{
+    HashType, ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature,
+};
 
-/// Type of invocable sys-call.
+/// Type of invocable syscall.
 ///
-/// Basically, there are 2 types of generated sys-calls:
+/// Basically, there are 2 types of generated syscalls:
 /// 1. Those invocation of which is done regardless of validity of call context (`Loose`).
 /// 2. Those which are invoked correctly with implementing all call context (`Precise`).
 ///
 /// Clarifying that, `gr_reservation_send` requires an existing reservation id,
 /// which is pretty hard to predict beforehand with a generator. So this call context
 /// is created from scratch - first `gr_reserve_gas` is called and then it's result
-/// is used for the further `gr_reservation_send` call. Those are `Precise` sys-calls.
+/// is used for the further `gr_reservation_send` call. Those are `Precise` syscalls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InvocableSysCall {
     Loose(SysCallName),
@@ -61,10 +63,10 @@ pub enum InvocableSysCall {
 }
 
 impl InvocableSysCall {
-    fn to_str(self) -> &'static str {
+    pub(crate) fn to_str(self) -> &'static str {
         match self {
-            InvocableSysCall::Loose(sys_call) => sys_call.to_str(),
-            InvocableSysCall::Precise(sys_call) => match sys_call {
+            InvocableSysCall::Loose(syscall) => syscall.to_str(),
+            InvocableSysCall::Precise(syscall) => match syscall {
                 SysCallName::ReservationSend => "precise_gr_reservation_send",
                 SysCallName::ReservationReply => "precise_gr_reservation_reply",
                 SysCallName::SendCommit => "precise_gr_send_commit",
@@ -79,37 +81,128 @@ impl InvocableSysCall {
             InvocableSysCall::Loose(name) => name.signature(),
             InvocableSysCall::Precise(name) => match name {
                 SysCallName::ReservationSend => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Delay,        // Number of blocks to delay the sending for
-                    ParamType::Gas,          // Amount of gas to reserve
-                    ParamType::Duration,     // Duration of the reservation
-                    ParamType::Ptr(None),    // Address of error returned
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                        HashType::ActorId,
+                    ))),
+                    // Pointer to payload
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                        length_param_idx: 2,
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Duration of the reservation
+                    ParamType::Duration,
+                    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                        HashType::MessageId,
+                    ))),
                 ]),
                 SysCallName::ReservationReply => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of value
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Gas,          // Amount of gas to reserve
-                    ParamType::Duration,     // Duration of the reservation
-                    ParamType::Ptr(None),    // Address of error returned
+                    // Address of value
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                    // Pointer to payload
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                        length_param_idx: 2,
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Duration of the reservation
+                    ParamType::Duration,
+                    // Address of error returned
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                        HashType::MessageId,
+                    ))),
                 ]),
                 SysCallName::SendCommit => SysCallSignature::gr([
-                    ParamType::Ptr(None),    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(Some(2)), // Pointer to payload
-                    ParamType::Size,         // Size of the payload
-                    ParamType::Delay,        // Number of blocks to delay the sending for
-                    ParamType::Ptr(None),    // Address of error returned
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                        HashType::ActorId,
+                    ))),
+                    // Pointer to payload
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                        length_param_idx: 2,
+                    })),
+                    // Size of the payload
+                    ParamType::Size,
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
                 SysCallName::SendCommitWGas => SysCallSignature::gr([
-                    ParamType::Ptr(None), // Address of recipient and value (HashWithValue struct)
-                    ParamType::Delay,     // Number of blocks to delay the sending for
-                    ParamType::Gas,       // Amount of gas to reserve
-                    ParamType::Ptr(None), // Address of error returned
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                        HashType::ActorId,
+                    ))),
+                    // Number of blocks to delay the sending for
+                    ParamType::Delay,
+                    // Amount of gas to reserve
+                    ParamType::Gas,
+                    // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
                 _ => unimplemented!(),
             },
+        }
+    }
+
+    /// Checks whether given syscall has the precise variant.
+    pub(crate) fn has_precise_variant(syscall: SysCallName) -> bool {
+        Self::required_imports_for_syscall(syscall).is_some()
+    }
+
+    /// Returns the required imports to build precise syscall, but of a fixed size.
+    fn required_imports<const N: usize>(syscall: SysCallName) -> &'static [SysCallName; N] {
+        Self::required_imports_for_syscall(syscall)
+            .expect("failed to find required imports for syscall")
+            .try_into()
+            .expect("failed to convert slice")
+    }
+
+    /// Returns the required imports to build precise syscall.
+    pub(crate) fn required_imports_for_syscall(
+        syscall: SysCallName,
+    ) -> Option<&'static [SysCallName]> {
+        // NOTE: the last syscall must be pattern itself
+        Some(match syscall {
+            SysCallName::ReservationSend => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationSend]
+            }
+            SysCallName::ReservationReply => {
+                &[SysCallName::ReserveGas, SysCallName::ReservationReply]
+            }
+            SysCallName::SendCommit => &[
+                SysCallName::SendInit,
+                SysCallName::SendPush,
+                SysCallName::SendCommit,
+            ],
+            SysCallName::SendCommitWGas => &[
+                SysCallName::Size,
+                SysCallName::SendInit,
+                SysCallName::SendPushInput,
+                SysCallName::SendCommitWGas,
+            ],
+            _ => return None,
+        })
+    }
+
+    /// Returns the index of the destination param.
+    fn has_destination_param(&self) -> Option<usize> {
+        use InvocableSysCall::*;
+        use SysCallName::*;
+
+        match *self {
+            Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
+            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Some(0),
+            Loose(SendCommit | SendCommitWGas) => Some(1),
+            _ => None,
         }
     }
 
@@ -122,7 +215,8 @@ impl InvocableSysCall {
         };
 
         match underlying_syscall {
-            SysCallName::BlockHeight
+            SysCallName::EnvVars
+            | SysCallName::BlockHeight
             | SysCallName::BlockTimestamp
             | SysCallName::Debug
             | SysCallName::Panic

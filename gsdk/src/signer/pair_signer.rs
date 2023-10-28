@@ -66,8 +66,8 @@ where
     Pair: PairT,
     Pair::Signature: Into<T::Signature>,
 {
-    fn account_id(&self) -> &T::AccountId {
-        &self.account_id
+    fn account_id(&self) -> T::AccountId {
+        self.account_id.clone()
     }
 
     fn address(&self) -> T::Address {

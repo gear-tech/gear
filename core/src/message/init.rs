@@ -110,6 +110,7 @@ impl InitMessage {
     }
 }
 
+// TODO: #issue 3320
 /// Init message packet.
 ///
 /// This structure is preparation for future init message sending. Has no message id.
@@ -130,20 +131,8 @@ pub struct InitPacket {
 }
 
 impl InitPacket {
-    /// Create new InitPacket without gas.
-    pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
-        Self {
-            program_id: ProgramId::generate(code_id, salt.inner()),
-            code_id,
-            salt,
-            payload,
-            value,
-            gas_limit: None,
-        }
-    }
-
-    /// Create new InitPacket with gas.
-    pub fn new_with_gas(
+    /// Create new InitPacket via user.
+    pub fn new_from_user(
         code_id: CodeId,
         salt: Salt,
         payload: Payload,
@@ -151,12 +140,31 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate(code_id, salt.inner()),
+            program_id: ProgramId::generate_from_user(code_id, salt.inner()),
             code_id,
             salt,
             payload,
-            value,
             gas_limit: Some(gas_limit),
+            value,
+        }
+    }
+
+    /// Create new InitPacket via program.
+    pub fn new_from_program(
+        code_id: CodeId,
+        salt: Salt,
+        payload: Payload,
+        message_id: MessageId,
+        gas_limit: Option<GasLimit>,
+        value: Value,
+    ) -> Self {
+        Self {
+            program_id: ProgramId::generate_from_program(code_id, salt.inner(), message_id),
+            code_id,
+            salt,
+            payload,
+            gas_limit,
+            value,
         }
     }
 

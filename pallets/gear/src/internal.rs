@@ -180,7 +180,7 @@ impl<T: Config> HoldBound<T> {
 
 impl<T: Config> PartialOrd for HoldBound<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.expected.partial_cmp(&other.expected)
+        Some(self.cmp(other))
     }
 }
 
@@ -652,7 +652,7 @@ where
 
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         }
 
@@ -759,7 +759,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.

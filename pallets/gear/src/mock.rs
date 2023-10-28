@@ -155,6 +155,7 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 thread_local! {
@@ -217,6 +218,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
@@ -291,6 +293,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = Gear;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -302,7 +305,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
             (USER_1, 5_000_000_000_000_000_u128),
-            (USER_2, 200_000_000_000_000_u128),
+            (USER_2, 350_000_000_000_000_u128),
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),

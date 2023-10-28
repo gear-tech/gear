@@ -22,10 +22,9 @@ scale-info = { workspace = true, features = ["derive"] }
 runtime-primitives.workspace = true
 common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
-gear-runtime = { workspace = true, optional = true }
-vara-runtime = { workspace = true, optional = true }
+vara-runtime = { workspace = true, features = ["dev"] }
 gear-runtime-interface.workspace = true
-service = { workspace = true, features = ["dev"] }
+service = { workspace = true, features = ["vara-native"] }
 
 # Substrate Client
 sc-block-builder.workspace = true
@@ -55,7 +54,7 @@ frame-support.workspace = true
 frame-benchmarking.workspace = true
 
 [features]
-default = ["std", "vara-native"]
+default = ["std"]
 std = [
     "runtime-primitives/std",
     "common/std",
@@ -70,8 +69,5 @@ std = [
     "frame-system/std",
     "frame-support/std",
     "frame-benchmarking/std",
-    "gear-runtime?/std",
-    "vara-runtime?/std",
+    "vara-runtime/std",
 ]
-gear-native = ["gear-runtime/dev", "service/gear-native"]
-vara-native = ["vara-runtime/dev", "service/vara-native"]

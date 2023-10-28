@@ -167,6 +167,7 @@ impl pallet_transaction_payment::Config for Test {
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
+    pub const PerformanceMultiplier: u32 = 100;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
@@ -188,6 +189,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
+    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
@@ -269,24 +271,14 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message { prepaid, .. }) => {
-                prepaid.then_some(FEE_PAYER)
-            }
-            RuntimeCall::Gear(pallet_gear::Call::send_reply {
-                reply_to_id,
-                prepaid,
-                ..
-            }) => {
-                if *prepaid {
-                    <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
-                        |stored_message| {
-                            GearVoucher::voucher_account_id(who, &stored_message.source())
-                        },
-                    )
-                } else {
-                    None
-                }
-            }
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
+            }) => Some(FEE_PAYER),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
+            }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
             _ => None,
         }
     }
@@ -307,6 +299,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = Gear;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -19,11 +19,11 @@
 //! Configurations.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
     pages::{GearPage, WasmPage},
 };
+use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{self, Decode, Encode};
 
@@ -144,6 +144,8 @@ impl PageCosts {
 pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: gsys::Percent,
     /// Max amount of pages in program memory during execution.
     pub max_pages: WasmPage,
     /// Pages costs.
@@ -169,6 +171,8 @@ pub struct ExecutionSettings {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
 }
 
 /// Stable parameters for the whole block across processing runs.
@@ -176,6 +180,8 @@ pub struct ExecutionSettings {
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: gsys::Percent,
     /// Max allowed page numbers for wasm program.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -216,4 +222,6 @@ pub struct BlockConfig {
     pub code_instrumentation_byte_cost: u64,
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
 }

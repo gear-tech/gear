@@ -157,7 +157,11 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
-        fn deposit(account_id: &AccountIdOf<T>, value: BalanceOf<T>) -> Result<(), Error<T>> {
+        fn deposit(
+            account_id: &AccountIdOf<T>,
+            value: BalanceOf<T>,
+            keep_alive: bool,
+        ) -> Result<(), Error<T>> {
             let bank_address = T::BankAddress::get();
 
             ensure!(
@@ -166,14 +170,15 @@ pub mod pallet {
                 Error::InsufficientDeposit
             );
 
+            let existence_requirement = if keep_alive {
+                ExistenceRequirement::KeepAlive
+            } else {
+                ExistenceRequirement::AllowDeath
+            };
+
             // Check on zero value is inside `pallet_balances` implementation.
-            CurrencyOf::<T>::transfer(
-                account_id,
-                &bank_address,
-                value,
-                ExistenceRequirement::AllowDeath,
-            )
-            .map_err(|_| Error::<T>::InsufficientBalance)
+            CurrencyOf::<T>::transfer(account_id, &bank_address, value, existence_requirement)
+                .map_err(|_| Error::<T>::InsufficientBalance)
         }
 
         /// Ensures that bank account is able to transfer requested value.
@@ -233,14 +238,18 @@ pub mod pallet {
             Self::withdraw(&block_author, value)
         }
 
-        pub fn deposit_gas(account_id: &AccountIdOf<T>, amount: u64) -> Result<(), Error<T>> {
+        pub fn deposit_gas(
+            account_id: &AccountIdOf<T>,
+            amount: u64,
+            keep_alive: bool,
+        ) -> Result<(), Error<T>> {
             if amount.is_zero() {
                 return Ok(());
             }
 
             let value = GasMultiplierOf::<T>::get().gas_to_value(amount);
 
-            Self::deposit(account_id, value)?;
+            Self::deposit(account_id, value, keep_alive)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);
@@ -327,12 +336,13 @@ pub mod pallet {
         pub fn deposit_value(
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> Result<(), Error<T>> {
             if value.is_zero() {
                 return Ok(());
             }
 
-            Self::deposit(account_id, value)?;
+            Self::deposit(account_id, value, keep_alive)?;
 
             Bank::<T>::mutate(account_id, |details| {
                 let details = details.get_or_insert_with(Default::default);

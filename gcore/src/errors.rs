@@ -61,9 +61,9 @@ impl From<SyscallError> for Result<()> {
     fn from(value: SyscallError) -> Self {
         match value.0 {
             0 => Ok(()),
-            code => {
-                Err(ExtError::from_u32(code).unwrap_or(ExtError::Unsupported)).map_err(Into::into)
-            }
+            code => Err(ExtError::from_u32(code)
+                .unwrap_or(ExtError::Unsupported)
+                .into()),
         }
     }
 }

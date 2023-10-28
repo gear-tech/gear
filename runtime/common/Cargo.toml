@@ -19,7 +19,6 @@ pallet-balances.workspace = true
 pallet-session.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
-validator-set.workspace = true
 
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
@@ -28,7 +27,7 @@ frame-system-benchmarking = { workspace = true, optional = true }
 # Internal deps
 runtime-primitives.workspace = true
 gear-common.workspace = true
-gear-backend-common.workspace = true
+gear-lazy-pages-common.workspace = true
 gear-core-processor.workspace = true
 gear-core.workspace = true
 pallet-gear.workspace = true
@@ -53,9 +52,9 @@ std = [
 	"pallet-gear-bank/std",
 	"pallet-gear-messenger/std",
 	"runtime-primitives/std",
+	"gear-core-processor/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"validator-set/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -77,5 +76,4 @@ try-runtime = [
 	"pallet-gear-bank/try-runtime",
 	"pallet-gear-messenger/try-runtime",
 	"pallet-session/try-runtime",
-	"validator-set/try-runtime",
 ]

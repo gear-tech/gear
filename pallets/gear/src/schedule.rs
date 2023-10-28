@@ -376,6 +376,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: Weight,
 
+    /// Weight of calling `gr_env_vars`.
+    pub gr_env_vars: Weight,
+
     /// Weight of calling `gr_block_height`.
     pub gr_block_height: Weight,
 
@@ -459,6 +462,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: Weight,
+
+    /// Weight of calling `gr_signal_code`.
+    pub gr_signal_code: Weight,
 
     /// Weight of calling `gr_signal_from`.
     pub gr_signal_from: Weight,
@@ -734,7 +740,8 @@ impl Default for Limits {
             // To avoid potential stack overflow problems we have a panic in sandbox in case,
             // execution is ended with stack overflow error. So, process queue execution will be
             // stopped and we will be able to investigate the problem and decrease this constant if needed.
-            stack_height: Some(20_000),
+            // TODO #3435. Disabled stack height is a temp solution.
+            stack_height: cfg!(not(feature = "fuzz")).then_some(20_000),
             globals: 256,
             locals: 1024,
             parameters: 128,
@@ -865,6 +872,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_size: self.gr_size.ref_time(),
             gr_read: self.gr_read.ref_time(),
             gr_read_per_byte: self.gr_read_per_byte.ref_time(),
+            gr_env_vars: self.gr_env_vars.ref_time(),
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
@@ -903,6 +911,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_debug: self.gr_debug.ref_time(),
             gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
             gr_reply_to: self.gr_reply_to.ref_time(),
+            gr_signal_code: self.gr_signal_code.ref_time(),
             gr_signal_from: self.gr_signal_from.ref_time(),
             gr_reply_code: self.gr_reply_code.ref_time(),
             gr_exit: self.gr_exit.ref_time(),
@@ -985,12 +994,14 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_size: to_weight!(cost_batched!(gr_size)),
             gr_read: to_weight!(cost_batched!(gr_read)),
             gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
+            gr_env_vars: to_weight!(cost_batched!(gr_env_vars)),
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
             gr_random: to_weight!(cost_batched!(gr_random)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
             gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
+            gr_signal_code: to_weight!(cost_batched!(gr_signal_code)),
             gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
             gr_reply_code: to_weight!(cost_batched!(gr_reply_code)),
             gr_exit: to_weight!(cost!(gr_exit)),

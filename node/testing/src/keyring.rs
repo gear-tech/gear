@@ -19,14 +19,9 @@
 //! Test accounts available in runtime for testing.
 
 use codec::Encode;
-#[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
-use gear_runtime::{
-    CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra, UncheckedExtrinsic,
-};
 use runtime_primitives::{AccountId, Index};
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
-#[cfg(feature = "vara-native")]
 use vara_runtime::{
     CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra, StakingBlackList,
     UncheckedExtrinsic,
@@ -66,7 +61,6 @@ pub fn ferdie() -> AccountId {
 }
 
 /// Convert keyrings into `SessionKeys`.
-#[cfg(feature = "vara-native")]
 pub fn to_session_keys(
     ed25519_keyring: &Ed25519Keyring,
     sr25519_keyring: &Sr25519Keyring,
@@ -79,36 +73,10 @@ pub fn to_session_keys(
     }
 }
 
-#[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
-pub fn to_session_keys(
-    ed25519_keyring: &Ed25519Keyring,
-    sr25519_keyring: &Sr25519Keyring,
-) -> SessionKeys {
-    SessionKeys {
-        babe: sr25519_keyring.to_owned().public().into(),
-        grandpa: ed25519_keyring.to_owned().public().into(),
-    }
-}
-
 /// Creates transaction extra.
-#[cfg(feature = "vara-native")]
 pub fn signed_extra(nonce: Index) -> SignedExtra {
     (
         StakingBlackList::new(),
-        frame_system::CheckNonZeroSender::new(),
-        frame_system::CheckSpecVersion::new(),
-        frame_system::CheckTxVersion::new(),
-        frame_system::CheckGenesis::new(),
-        frame_system::CheckEra::from(Era::mortal(256, 0)),
-        frame_system::CheckNonce::from(nonce),
-        frame_system::CheckWeight::new(),
-        CustomChargeTransactionPayment::from(0),
-    )
-}
-
-#[cfg(all(not(feature = "vara-native"), feature = "gear-native"))]
-pub fn signed_extra(nonce: Index) -> SignedExtra {
-    (
         frame_system::CheckNonZeroSender::new(),
         frame_system::CheckSpecVersion::new(),
         frame_system::CheckTxVersion::new(),

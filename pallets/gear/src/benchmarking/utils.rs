@@ -21,10 +21,10 @@
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
-    RentCostPerBlockOf,
+    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
+    QueueOf, RentCostPerBlockOf,
 };
-use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
+use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
     configs::{BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -39,11 +39,6 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
-
-#[cfg(feature = "lazy-pages")]
-use crate::ProgramStorageOf;
-#[cfg(feature = "lazy-pages")]
-use common::ProgramStorage;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
@@ -68,6 +63,7 @@ where
 
     BlockConfig {
         block_info,
+        performance_multiplier: T::PerformanceMultiplier::get().into(),
         max_pages: T::Schedule::get().limits.memory_pages.into(),
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
@@ -88,6 +84,7 @@ where
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
         rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
+        gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
     }
 }
 
@@ -119,8 +116,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
         ProgramStorageOf::<T>::pages_final_prefix()
     ));
 
@@ -134,7 +130,7 @@ where
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate(CodeId::generate(code), b"bench_salt");
+            let program_id = ProgramId::generate_from_user(CodeId::generate(code), b"bench_salt");
 
             let schedule = T::Schedule::get();
             let code = Code::try_new(
@@ -171,7 +167,7 @@ where
             )
         }
         HandleKind::InitByHash(code_id) => {
-            let program_id = ProgramId::generate(code_id, b"bench_salt");
+            let program_id = ProgramId::generate_from_user(code_id, b"bench_salt");
 
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
@@ -295,6 +291,5 @@ where
         block_config,
         context: (context, code, balance).into(),
         random_data: (vec![0u8; 32], 0),
-        memory_pages: Default::default(),
     })
 }
