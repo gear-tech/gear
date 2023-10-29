@@ -65,7 +65,7 @@ impl Api {
     ///
     /// ```ignore
     /// let api = Api::new(None).await?;
-    /// let blocks = api.blocks().await?;
+    /// let blocks = api.subscribe_blocks().await?;
     ///
     /// while let Ok(block) = blocks.next().await {
     ///   // ...
