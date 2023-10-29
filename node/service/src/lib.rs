@@ -239,10 +239,10 @@ where
             let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
             let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-					*timestamp,
-					slot_duration,
-				);
+                sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                    *timestamp,
+                    slot_duration,
+                );
 
             Ok((slot, timestamp))
         },
@@ -501,10 +501,10 @@ where
                     let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
                     let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
+                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                            *timestamp,
+                            slot_duration,
+                        );
 
                     let storage_proof =
                         sp_transaction_storage_proof::registration::new_data_provider(
@@ -541,7 +541,7 @@ where
 
     let config = sc_consensus_grandpa::Config {
         // FIXME #1578 make this available through chainspec
-        gossip_duration: std::time::Duration::from_millis(333),
+        gossip_duration: std::time::Duration::from_millis(1000),
         justification_period: 512,
         name: Some(name),
         observer_enabled: false,
