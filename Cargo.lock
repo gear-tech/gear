@@ -980,6 +980,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-stack-height"
+version = "1.0.1"
+dependencies = [
+ "env_logger",
+ "gear-core",
+ "log",
+ "vara-runtime",
+ "wabt",
+ "wasmer",
+ "wasmer-types",
+]
+
+[[package]]
 name = "camino"
 version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

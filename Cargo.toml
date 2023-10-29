@@ -219,6 +219,7 @@ gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
+calc-stack-height = { path = "utils/calc-stack-height" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }

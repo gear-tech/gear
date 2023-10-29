@@ -1,0 +1,19 @@
+[package]
+name = "calc-stack-height"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gear-core.workspace = true
+vara-runtime = { workspace = true, features = ["std"] }
+wasmer = { version = "2.2", features = ["singlepass"] }
+wasmer-types = "2.2"
+log.workspace = true
+env_logger.workspace = true
+wabt.workspace = true
