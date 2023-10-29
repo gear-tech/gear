@@ -268,7 +268,6 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "Make some on-chain remark."]
                     #[doc = ""]
-                    #[doc = "## Complexity"]
                     #[doc = "- `O(1)`"]
                     remark {
                         remark: ::std::vec::Vec<::core::primitive::u8>,
@@ -278,17 +277,11 @@ pub mod runtime_types {
                     set_heap_pages { pages: ::core::primitive::u64 },
                     #[codec(index = 2)]
                     #[doc = "Set the new runtime code."]
-                    #[doc = ""]
-                    #[doc = "## Complexity"]
-                    #[doc = "- `O(C + S)` where `C` length of `code` and `S` complexity of `can_set_code`"]
                     set_code {
                         code: ::std::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 3)]
                     #[doc = "Set the new runtime code without doing any checks of the given `code`."]
-                    #[doc = ""]
-                    #[doc = "## Complexity"]
-                    #[doc = "- `O(C)` where `C` length of `code`"]
                     set_code_without_checks {
                         code: ::std::vec::Vec<::core::primitive::u8>,
                     },
@@ -6546,8 +6539,6 @@ pub mod runtime_types {
                         #[doc = "NOTE: Two of the storage writes (`Self::bonded`, `Self::payee`) are _never_ cleaned"]
                         #[doc = "unless the `origin` falls below _existential deposit_ and gets removed as dust."]
                         bond {
-                            controller:
-                                ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                             #[codec(compact)]
                             value: ::core::primitive::u128,
                             payee: runtime_types::pallet_staking::RewardDestination<
@@ -6671,7 +6662,10 @@ pub mod runtime_types {
                             >,
                         },
                         #[codec(index = 8)]
-                        #[doc = "(Re-)set the controller of a stash."]
+                        #[doc = "(Re-)sets the controller of a stash to the stash itself. This function previously"]
+                        #[doc = "accepted a `controller` argument to set the controller to an account other than the"]
+                        #[doc = "stash itself. This functionality has now been removed, now only setting the controller"]
+                        #[doc = "to the stash, if it is not already."]
                         #[doc = ""]
                         #[doc = "Effects will be felt instantly (as soon as this function is completed successfully)."]
                         #[doc = ""]
@@ -6682,10 +6676,7 @@ pub mod runtime_types {
                         #[doc = "- Independent of the arguments. Insignificant complexity."]
                         #[doc = "- Contains a limited number of reads."]
                         #[doc = "- Writes are limited to the `origin` account key."]
-                        set_controller {
-                            controller:
-                                ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        },
+                        set_controller,
                         #[codec(index = 9)]
                         #[doc = "Sets the ideal number of validators."]
                         #[doc = ""]
@@ -8762,6 +8753,8 @@ pub mod runtime_types {
                 Corruption,
                 #[codec(index = 12)]
                 Unavailable,
+                #[codec(index = 13)]
+                RootNotAllowed,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct DispatchErrorWithPostInfo<_0> {
@@ -8802,6 +8795,8 @@ pub mod runtime_types {
                 CannotCreateHold,
                 #[codec(index = 8)]
                 NotExpendable,
+                #[codec(index = 9)]
+                Blocked,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum TransactionalError {
