@@ -120,7 +120,7 @@ impl GearApi {
     /// Create an [`EventListener`] to subscribe and handle continuously
     /// incoming events.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.api().finalized_blocks().await?;
+        let events = self.0.api().subscribe_finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
