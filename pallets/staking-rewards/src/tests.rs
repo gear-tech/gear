@@ -417,7 +417,7 @@ fn nominators_rewards_disbursement_works() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 1 * ENDOWMENT // NOM_1_STASH
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -617,7 +617,6 @@ fn staking_blacklist_works() {
     let invalid_batch = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Utility(pallet_utility::Call::batch {
             calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                
                 value: 10_000_u128,
                 payee: pallet_staking::RewardDestination::Stash,
             })],
@@ -628,7 +627,6 @@ fn staking_blacklist_works() {
     let invalid_batch_all = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Utility(pallet_utility::Call::batch_all {
             calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                
                 value: 10_000_u128,
                 payee: pallet_staking::RewardDestination::Stash,
             })],
@@ -643,7 +641,6 @@ fn staking_blacklist_works() {
                 calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
                     index: 0,
                     call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
-                        
                         value: 10_000_u128,
                         payee: pallet_staking::RewardDestination::Stash,
                     })),
@@ -663,7 +660,6 @@ fn staking_blacklist_works() {
 
     let valid_signer = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Staking(pallet_staking::Call::bond {
-            
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
         }),
@@ -760,7 +756,7 @@ fn inflation_at_ideal_staked_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 1 * ENDOWMENT // NOM_1_STASH
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -894,7 +890,7 @@ fn inflation_when_nobody_stakes_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 1 * ENDOWMENT // NOM_1_STASH
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -1038,7 +1034,7 @@ fn inflation_with_too_many_stakers_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 1 * ENDOWMENT // NOM_1_STASH
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -1155,7 +1151,6 @@ fn inflation_with_too_many_stakers_adds_up() {
 
 #[test]
 fn unclaimed_rewards_burn() {
-    init_logger();
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1185,9 +1180,9 @@ fn unclaimed_rewards_burn() {
 
         run_to_block(20);
 
-        // Sending bonding transaction
+        // Sending bonding transaction from SIGNER to make 4 npos voters
         assert_ok!(Staking::bond(
-            RuntimeOrigin::signed(NOM_1_STASH),
+            RuntimeOrigin::signed(SIGNER),
             nominator_stake,
             pallet_staking::RewardDestination::Stash
         ));
@@ -1195,7 +1190,7 @@ fn unclaimed_rewards_burn() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(VAL_1_STASH),
+            RuntimeOrigin::signed(SIGNER),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
 
