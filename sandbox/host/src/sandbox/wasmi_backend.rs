@@ -246,7 +246,7 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 				deallocate(
 					sandbox_context,
 					invoke_args_ptr,
-					"Failed dealloction after failed write of invoke arguments",
+					"Failed deallocation after failed write of invoke arguments",
 				)?;
 				return Err(trap("Can't write invoke args into memory"))
 			}
