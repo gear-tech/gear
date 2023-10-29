@@ -36,5 +36,5 @@ pub type Migrations = (
         NominationPoolsMigrationV4OldPallet,
     >,
     pallet_offences::migration::v1::MigrateToV1<Runtime>,
-    pallet_gear_program::migrations::MigrateToV3<Runtime>
+    pallet_gear_program::migrations::MigrateToV3<Runtime>,
 );
