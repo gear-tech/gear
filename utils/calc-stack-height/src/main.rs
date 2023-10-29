@@ -1,9 +1,10 @@
 use gear_core::code::{Code, TryNewCodeConfig};
-use std::{env, error::Error, fs};
-use wasmer::{
-    Exports, Extern, Function, ImportObject, Instance, Memory, MemoryType, Module, Store,
+use sandbox_wasmer::{
+    Exports, Extern, Function, ImportObject, Instance, Memory, MemoryType, Module, Singlepass,
+    Store, Universal,
 };
-use wasmer_types::TrapCode;
+use sandbox_wasmer_types::TrapCode;
+use std::{env, error::Error, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -24,8 +25,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     )
     .map_err(|e| e.to_string())?;
 
-    let compiler = wasmer::Singlepass::default();
-    let store = Store::new(&wasmer::Universal::new(compiler).engine());
+    let compiler = Singlepass::default();
+    let store = Store::new(&Universal::new(compiler).engine());
     let module = Module::new(&store, code.code())?;
 
     let mut imports = ImportObject::new();

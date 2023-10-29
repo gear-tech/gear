@@ -12,8 +12,8 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 vara-runtime = { workspace = true, features = ["std"] }
-wasmer = { version = "2.2", features = ["singlepass"] }
-wasmer-types = "2.2"
+sandbox-wasmer.workspace = true
+sandbox-wasmer-types.workspace = true
 log.workspace = true
 env_logger.workspace = true
 wabt.workspace = true
