@@ -91,9 +91,12 @@ impl WasmProject {
             .to_string_lossy()
             .into();
 
+        let target_dir_name = env::var("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_err| "target".into());
         let mut target_dir = out_dir.clone();
         while target_dir.pop() {
-            if target_dir.ends_with("target") {
+            if target_dir.ends_with(&target_dir_name) {
                 break;
             }
         }
@@ -205,7 +208,8 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
+        smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
+            .context("Failed to write generated manifest path")?;
 
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
@@ -214,7 +218,12 @@ impl WasmProject {
 
         let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
-        fs::create_dir_all(&self.wasm_target_dir)?;
+        fs::create_dir_all(&self.wasm_target_dir).with_context(|| {
+            format!(
+                "Failed to create WASM target directory: {}",
+                self.wasm_target_dir.display()
+            )
+        })?;
 
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
@@ -263,7 +272,7 @@ extern "C" fn metahash() {{
         }
 
         let src_dir = self.out_dir.join("src");
-        fs::create_dir_all(&src_dir)?;
+        fs::create_dir_all(&src_dir).context("Failed to create `src` directory")?;
         smart_fs::write(src_dir.join("lib.rs"), source_code)?;
 
         Ok(())
@@ -342,11 +351,19 @@ extern "C" fn metahash() {{
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
             optimizer.strip_custom_sections();
-            fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)?;
+            fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)
+                .context("Failed to write optimized WASM binary")?;
         }
 
         // Create path string in `.binpath` file.
         let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
+            .with_context(|| {
+                format!(
+                    "wasm_target_dir={}; original_dir={}",
+                    self.wasm_target_dir.display(),
+                    self.original_dir.display()
+                )
+            })
             .expect("Unable to calculate relative path")
             .join(file_base_name);
         smart_fs::write(
@@ -398,7 +415,7 @@ extern "C" fn metahash() {{
             .join(format!("wasm32-unknown-unknown/{}", self.profile))
             .join(format!("{}.wasm", &file_base_name));
 
-        fs::create_dir_all(&self.target_dir)?;
+        fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
         if self.project_type.is_metawasm() {
             self.postprocess_meta(&original_wasm_path, file_base_name)?;
@@ -438,7 +455,8 @@ extern "C" fn metahash() {{
     // It is needed because feature set or toolchain can change.
     fn force_rerun_on_next_run(&self, wasm_file_path: &Path) -> Result<()> {
         let stamp_file_path = wasm_file_path.with_extension("stamp");
-        fs::write(&stamp_file_path, ChronoLocal::now().to_rfc3339())?;
+        fs::write(&stamp_file_path, ChronoLocal::now().to_rfc3339())
+            .context("Failed to write stamp file")?;
         println!("cargo:rerun-if-changed={}", stamp_file_path.display());
         Ok(())
     }
