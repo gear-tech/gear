@@ -209,7 +209,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
     let node = dev_node();
     let api = Api::new(Some(&node_uri(&node))).await?;
-    let mut finalized_blocks = api.finalized_blocks().await?;
+    let mut finalized_blocks = api.subscribe_finalized_blocks().await?;
 
     let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
     assert!(
