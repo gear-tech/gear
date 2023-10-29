@@ -23,8 +23,8 @@ use frame_election_provider_support::{
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        Hooks,
-        ConstU32, Contains, Currency, Everything, FindAuthor, GenesisBuild, NeverEnsureOrigin, U128CurrencyToVote,
+        ConstU32, Contains, Currency, Everything, FindAuthor, GenesisBuild, Hooks,
+        NeverEnsureOrigin,
     },
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
@@ -75,8 +75,6 @@ pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
 pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
-
-pub const INIT_TIMESTAMP: u64 = 30_000;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -686,22 +684,14 @@ impl ExtBuilder {
 
 #[allow(unused)]
 pub(crate) fn run_to_block(n: u64) {
-	Staking::on_finalize(System::block_number());
-	for b in (System::block_number() + 1)..=n {
-		System::set_block_number(b);
-		on_initialize(b);
-		if b != n {
-			on_finalize(System::block_number());
-		}
-	}
-    // while System::block_number() < n {
-    //     let current_blk = System::block_number();
-    //     on_finalize(current_blk);
-
-    //     let new_block_number = current_blk + 1;
-    //     System::set_block_number(new_block_number);
-    //     on_initialize(new_block_number);
-    // }
+    Staking::on_finalize(System::block_number());
+    for b in (System::block_number() + 1)..=n {
+        System::set_block_number(b);
+        on_initialize(b);
+        if b != n {
+            on_finalize(System::block_number());
+        }
+    }
 }
 
 #[allow(unused)]
