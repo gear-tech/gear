@@ -24,6 +24,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::program::MemoryInfix;
+use sp_runtime::TryRuntimeError;
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -38,7 +39,7 @@ pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
         assert!(v2::SessionMemoryPages::<T>::iter().next().is_none());
         assert!(ResumeSessions::<T>::iter().next().is_none());
         assert!(PausedProgramStorage::<T>::iter().next().is_none());
@@ -127,7 +128,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     }
 
     #[cfg(feature = "try-runtime")]
-    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+    fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
         // Check that everything decoded fine.
         let count = ProgramStorage::<T>::iter_keys().fold(0u64, |i, k| {
             let Ok(program) = ProgramStorage::<T>::try_get(k) else {
