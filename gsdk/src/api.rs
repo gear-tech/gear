@@ -77,7 +77,7 @@ impl Api {
 
     /// Subscribe finalized blocks
     ///
-    /// Same as `blocks` but only finalized blocks.
+    /// Same as [`subscribe_blocks`] but only finalized blocks.
     pub async fn subscribe_finalized_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
