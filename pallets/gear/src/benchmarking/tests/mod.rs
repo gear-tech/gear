@@ -42,20 +42,11 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let instrs = vec![
-        Instruction::I64Const(0xCAFEBABE),
-        Instruction::SetLocal(0),
-        Instruction::Call(0),
-    ];
-
-    let mut body = body::from_instructions(instrs);
-    body::inject_locals(&mut body, 1);
+    let instrs = vec![Instruction::Call(0)];
 
     let module: WasmModule<T> = ModuleDefinition {
-        memory: Some(ImportedMemory::max::<T>()),
-        init_body: Some(body),
-        stack_end: Some(0.into()),
-        num_globals: 1,
+        memory: Some(ImportedMemory::new(0)),
+        init_body: Some(body::from_instructions(instrs)),
         ..Default::default()
     }
     .into();
