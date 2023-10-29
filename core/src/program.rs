@@ -20,12 +20,32 @@
 
 use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
 use alloc::collections::BTreeSet;
-use scale_info::scale::{Decode, Encode};
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
+
+/// Struct defines infix of memory pages storage.
+#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct MemoryInfix(u32);
+
+impl MemoryInfix {
+    /// Constructing function from u32 number.
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Return inner u32 value.
+    pub fn inner(&self) -> u32 {
+        self.0
+    }
+}
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
+    memory_infix: MemoryInfix,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
     allocations: BTreeSet<WasmPage>,
@@ -35,9 +55,10 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id` and `code`.
-    pub fn new(id: ProgramId, code: InstrumentedCode) -> Self {
+    pub fn new(id: ProgramId, memory_infix: MemoryInfix, code: InstrumentedCode) -> Self {
         Program {
             id,
+            memory_infix,
             code,
             allocations: Default::default(),
             is_initialized: false,
@@ -47,12 +68,14 @@ impl Program {
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
+        memory_infix: MemoryInfix,
         code: InstrumentedCode,
         allocations: BTreeSet<WasmPage>,
         is_initialized: bool,
     ) -> Self {
         Self {
             id,
+            memory_infix,
             code,
             allocations,
             is_initialized,
@@ -72,6 +95,11 @@ impl Program {
     /// Get the [`ProgramId`] of this program.
     pub fn id(&self) -> ProgramId {
         self.id
+    }
+
+    /// Get the [`MemoryInfix`] of this program.
+    pub fn memory_infix(&self) -> MemoryInfix {
+        self.memory_infix
     }
 
     /// Get initial memory size for this program.
@@ -156,7 +184,7 @@ mod tests {
 
         let code = Code::try_new(binary, 1, |_| ConstantCostRules::default(), None).unwrap();
         let (code, _) = code.into_parts();
-        let program = Program::new(ProgramId::from(1), code);
+        let program = Program::new(ProgramId::from(1), Default::default(), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());

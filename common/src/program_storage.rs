@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
+use crate::storage::{AppendMapStorage, MapStorage, TripleMapStorage};
 use core::fmt::Debug;
 
 /// Trait for ProgramStorage errors.
@@ -62,7 +62,12 @@ pub trait ProgramStorage {
     type AccountId: Eq + PartialEq;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
-    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
+    type MemoryPageMap: TripleMapStorage<
+        Key1 = ProgramId,
+        Key2 = MemoryInfix,
+        Key3 = GearPage,
+        Value = PageBuf,
+    >;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
     /// Attempt to remove all items from all the associated maps.
@@ -136,11 +141,12 @@ pub trait ProgramStorage {
     /// Return program data for each page from `pages`.
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
+        memory_infix: MemoryInfix,
         pages: impl Iterator<Item = &'a GearPage>,
     ) -> Result<MemoryMap, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, page)
+            let data = Self::MemoryPageMap::get(&program_id, &memory_infix, page)
                 .ok_or(Self::InternalError::cannot_find_page_data())?;
             pages_data.insert(*page, data);
         }
@@ -148,19 +154,28 @@ pub trait ProgramStorage {
         Ok(pages_data)
     }
 
-    /// Store a memory page buffer to be associated with the given keys `program_id` and `page` from the map.
-    fn set_program_page_data(program_id: ProgramId, page: GearPage, page_buf: PageBuf) {
-        Self::MemoryPageMap::insert(program_id, page, page_buf);
+    /// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.
+    fn set_program_page_data(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        page: GearPage,
+        page_buf: PageBuf,
+    ) {
+        Self::MemoryPageMap::insert(program_id, memory_infix, page, page_buf);
     }
 
-    /// Remove a memory page buffer under the given keys `program_id` and `page`.
-    fn remove_program_page_data(program_id: ProgramId, page_num: GearPage) {
-        Self::MemoryPageMap::remove(program_id, page_num);
+    /// Remove a memory page buffer under the given keys `program_id`, `memory_infix` and `page`.
+    fn remove_program_page_data(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        page_num: GearPage,
+    ) {
+        Self::MemoryPageMap::remove(program_id, memory_infix, page_num);
     }
 
-    /// Remove all memory page buffers under the given key `program_id`.
-    fn remove_program_pages(program_id: ProgramId) {
-        Self::MemoryPageMap::clear_prefix(program_id);
+    /// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
+    fn remove_program_pages(program_id: ProgramId, memory_infix: MemoryInfix) {
+        Self::MemoryPageMap::clear_prefix(program_id, memory_infix);
     }
 
     /// Final full prefix that prefixes all keys of memory pages.

@@ -42,7 +42,7 @@ use gear_core::{
         WasmEntryPoint,
     },
     pages::{PageU32Size, WasmPage},
-    program::Program,
+    program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -102,9 +102,11 @@ fn check_memory(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
+#[allow(clippy::too_many_arguments)]
 fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     mem: &mut EnvMem,
     program_id: ProgramId,
+    memory_infix: MemoryInfix,
     static_pages: WasmPage,
     stack_end: Option<u32>,
     globals_config: GlobalsAccessConfig,
@@ -131,6 +133,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     ProcessorExt::lazy_pages_init_for_program(
         mem,
         program_id,
+        memory_infix,
         stack_end,
         globals_config,
         lazy_pages_weights,
@@ -243,6 +246,7 @@ where
             prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
                 program_id,
+                program.memory_infix(),
                 static_pages,
                 stack_end,
                 globals_config,
@@ -349,7 +353,7 @@ pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     allocations: Option<BTreeSet<WasmPage>>,
-    program_id: Option<ProgramId>,
+    program_info: Option<(ProgramId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,
@@ -362,7 +366,8 @@ where
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
     EP: WasmEntryPoint,
 {
-    let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
+    let (program_id, memory_infix) = program_info.unwrap_or_default();
+    let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
@@ -439,7 +444,8 @@ where
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
-                program.id(),
+                program_id,
+                memory_infix,
                 static_pages,
                 stack_end,
                 globals_config,

@@ -497,7 +497,11 @@ impl GearApi {
         dest_node_api
             .0
             .storage
-            .set_gpages(dest_program_id, &src_program_pages)
+            .set_gpages(
+                dest_program_id,
+                src_program.memory_infix.0,
+                &src_program_pages,
+            )
             .await?;
 
         src_program.expiration_block = dest_node_api.last_block_number().await?;
@@ -591,7 +595,12 @@ impl GearApi {
         )
         .await?;
 
-        self.0.storage.set_gpages(program_id, &pages).await?;
+        let program = self.0.api().gprog_at(program_id, None).await?;
+
+        self.0
+            .storage
+            .set_gpages(program_id, program.memory_infix.0, &pages)
+            .await?;
 
         Ok(())
     }
