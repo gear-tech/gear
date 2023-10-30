@@ -17,13 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_builder::TARGET;
-use std::{fs, process::Command};
+use std::{fs, process::Command, sync::OnceLock};
 
 struct CargoRunner(Command);
 
 impl CargoRunner {
     fn new() -> Self {
         Self(Command::new("cargo"))
+    }
+
+    fn stable() -> Self {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("+stable");
+
+        Self(cmd)
     }
 
     fn args<const SIZE: usize>(mut self, args: [&str; SIZE]) -> Self {
@@ -42,35 +49,65 @@ impl CargoRunner {
     }
 }
 
+fn install_stable_toolchain() {
+    static STABLE_TOOLCHAIN: OnceLock<()> = OnceLock::new();
+
+    STABLE_TOOLCHAIN.get_or_init(|| {
+        let status = Command::new("rustup")
+            .arg("toolchain")
+            .arg("install")
+            .arg("stable")
+            .arg("--component")
+            .arg("llvm-tools-preview")
+            .arg("--target")
+            .arg("wasm32-unknown-unknown")
+            .status()
+            .expect("rustup run error");
+        assert!(status.success());
+    });
+}
+
 #[ignore]
 #[test]
 fn test_debug() {
+    install_stable_toolchain();
+
     CargoRunner::new().args(["test"]).run();
+    CargoRunner::stable().args(["test"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_debug() {
-    CargoRunner::new().args(["build"]).run()
+    install_stable_toolchain();
+
+    CargoRunner::new().args(["build"]).run();
+    CargoRunner::stable().args(["build"]).run();
 }
 
 #[ignore]
 #[test]
 fn test_release() {
-    CargoRunner::new().args(["test", "--release"]).run()
+    install_stable_toolchain();
+
+    CargoRunner::new().args(["test", "--release"]).run();
+    CargoRunner::stable().args(["test", "--release"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_release() {
-    CargoRunner::new().args(["build", "--release"]).run()
+    install_stable_toolchain();
+
+    CargoRunner::new().args(["build", "--release"]).run();
+    CargoRunner::stable().args(["build", "--release"]).run();
 }
 
 #[test]
 fn build_release_for_target() {
     CargoRunner::new()
         .args(["build", "--release", "--target", TARGET])
-        .run()
+        .run();
 }
 
 #[ignore]
