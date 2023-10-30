@@ -152,8 +152,6 @@ impl CargoCommand {
             "PROFILE",
             "RUSTC",
             "RUSTDOC",
-            "RUSTC_WRAPPER",
-            "RUSTC_WORKSPACE_WRAPPER",
             "RUSTC_LINKER",
             "CARGO_ENCODED_RUSTFLAGS",
         ] {
