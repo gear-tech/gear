@@ -70,12 +70,6 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
 
-impl pallet_gear_bank::Config for Test {
-    type Currency = Balances;
-    type BankAddress = BankAddress;
-    type GasMultiplier = GasMultiplier;
-}
-
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
@@ -138,6 +132,7 @@ common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
+pallet_gear_bank::impl_config!(Test);
 pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.

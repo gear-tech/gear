@@ -30,6 +30,17 @@ pub use pallet::*;
 
 use frame_support::traits::{Currency, StorageVersion};
 
+#[macro_export]
+macro_rules! impl_config {
+    ($runtime:ty) => {
+        impl pallet_gear_bank::Config for $runtime {
+            type Currency = Balances;
+            type BankAddress = BankAddress;
+            type GasMultiplier = GasMultiplier;
+        }
+    };
+}
+
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;

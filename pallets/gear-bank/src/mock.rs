@@ -80,12 +80,7 @@ construct_runtime!(
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
-
-impl pallet_gear_bank::Config for Test {
-    type Currency = Balances;
-    type BankAddress = BankAddress;
-    type GasMultiplier = GasMultiplier;
-}
+pallet_gear_bank::impl_config!(Test);
 
 pub fn new_test_ext() -> TestExternalities {
     let mut storage = frame_system::GenesisConfig::default()

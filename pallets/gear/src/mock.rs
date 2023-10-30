@@ -91,6 +91,7 @@ construct_runtime!(
 common::impl_pallet_system!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
+pallet_gear_bank::impl_config!(Test);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -159,12 +160,6 @@ impl Drop for DynamicScheduleReset {
 parameter_types! {
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-}
-
-impl pallet_gear_bank::Config for Test {
-    type Currency = Balances;
-    type BankAddress = BankAddress;
-    type GasMultiplier = GasMultiplier;
 }
 
 impl pallet_gear::Config for Test {
