@@ -102,11 +102,6 @@ impl pallet_gear::Config for Test {
     type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
-}
-
 impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
     type ReserveThreshold = ConstU64<1>;
@@ -142,6 +137,7 @@ common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
 pallet_gear_program::impl_config!(Test);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
 pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.

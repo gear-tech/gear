@@ -80,6 +80,7 @@ pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
 pallet_gear_program::impl_config!(Test);
 
 parameter_types! {
@@ -156,11 +157,6 @@ impl pallet_gear_scheduler::Config for Test {
     type MailboxCost = ConstU64<100>;
     type ReservationCost = ConstU64<100>;
     type DispatchHoldCost = ConstU64<100>;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;

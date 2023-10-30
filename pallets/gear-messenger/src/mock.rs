@@ -54,16 +54,12 @@ construct_runtime!(
 common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
 common::impl_pallet_balances!(Test);
 pallet_gear_gas::impl_config!(Test);
+pallet_gear_messenger::impl_config!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1;
     pub const BlockGasLimit: u64 = 100_000_000;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = ();
 }
 
 // Build genesis storage according to the mock runtime.

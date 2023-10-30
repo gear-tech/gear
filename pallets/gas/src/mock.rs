@@ -46,12 +46,13 @@ construct_runtime!(
     {
         System: system,
         GearMessenger: pallet_gear_messenger,
-        Gas: pallet_gear_gas,
+        GearGas: pallet_gear_gas,
         Balances: pallet_balances,
     }
 );
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = GearBlockNumber,);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 
@@ -59,11 +60,6 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1;
     pub const GearBlockNumber: BlockNumber = 100;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = Gas;
-    type CurrentBlockNumber = GearBlockNumber;
 }
 
 // Build genesis storage according to the mock runtime.
