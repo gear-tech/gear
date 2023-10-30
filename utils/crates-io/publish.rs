@@ -14,23 +14,23 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 17] = [
+const PACKAGES: [&str; 12] = [
     // Packages without local dependencies.
     "actor-system-error",
-    "gear-backend-codegen",
-    "gear-common-codegen",
+    // "gear-backend-codegen",
+    // "gear-common-codegen",
     "gear-core-errors",
-    "gear-sandbox-env",
+    // "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
-    "gsys",
+    // "gsys",
     // The packages below have local dependencies,
     // and should be published in order.
     "gmeta",
     "gear-core",
     "gear-utils",
-    "gear-backend-common",
+    // "gear-backend-common",
     // TODO: Refactor metadata parser (#3222)
     //
     // "gear-sandbox-host",
