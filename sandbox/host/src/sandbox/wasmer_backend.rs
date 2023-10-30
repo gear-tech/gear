@@ -531,6 +531,7 @@ impl MemoryWrapper {
     /// See `[memory_as_slice]`. In addition to those requirements, since a mutable reference is
     /// returned it must be ensured that only one mutable and no shared references to memory
     /// exists at the same time.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     unsafe fn memory_as_slice_mut(memory: &mut wasmer::Memory) -> &mut [u8] {
         let ptr = memory.data_ptr();
 

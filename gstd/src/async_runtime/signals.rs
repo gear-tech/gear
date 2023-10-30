@@ -89,7 +89,7 @@ impl WakeSignals {
         self.signals.contains_key(&reply_to)
     }
 
-    pub fn poll(&mut self, reply_to: MessageId, cx: &mut Context<'_>) -> ReplyPoll {
+    pub fn poll(&mut self, reply_to: MessageId, cx: &Context<'_>) -> ReplyPoll {
         match self.signals.remove(&reply_to) {
             None => ReplyPoll::None,
             Some(mut signal @ WakeSignal { payload: None, .. }) => {

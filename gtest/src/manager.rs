@@ -40,7 +40,7 @@ use gear_core::{
         StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    program::{MemoryInfix, Program as CoreProgram},
+    program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -296,7 +296,6 @@ impl ExtManager {
     fn update_storage_pages(
         &mut self,
         program_id: ProgramId,
-        memory_infix: MemoryInfix,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
         // write pages into storage so lazy-pages can access them

@@ -51,10 +51,7 @@ use crate::{
     init_flag::InitializationFlag,
 };
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_core::{
-    ids::ProgramId,
-    pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage},
-};
+use gear_core::pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};

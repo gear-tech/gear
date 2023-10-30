@@ -20,7 +20,6 @@
 
 use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::{
-    ids::ProgramId,
     pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
     str::LimitedStr,
 };
@@ -137,13 +136,13 @@ pub(crate) struct LazyPagesRuntimeContext {
 }
 
 impl LazyPagesRuntimeContext {
-    pub fn page_has_data_in_storage(&self, prefix: &mut PagePrefix, page: GearPage) -> bool {
+    pub fn page_has_data_in_storage(&self, prefix: &PagePrefix, page: GearPage) -> bool {
         self.program_storage.page_exists(prefix, page)
     }
 
     pub fn load_page_data_from_storage(
         &mut self,
-        prefix: &mut PagePrefix,
+        prefix: &PagePrefix,
         page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, Error> {
@@ -247,21 +246,12 @@ impl LazyPagesExecutionContext {
 #[derive(Debug)]
 pub struct PagePrefix {
     storage_prefix: Vec<u8>,
-    program_id: ProgramId,
 }
 
 impl PagePrefix {
     /// New page prefix from program prefix
-    pub(crate) fn new_from_program_prefix(storage_prefix: Vec<u8>, program_id: ProgramId) -> Self {
-        Self {
-            storage_prefix,
-            program_id,
-        }
-    }
-
-    /// Program ID which is part of page prefix.
-    pub fn program_id(&self) -> ProgramId {
-        self.program_id
+    pub(crate) fn new_from_program_prefix(storage_prefix: Vec<u8>) -> Self {
+        Self { storage_prefix }
     }
 
     /// Returns key in storage for `page`.
@@ -269,7 +259,6 @@ impl PagePrefix {
         let page_no: u32 = page.into();
         [
             self.storage_prefix.as_slice(),
-            self.program_id.as_ref(),
             page_no.to_le_bytes().as_slice(),
         ]
         .concat()

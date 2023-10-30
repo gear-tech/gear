@@ -4116,7 +4116,6 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "region",
- "sp-io",
  "sp-std 5.0.0",
  "sp-wasm-interface",
  "winapi",
@@ -4270,12 +4269,14 @@ name = "gear-runtime-interface"
 version = "1.0.2"
 dependencies = [
  "byteorder",
+ "derive_more",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
+ "sp-io",
  "sp-runtime-interface",
  "sp-std 5.0.0",
  "sp-wasm-interface",

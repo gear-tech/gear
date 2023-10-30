@@ -97,7 +97,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 }
 
 fn accesses_pages(
-    ctx: &mut LazyPagesExecutionContext,
+    ctx: &LazyPagesExecutionContext,
     accesses: &[MemoryInterval],
     pages: &mut BTreeSet<GearPage>,
 ) -> Result<(), Error> {
