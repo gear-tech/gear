@@ -60,6 +60,7 @@ pub trait Bound<T: Sized>: From<T> + Copy {
 pub trait Numerated: Copy + Sized + Ord + Eq {
     type N: PrimInt + Unsigned;
     type B: Bound<Self>;
+    // +_+_+ rename to add_if_le
     fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self>;
     fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self>;
     fn sub(self, other: Self) -> Option<Self::N>;

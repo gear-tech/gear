@@ -15,3 +15,9 @@ pub use num_traits::{
     bounds::{LowerBounded, UpperBounded},
     CheckedAdd, One, Zero,
 };
+
+#[cfg(any(feature = "mock", test))]
+pub mod mock;
+
+#[cfg(test)]
+mod tests;

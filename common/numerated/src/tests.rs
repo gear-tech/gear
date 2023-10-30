@@ -1,7 +1,8 @@
 #![allow(clippy::reversed_empty_ranges)]
 
-use numerated::{Interval, IntervalsTree};
-use std::{ops::RangeInclusive, vec};
+use crate::{Interval, IntervalsTree};
+use alloc::{vec, vec::Vec};
+use core::ops::RangeInclusive;
 
 #[test]
 fn test_insert() {
@@ -368,4 +369,91 @@ fn test_and_not_iter() {
     let drops1: IntervalsTree<u64> = [6, 10, 110].into_iter().collect();
     let v: Vec<RangeInclusive<u64>> = drops.and_not_iter(&drops1).map(Into::into).collect();
     assert_eq!(v, vec![0..=4, 8..=9, 100..=102]);
+}
+
+mod stress_tests {
+    use crate::{
+        mock::{self, TreeAction},
+        BoundValue, Interval, Numerated,
+    };
+    use alloc::vec::Vec;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::Into)]
+    struct Number(i32);
+
+    impl Numerated for Number {
+        type N = u32;
+        type B = BoundValue<Self>;
+
+        fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self> {
+            let num = <i32>::try_from(num).unwrap();
+            self.0
+                .checked_add(num)
+                .filter(|&res| res <= other.0)
+                .map(Self)
+        }
+        fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
+            let num = <i32>::try_from(num).unwrap();
+            self.0
+                .checked_sub(num)
+                .filter(|&res| res >= other.0)
+                .map(Self)
+        }
+        fn sub(self, other: Self) -> Option<Self::N> {
+            self.0.checked_sub(other.0).map(|res| res as u32)
+        }
+    }
+
+    fn rand_interval(rng: &mut StdRng, max: i32, min: i32, max_len: u32) -> Interval<Number> {
+        let max_len = <i32>::try_from(max_len).unwrap();
+        let end = rng.gen_range(min..=max);
+        let start = rng.gen_range(end.saturating_sub(max_len)..=end);
+        (Number(start)..=Number(end)).try_into().unwrap()
+    }
+
+    fn stress_test(
+        rng: &mut StdRng,
+        max: i32,
+        min: i32,
+        actions_amount: usize,
+        interval_max_len: u32,
+    ) {
+        let drops_diapason_max_len = interval_max_len * 3;
+
+        let actions = (0..actions_amount)
+            .map(|_| match rng.gen_range(0..3) {
+                0 => TreeAction::Insert(rand_interval(rng, max, min, interval_max_len)),
+                1 => TreeAction::Remove(rand_interval(rng, max, min, interval_max_len)),
+                2 => TreeAction::Voids(rand_interval(rng, max, min, drops_diapason_max_len)),
+                _ => unreachable!(),
+            })
+            .collect::<Vec<_>>();
+
+        let initial = (min..=max)
+            .filter(|_| rng.gen_range(0..10) == 0)
+            .map(Number)
+            .collect();
+
+        mock::test_tree(initial, actions);
+    }
+
+    #[test]
+    fn stress_simple() {
+        env_logger::init();
+        let mut rng = StdRng::seed_from_u64(42);
+        for _ in 0..100_000 {
+            stress_test(&mut rng, 100, -100, 10, 20);
+        }
+    }
+
+    #[ignore = "takes too long"]
+    #[test]
+    fn stress_hard() {
+        env_logger::init();
+        let mut rng = StdRng::seed_from_u64(43);
+        for _ in 0..1_000_000 {
+            stress_test(&mut rng, 10_000, -1_000, 100, 100);
+        }
+    }
 }
