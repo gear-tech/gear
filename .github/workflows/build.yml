@@ -77,6 +77,9 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
 
+      - name: "Test: Stack height limit"
+        run: cargo run -p calc-stack-height --release --locked
+
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
 
@@ -225,6 +228,11 @@ jobs:
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+      - name: "Test: Stack height limit"
+        run: cargo run -p calc-stack-height --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 

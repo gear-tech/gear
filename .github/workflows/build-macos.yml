@@ -44,6 +44,9 @@ jobs:
 
       - name: "Build: Node"
         run: cargo build -p gear-cli
+        
+      - name: "Test: Stack height limit"
+        run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Lazy pages"
         run: >-
