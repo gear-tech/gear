@@ -277,7 +277,12 @@ where
             .map(|_| GearPage::new(rng.gen_range(0..size_gear.raw())).unwrap())
         {
             page_sets.add_page_with_data(page);
-            ProgramStorageOf::<T>::set_program_page_data(program_id, page, PageBuf::new_zeroed());
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                Default::default(),
+                page,
+                PageBuf::new_zeroed(),
+            );
         }
 
         // execute program with random page costs

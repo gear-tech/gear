@@ -56,6 +56,7 @@ use gear_core::{
     memory::PageBuf,
     message::DispatchKind,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -275,6 +276,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
+    pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,
