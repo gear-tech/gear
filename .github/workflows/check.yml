@@ -56,7 +56,7 @@ jobs:
           fi
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup toolchain install stable --component llvm-tools-preview --target wasm32-unknown-unknown
 
       - name: "Check: Compiling gstd on stable"
         run: |
