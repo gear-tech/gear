@@ -61,7 +61,8 @@ jobs:
       - name: "Check: Compiling gstd on stable"
         run: |
           cargo +stable check -p gstd
-          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+          cd utils/wasm-builder/test-program
+          cargo +stable check --release
 
       - run: sccache --show-stats
 
