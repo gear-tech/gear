@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gas;
+use crate as pallet_gear_gas;
 use frame_support::{construct_runtime, parameter_types, weights::constants::RocksDbWeight};
 use frame_system as system;
 use primitive_types::H256;
@@ -31,6 +31,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
+type BlockGasLimit = ();
 
 pub const ALICE: AccountId = 1;
 pub const BOB: AccountId = 2;
@@ -45,30 +46,24 @@ construct_runtime!(
     {
         System: system,
         GearMessenger: pallet_gear_messenger,
-        Gas: pallet_gas,
+        Gas: pallet_gear_gas,
         Balances: pallet_balances,
     }
 );
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1;
-}
-
-parameter_types! {
     pub const GearBlockNumber: BlockNumber = 100;
 }
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = Gas;
     type CurrentBlockNumber = GearBlockNumber;
-}
-
-impl pallet_gas::Config for Test {
-    type BlockGasLimit = ();
 }
 
 // Build genesis storage according to the mock runtime.

@@ -90,6 +90,7 @@ construct_runtime!(
 
 common::impl_pallet_system!(Test);
 pallet_gear_program::impl_config!(Test);
+pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
@@ -198,10 +199,6 @@ impl pallet_gear_scheduler::Config for Test {
     type MailboxCost = ConstU64<100>;
     type ReservationCost = ConstU64<100>;
     type DispatchHoldCost = ConstU64<100>;
-}
-
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
 }
 
 impl pallet_gear_messenger::Config for Test {

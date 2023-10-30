@@ -76,6 +76,7 @@ construct_runtime!(
 );
 
 common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = RuntimeBlockWeights,);
+pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
@@ -146,10 +147,6 @@ impl pallet_gear::Config for Test {
     type ProgramResumeSessionDuration = ResumeSessionDuration;
     type ProgramRentEnabled = ConstBool<true>;
     type ProgramRentDisabledDelta = RentFreePeriod;
-}
-
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
 }
 
 impl pallet_gear_scheduler::Config for Test {

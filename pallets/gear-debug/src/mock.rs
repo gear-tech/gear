@@ -116,10 +116,6 @@ impl pallet_gear_scheduler::Config for Test {
     type DispatchHoldCost = ConstU64<100>;
 }
 
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
-}
-
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test where
@@ -146,6 +142,7 @@ common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
 pallet_gear_program::impl_config!(Test);
+pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
