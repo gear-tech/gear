@@ -44,6 +44,7 @@ pub const BLOCK_AUTHOR: AccountId = 255;
 
 common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
 common::impl_pallet_balances!(Test);
+common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
@@ -76,17 +77,9 @@ impl pallet_authorship::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const PerformanceMultiplier: u32 = 100;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
 }
 
 impl pallet_gear_program::Config for Test {

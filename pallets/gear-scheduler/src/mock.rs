@@ -69,6 +69,7 @@ construct_runtime!(
 );
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+common::impl_pallet_timestamp!(Test);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
@@ -159,17 +160,6 @@ impl pallet_authorship::Config for Test {
     type FindAuthor = FixedBlockAuthor;
 
     type EventHandler = ();
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.

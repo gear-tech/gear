@@ -51,6 +51,7 @@ frame_support::parameter_types! {
     );
     pub const SS58Prefix: u8 = 42;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1_110, write: 2_300 };
+    pub const MinimumPeriod: u64 = 500;
 }
 
 #[macro_export]
@@ -110,5 +111,17 @@ macro_rules! impl_pallet_system_inner {
         type SystemConfigBlockWeights = $block_weights;
 
         $crate::impl_pallet_system_inner!($runtime, $( $rest )*);
+    };
+}
+
+#[macro_export]
+macro_rules! impl_pallet_timestamp {
+    ($runtime:ty) => {
+        impl pallet_timestamp::Config for Test {
+            type Moment = u64;
+            type OnTimestampSet = ();
+            type MinimumPeriod = $crate::pallet_tests::MinimumPeriod;
+            type WeightInfo = ();
+        }
     };
 }
