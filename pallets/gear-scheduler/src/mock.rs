@@ -72,15 +72,11 @@ common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_timestamp!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
+pallet_gear_program::impl_config!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 500;
-}
-
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
 }
 
 parameter_types! {

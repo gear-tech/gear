@@ -143,5 +143,7 @@ macro_rules! impl_pallet_authorship {
         }
     };
 
-    ($runtime:ty) => { $crate::impl_pallet_authorship!($runtime, EventHandler = ()); };
+    ($runtime:ty) => {
+        $crate::impl_pallet_authorship!($runtime, EventHandler = ());
+    };
 }

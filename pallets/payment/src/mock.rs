@@ -79,6 +79,7 @@ common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = RuntimeBlockWeig
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+pallet_gear_program::impl_config!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2_400;
@@ -145,11 +146,6 @@ impl pallet_gear::Config for Test {
     type ProgramResumeSessionDuration = ResumeSessionDuration;
     type ProgramRentEnabled = ConstBool<true>;
     type ProgramRentDisabledDelta = RentFreePeriod;
-}
-
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
 }
 
 impl pallet_gear_gas::Config for Test {

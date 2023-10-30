@@ -61,11 +61,6 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
 }
 
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
-}
-
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
@@ -150,6 +145,7 @@ common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
+pallet_gear_program::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

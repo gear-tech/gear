@@ -138,6 +138,8 @@ pub mod migrations;
 #[cfg(test)]
 mod mock;
 
+pub mod pallet_tests;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
