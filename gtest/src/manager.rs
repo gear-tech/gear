@@ -23,7 +23,8 @@ use crate::{
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RENT_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -39,7 +40,7 @@ use gear_core::{
         StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    program::Program as CoreProgram,
+    program::{MemoryInfix, Program as CoreProgram},
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -139,6 +140,7 @@ impl TestActor {
                 initialized: program.is_initialized(),
                 pages_with_data: pages_data.pages_keys(program.id()),
                 gas_reservation_map,
+                memory_infix: program.memory_infix(),
             },
             program,
         ))
@@ -294,6 +296,7 @@ impl ExtManager {
     fn update_storage_pages(
         &mut self,
         program_id: ProgramId,
+        memory_infix: MemoryInfix,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
         // write pages into storage so lazy-pages can access them
@@ -428,7 +431,7 @@ impl ExtManager {
                 String::from("state"),
                 program.code().clone(),
                 Some(program.allocations().clone()),
-                Some(*program_id),
+                Some((*program_id, program.memory_infix())),
                 payload,
                 u64::MAX,
                 self.block_info,
@@ -775,6 +778,7 @@ impl ExtManager {
             .expect("Unable to find gas limit for message");
         let block_config = BlockConfig {
             block_info: self.block_info,
+            performance_multiplier: gsys::Percent::new(100),
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
@@ -795,6 +799,7 @@ impl ExtManager {
             code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
             code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
             rent_cost: RENT_COST,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
         };
 
         let (actor_data, code) = match data {
@@ -1034,7 +1039,7 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
-                    let candidate = CoreProgram::new(candidate_id, code);
+                    let candidate = CoreProgram::new(candidate_id, Default::default(), code);
                     self.store_new_actor(
                         candidate_id,
                         Program::Genuine {

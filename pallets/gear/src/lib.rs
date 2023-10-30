@@ -72,8 +72,10 @@ use gear_core::{
     memory::PageBuf,
     message::*,
     pages::{GearPage, WasmPage},
+    percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{One, Saturating, UniqueSaturatedInto, Zero},
@@ -166,6 +168,10 @@ pub mod pallet {
         /// The maximum amount of messages that can be produced in single run.
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
+
+        /// Performance multiplier.
+        #[pallet::constant]
+        type PerformanceMultiplier: Get<Percent>;
 
         type DebugInfo: DebugInfo;
 
@@ -567,14 +573,13 @@ pub mod pallet {
             let code_and_id = CodeAndId::new(code);
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_and_id.code_id(),
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -588,8 +593,8 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas(&who, gas_limit)?;
-            GearBank::<T>::deposit_value(&who, value)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
+            GearBank::<T>::deposit_value(&who, value, false)?;
 
             let origin = who.clone().into_origin();
 
@@ -1028,6 +1033,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
+                performance_multiplier: T::PerformanceMultiplier::get().into(),
                 max_pages: schedule.limits.memory_pages.into(),
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
@@ -1048,6 +1054,7 @@ pub mod pallet {
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
                 rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
+                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
 
@@ -1167,15 +1174,15 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> Result<InitPacket, DispatchError> {
-            let packet = InitPacket::new_with_gas(
+            let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
-                None,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1189,8 +1196,8 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            GearBank::<T>::deposit_gas(&who, gas_limit)?;
-            GearBank::<T>::deposit_value(&who, value)?;
+            GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
+            GearBank::<T>::deposit_value(&who, value, keep_alive)?;
 
             Ok(packet)
         }
@@ -1355,6 +1362,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1369,6 +1377,7 @@ pub mod pallet {
                 init_payload,
                 gas_limit,
                 value,
+                keep_alive,
             )?;
 
             if !T::CodeStorage::exists(code_and_id.code_id()) {
@@ -1416,6 +1425,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1426,8 +1436,15 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Construct packet.
-            let packet =
-                Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
+            let packet = Self::init_packet(
+                who.clone(),
+                code_id,
+                salt,
+                init_payload,
+                gas_limit,
+                value,
+                keep_alive,
+            )?;
 
             Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
             Ok(().into())
@@ -1442,18 +1459,11 @@ pub mod pallet {
         /// is not a program in uninitialized state. If the opposite holds true,
         /// the message is not enqueued for processing.
         ///
-        /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// charged against a `voucher` that must have been issued for the sender
-        /// in conjunction with the `destination` program. That means that the
-        /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
-        /// exist and have sufficient funds in it. Otherwise, the call is invalidated.
-        ///
         /// Parameters:
         /// - `destination`: the message destination.
         /// - `payload`: in case of a program destination, parameters of the `handle` function.
         /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
         /// - `value`: balance to be transferred to the program once it's been created.
-        /// - `prepaid`: a flag that indicates whether a voucher should be used.
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
@@ -1465,91 +1475,20 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
-            let payload = payload
-                .try_into()
-                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+            // Validating origin.
             let who = ensure_signed(origin)?;
-            let origin = who.clone().into_origin();
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
-
-            let message = HandleMessage::from_packet(
-                Self::next_message_id(origin),
-                HandlePacket::new_with_gas(
-                    destination,
-                    payload,
-                    gas_limit,
-                    value.unique_saturated_into(),
-                ),
-            );
-
-            if Self::program_exists(destination) {
-                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
-
-                // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-                // That's because destination can fail to be initialized, while this dispatch message is next
-                // in the queue.
-                // Note: reservation is always made against the user's account regardless whether
-                // a voucher exists. The latter can only be used to pay for gas or transaction fee.
-                GearBank::<T>::deposit_value(&who, value)?;
-
-                let external_node = if prepaid {
-                    // If voucher is used, we attempt to reserve funds on the respective account.
-                    // If no such voucher exists, the call is invalidated.
-                    let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
-
-                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
-                        log::debug!(
-                            "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
-                        );
-                        Error::<T>::FailureRedeemingVoucher
-                    })?;
-
-                    voucher_id
-                } else {
-                    // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas(&who, gas_limit)?;
-
-                    who.clone()
-                };
-
-                Self::create(external_node, message.id(), gas_limit, false);
-
-                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
-
-                Self::deposit_event(Event::MessageQueued {
-                    id: message.id(),
-                    source: who,
-                    destination: message.destination(),
-                    entry: MessageEntry::Handle,
-                });
-
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
-            } else {
-                let message = message.into_stored(ProgramId::from_origin(origin));
-                let message: UserMessage = message
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
-
-                CurrencyOf::<T>::transfer(
-                    &who,
-                    &<T as frame_system::Config>::AccountId::from_origin(
-                        message.destination().into_origin(),
-                    ),
-                    value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
-                )?;
-
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: None,
-                });
-            }
-
-            Ok(().into())
+            Self::send_message_impl(
+                who,
+                destination,
+                payload,
+                gas_limit,
+                value,
+                false,
+                keep_alive,
+            )
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1565,112 +1504,28 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        ///
-        /// If `prepaid` flag is set, the transaction fee and the gas cost will be
-        /// charged against a `voucher` that must have been issued for the sender
-        /// in conjunction with the mailboxed message source program. That means that the
-        /// synthetic account corresponding to the (`AccountId`, `ProgramId`) pair must
-        /// exist and have sufficient funds in it. Otherwise, the call is invalidated.
         #[pallet::call_index(4)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32) + if *prepaid {
-            Weight::zero()
-                .saturating_add(T::DbWeight::get().reads(1_u64))
-                .saturating_add(T::DbWeight::get().writes(1_u64))
-        } else {
-            Weight::zero()
-        })]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
+            keep_alive: bool,
         ) -> DispatchResultWithPostInfo {
             // Validating origin.
-            let origin = ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
 
-            let payload = payload
-                .try_into()
-                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
-
-            // Reason for reading from mailbox.
-            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
-
-            // Reading message, if found, or failing extrinsic.
-            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
-                .ok_or(Error::<T>::MessageNotFound)?;
-
-            Self::check_gas_limit_and_value(gas_limit, value)?;
-
-            let destination = mailboxed.source();
-
-            // Checking that program, origin replies to, is not terminated.
-            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
-
-            let reply_id = MessageId::generate_reply(mailboxed.id());
-
-            // Set zero gas limit if reply deposit exists.
-            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
-                0
-            } else {
-                gas_limit
-            };
-
-            GearBank::<T>::deposit_value(&origin, value)?;
-
-            let external_node = if prepaid {
-                // If voucher is used, we attempt to reserve funds on the respective account.
-                // If no such voucher exists, the call is invalidated.
-                let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
-
-                GearBank::<T>::deposit_gas(&voucher_id, gas_limit).map_err(|e| {
-                    log::debug!(
-                        "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
-                    );
-                    Error::<T>::FailureRedeemingVoucher
-                })?;
-
-                voucher_id
-            } else {
-                // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas(&origin, gas_limit)?;
-
-                origin.clone()
-            };
-
-            // Following up with a gas node creation.
-            Self::create(external_node, reply_id, gas_limit, true);
-
-            // Creating reply message.
-            let message = ReplyMessage::from_packet(
-                reply_id,
-                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
-            );
-
-            // Converting reply message into appropriate type for queueing.
-            let dispatch = message.into_stored_dispatch(
-                ProgramId::from_origin(origin.clone().into_origin()),
-                destination,
-                mailboxed.id(),
-            );
-
-            // Pre-generating appropriate event to avoid dispatch cloning.
-            let event = Event::MessageQueued {
-                id: dispatch.id(),
-                source: origin,
-                destination: dispatch.destination(),
-                entry: MessageEntry::Reply(mailboxed.id()),
-            };
-
-            // Queueing dispatch.
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-
-            // Depositing pre-generated event.
-            Self::deposit_event(event);
-
-            Ok(().into())
+            Self::send_reply_impl(
+                who,
+                reply_to_id,
+                payload,
+                gas_limit,
+                value,
+                false,
+                keep_alive,
+            )
         }
 
         /// Claim value from message in `Mailbox`.
@@ -1954,6 +1809,257 @@ pub mod pallet {
             }
 
             Ok(().into())
+        }
+    }
+
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        /// Underlying implementation of `GearPallet::send_message`.
+        pub fn send_message_impl(
+            origin: AccountIdOf<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+            prepaid: bool,
+            keep_alive: bool,
+        ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
+            let who = origin;
+            let origin = who.clone().into_origin();
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
+            );
+
+            if Self::program_exists(destination) {
+                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+
+                // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+                // That's because destination can fail to be initialized, while this dispatch message is next
+                // in the queue.
+                // Note: reservation is always made against the user's account regardless whether
+                // a voucher exists. The latter can only be used to pay for gas or transaction fee.
+                GearBank::<T>::deposit_value(&who, value, keep_alive)?;
+
+                let external_node = if prepaid {
+                    // If voucher is used, we attempt to reserve funds on the respective account.
+                    // If no such voucher exists, the call is invalidated.
+                    let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
+
+                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+                    voucher_id
+                } else {
+                    // If voucher is not used, we reserve gas limit on the user's account.
+                    GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
+
+                    who.clone()
+                };
+
+                Self::create(external_node, message.id(), gas_limit, false);
+
+                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+                Self::deposit_event(Event::MessageQueued {
+                    id: message.id(),
+                    source: who,
+                    destination: message.destination(),
+                    entry: MessageEntry::Handle,
+                });
+
+                QueueOf::<T>::queue(message)
+                    .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
+            } else {
+                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message: UserMessage = message
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
+
+                CurrencyOf::<T>::transfer(
+                    &who,
+                    &<T as frame_system::Config>::AccountId::from_origin(
+                        message.destination().into_origin(),
+                    ),
+                    value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )?;
+
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: None,
+                });
+            }
+
+            Ok(().into())
+        }
+
+        /// Underlying implementation of `GearPallet::send_reply`.
+        pub fn send_reply_impl(
+            origin: AccountIdOf<T>,
+            reply_to_id: MessageId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+            prepaid: bool,
+            keep_alive: bool,
+        ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
+
+            // Reading message, if found, or failing extrinsic.
+            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let destination = mailboxed.source();
+
+            // Checking that program, origin replies to, is not terminated.
+            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
+
+            GearBank::<T>::deposit_value(&origin, value, keep_alive)?;
+
+            let external_node = if prepaid {
+                // If voucher is used, we attempt to reserve funds on the respective account.
+                // If no such voucher exists, the call is invalidated.
+                let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
+
+                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
+                    log::debug!(
+                        "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
+                    );
+                    Error::<T>::FailureRedeemingVoucher
+                })?;
+
+                voucher_id
+            } else {
+                // If voucher is not used, we reserve gas limit on the user's account.
+                GearBank::<T>::deposit_gas(&origin, gas_limit, keep_alive)?;
+
+                origin.clone()
+            };
+
+            // Following up with a gas node creation.
+            Self::create(external_node, reply_id, gas_limit, true);
+
+            // Creating reply message.
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
+            );
+
+            // Converting reply message into appropriate type for queueing.
+            let dispatch = message.into_stored_dispatch(
+                ProgramId::from_origin(origin.clone().into_origin()),
+                destination,
+                mailboxed.id(),
+            );
+
+            // Pre-generating appropriate event to avoid dispatch cloning.
+            let event = Event::MessageQueued {
+                id: dispatch.id(),
+                source: origin,
+                destination: dispatch.destination(),
+                entry: MessageEntry::Reply(mailboxed.id()),
+            };
+
+            // Queueing dispatch.
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+            // Depositing pre-generated event.
+            Self::deposit_event(event);
+
+            Ok(().into())
+        }
+    }
+
+    impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type AccountId = AccountIdOf<T>;
+        type Balance = BalanceOf<T>;
+
+        fn weight(call: &PrepaidCall<Self::Balance>) -> Weight {
+            match call {
+                PrepaidCall::SendMessage { payload, .. } => {
+                    <T as Config>::WeightInfo::send_message(payload.len() as u32)
+                }
+                PrepaidCall::SendReply { payload, .. } => {
+                    <T as Config>::WeightInfo::send_reply(payload.len() as u32)
+                }
+            }
+        }
+
+        fn dispatch(
+            account_id: Self::AccountId,
+            call: PrepaidCall<Self::Balance>,
+        ) -> DispatchResultWithPostInfo {
+            match call {
+                PrepaidCall::SendMessage {
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    keep_alive,
+                } => Self::send_message_impl(
+                    account_id,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    true,
+                    keep_alive,
+                ),
+                PrepaidCall::SendReply {
+                    reply_to_id,
+                    payload,
+                    gas_limit,
+                    value,
+                    keep_alive,
+                } => Self::send_reply_impl(
+                    account_id,
+                    reply_to_id,
+                    payload,
+                    gas_limit,
+                    value,
+                    true,
+                    keep_alive,
+                ),
+            }
         }
     }
 

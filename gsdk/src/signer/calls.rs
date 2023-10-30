@@ -22,8 +22,8 @@ use crate::{
     config::GearConfig,
     metadata::{
         calls::{BalancesCall, GearCall, SudoCall, UtilityCall},
-        gear_runtime::RuntimeCall,
         runtime_types::sp_weights::weight_v2::Weight,
+        vara_runtime::RuntimeCall,
     },
     Error, Result, TxInBlock,
 };
@@ -74,6 +74,7 @@ impl SignerCalls {
                     Value::from_bytes(payload),
                     Value::u128(gas_limit as u128),
                     Value::u128(value),
+                    Value::bool(false),
                 ],
             )
             .await
@@ -93,7 +94,6 @@ impl SignerCalls {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
@@ -103,7 +103,7 @@ impl SignerCalls {
                     Value::from_bytes(payload),
                     Value::u128(gas_limit as u128),
                     Value::u128(value),
-                    Value::bool(prepaid),
+                    Value::bool(false),
                 ],
             )
             .await
@@ -116,7 +116,6 @@ impl SignerCalls {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-        prepaid: bool,
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
@@ -126,7 +125,7 @@ impl SignerCalls {
                     Value::from_bytes(payload),
                     Value::u128(gas_limit as u128),
                     Value::u128(value),
-                    Value::bool(prepaid),
+                    Value::bool(false),
                 ],
             )
             .await
@@ -157,6 +156,7 @@ impl SignerCalls {
                     Value::from_bytes(payload),
                     Value::u128(gas_limit as u128),
                     Value::u128(value),
+                    Value::bool(false),
                 ],
             )
             .await

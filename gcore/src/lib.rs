@@ -31,6 +31,7 @@
 //!
 //! ```
 //! #![no_std]
+//! #![feature(alloc_error_handler)]
 //!
 //! extern crate galloc;
 //!
@@ -45,6 +46,12 @@
 //!             msg::reply(b"PONG", 0).expect("Unable to reply");
 //!         }
 //!     }
+//! }
+//!
+//! # #[cfg(target = "wasm32")]
+//! #[alloc_error_handler]
+//! pub fn oom(_: core::alloc::Layout) -> ! {
+//!     core::arch::wasm32::unreachable()
 //! }
 //!
 //! # #[cfg(target = "wasm32")]
@@ -75,7 +82,7 @@ pub use general::*;
 mod utils;
 pub use utils::ext;
 
-pub use gsys::{BlockCount, BlockNumber};
+pub use gsys::{BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 
 use core::mem::size_of;
 use static_assertions::const_assert;

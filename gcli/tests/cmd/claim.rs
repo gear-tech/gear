@@ -17,20 +17,40 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-#![cfg(not(feature = "vara-testing"))]
-use crate::common::{
-    self, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, MESSAGER_SENT_VALUE,
-};
+
+use crate::common::{self, logs, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 75_000; // 3_000 gas * 25 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
+    // hack to check initial alice balance
+    let (initial_balance, initial_stash) = {
+        let mut node = common::dev()?;
+
+        node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+
+        // Get balance of the testing address
+        let signer = Api::new(Some(&node.ws()))
+            .await?
+            .signer("//Alice//stash", None)?;
+        (
+            signer.api().get_balance(ADDRESS).await.unwrap_or(0),
+            signer
+                .api()
+                .get_balance(&signer.address())
+                .await
+                .unwrap_or(0),
+        )
+    };
+
     let node = common::create_messager().await?;
 
     // Check the mailbox of the testing account
-    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
+    let signer = Api::new(Some(&node.ws()))
+        .await?
+        .signer("//Alice//stash", None)?;
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
@@ -39,21 +59,18 @@ async fn test_command_claim_works() -> Result<()> {
     assert_eq!(mailbox.len(), 1);
     let id = hex::encode(mailbox[0].0.id.0);
 
-    // Claim value from message id
+    let burned_before = signer.api().get_balance(&signer.address()).await? - initial_stash;
     let before = signer.api().get_balance(ADDRESS).await?;
+
+    // Claim value from message id
     let _ = node.run(Args::new("claim").message_id(id))?;
+
+    let burned_after = signer.api().get_balance(&signer.address()).await? - initial_stash;
     let after = signer.api().get_balance(ADDRESS).await?;
 
-    // # TODO
-    //
-    // not using `//Alice` or estimating the reward
-    // before this checking.
-    let expected = MESSAGER_SENT_VALUE + REWARD_PER_BLOCK;
-    assert_eq!(
-        after.saturating_sub(before),
-        expected,
-        "Alice should have received the value of the message plus the reward ({expected})"
-    );
+    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK,);
+
+    assert_eq!(initial_balance - burned_after, after);
 
     Ok(())
 }

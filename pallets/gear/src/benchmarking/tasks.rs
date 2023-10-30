@@ -37,6 +37,7 @@ where
         delay.encode(),
         100_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -63,6 +64,7 @@ where
         b"init_payload".to_vec(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -75,16 +77,17 @@ where
         page
     };
 
-    for i in 0..c {
-        ProgramStorageOf::<T>::set_program_page_data(
-            program_id,
-            GearPage::from(i as u16),
-            memory_page.clone(),
-        );
-    }
-
     ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-        program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+        for i in 0..c {
+            let page = GearPage::from(i as u16);
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                program.memory_infix,
+                page,
+                memory_page.clone(),
+            );
+            program.pages_with_data.insert(page);
+        }
 
         let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
         program.allocations =
@@ -113,6 +116,7 @@ where
         b"init_payload".to_vec(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -153,6 +157,7 @@ where
         InitAction::Normal(vec![(50_000, 100)]).encode(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -219,6 +224,7 @@ where
         Scheme::empty().encode(),
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -274,6 +280,7 @@ where
         vec![],
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 
@@ -323,6 +330,7 @@ where
         vec![],
         10_000_000_000,
         0u32.into(),
+        false,
     )
     .expect("submit program failed");
 

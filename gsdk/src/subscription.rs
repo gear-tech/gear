@@ -21,10 +21,10 @@
 use crate::{config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
 use std::{marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
-use subxt::{blocks::Block, events::Events as SubxtEvents, Error, OnlineClient};
+use subxt::{backend::StreamOf, blocks::Block, events::Events as SubxtEvents, Error, OnlineClient};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
-type BlockSubscription = Pin<Box<dyn Stream<Item = StdResult<SubxtBlock, Error>> + Send>>;
+type BlockSubscription = StreamOf<StdResult<SubxtBlock, Error>>;
 
 /// Subscription of finalized blocks.
 pub struct Blocks(BlockSubscription);

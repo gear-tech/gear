@@ -16,14 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(feature = "fuzz")))]
-    {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .export_heap_base()
-            .import_memory()
-            .build()
+//! Execution settings
+
+use core::{mem, slice};
+pub use gsys::EnvVars as EnvVarsV1;
+
+/// All supported versions of execution settings
+pub enum EnvVars {
+    /// Values of execution settings V1
+    // When a new version is introduced in gsys, the previous version should be
+    // copied here as EnvVarsV1 whereas the most recent version should be bound
+    // to the variant corresponding to it
+    V1(EnvVarsV1),
+}
+
+impl EnvVars {
+    /// Returns byte representation of execution settings
+    pub fn to_bytes(&self) -> &[u8] {
+        match self {
+            EnvVars::V1(v1) => {
+                let ptr = v1 as *const EnvVarsV1 as *const u8;
+                unsafe { slice::from_raw_parts(ptr, mem::size_of::<EnvVarsV1>()) }
+            }
+        }
     }
 }

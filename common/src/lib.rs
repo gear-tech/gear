@@ -56,6 +56,7 @@ use gear_core::{
     memory::PageBuf,
     message::DispatchKind,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -182,6 +183,23 @@ where
     }
 }
 
+impl<Balance, Gas> From<GasMultiplier<Balance, Gas>> for gsys::GasMultiplier
+where
+    Balance: Copy + UniqueSaturatedInto<gsys::Value>,
+    Gas: Copy + UniqueSaturatedInto<gsys::Gas>,
+{
+    fn from(multiplier: GasMultiplier<Balance, Gas>) -> Self {
+        match multiplier {
+            GasMultiplier::ValuePerGas(multiplier) => {
+                Self::from_value_per_gas((multiplier).unique_saturated_into())
+            }
+            GasMultiplier::GasPerValue(multiplier) => {
+                Self::from_gas_per_value((multiplier).unique_saturated_into())
+            }
+        }
+    }
+}
+
 pub trait QueueRunner {
     type Gas;
 
@@ -258,6 +276,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
+    pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,

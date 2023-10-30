@@ -19,11 +19,11 @@ cd utils/runtime-fuzzer
 # Fuzzer expects a minimal input size of 25 MiB. Without providing a corpus of the same or larger
 # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.
 mkdir -p fuzz/corpus/main
-dd if=/dev/urandom of=fuzz/corpus/main/fuzzer-seed-corpus bs=1 count=27000000
+dd if=/dev/urandom of=fuzz/corpus/main/fuzzer-seed-corpus bs=1 count=350000
 
 # Run fuzzer for at least 20 minutes and then press Ctrl-C to stop fuzzing.
 # You can also remove RUST_LOG to avoid printing tons of logs on terminal.
-RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_backend_common=trace \
+RUST_LOG=debug,syscalls,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace \
 cargo fuzz run \
     --release \
     --sanitizer=none \
@@ -31,7 +31,7 @@ cargo fuzz run \
     fuzz/corpus/main \
     -- \
         -rss_limit_mb=8192 \
-        -max_len=35000000 \
+        -max_len=450000 \
         -len_control=0
 
 # Get coverage
@@ -42,7 +42,7 @@ cargo fuzz coverage \
     fuzz/corpus/main \
     -- \
         -rss_limit_mb=8192 \
-        -max_len=35000000 \
+        -max_len=450000 \
         -len_control=0
 ```
 

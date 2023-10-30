@@ -19,6 +19,7 @@
 //! Environment for running a module.
 
 use crate::{
+    env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
@@ -196,6 +197,10 @@ pub trait Externalities {
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
     /// should be `free`-d separately.
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
+
+    /// Get environment variables currently set in the system and in the form
+    /// corresponded to the requested version.
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError>;
 
     /// Get the current block height.
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError>;

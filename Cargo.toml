@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -16,7 +16,6 @@ members = [
     "common/codegen",
     "core",
     "core-backend",
-    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/async",
@@ -92,14 +91,14 @@ members = [
 
 [workspace.dependencies]
 anyhow = "1.0.75"
-arbitrary = "1.3.0"
+arbitrary = "1.3.1"
 async-recursion = "1.0.5"
-async-trait = "0.1.73"
-base64 = "0.21.3"
-byteorder = { version = "1.4.3", default-features = false }
+async-trait = "0.1.74"
+base64 = "0.21.5"
+byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
-bs58 = { version = "0.4.0", default-features = false }
-clap = { version = "4.4.2" }
+bs58 = { version = "0.5.0", default-features = false }
+clap = { version = "4.4.6" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -113,7 +112,7 @@ env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.28"
-hashbrown = "0.14.0"
+hashbrown = "0.14.2"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 jsonrpsee = { version = "^0.16" }
@@ -126,16 +125,16 @@ parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.1"
 path-clean = "1.0.1"
-primitive-types = { version = "0.12.1", default-features = false }
+primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-proptest = "1.1.0"
+proptest = "1.3.1"
 quick-xml = "0.28"
 quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
-rayon = "1.7"
+rayon = "1.8"
 regex = "^1.9"
 region = "3.0.0"
-reqwest = { version = "0.11.16", default-features = false }
+reqwest = { version = "0.11.22", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
@@ -155,14 +154,14 @@ static_assertions = "1"
 #
 # 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
 # gathering them here for easy management.
-subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
-syn = "2.0.31"
-thiserror = "1.0.48"
-tokio = { version = "1.27.0" }
+subxt = { version = "0.32.1" }
+subxt-metadata = { version = "0.32.1" }
+subxt-codegen = { version = "0.32.1" }
+syn = "2.0.38"
+thiserror = "1.0.50"
+tokio = { version = "1.33.0" }
 url = "2.4.1"
-wat = "1.0.71"
+wat = "1.0.77"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -196,7 +195,6 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-core-backend-codegen = { path = "core-backend/codegen" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
@@ -208,7 +206,6 @@ gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
-gear-runtime = { path = "runtime/gear", default-features = false }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
@@ -241,125 +238,125 @@ runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/prim
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
-wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary-no-sandbox', default-features = false }
+wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
 # Substrate deps
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-remote-externalities = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-babe = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-bounties = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-child-bounties = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-conviction-voting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-multisig = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-nomination-pools = { version = "1.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-nomination-pools-runtime-api = { version = "1.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-offences = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-proxy = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-vesting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-pallet-whitelist = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-consensus-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-network = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-network-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-network-sync = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-proposer-metrics = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sc-tracing = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-sp-allocator = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-rpc = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox", default-features = false }
-substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-substrate-rpc-client = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
-try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox" }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-remote-externalities = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-babe = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-bounties = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-child-bounties = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-conviction-voting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-multisig = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-nomination-pools = { version = "1.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-nomination-pools-runtime-api = { version = "1.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-offences = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-proxy = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-staking-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-vesting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+pallet-whitelist = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-consensus-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-network = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-network-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-network-sync = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-proposer-metrics = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sc-tracing = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+sp-allocator = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-rpc = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+substrate-rpc-client = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
+try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 
 # Examples
 test-syscalls = { path = "examples/sys-calls", default-features = false }
@@ -422,25 +419,25 @@ cfg-if = "1.0.0"                                                          # gear
 cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "2.0.0"                                                        # utils/weight-diff
+indexmap = "2.0.2"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.34", default-features = false }               # node/cli
+mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
-page_size = { version = "0.5", default-features = false }                 # pallets/gear
+page_size = { version = "0.6", default-features = false }                 # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
 schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.7"                                                            # utils/wasm-builder
-tracing = "0.1.37"                                                        # utils/node-loder
+toml = "0.7.8"                                                            # utils/wasm-builder
+tracing = "0.1.40"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
 trybuild = "1"                                                            # gstd/codegen
@@ -448,11 +445,12 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
-scale-value = "^0.10"                                                     # gsdk
+scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
-scale-decode = "0.7.0"                                                    # gsdk
+scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
+num-traits = { version = "0.2", default-features = false }                # gear-core
 
 [profile.release]
 panic = "unwind"

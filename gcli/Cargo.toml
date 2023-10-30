@@ -46,7 +46,8 @@ reqwest = { workspace = true, default-features = false, features = [ "json", "ru
 etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" ] }
-vara-runtime = { workspace = true, features = [ "std", "dev" ] }
+# TODO: use wasmi from workspace (#3214)
+wasmi = { version = "0.30.0", features = ["std"] }
 
 [dev-dependencies]
 rand.workspace = true
@@ -54,13 +55,13 @@ demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
+vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 
 [build-dependencies]
 which.workspace = true
 
 [features]
 node-key = [ "libp2p" ]
-vara-testing = [ ]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -29,6 +29,7 @@ use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    program::MemoryInfix,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
@@ -52,6 +53,7 @@ pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
 pub fn init_for_program(
     mem: &mut impl Memory,
     program_id: ProgramId,
+    memory_infix: MemoryInfix,
     stack_end: Option<WasmPage>,
     globals_config: GlobalsAccessConfig,
     weights: LazyPagesWeights,
@@ -72,7 +74,12 @@ pub fn init_for_program(
         wasm_mem_addr: mem.get_buffer_host_addr(),
         wasm_mem_size: mem.size().raw(),
         stack_end: stack_end.map(|p| p.raw()),
-        program_id: <[u8; 32]>::from(program_id.into_origin()).into(),
+        program_key: {
+            let program_id = <[u8; 32]>::from(program_id.into_origin());
+            let memory_infix = memory_infix.inner().to_le_bytes();
+
+            [&program_id[..], &memory_infix[..]].concat()
+        },
         globals_config,
         weights,
     };

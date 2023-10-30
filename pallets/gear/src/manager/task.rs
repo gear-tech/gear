@@ -123,7 +123,10 @@ where
 
         let pages_with_data = program.pages_with_data.len() as u32;
 
-        let ProgramState::Uninitialized{ message_id: init_message_id } = program.state else {
+        let ProgramState::Uninitialized {
+            message_id: init_message_id,
+        } = program.state
+        else {
             // pause initialized program
             let gas_reservation_map =
                 ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
@@ -177,10 +180,14 @@ where
         // set program status to Terminated
         ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
             match p {
-                Program::Active(program) => Self::remove_gas_reservation_map(
-                    program_id,
-                    core::mem::take(&mut program.gas_reservation_map),
-                ),
+                Program::Active(program) => {
+                    Self::remove_gas_reservation_map(
+                        program_id,
+                        core::mem::take(&mut program.gas_reservation_map),
+                    );
+
+                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
+                }
                 _ => unreachable!("Action executed only for active program"),
             }
 
@@ -191,8 +198,6 @@ where
                 "Program terminated status may only be set to an existing active program: {e:?}"
             );
         });
-
-        Self::clean_inactive_program(program_id, origin);
 
         Pallet::<T>::deposit_event(Event::ProgramChanged {
             id: program_id,

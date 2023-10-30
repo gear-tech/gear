@@ -20,7 +20,6 @@
 use crate::{
     config::GearConfig,
     metadata::{
-        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
@@ -28,6 +27,7 @@ use crate::{
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
+        vara_runtime::RuntimeCall,
     },
     signer::Inner,
     utils::storage_address_bytes,
@@ -138,14 +138,16 @@ impl SignerStorage {
     pub async fn set_gpages(
         &self,
         program_id: ProgramId,
+        memory_infix: u32,
         program_pages: &GearPages,
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
             let addr = Api::storage(
-                GearProgramStorage::MemoryPageStorage,
+                GearProgramStorage::MemoryPages,
                 vec![
                     subxt::dynamic::Value::from_bytes(program_id),
+                    subxt::dynamic::Value::u128(memory_infix as u128),
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
                 ],
             );

@@ -9,7 +9,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-derive_more.workspace = true
 log.workspace = true
 byteorder.workspace = true
 
