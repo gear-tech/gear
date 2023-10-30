@@ -19,7 +19,7 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
@@ -97,7 +97,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 }
 
 fn accesses_pages(
-    ctx: &LazyPagesExecutionContext,
+    ctx: &LazyPagesRuntimeContext,
     accesses: &[MemoryInterval],
     pages: &mut BTreeSet<GearPage>,
 ) -> Result<(), Error> {
@@ -151,7 +151,7 @@ pub fn pre_process_memory_accesses(
 
             if !reads.is_empty() {
                 let mut read_pages = BTreeSet::new();
-                accesses_pages(exec_ctx, reads, &mut read_pages)?;
+                accesses_pages(rt_ctx, reads, &mut read_pages)?;
 
                 status = process::process_lazy_pages(
                     rt_ctx,
@@ -172,7 +172,7 @@ pub fn pre_process_memory_accesses(
 
             if !writes.is_empty() {
                 let mut write_pages = BTreeSet::new();
-                accesses_pages(exec_ctx, writes, &mut write_pages)?;
+                accesses_pages(rt_ctx, writes, &mut write_pages)?;
 
                 status = process::process_lazy_pages(
                     rt_ctx,

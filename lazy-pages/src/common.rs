@@ -76,6 +76,12 @@ pub(crate) struct LazyPagesContext {
 }
 
 impl LazyPagesContext {
+    pub fn contexts(
+        &self,
+    ) -> Result<(&LazyPagesRuntimeContext, &LazyPagesExecutionContext), ContextError> {
+        Ok((self.runtime_context()?, self.execution_context()?))
+    }
+
     pub fn contexts_mut(
         &mut self,
     ) -> Result<(&mut LazyPagesRuntimeContext, &mut LazyPagesExecutionContext), ContextError> {
@@ -90,26 +96,28 @@ impl LazyPagesContext {
         Ok((rt_ctx, exec_ctx))
     }
 
+    pub fn runtime_context(&self) -> Result<&LazyPagesRuntimeContext, ContextError> {
+        self.runtime_context
+            .as_ref()
+            .ok_or(ContextError::RuntimeContextIsNotSet)
+    }
+
     pub fn runtime_context_mut(&mut self) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
         self.runtime_context
             .as_mut()
             .ok_or(ContextError::RuntimeContextIsNotSet)
     }
+
     pub fn execution_context(&self) -> Result<&LazyPagesExecutionContext, ContextError> {
         self.execution_context
             .as_ref()
             .ok_or(ContextError::ExecutionContextIsNotSet)
     }
-    pub fn execution_context_mut(
-        &mut self,
-    ) -> Result<&mut LazyPagesExecutionContext, ContextError> {
-        self.execution_context
-            .as_mut()
-            .ok_or(ContextError::ExecutionContextIsNotSet)
-    }
+
     pub fn set_runtime_context(&mut self, ctx: LazyPagesRuntimeContext) {
         self.runtime_context = Some(ctx);
     }
+
     pub fn set_execution_context(&mut self, ctx: LazyPagesExecutionContext) {
         self.execution_context = Some(ctx);
     }
@@ -166,8 +174,6 @@ pub trait LazyPagesStorage: fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
-    /// Lazy-pages page size.
-    pub page_sizes: PageSizes,
     /// Lazy-pages accesses weights.
     pub weights: Weights,
     /// Pointer to the begin of wasm memory buffer
@@ -197,12 +203,6 @@ pub(crate) struct LazyPagesExecutionContext {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LazyPagesVersion {
     Version1,
-}
-
-impl SizeManager for LazyPagesExecutionContext {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes.size_non_zero::<P>()
-    }
 }
 
 impl SizeManager for LazyPagesRuntimeContext {

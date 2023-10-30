@@ -148,7 +148,6 @@ pub fn initialize_for_program(
         })?;
 
         let execution_ctx = LazyPagesExecutionContext {
-            page_sizes: runtime_ctx.page_sizes,
             weights,
             wasm_mem_addr,
             wasm_mem_size,
@@ -173,7 +172,7 @@ pub fn initialize_for_program(
 
         // Set protection if wasm memory exist.
         if let Some(addr) = wasm_mem_addr {
-            let stack_end_offset = execution_ctx.stack_end.offset(&execution_ctx);
+            let stack_end_offset = execution_ctx.stack_end.offset(runtime_ctx);
             log::trace!("{addr:#x} {stack_end_offset:#x}");
             // `+` and `-` are safe because we checked
             // that `stack_end` is less or equal to `wasm_mem_size` and wasm end addr fits usize.
@@ -196,29 +195,29 @@ pub fn initialize_for_program(
 pub fn set_lazy_pages_protection() -> Result<(), Error> {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let ctx = ctx.borrow();
-        let ctx = ctx.execution_context()?;
-        let mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-        let start_offset = ctx.stack_end.offset(ctx);
-        let mem_size = ctx.wasm_mem_size.offset(ctx);
+        let (rt_ctx, exec_ctx) = ctx.contexts()?;
+        let mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+        let start_offset = exec_ctx.stack_end.offset(rt_ctx);
+        let mem_size = exec_ctx.wasm_mem_size.offset(rt_ctx);
 
         // Set r/w protection for all pages except stack pages and write accessed pages.
         mprotect::mprotect_mem_interval_except_pages(
             mem_addr,
             start_offset as usize,
             mem_size as usize,
-            ctx.write_accessed_pages.iter().copied(),
-            ctx,
+            exec_ctx.write_accessed_pages.iter().copied(),
+            rt_ctx,
             false,
             false,
         )?;
 
         // Set only write protection for already accessed, but not write accessed pages.
-        let read_only_pages = ctx
+        let read_only_pages = exec_ctx
             .accessed_pages
             .iter()
-            .filter(|&&page| !ctx.write_accessed_pages.contains(&page))
+            .filter(|&&page| !exec_ctx.write_accessed_pages.contains(&page))
             .copied();
-        mprotect::mprotect_pages(mem_addr, read_only_pages, ctx, true, false)?;
+        mprotect::mprotect_pages(mem_addr, read_only_pages, rt_ctx, true, false)?;
 
         // After that protections are:
         // 1) Only execution protection for stack pages.
@@ -234,9 +233,9 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
 pub fn unset_lazy_pages_protection() -> Result<(), Error> {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let ctx = ctx.borrow();
-        let ctx = ctx.execution_context()?;
-        let addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-        let size = ctx.wasm_mem_size.offset(ctx);
+        let (rt_ctx, exec_ctx) = ctx.contexts()?;
+        let addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+        let size = exec_ctx.wasm_mem_size.offset(rt_ctx);
         mprotect::mprotect_interval(addr, size as usize, true, true)?;
         Ok(())
     })
@@ -250,7 +249,7 @@ pub fn change_wasm_mem_addr_and_size(addr: Option<usize>, size: Option<u32>) -> 
 
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
-        let ctx = ctx.execution_context_mut()?;
+        let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
 
         let addr = match addr {
             Some(addr) => match addr % region::page::size() {
@@ -258,21 +257,21 @@ pub fn change_wasm_mem_addr_and_size(addr: Option<usize>, size: Option<u32>) -> 
                 _ => return Err(Error::WasmMemAddrIsNotAligned(addr)),
             },
 
-            None => match ctx.wasm_mem_addr {
+            None => match exec_ctx.wasm_mem_addr {
                 Some(addr) => addr,
                 None => return Err(Error::WasmMemAddrIsNotSet),
             },
         };
 
         let size = match size {
-            Some(size) => WasmPage::new(size, ctx).ok_or(Error::WasmMemSizeOverflow)?,
-            None => ctx.wasm_mem_size,
+            Some(size) => WasmPage::new(size, rt_ctx).ok_or(Error::WasmMemSizeOverflow)?,
+            None => exec_ctx.wasm_mem_size,
         };
 
-        check_memory_interval(addr, size.offset(ctx))?;
+        check_memory_interval(addr, size.offset(rt_ctx))?;
 
-        ctx.wasm_mem_addr = Some(addr);
-        ctx.wasm_mem_size = size;
+        exec_ctx.wasm_mem_addr = Some(addr);
+        exec_ctx.wasm_mem_size = size;
 
         Ok(())
     })

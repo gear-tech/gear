@@ -87,11 +87,11 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
     mut handler: H,
     pages: H::Pages,
 ) -> Result<H::Output, Error> {
-    let wasm_mem_size = exec_ctx.wasm_mem_size.offset(exec_ctx);
+    let wasm_mem_size = exec_ctx.wasm_mem_size.offset(rt_ctx);
     unsafe {
         if let Some(last_page) = H::last_page(&pages) {
             // Check that all pages are inside wasm memory.
-            if last_page.end_offset(exec_ctx) >= wasm_mem_size {
+            if last_page.end_offset(rt_ctx) >= wasm_mem_size {
                 return Err(Error::OutOfWasmMemoryAccess);
             }
         } else {
@@ -127,17 +127,17 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             }
         };
 
-        let page_size = GearPage::size(exec_ctx) as usize;
+        let page_size = GearPage::size(rt_ctx) as usize;
 
         let process_one = |page: GearPage| {
-            let page_offset = page.offset(exec_ctx);
+            let page_offset = page.offset(rt_ctx);
             let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page_offset as usize);
 
             let protect_page = |prot_write| {
                 mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
             };
 
-            if page_offset < stack_end.offset(exec_ctx) {
+            if page_offset < stack_end.offset(rt_ctx) {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 H::check_stack_memory_access()?;
             } else if exec_ctx.is_write_accessed(page) {

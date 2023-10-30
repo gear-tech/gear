@@ -75,7 +75,7 @@ unsafe fn user_signal_handler_internal(
 
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
-    let page = GearPage::from_offset(exec_ctx, offset);
+    let page = GearPage::from_offset(rt_ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = exec_ctx.globals_context.as_ref() {
         let gas_charger = GasCharger {
