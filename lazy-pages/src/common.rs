@@ -254,6 +254,11 @@ impl PagePrefix {
         Self { storage_prefix }
     }
 
+    /// Returns prefix as slice.
+    pub fn as_slice(&self) -> &[u8] {
+        self.storage_prefix.as_slice()
+    }
+
     /// Returns key in storage for `page`.
     pub fn key_for_page(&self, page: GearPage) -> Vec<u8> {
         let page_no: u32 = page.into();

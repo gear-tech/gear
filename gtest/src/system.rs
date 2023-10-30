@@ -91,30 +91,24 @@ struct PagesStorage {
 }
 
 impl PagesStorage {
-    fn parse_key(key: &[u8]) -> (ProgramId, MemoryInfix, GearPage) {
-        let (prefix, key) = key.split_at(System::PAGE_STORAGE_PREFIX.len());
-        assert_eq!(prefix, System::PAGE_STORAGE_PREFIX);
+    fn parse_key(prefix: &[u8]) -> (ProgramId, MemoryInfix) {
+        let (page_prefix, key) = prefix.split_at(System::PAGE_STORAGE_PREFIX.len());
+        assert_eq!(page_prefix, System::PAGE_STORAGE_PREFIX);
 
-        let (program_id, key) = key.split_at(mem::size_of::<ProgramId>());
+        let (program_id, prefix) = key.split_at(mem::size_of::<ProgramId>());
         let program_id = ProgramId::from(program_id);
 
-        let (memory_infix, key) = key.split_at(mem::size_of::<MemoryInfix>());
-        let memory_infix: [u8; 4] = memory_infix.try_into().unwrap();
+        let memory_infix: [u8; 4] = prefix.try_into().unwrap();
         let memory_infix = u32::from_le_bytes(memory_infix);
         let memory_infix = MemoryInfix::new(memory_infix);
 
-        let page_no: [u8; 4] = key.try_into().unwrap();
-        let page_no = u32::from_le_bytes(page_no) as u16;
-        let page = GearPage::from(page_no);
-
-        (program_id, memory_infix, page)
+        (program_id, memory_infix)
     }
 }
 
 impl LazyPagesPagesStorage for PagesStorage {
     fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
-        let key = prefix.key_for_page(page);
-        let (program_id, _infix, _page) = Self::parse_key(&key);
+        let (program_id, _infix) = Self::parse_key(prefix.as_slice());
         self.pages_data.get_page(program_id, page).is_some()
     }
 
@@ -125,8 +119,7 @@ impl LazyPagesPagesStorage for PagesStorage {
         page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, String> {
-        let key = prefix.key_for_page(page);
-        let (program_id, _infix, _page) = Self::parse_key(&key);
+        let (program_id, _infix) = Self::parse_key(prefix.as_slice());
         let Some(page_buf) = self.pages_data.get_page(program_id, page) else {
             return Ok(false);
         };
