@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::result::Result;
+use crate::{meta::Meta, result::Result};
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]
@@ -105,7 +105,6 @@ impl Program {
         Ok(())
     }
 
-    #[ignore]
     fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
         let ext = path
             .extension()

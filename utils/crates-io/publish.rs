@@ -53,7 +53,7 @@ impl CratesIo {
     }
 
     /// Verify if the package is published to crates.io.
-    pub fn verify(&mut self, mut package: &str, version: &str) -> Result<bool> {
+    pub fn verify(&mut self, package: &str, version: &str) -> Result<bool> {
         // Here using limit = 1 since we are searching explicit
         // packages here.
         let (crates, _total) = self.registry.search(package, 1)?;
