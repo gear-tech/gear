@@ -59,7 +59,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: "Check: Compiling gstd on stable"
-        run: cargo +stable check -p gstd
+        run: |
+          cargo +stable check -p gstd
+          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
       - run: sccache --show-stats
 
