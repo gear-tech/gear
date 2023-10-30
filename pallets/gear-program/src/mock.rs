@@ -67,17 +67,7 @@ construct_runtime!(
     }
 );
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
+common::impl_pallet_balances!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;

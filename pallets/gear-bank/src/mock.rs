@@ -119,17 +119,7 @@ impl pallet_authorship::Config for Test {
     type EventHandler = ();
 }
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
+common::impl_pallet_balances!(Test);
 
 impl pallet_gear_bank::Config for Test {
     type Currency = Balances;

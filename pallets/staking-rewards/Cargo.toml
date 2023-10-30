@@ -45,6 +45,7 @@ pallet-utility = { workspace = true, features = ["std"] }
 pallet-election-provider-multi-phase = { workspace = true, features = ["std"] }
 frame-executive = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+common = { workspace = true, features = ["std"] }
 
 [features]
 default = ["std"]
