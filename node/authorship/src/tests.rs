@@ -1350,7 +1350,7 @@ mod basic_tests {
             None,
             proposal
         );
-        // the block should have a single ordianry transaction despite more being in the pool
+        // the block should have a single ordinary transaction despite more being in the pool
         assert_eq!(proposal.block.extrinsics().len(), 3);
         assert!(
             cell2.lock().0 > MAX_SKIPPED_TRANSACTIONS,
