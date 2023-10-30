@@ -4,9 +4,9 @@ use sandbox_wasmer::{
     Store, Universal,
 };
 use sandbox_wasmer_types::TrapCode;
-use std::{env, error::Error, fs};
+use std::{env, fs};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let schedule = vara_runtime::Schedule::get();
@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ..Default::default()
         },
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let compiler = Singlepass::default();
     let store = Store::new(&Universal::new(compiler).engine());
@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             |module| schedule.rules(module),
             Some(mid),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let module = Module::new(&store, code.code())?;
         let instance = Instance::new(&module, &imports)?;
@@ -107,9 +107,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     if let Some(schedule_stack_height) = schedule.limits.stack_height {
-        if schedule_stack_height > stack_height {
-            return Err("Stack height in runtime schedule must be decreased".into());
-        }
+        anyhow::ensure!(
+            schedule_stack_height <= stack_height,
+            "Stack height in runtime schedule must be decreased"
+        );
     }
 
     Ok(())

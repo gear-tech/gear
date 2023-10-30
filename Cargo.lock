@@ -981,8 +981,9 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
+ "anyhow",
  "env_logger",
  "gear-core",
  "log",
