@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::env;
+use gcli::VARA_SS58_PREFIX;
 use gsdk::{result::Error, Api};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 mod cmd;
 mod common;
@@ -48,6 +49,11 @@ fn paths() {
 }
 
 #[test]
-fn ss58_prefix() {
-    assert_eq!(gcli::VARA_SS58_PREFIX, vara_runtime::SS58Prefix::get());
+fn ss58_prefix() -> anyhow::Result<()> {
+    let vara = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../runtime/vara/src/lib.rs"),
+    )?;
+
+    assert!(vara.contains(&format!("pub const SS58Prefix: u8 = {VARA_SS58_PREFIX};")));
+    Ok(())
 }
