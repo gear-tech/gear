@@ -52,7 +52,7 @@ use sp_inherents::InherentDataProvider;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    Digest, DigestItem, OpaqueExtrinsic, Perbill,
+    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
 use sp_timestamp::Timestamp;
 use std::{
@@ -203,9 +203,10 @@ impl CallBuilder {
                 })),
             }),
             TestCall::ExhaustResources => {
+                // Using 75% of the max possible weight so that two such calls will inevitably
+                // exhaust block resources while one call will very likely fit in.
                 RuntimeCall::GearDebug(pallet_gear_debug::Call::exhaust_block_resources {
-                    n: 1_000_u64,
-                    s: 1_000_u64,
+                    fraction: Percent::from_percent(75),
                 })
             }
         }
@@ -245,27 +246,14 @@ macro_rules! init {
     }
 }
 
-macro_rules! propose_block {
+macro_rules! submit_txs {
     {
         $client:ident,
-        $backend:ident,
         $txpool:ident,
-        $spawner:ident,
-        $best_hash:ident,
-        $block_id:ident,
-        $extrinsics:ident,
-        $timestamp:ident,
-        $max_duration:ident,
-        $max_gas:ident,
-        $proposal:ident,
-        {
-            $( $txpool_ready:tt )*
-        },
-        {
-            $( $final_checks:tt )*
-        }
+        $block_id:expr,
+        $extrinsics:expr
     } => {
-        block_on($txpool.submit_at(&BlockId::number(0), SOURCE, $extrinsics)).unwrap();
+        block_on($txpool.submit_at(&$block_id, SOURCE, $extrinsics)).unwrap();
 
         block_on(
             $txpool.maintain(chain_event(
@@ -280,9 +268,23 @@ macro_rules! propose_block {
                     .expect("there should be header"),
             )),
         );
+    }
+}
 
-        $( $txpool_ready )*
-
+macro_rules! propose_block {
+    {
+        $client:ident,
+        $backend:ident,
+        $txpool:ident,
+        $spawner:ident,
+        $best_hash:ident,
+        $block_id:expr,
+        $now:expr,
+        $timestamp:expr,
+        $max_duration:expr,
+        $max_gas:expr,
+        $proposal:ident
+    } => {
         let mut proposer_factory = ProposerFactory::new(
             $spawner.clone(),
             $client.clone(),
@@ -298,20 +300,15 @@ macro_rules! propose_block {
         let inherent_data =
             block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
 
-        let proposer = block_on(
-            proposer_factory.init(
-                &$client
-                    .header(
-                        $client
-                            .block_hash_from_id(&$block_id)
-                            .unwrap()
-                            .unwrap(),
-                    )
-                    .expect("Database error querying block #0")
-                    .expect("Block #0 should exist"),
-            ),
-        )
-        .expect("Proposer initialization failed");
+        let proposer = proposer_factory.init_with_now(
+            &$client.expect_header(
+                $client
+                    .block_hash_from_id(&$block_id)
+                    .unwrap()
+                    .unwrap()
+                ).expect("There must be a header"),
+            $now,
+        );
 
         let $proposal = block_on(proposer.propose(
             inherent_data,
@@ -326,8 +323,6 @@ macro_rules! propose_block {
 
         let $best_hash = $client.info().best_hash;
         assert_eq!($best_hash, $proposal.block.hash());
-
-        $( $final_checks )*
     }
 }
 
@@ -337,19 +332,15 @@ fn custom_extrinsic_is_placed_in_each_block() {
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
-    // Test prelude: extrinsics, timeouts etc.
     let extrinsics = sign_extrinsics(
         checked_extrinsics(1, bob(), 0_u32, || CallBuilder::noop().build()),
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
     );
-    let num_extrinsics = extrinsics.len();
 
-    let block_id = BlockId::number(0);
-    let timestamp = Timestamp::current();
-    let max_gas = None;
-    let max_duration = 1500_u64;
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    assert_eq!(txpool.ready().count(), 1);
 
     propose_block!(
         client,
@@ -357,22 +348,16 @@ fn custom_extrinsic_is_placed_in_each_block() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
-        timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {
-            let num_ready = txpool.ready().count();
-            assert_eq!(num_ready, num_extrinsics);
-        },
-        {
-            // then
-            // block should have exactly 3 txs: an inherent (timestamp), a normal and a mandatory one
-            assert_eq!(proposal.block.extrinsics().len(), 3);
-        }
+        BlockId::number(0),
+        Box::new(time::Instant::now),
+        Timestamp::current(),
+        1500_u64,
+        None,
+        proposal
     );
+    // then
+    // block should have exactly 3 txs: an inherent (timestamp), a normal and a mandatory one
+    assert_eq!(proposal.block.extrinsics().len(), 3);
 }
 
 #[test]
@@ -387,11 +372,9 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
         VERSION.transaction_version,
         genesis_hash,
     );
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
-    let block_id = BlockId::number(0);
     let timestamp = Timestamp::current();
-    let max_gas = None;
-    let max_duration = 1500_u64;
 
     propose_block!(
         client,
@@ -399,38 +382,35 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
+        BlockId::number(0),
+        Box::new(time::Instant::now),
         timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {},
-        {
-            // then
-            // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
-            assert_eq!(proposal.block.extrinsics().len(), 3);
-
-            let api = client.runtime_api();
-            api.execute_block(genesis_hash.into(), proposal.block)
-                .unwrap();
-            let state = backend.state_at(best_hash).unwrap();
-
-            let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
-
-            assert_eq!(
-                proposal.storage_changes.transaction_storage_root,
-                storage_changes.transaction_storage_root,
-            );
-
-            let queue_head_key = storage_prefix(
-                pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                "Head".as_bytes(),
-            );
-            // Ensure message queue is empty given the terminal extrinsic completed successfully
-            assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
-        }
+        1500_u64,
+        None,
+        proposal
     );
+    // then
+    // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
+    assert_eq!(proposal.block.extrinsics().len(), 3);
+
+    let api = client.runtime_api();
+    api.execute_block(genesis_hash.into(), proposal.block)
+        .unwrap();
+    let state = backend.state_at(best_hash).unwrap();
+
+    let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
+
+    assert_eq!(
+        proposal.storage_changes.transaction_storage_root,
+        storage_changes.transaction_storage_root,
+    );
+
+    let queue_head_key = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Head".as_bytes(),
+    );
+    // Ensure message queue is empty given the terminal extrinsic completed successfully
+    assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
 }
 
 #[test]
@@ -464,11 +444,9 @@ fn queue_remains_intact_if_processing_fails() {
         VERSION.transaction_version,
         genesis_hash,
     );
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
-    let block_id = BlockId::number(0);
     let timestamp = Timestamp::current();
-    let max_gas = None;
-    let max_duration = 1500_u64;
 
     propose_block!(
         client,
@@ -476,45 +454,41 @@ fn queue_remains_intact_if_processing_fails() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
+        BlockId::number(0),
+        Box::new(time::Instant::now),
         timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {},
-        {
-            // Terminal extrinsic rolled back, therefore only have 1 inherent + 6 normal
-            assert_eq!(proposal.block.extrinsics().len(), 8);
-
-            // Ensure message queue still has 5 messages
-            let state = backend.state_at(best_hash).unwrap();
-            let queue_entry_prefix = storage_prefix(
-                pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                "Dispatches".as_bytes(),
-            );
-            let mut queue_entry_args = IterArgs::default();
-            queue_entry_args.prefix = Some(&queue_entry_prefix);
-
-            let mut queue_len = 0_u32;
-
-            state
-                .keys(queue_entry_args)
-                .unwrap()
-                .for_each(|_k| queue_len += 1);
-            assert_eq!(queue_len, 5);
-        }
+        1500_u64,
+        None,
+        proposal
     );
+    // Terminal extrinsic rolled back, therefore only have 1 inherent + 6 normal
+    assert_eq!(proposal.block.extrinsics().len(), 8);
+
+    // Ensure message queue still has 5 messages
+    let state = backend.state_at(best_hash).unwrap();
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let mut queue_len = 0_u32;
+
+    state
+        .keys(queue_entry_args)
+        .unwrap()
+        .for_each(|_k| queue_len += 1);
+    assert_eq!(queue_len, 5);
 
     // Preparing block #2
-    let block_id = BlockId::Hash(best_hash);
     let extrinsics = sign_extrinsics(
         checked_extrinsics(3, bob(), nonce, || CallBuilder::noop().build()),
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
     );
-    let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
+    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
 
     propose_block!(
         client,
@@ -522,32 +496,26 @@ fn queue_remains_intact_if_processing_fails() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
-        timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {},
-        {
-            // Terminal extrinsic rolled back, therefore only have 1 inherent + 3 normal
-            assert_eq!(proposal.block.extrinsics().len(), 4);
-
-            // Importing block #2
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-            let state = backend.state_at(best_hash).unwrap();
-            // Ensure message queue has not been drained and has now 8 messages
-            let mut queue_len = 0_u32;
-            let mut queue_entry_args = IterArgs::default();
-            queue_entry_args.prefix = Some(&queue_entry_prefix);
-            state
-                .keys(queue_entry_args)
-                .unwrap()
-                .for_each(|_k| queue_len += 1);
-            assert_eq!(queue_len, 8);
-        }
+        BlockId::Hash(best_hash),
+        Box::new(time::Instant::now),
+        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
+        1500_u64,
+        None,
+        proposal
     );
+    // Terminal extrinsic rolled back, therefore only have 1 inherent + 3 normal
+    assert_eq!(proposal.block.extrinsics().len(), 4);
+
+    let state = backend.state_at(best_hash).unwrap();
+    // Ensure message queue has not been drained and has now 8 messages
+    let mut queue_len = 0_u32;
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+    state
+        .keys(queue_entry_args)
+        .unwrap()
+        .for_each(|_k| queue_len += 1);
+    assert_eq!(queue_len, 8);
 }
 
 #[test]
@@ -562,10 +530,6 @@ fn block_max_gas_works() {
     init!(client, backend, txpool, spawner, genesis_hash);
 
     // Prepare block #1
-    let block_id = BlockId::number(0);
-    let timestamp = Timestamp::current();
-    let mut max_gas = None;
-    let max_duration = 1500_u64;
     // Create an extrinsic that prefunds the bank account
     let extrinsics = vec![sign(
         CheckedExtrinsic {
@@ -577,39 +541,39 @@ fn block_max_gas_works() {
         genesis_hash,
     )
     .into()];
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
+    let timestamp = Timestamp::current();
     propose_block!(
         client,
         backend,
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
+        BlockId::number(0),
+        Box::new(time::Instant::now),
         timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {},
-        {
-            let api = client.runtime_api();
-            let gear_core::gas::GasInfo { min_limit, .. } = api
-                .calculate_gas_info(
-                    best_hash,
-                    sp_core::H256::from(alice().as_ref()),
-                    pallet_gear::HandleKind::Init(WASM_BINARY.to_vec()),
-                    Scheme::direct(Calls::builder().noop()).encode(),
-                    0,
-                    true,
-                    None,
-                    None,
-                )
-                .unwrap()
-                .unwrap();
-            // Just enough to fit 2 messages
-            max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + 100);
-        }
+        1500_u64,
+        None,
+        proposal
     );
+    let api = client.runtime_api();
+    let gear_core::gas::GasInfo { min_limit, .. } = api
+        .calculate_gas_info(
+            best_hash,
+            sp_core::H256::from(alice().as_ref()),
+            pallet_gear::HandleKind::Init(WASM_BINARY.to_vec()),
+            Scheme::direct(Calls::builder().noop()).encode(),
+            0,
+            true,
+            None,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+
+    // Just enough to fit 2 messages
+    let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + 100);
 
     // Preparing block #2
     // Creating 5 extrinsics
@@ -620,8 +584,8 @@ fn block_max_gas_works() {
         VERSION.transaction_version,
         genesis_hash,
     );
+    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
 
-    let block_id = BlockId::Hash(best_hash);
     let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
 
     propose_block!(
@@ -630,57 +594,51 @@ fn block_max_gas_works() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
-        timestamp,
-        max_duration,
+        BlockId::Hash(best_hash),
+        Box::new(time::Instant::now),
+        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
+        1500_u64,
         max_gas,
-        proposal,
-        {},
-        {
-            // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
-            assert_eq!(proposal.block.extrinsics().len(), 7);
-
-            // Importing block #2
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-            let state = backend.state_at(best_hash).unwrap();
-            // Ensure message queue still has 5 messages as none of the messages fit into the gas allownce
-            let queue_entry_prefix = storage_prefix(
-                pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                "Dispatches".as_bytes(),
-            );
-            let mut queue_entry_args = IterArgs::default();
-            queue_entry_args.prefix = Some(&queue_entry_prefix);
-
-            let queue_len = state.keys(queue_entry_args).unwrap().count();
-
-            // 2 out of 5 messages have been processed, 3 remain in the queue
-            assert_eq!(queue_len, 3);
-
-            let programs_prefix = storage_prefix(
-                pallet_gear_program::Pallet::<Runtime>::name().as_bytes(),
-                "ProgramStorage".as_bytes(),
-            );
-            let mut iter_args = IterArgs::default();
-            iter_args.prefix = Some(&programs_prefix);
-
-            // The fact that 2 init messages out of 5 have been processed means
-            // that there should be 2 inited programs.
-            let inited_count = state.pairs(iter_args).unwrap().fold(0u32, |count, pair| {
-                let value = match pair {
-                    Ok((_key, value)) => value,
-                    _ => return count,
-                };
-
-                match Program::<BlockNumber>::decode(&mut &value[..]) {
-                    Ok(p) if p.is_initialized() => count + 1,
-                    _ => count,
-                }
-            });
-            assert_eq!(inited_count, 2);
-        }
+        proposal
     );
+    // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
+    assert_eq!(proposal.block.extrinsics().len(), 7);
+
+    let state = backend.state_at(best_hash).unwrap();
+    // Ensure message queue still has 5 messages as none of the messages fit into the gas allownce
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let queue_len = state.keys(queue_entry_args).unwrap().count();
+
+    // 2 out of 5 messages have been processed, 3 remain in the queue
+    assert_eq!(queue_len, 3);
+
+    let programs_prefix = storage_prefix(
+        pallet_gear_program::Pallet::<Runtime>::name().as_bytes(),
+        "ProgramStorage".as_bytes(),
+    );
+    let mut iter_args = IterArgs::default();
+    iter_args.prefix = Some(&programs_prefix);
+
+    // The fact that 2 init messages out of 5 have been processed means
+    // that there should be 2 inited programs.
+    let inited_count = state.pairs(iter_args).unwrap().fold(0u32, |count, pair| {
+        let value = match pair {
+            Ok((_key, value)) => value,
+            _ => return count,
+        };
+
+        match Program::<BlockNumber>::decode(&mut &value[..]) {
+            Ok(p) if p.is_initialized() => count + 1,
+            _ => count,
+        }
+    });
+    assert_eq!(inited_count, 2);
 }
 
 #[test]
@@ -719,11 +677,8 @@ fn terminal_extrinsic_discarded_from_txpool() {
         signed_gear_run_xt.into(),
         legit_xt.into(),
     ];
-
-    let block_id = BlockId::number(0);
-    let timestamp = Timestamp::current();
-    let max_gas = None;
-    let max_duration = 1500_u64;
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    assert_eq!(txpool.ready().count(), 1);
 
     propose_block!(
         client,
@@ -731,35 +686,16 @@ fn terminal_extrinsic_discarded_from_txpool() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
-        timestamp,
-        max_duration,
-        max_gas,
-        proposal,
-        {
-            let num_ready = txpool.ready().count();
-            assert_eq!(num_ready, 1);
-        },
-        {
-            // Both mandatory extrinsics should have been discarded, therefore there are only 3 txs
-            // in the block: 1 timestamp inherent + 1 normal extrinsic + 1 terminal
-            assert_eq!(proposal.block.extrinsics().len(), 3);
-
-            // Importing block #1
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-        }
+        BlockId::number(0),
+        Box::new(time::Instant::now),
+        Timestamp::current(),
+        1500_u64,
+        None,
+        proposal
     );
-
     // Both mandatory extrinsics should have been discarded, therefore there are only 3 txs
     // in the block: 1 timestamp inherent + 1 normal extrinsic + 1 terminal
     assert_eq!(proposal.block.extrinsics().len(), 3);
-
-    // Importing block #1
-    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-    let best_hash = client.info().best_hash;
-    assert_eq!(best_hash, proposal.block.hash());
 }
 
 #[test]
@@ -878,9 +814,11 @@ fn proposal_timing_consistent() {
         genesis_hash,
     );
 
-    let block_id = BlockId::number(0);
+    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    let num_ready_1 = txpool.ready().count();
+
     let timestamp = Timestamp::current();
-    let max_gas = None;
+
     // Simulate the situation when the `Gear::run()` takes longer time to execute than forecasted
     // (for instance, if the gas metering is not quite precise etc.) by setting the deadline to a
     // smaller value than in reality. On Vara the `max_duration` is 1.5s (which is then transformed
@@ -894,63 +832,44 @@ fn proposal_timing_consistent() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
+        BlockId::number(0),
+        Box::new(time::Instant::now),
         timestamp,
         max_duration,
-        max_gas,
-        proposal,
-        {
-            let num_ready_0 = txpool.ready().count();
-        },
-        {
-            // Importing block #1
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-            let state = backend.state_at(best_hash).unwrap();
-
-            // Check that the message queue has all messages pushed to it
-            let queue_entry_prefix = storage_prefix(
-                pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                "Dispatches".as_bytes(),
-            );
-            let mut queue_entry_args = IterArgs::default();
-            queue_entry_args.prefix = Some(&queue_entry_prefix);
-
-            let queue_len = state.keys(queue_entry_args).unwrap().count();
-
-            // Draining tx pool in preparation for block #2
-            let best_block_id = BlockId::Hash(best_hash);
-            block_on(
-                txpool.maintain(chain_event(
-                    client
-                        .header(client.block_hash_from_id(&best_block_id).unwrap().unwrap())
-                        .expect("header get error")
-                        .expect("there should be header"),
-                )),
-            );
-
-            let num_ready_1 = txpool.ready().count();
-
-            // `-1` for the bank account pre-funding which did't put anything in the queue.
-            let num_messages = num_ready_0 - num_ready_1 - 1;
-
-            // We expect the `Gear::run()` to have been dropped, hence the queue should
-            // still have all the messages originally pushed to it.
-            assert_eq!(queue_len, num_messages);
-        }
+        None,
+        proposal
     );
+
+    let state = backend.state_at(best_hash).unwrap();
+
+    // Check that the message queue has all messages pushed to it
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let queue_len = state.keys(queue_entry_args).unwrap().count();
+
+    // Draining tx pool in preparation for block #2
+    submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
+
+    let num_ready_2 = txpool.ready().count();
+
+    // `-1` for the bank account pre-funding which did't put anything in the queue.
+    let num_messages = num_ready_1 - num_ready_2 - 1;
+
+    // We expect the `Gear::run()` to have been dropped, hence the queue should
+    // still have all the messages originally pushed to it.
+    assert_eq!(queue_len, num_messages);
 
     // Let the `Gear::run()` thread a little more time to finish
     std::thread::sleep(time::Duration::from_millis(500));
 
     // In the meantime make sure we can still keep creating blocks
-    let block_id = BlockId::Hash(best_hash);
-    let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
     // This time we set the deadline to a very high value to ensure that all messages go through.
     let max_duration = 15_000_u64;
-    // No new extrinsics are added to the block
-    let extrinsics = vec![];
 
     propose_block!(
         client,
@@ -958,30 +877,27 @@ fn proposal_timing_consistent() {
         txpool,
         spawner,
         best_hash,
-        block_id,
-        extrinsics,
-        timestamp,
+        BlockId::Hash(best_hash),
+        Box::new(time::Instant::now),
+        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
         max_duration,
-        max_gas,
-        proposal,
-        {},
-        {
-            // Importing block #2
-            block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
-
-            let state = backend.state_at(best_hash).unwrap();
-
-            let queue_entry_prefix = storage_prefix(
-                pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                "Dispatches".as_bytes(),
-            );
-            let mut queue_entry_args = IterArgs::default();
-            queue_entry_args.prefix = Some(&queue_entry_prefix);
-
-            let queue_len = state.keys(queue_entry_args).unwrap().count();
-            assert_eq!(queue_len, 0);
-        }
+        None,
+        proposal
     );
+    // Importing block #2
+    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+    let state = backend.state_at(best_hash).unwrap();
+
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let queue_len = state.keys(queue_entry_args).unwrap().count();
+    assert_eq!(queue_len, 0);
 }
 
 // Original tests from Substrate's `sc-basic-authorship` crate adjusted for actual Vara runtime
@@ -1025,73 +941,47 @@ mod basic_tests {
         // given
         init!(client, backend, txpool, spawner, genesis_hash);
 
-        let block_id = BlockId::number(0);
-        let timestamp = Timestamp::current();
         let extrinsics = sign_extrinsics(
             checked_extrinsics(2, bob(), 0_u32, || CallBuilder::noop().build()),
             VERSION.spec_version,
             VERSION.transaction_version,
             genesis_hash,
         );
-
-        block_on(txpool.submit_at(&block_id, SOURCE, extrinsics)).unwrap();
-
-        block_on(
-            txpool.maintain(chain_event(
-                client
-                    .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
-                    .expect("header get error")
-                    .expect("there should be header"),
-            )),
-        );
-
-        let mut proposer_factory = ProposerFactory::new(
-            spawner.clone(),
-            client.clone(),
-            backend.clone(),
-            txpool.clone(),
-            None,
-            None,
-            None,
-        );
+        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
         let cell = Mutex::new((false, time::Instant::now()));
-        // Proposer with `self.now()` that increments the instance by 1s each time it's called
-        let proposer = proposer_factory.init_with_now(
-            &client
-                .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
-                .expect("Database error querying block #0")
-                .expect("Block #0 should exist"),
-            Box::new(move || {
-                let mut value = cell.lock();
-                if !value.0 {
-                    value.0 = true;
-                    return value.1;
-                }
-                let old = value.1;
-                let new = old + time::Duration::from_secs(1);
-                *value = (true, new);
-                old
-            }),
+
+        // Proposer's `self.now()` function increments the `Instant` by 1s each time it's called
+        let now = Box::new(move || {
+            let mut value = cell.lock();
+            if !value.0 {
+                value.0 = true;
+                return value.1;
+            }
+            let old = value.1;
+            let new = old + time::Duration::from_secs(1);
+            *value = (true, new);
+            old
+        });
+        let max_duration = 3000_u64; // 3s
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            BlockId::number(0),
+            now,
+            Timestamp::current(),
+            max_duration,
+            None,
+            proposal
         );
-
-        // when
-        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
-        let time_slot = timestamp.as_millis() / SLOT_DURATION;
-        let inherent_data = block_on(timestamp_provider.create_inherent_data())
-            .expect("Create inherent data failed");
-        let deadline = time::Duration::from_secs(3);
-
-        // `proposer.now()` is called a few times while proposing a block so that only one
-        // normal extrinsic fits in the block. The pseudo-inherent is also dropped.
-        let block =
-            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
-                .map(|r| r.block)
-                .unwrap();
 
         // then
         // the block should have the timestamp and one ordinary extrinsic
-        assert_eq!(block.extrinsics().len(), 2);
+        assert_eq!(proposal.block.extrinsics().len(), 2);
         // while some tx are still in the pool (TODO: why two?)
         assert_eq!(txpool.ready().count(), 2);
     }
@@ -1102,43 +992,34 @@ mod basic_tests {
 
         init!(client, backend, txpool, spawner, _genesis_hash);
 
-        let mut proposer_factory = ProposerFactory::new(
-            spawner.clone(),
-            client.clone(),
-            backend.clone(),
-            txpool.clone(),
-            None,
-            None,
-            None,
-        );
-
+        let block_id = BlockId::number(0);
         let cell = Mutex::new((false, time::Instant::now()));
-        // Proposer with `self.now()` that increments the instance by 160s each time it's called
-        let proposer = proposer_factory.init_with_now(
-            &client.expect_header(client.info().genesis_hash).unwrap(),
-            Box::new(move || {
-                let mut value = cell.lock();
-                if !value.0 {
-                    value.0 = true;
-                    return value.1;
-                }
-                let new = value.1 + time::Duration::from_secs(160);
-                *value = (true, new);
-                new
-            }),
+        // The `proposer.now()` that increments the `Instant` by 160s each time it's called
+        let now = Box::new(move || {
+            let mut value = cell.lock();
+            if !value.0 {
+                value.0 = true;
+                return value.1;
+            }
+            let new = value.1 + time::Duration::from_secs(160);
+            *value = (true, new);
+            new
+        });
+        let max_duration = 1000_u64; // 1s
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            now,
+            Timestamp::current(),
+            max_duration,
+            None,
+            proposal
         );
-
-        let timestamp = Timestamp::current();
-        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
-        let time_slot = timestamp.as_millis() / SLOT_DURATION;
-        let inherent_data = block_on(timestamp_provider.create_inherent_data())
-            .expect("Create inherent data failed");
-        let deadline = time::Duration::from_secs(1);
-
-        let _block =
-            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
-                .map(|r| r.block)
-                .unwrap();
     }
 
     #[test]
@@ -1154,10 +1035,7 @@ mod basic_tests {
             genesis_hash,
         );
 
-        let block_id = BlockId::number(0);
-        let timestamp = Timestamp::current();
-        let max_gas = None;
-        let max_duration = 1500_u64;
+        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
         propose_block!(
             client,
@@ -1165,38 +1043,35 @@ mod basic_tests {
             txpool,
             spawner,
             best_hash,
-            block_id,
-            extrinsics,
-            timestamp,
-            max_duration,
-            max_gas,
-            proposal,
-            {},
-            {
-                // then
-                // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
-                assert_eq!(proposal.block.extrinsics().len(), 3);
-
-                let api = client.runtime_api();
-                api.execute_block(genesis_hash.into(), proposal.block)
-                    .unwrap();
-                let state = backend.state_at(genesis_hash.into()).unwrap();
-
-                let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
-
-                assert_eq!(
-                    proposal.storage_changes.transaction_storage_root,
-                    storage_changes.transaction_storage_root,
-                );
-
-                let queue_head_key = storage_prefix(
-                    pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-                    "Head".as_bytes(),
-                );
-                // Ensure message queue is empty given the terminal extrinsic completed successfully
-                assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
-            }
+            BlockId::number(0),
+            Box::new(time::Instant::now),
+            Timestamp::current(),
+            1500_u64,
+            None,
+            proposal
         );
+        // then
+        // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
+        assert_eq!(proposal.block.extrinsics().len(), 3);
+
+        let api = client.runtime_api();
+        api.execute_block(genesis_hash.into(), proposal.block)
+            .unwrap();
+        let state = backend.state_at(genesis_hash.into()).unwrap();
+
+        let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
+
+        assert_eq!(
+            proposal.storage_changes.transaction_storage_root,
+            storage_changes.transaction_storage_root,
+        );
+
+        let queue_head_key = storage_prefix(
+            pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+            "Head".as_bytes(),
+        );
+        // Ensure message queue is empty given the terminal extrinsic completed successfully
+        assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
     #[test]
@@ -1207,22 +1082,21 @@ mod basic_tests {
         init!(client, backend, txpool, spawner, genesis_hash);
 
         let alice = alice();
-        let bob = bob();
 
         let extrinsics = vec![
-            extrinsic(0, &bob, genesis_hash),
-            extrinsic(1, &bob, genesis_hash),
-            exhausts_resources_extrinsic(0, &alice, genesis_hash),
-            extrinsic(2, &bob, genesis_hash),
-            exhausts_resources_extrinsic(1, &alice, genesis_hash),
-            extrinsic(3, &bob, genesis_hash),
-            extrinsic(4, &bob, genesis_hash),
+            extrinsic(0, &alice, genesis_hash),
+            extrinsic(1, &alice, genesis_hash),
             exhausts_resources_extrinsic(2, &alice, genesis_hash),
+            extrinsic(3, &alice, genesis_hash),
+            exhausts_resources_extrinsic(4, &alice, genesis_hash),
+            extrinsic(5, &alice, genesis_hash),
+            extrinsic(6, &alice, genesis_hash),
         ];
-        let block_id = BlockId::number(0);
+
+        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        assert_eq!(txpool.ready().count(), 7);
+
         let timestamp = Timestamp::current();
-        let max_gas = None;
-        let max_duration = 1500_u64;
 
         propose_block!(
             client,
@@ -1230,27 +1104,21 @@ mod basic_tests {
             txpool,
             spawner,
             best_hash,
-            block_id,
-            extrinsics,
+            BlockId::number(0),
+            Box::new(time::Instant::now),
             timestamp,
-            max_duration,
-            max_gas,
-            proposal,
-            {
-                assert_eq!(txpool.ready().count(), 8);
-            },
-            {
-                // then
-                // block should have some extrinsics although we have some more in the pool.
-                assert_eq!(txpool.ready().count(), 8);
-                assert_eq!(proposal.block.extrinsics().len(), 7);
-            }
+            1500_u64,
+            None,
+            proposal
         );
+        // then
+        // block should have some extrinsics although we have some more in the pool.
+        assert_eq!(txpool.ready().count(), 7);
+        assert_eq!(proposal.block.extrinsics().len(), 6);
 
         // Preparing block #2
-        let block_id = BlockId::Hash(best_hash);
-        let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
-        let extrinsics = vec![]; // no new extrinsics
+        submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
+        assert_eq!(txpool.ready().count(), 3);
 
         propose_block!(
             client,
@@ -1258,21 +1126,16 @@ mod basic_tests {
             txpool,
             spawner,
             best_hash,
-            block_id,
-            extrinsics,
-            timestamp,
-            max_duration,
-            max_gas,
-            proposal,
-            {
-                assert_eq!(txpool.ready().count(), 3);
-            },
-            {
-                // 1 normal extrinsic should still make it into block (together with inherents):
-                assert_eq!(proposal.block.extrinsics().len(), 3);
-                assert_eq!(proposal.block.extrinsics().len(), 3);
-            }
+            BlockId::Hash(best_hash),
+            Box::new(time::Instant::now),
+            Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
+            1500_u64,
+            None,
+            proposal
         );
+        // 1 normal extrinsic should still make it into block (together with inherents):
+        assert_eq!(txpool.ready().count(), 3);
+        assert_eq!(proposal.block.extrinsics().len(), 5);
     }
 
     #[test]
@@ -1407,9 +1270,10 @@ mod basic_tests {
                     .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
             )
             .collect();
-        let block_id = BlockId::number(0);
-        let timestamp = Timestamp::current();
-        let max_gas = None;
+
+        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 3);
+
         // give it enough time so that deadline is never triggered.
         let max_duration = 900_000_u64;
 
@@ -1419,23 +1283,18 @@ mod basic_tests {
             txpool,
             spawner,
             best_hash,
-            block_id,
-            extrinsics,
-            timestamp,
+            BlockId::number(0),
+            Box::new(time::Instant::now),
+            Timestamp::current(),
             max_duration,
-            max_gas,
-            proposal,
-            {
-                assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 3);
-            },
-            {
-                // then
-                // MAX_SKIPPED_TRANSACTIONS + inherents have been included in the block
-                assert_eq!(
-                    proposal.block.extrinsics().len(),
-                    MAX_SKIPPED_TRANSACTIONS + 2
-                );
-            }
+            None,
+            proposal
+        );
+        // then
+        // MAX_SKIPPED_TRANSACTIONS + inherents have been included in the block
+        assert_eq!(
+            proposal.block.extrinsics().len(),
+            MAX_SKIPPED_TRANSACTIONS + 3
         );
     }
 
@@ -1447,76 +1306,52 @@ mod basic_tests {
         init!(client, backend, txpool, spawner, genesis_hash);
 
         let bob = bob();
+        let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
+            .map(|i| exhausts_resources_extrinsic(i as u32, &bob, genesis_hash))
+            // and some transactions that are okay.
+            .chain(
+                (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
+                    .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
+            )
+            .collect();
+        let block_id = BlockId::number(0);
 
-        block_on(
-            txpool.submit_at(
-                &BlockId::number(0),
-                SOURCE,
-                (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
-                    .map(|i| exhausts_resources_extrinsic(i as u32, &bob, genesis_hash))
-                    // and some transactions that are okay.
-                    .chain(
-                        (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
-                            .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
-                    )
-                    .collect(),
-            ),
-        )
-        .unwrap();
-
-        block_on(
-            txpool.maintain(chain_event(
-                client
-                    .expect_header(client.info().genesis_hash)
-                    .expect("there should be header"),
-            )),
-        );
+        submit_txs!(client, txpool, block_id, extrinsics);
         assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 2 + 2);
 
-        let mut proposer_factory = ProposerFactory::new(
-            spawner.clone(),
-            client.clone(),
-            backend.clone(),
-            txpool.clone(),
-            None,
-            None,
-            None,
-        );
-
-        let deadline = time::Duration::from_secs(1000);
         let cell = Arc::new(Mutex::new((0, time::Instant::now())));
         let cell2 = cell.clone();
-        let proposer = proposer_factory.init_with_now(
-            &client.expect_header(client.info().genesis_hash).unwrap(),
-            Box::new(move || {
-                let mut value = cell.lock();
-                let (called, old) = *value;
-                // add time after deadline is calculated internally (hence 1)
-                let increase = if called == 1 {
-                    // we start after the soft_deadline should have already been reached.
-                    deadline / 2
-                } else {
-                    // but we make sure to never reach the actual deadline
-                    time::Duration::from_millis(0)
-                };
-                *value = (called + 1, old + increase);
-                old
-            }),
+        let max_duration = 1_000_000_u64; // more than enough time
+        let now = Box::new(move || {
+            let mut value = cell.lock();
+            let (called, old) = *value;
+            // add time after deadline is calculated internally (hence 1)
+            let increase = if called == 1 {
+                // we start after the soft_deadline should have already been reached.
+                time::Duration::from_millis(max_duration) / 2
+            } else {
+                // but we make sure to never reach the actual deadline
+                time::Duration::from_millis(0)
+            };
+            *value = (called + 1, old + increase);
+            old
+        });
+
+        propose_block!(
+            client,
+            backend,
+            txpool,
+            spawner,
+            best_hash,
+            block_id,
+            now,
+            Timestamp::current(),
+            max_duration,
+            None,
+            proposal
         );
-
-        let timestamp = Timestamp::current();
-        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
-        let time_slot = timestamp.as_millis() / SLOT_DURATION;
-        let inherent_data = block_on(timestamp_provider.create_inherent_data())
-            .expect("Create inherent data failed");
-
-        let block =
-            block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
-                .map(|r| r.block)
-                .unwrap();
-
-        // then the block should have no ordinary transactions despite some in the pool
-        assert_eq!(block.extrinsics().len(), 3);
+        // the block should have a single ordianry transaction despite more being in the pool
+        assert_eq!(proposal.block.extrinsics().len(), 3);
         assert!(
             cell2.lock().0 > MAX_SKIPPED_TRANSACTIONS,
             "Not enough calls to current time, which indicates the test might have ended \

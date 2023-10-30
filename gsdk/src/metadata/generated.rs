@@ -3031,11 +3031,9 @@ pub mod runtime_types {
                     #[doc = "Used in tests to exhaust block resources."]
                     #[doc = ""]
                     #[doc = "Parameters:"]
-                    #[doc = "- `n`: the weight that needs to be subtracted from the `max_weight`"]
-                    #[doc = "- `s`: the weight that needs to be subtracted from the `max_weight`"]
+                    #[doc = "- `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
                     exhaust_block_resources {
-                        n: ::core::primitive::u64,
-                        s: ::core::primitive::u64,
+                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
