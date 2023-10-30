@@ -1298,8 +1298,7 @@ impl GearApi {
         self.set_code_without_checks(code).await
     }
 
-    /// Set the free balance of the `to` account to `new_free` and
-    /// `new_reserved` respectively.
+    /// Set the free balance of the `to` account to `new_free`.
     ///
     /// Sends the [`pallet_balances::set_balance`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.set_balance) extrinsic.
     pub async fn force_set_balance(

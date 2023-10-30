@@ -684,13 +684,13 @@ impl ExtBuilder {
 
 #[allow(unused)]
 pub(crate) fn run_to_block(n: u64) {
-    Staking::on_finalize(System::block_number());
-    for b in (System::block_number() + 1)..=n {
-        System::set_block_number(b);
-        on_initialize(b);
-        if b != n {
-            on_finalize(System::block_number());
-        }
+    while System::block_number() < n {
+        let current_blk = System::block_number();
+        on_finalize(current_blk);
+
+        let new_block_number = current_blk + 1;
+        System::set_block_number(new_block_number);
+        on_initialize(new_block_number);
     }
 }
 
@@ -729,7 +729,7 @@ pub fn run_to_signed() {
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new_block_number);
-    <Staking as Hooks<u64>>::on_initialize(new_block_number);
+    Staking::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
     ElectionProviderMultiPhase::on_initialize(new_block_number);
 }

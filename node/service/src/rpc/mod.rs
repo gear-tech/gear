@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
-use sc_client_api::AuxStore;
+use sc_client_api::{backend::StateBackend, AuxStore, Backend, BlockBackend, StorageProvider};
 use sc_consensus_babe::BabeWorkerHandle;
 use sc_consensus_grandpa::{
     FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
@@ -98,11 +98,11 @@ pub fn create_full<C, P, SC, B>(
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>
-        + sc_client_api::BlockBackend<Block>
+        + BlockBackend<Block>
         + HeaderBackend<Block>
         + AuxStore
         + HeaderMetadata<Block, Error = BlockChainError>
-        + sc_client_api::StorageProvider<Block, B>
+        + StorageProvider<Block, B>
         + Sync
         + Send
         + 'static,
@@ -114,8 +114,8 @@ where
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,
-    B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-    B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
+    B: Backend<Block> + Send + Sync + 'static,
+    B::State: StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
