@@ -41,7 +41,7 @@ mod utils;
 #[cfg(test)]
 mod tests;
 
-pub use crate::common::LazyPagesPagesStorage;
+pub use crate::common::LazyPagesStorage;
 pub use common::{LazyPagesVersion, PagePrefix, PageSizes};
 pub use host_func::pre_process_memory_accesses;
 
@@ -379,7 +379,7 @@ pub(crate) fn reset_init_flag() {
 }
 
 /// Initialize lazy-pages for current thread.
-fn init_with_handler<H: UserSignalHandler, S: LazyPagesPagesStorage + 'static>(
+fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
     _version: LazyPagesVersion,
     ctx: LazyPagesInitContext,
     pages_storage: S,
@@ -444,7 +444,7 @@ fn init_with_handler<H: UserSignalHandler, S: LazyPagesPagesStorage + 'static>(
     Ok(())
 }
 
-pub fn init<S: LazyPagesPagesStorage + 'static>(
+pub fn init<S: LazyPagesStorage + 'static>(
     version: LazyPagesVersion,
     ctx: LazyPagesInitContext,
     pages_storage: S,

@@ -32,7 +32,7 @@ use gear_core::{
     str::LimitedStr,
 };
 #[cfg(feature = "std")]
-use gear_lazy_pages::{LazyPagesPagesStorage, PagePrefix, PageSizes};
+use gear_lazy_pages::{LazyPagesStorage, PagePrefix, PageSizes};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -126,7 +126,7 @@ enum SpIoProgramStorageError {
 struct SpIoProgramStorage;
 
 #[cfg(feature = "std")]
-impl LazyPagesPagesStorage for SpIoProgramStorage {
+impl LazyPagesStorage for SpIoProgramStorage {
     fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
         let key = prefix.key_for_page(page);
         sp_io::storage::exists(&key)

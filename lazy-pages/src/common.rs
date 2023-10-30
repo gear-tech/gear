@@ -132,7 +132,7 @@ pub(crate) struct LazyPagesRuntimeContext {
     pub page_sizes: PageSizes,
     pub global_names: GlobalNames,
     pub pages_storage_prefix: Vec<u8>,
-    pub program_storage: Box<dyn LazyPagesPagesStorage>,
+    pub program_storage: Box<dyn LazyPagesStorage>,
 }
 
 impl LazyPagesRuntimeContext {
@@ -152,7 +152,7 @@ impl LazyPagesRuntimeContext {
     }
 }
 
-pub trait LazyPagesPagesStorage: fmt::Debug {
+pub trait LazyPagesStorage: fmt::Debug {
     fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool;
 
     fn load_page(
