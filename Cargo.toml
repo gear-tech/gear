@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.2"
+version = "1.0.2-pre.9"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -73,6 +73,7 @@ members = [
     "gclient",
     "gcore",
     "gmeta",
+    "gmeta/codegen",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -196,6 +197,7 @@ gstd = { path = "gstd" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
+gmeta-codegen = { path = "gmeta/codegen" }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }

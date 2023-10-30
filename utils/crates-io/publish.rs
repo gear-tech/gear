@@ -14,27 +14,20 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 12] = [
+const PACKAGES: [&str; 14] = [
     // Packages without local dependencies.
     "actor-system-error",
-    // "gear-backend-codegen",
-    // "gear-common-codegen",
+    "gear-common-codegen",
     "gear-core-errors",
-    // "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
-    // "gsys",
+    "gsys",
     // The packages below have local dependencies,
     // and should be published in order.
     "gmeta",
     "gear-core",
     "gear-utils",
-    // "gear-backend-common",
-    // TODO: Refactor metadata parser (#3222)
-    //
-    // "gear-sandbox-host",
-    // "gear-core-processor",
     "gear-common",
     "gsdk",
     "gcli",
@@ -42,7 +35,7 @@ const PACKAGES: [&str; 12] = [
 ];
 
 /// Packages need to be patched in dependencies.
-const PATCHED_PACKAGES: [&str; 3] = ["core-processor", "sp-arithmetic", "subxt"];
+const PATCHED_PACKAGES: [&str; 1] = ["sp-arithmetic"];
 
 struct CratesIo {
     registry: Registry,
@@ -61,10 +54,6 @@ impl CratesIo {
 
     /// Verify if the package is published to crates.io.
     pub fn verify(&mut self, mut package: &str, version: &str) -> Result<bool> {
-        if package == "gear-core-processor" {
-            package = "gear-processor";
-        }
-
         // Here using limit = 1 since we are searching explicit
         // packages here.
         let (crates, _total) = self.registry.search(package, 1)?;
@@ -112,13 +101,6 @@ fn main() -> Result<()> {
                 product.crate_type = vec![];
                 manifest.lib = Some(product);
             }
-        } else if p.name == "gear-core-processor" {
-            // Change the name of gear-core-processor to gear-processor since
-            // gear-core-processor has been taken by others.
-            if let Some(mut metadata) = manifest.package {
-                metadata.name = "gear-processor".into();
-                manifest.package = Some(metadata);
-            }
         }
 
         for (name, dep) in manifest.dependencies.iter_mut() {
@@ -142,17 +124,7 @@ fn main() -> Result<()> {
                     detail.branch = None;
                     detail.git = None;
                 }
-                "subxt" => {
-                    detail.package = Some("gear-subxt".into());
-                }
-                _ => {
-                    detail.version = Some(version.to_string());
-
-                    // Patch for gear-core-processor in dependencies.
-                    if detail.package == Some("gear-core-processor".into()) {
-                        detail.package = Some("gear-processor".into());
-                    }
-                }
+                _ => detail.version = Some(version.to_string()),
             }
 
             *dep = Dependency::Detailed(detail);
