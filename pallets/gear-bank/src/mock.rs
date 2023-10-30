@@ -78,20 +78,7 @@ construct_runtime!(
 );
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<AccountId> for FixedBlockAuthor {
-    fn find_author<'a, I: 'a>(_: I) -> Option<AccountId> {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-    type EventHandler = ();
-}
-
+common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
 
 impl pallet_gear_bank::Config for Test {

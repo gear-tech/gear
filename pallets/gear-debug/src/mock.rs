@@ -42,10 +42,6 @@ type Balance = u128;
 
 pub const BLOCK_AUTHOR: AccountId = 255;
 
-common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
-common::impl_pallet_balances!(Test);
-common::impl_pallet_timestamp!(Test);
-
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1;
@@ -57,23 +53,6 @@ impl pallet_gear_debug::Config for Test {
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = ();
 }
 
 parameter_types! {
@@ -166,6 +145,11 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
     }
 );
+
+common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test);
+common::impl_pallet_timestamp!(Test);
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

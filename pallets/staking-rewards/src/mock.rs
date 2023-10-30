@@ -59,6 +59,7 @@ pub(crate) type Executive = frame_executive::Executive<
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
+pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
 pub(crate) const VAL_1_CONTROLLER: AccountId = 11;
 pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
 pub(crate) const VAL_2_STASH: AccountId = 20;
@@ -106,28 +107,12 @@ construct_runtime!(
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test, EventHandler = Staking);
 common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(VAL_1_STASH)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = Staking;
 }
 
 impl pallet_sudo::Config for Test {

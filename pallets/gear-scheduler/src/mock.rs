@@ -70,6 +70,7 @@ construct_runtime!(
 
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_timestamp!(Test);
+common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
@@ -143,23 +144,6 @@ impl pallet_gear_gas::Config for Test {
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
     type CurrentBlockNumber = Gear;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = ();
 }
 
 // Build genesis storage according to the mock runtime.

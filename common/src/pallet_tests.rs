@@ -125,3 +125,23 @@ macro_rules! impl_pallet_timestamp {
         }
     };
 }
+
+#[macro_export]
+macro_rules! impl_pallet_authorship {
+    ($runtime:ty, EventHandler = $event_handler:ty) => {
+        pub struct FixedBlockAuthor;
+
+        impl FindAuthor<AccountId> for FixedBlockAuthor {
+            fn find_author<'a, I: 'a>(_: I) -> Option<AccountId> {
+                Some(BLOCK_AUTHOR)
+            }
+        }
+
+        impl pallet_authorship::Config for $runtime {
+            type FindAuthor = FixedBlockAuthor;
+            type EventHandler = $event_handler;
+        }
+    };
+
+    ($runtime:ty) => { $crate::impl_pallet_authorship!($runtime, EventHandler = ()); };
+}
