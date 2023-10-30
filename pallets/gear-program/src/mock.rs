@@ -68,6 +68,7 @@ construct_runtime!(
 
 common::impl_pallet_system!(Test);
 pallet_gear_program::impl_config!(Test);
+pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -77,15 +78,7 @@ parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 500;
-}
-
-impl pallet_gear_scheduler::Config for Test {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
-    type WaitlistCost = ConstU64<100>;
-    type MailboxCost = ConstU64<100>;
-    type ReservationCost = ConstU64<100>;
-    type DispatchHoldCost = ConstU64<100>;
+    pub ReserveThreshold: BlockNumber = 1;
 }
 
 // Build genesis storage according to the mock runtime.

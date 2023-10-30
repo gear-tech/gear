@@ -28,6 +28,20 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[macro_export]
+macro_rules! impl_config {
+    ($runtime:ty) => {
+        impl pallet_gear_scheduler::Config for $runtime {
+            type BlockLimiter = GearGas;
+            type ReserveThreshold = ReserveThreshold;
+            type WaitlistCost = ConstU64<100>;
+            type MailboxCost = ConstU64<100>;
+            type ReservationCost = ConstU64<100>;
+            type DispatchHoldCost = ConstU64<100>;
+        }
+    };
+}
+
 // Public exports from pallet.
 pub use pallet::*;
 

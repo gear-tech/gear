@@ -68,6 +68,7 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub ReserveThreshold: BlockNumber = 1;
 }
 
 impl pallet_gear::Config for Test {
@@ -94,15 +95,6 @@ impl pallet_gear::Config for Test {
     type ProgramResumeSessionDuration = ResumeSessionDuration;
     type ProgramRentEnabled = ConstBool<false>;
     type ProgramRentDisabledDelta = RentFreePeriod;
-}
-
-impl pallet_gear_scheduler::Config for Test {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
-    type WaitlistCost = ConstU64<100>;
-    type MailboxCost = ConstU64<100>;
-    type ReservationCost = ConstU64<100>;
-    type DispatchHoldCost = ConstU64<100>;
 }
 
 // Configure a mock runtime to test the pallet.
@@ -132,6 +124,7 @@ common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
+pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
 pallet_gear_gas::impl_config!(Test);
 
