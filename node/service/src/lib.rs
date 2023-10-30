@@ -404,7 +404,6 @@ where
     } = new_partial(&config, rpc_calculations_multiplier, rpc_max_batch_size)?;
 
     let shared_voter_state = rpc_setup;
-    let _auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
     let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
     let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
