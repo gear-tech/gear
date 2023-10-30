@@ -4505,7 +4505,6 @@ version = "1.0.2"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-core",
- "gear-core-backend",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",
