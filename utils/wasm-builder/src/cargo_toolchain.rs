@@ -20,7 +20,7 @@ use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::{borrow::Cow, process::Command};
+use std::process::Command;
 
 // The channel patterns we support (borrowed from the rustup code)
 static TOOLCHAIN_CHANNELS: &[&str] = &[
@@ -88,32 +88,12 @@ impl Toolchain {
     /// `<channel> = stable|beta|nightly|<major.minor>|<major.minor.patch>`
     ///
     /// `<date>    = YYYY-MM-DD`
-    pub fn raw_toolchain_str(&'_ self) -> Cow<'_, str> {
-        self.0.as_str().into()
-    }
-
-    /// Returns toolchain string specification without target triple
-    /// and with raw `<channel>` substituted by `nightly`.
-    ///
-    /// `nightly[-<date>]`
-    ///
-    /// `<date>    = YYYY-MM-DD`
-    pub fn nightly_toolchain_str(&'_ self) -> Cow<'_, str> {
-        if !self.is_nightly() {
-            let date_start_idx = self
-                .0
-                .find('-')
-                .unwrap_or_else(|| self.raw_toolchain_str().len());
-            let mut toolchain_str = self.0.clone();
-            toolchain_str.replace_range(..date_start_idx, "nightly");
-            toolchain_str.into()
-        } else {
-            self.raw_toolchain_str()
-        }
+    pub fn toolchain_str(&self) -> &str {
+        self.0.as_str()
     }
 
     // Returns bool representing nightly toolchain.
-    fn is_nightly(&self) -> bool {
+    pub fn is_nightly(&self) -> bool {
         self.0.starts_with("nightly")
     }
 }
