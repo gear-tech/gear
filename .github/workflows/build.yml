@@ -232,7 +232,7 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Stack height limit"
-        run: cargo run -p calc-stack-height --release --locked
+        run: cargo xwin run -p calc-stack-height --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
