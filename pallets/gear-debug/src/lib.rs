@@ -44,6 +44,7 @@ pub mod pallet {
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
+    use sp_runtime::Percent;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
@@ -287,20 +288,18 @@ pub mod pallet {
         /// Used in tests to exhaust block resources.
         ///
         /// Parameters:
-        /// - `n`: the weight that needs to be subtracted from the `max_weight`
-        /// - `s`: the weight that needs to be subtracted from the `max_weight`
+        /// - `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
         #[pallet::call_index(1)]
         #[pallet::weight({
             if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
-                max.saturating_sub(Weight::from_parts(*_n, *_s))
+                *_fraction * max
             } else {
                 Weight::zero()
             }
         })]
         pub fn exhaust_block_resources(
             _origin: OriginFor<T>,
-            _n: u64,
-            _s: u64,
+            _fraction: Percent,
         ) -> DispatchResultWithPostInfo {
             Ok(Pays::No.into())
         }
