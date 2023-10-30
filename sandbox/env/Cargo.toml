@@ -1,11 +1,11 @@
 [package]
 name = "gear-sandbox-env"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "This crate provides means to instantiate and execute wasm modules."
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 version.workspace = true
 
 [package.metadata.docs.rs]

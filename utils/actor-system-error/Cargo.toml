@@ -1,7 +1,7 @@
 [package]
 name = "actor-system-error"
-edition = "2021"
-description = "Errors for the actor system"
+description = "Helper crate for implementation of errors on gear backend"
+edition.workspace = true
 version.workspace = true
 authors.workspace = true
 license.workspace = true
