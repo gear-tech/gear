@@ -43,7 +43,7 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.push("--ws-port");
+        args.push("--rpc-port");
         args.push(&port_string);
         args.push("--no-hardware-benchmarks");
 
