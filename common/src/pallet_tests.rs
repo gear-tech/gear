@@ -20,6 +20,10 @@
 /// for various pallets of Substrate.
 /// All used types should be in scope.
 
+use frame_support::{pallet_prelude::*, weights::RuntimeDbWeight};
+use frame_system::limits::BlockWeights;
+use sp_arithmetic::Perbill;
+
 #[macro_export]
 macro_rules! impl_pallet_balances {
     ($runtime:ty) => {
@@ -34,5 +38,77 @@ macro_rules! impl_pallet_balances {
             type AccountStore = System;
             type WeightInfo = ();
         }
+    };
+}
+
+pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+pub const MAX_BLOCK: u64 = 250_000_000_000;
+
+frame_support::parameter_types! {
+    pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
+        Weight::from_parts(MAX_BLOCK, u64::MAX),
+        NORMAL_DISPATCH_RATIO,
+    );
+    pub const SS58Prefix: u8 = 42;
+    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1_110, write: 2_300 };
+}
+
+#[macro_export]
+macro_rules! impl_pallet_system {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
+        type SystemConfigDbWeight = $crate::pallet_tests::DbWeight;
+        #[allow(dead_code)]
+        type SystemConfigBlockWeights = $crate::pallet_tests::RuntimeBlockWeights;
+
+        mod pallet_tests_system_config_impl {
+            use super::*;
+
+            $crate::impl_pallet_system_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_pallet_system_inner {
+    ($runtime:ty$(,)?) => {
+        impl frame_system::Config for $runtime {
+            type BaseCallFilter = frame_support::traits::Everything;
+            type BlockWeights = SystemConfigBlockWeights;
+            type BlockLength = ();
+            type DbWeight = SystemConfigDbWeight;
+            type RuntimeOrigin = RuntimeOrigin;
+            type RuntimeCall = RuntimeCall;
+            type Index = u64;
+            type BlockNumber = BlockNumber;
+            type Hash = H256;
+            type Hashing = BlakeTwo256;
+            type AccountId = AccountId;
+            type Lookup = IdentityLookup<Self::AccountId>;
+            type Header = generic::Header<BlockNumber, BlakeTwo256>;
+            type RuntimeEvent = RuntimeEvent;
+            type BlockHashCount = BlockHashCount;
+            type Version = ();
+            type PalletInfo = PalletInfo;
+            type AccountData = pallet_balances::AccountData<Balance>;
+            type OnNewAccount = ();
+            type OnKilledAccount = ();
+            type SystemWeightInfo = ();
+            type SS58Prefix = $crate::pallet_tests::SS58Prefix;
+            type OnSetCode = ();
+            type MaxConsumers = frame_support::traits::ConstU32<16>;
+        }
+    };
+
+    ($runtime:ty, DbWeight = $db_weight:ty, $( $rest:tt )*) => {
+        type SystemConfigDbWeight = $db_weight;
+
+        $crate::impl_pallet_system_inner!($runtime, $( $rest )*);
+    };
+
+    ($runtime:ty, BlockWeights = $block_weights:ty, $( $rest:tt )*) => {
+        type SystemConfigBlockWeights = $block_weights;
+
+        $crate::impl_pallet_system_inner!($runtime, $( $rest )*);
     };
 }

@@ -23,8 +23,8 @@ use frame_election_provider_support::{
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU32, Contains, Currency, Everything, FindAuthor, GenesisBuild, NeverEnsureOrigin,
-        OnFinalize, OnInitialize, U128CurrencyToVote,
+        ConstU32, Contains, Currency, FindAuthor, GenesisBuild, NeverEnsureOrigin, OnFinalize,
+        OnInitialize, U128CurrencyToVote,
     },
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
@@ -34,7 +34,8 @@ use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    testing::{Block as TestBlock, Header, UintAuthorityId},
+    generic,
+    testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
     KeyTypeId, Perbill, Permill, Perquintill,
 };
@@ -103,39 +104,12 @@ construct_runtime!(
     }
 );
 
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = RocksDbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
 }
 
 pub struct FixedBlockAuthor;

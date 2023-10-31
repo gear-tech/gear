@@ -30,7 +30,7 @@ use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
-    testing::Header,
+    generic,
     traits::{BlakeTwo256, IdentityLookup},
 };
 
@@ -68,39 +68,12 @@ construct_runtime!(
     }
 );
 
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 500;
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = RocksDbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl pallet_gear_program::Config for Test {

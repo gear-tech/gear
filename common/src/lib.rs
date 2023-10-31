@@ -40,7 +40,7 @@ pub mod gas_provider;
 pub mod benchmarking;
 
 #[cfg(feature = "std")]
-mod pallet_tests;
+pub mod pallet_tests;
 
 use core::fmt;
 use frame_support::{

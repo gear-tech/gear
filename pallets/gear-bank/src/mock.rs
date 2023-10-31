@@ -18,21 +18,19 @@
 
 use crate as pallet_gear_bank;
 use frame_support::{
-    construct_runtime, parameter_types,
-    traits::{Everything, FindAuthor},
-    weights::constants::RocksDbWeight,
+    construct_runtime, parameter_types, traits::FindAuthor, weights::constants::RocksDbWeight,
 };
 use frame_system::mocking::{MockBlock, MockUncheckedExtrinsic};
-use pallet_balances::AccountData;
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    testing::Header,
-    traits::{BlakeTwo256, ConstU32, IdentityLookup},
+    generic,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 
 pub type AccountId = u8;
 pub type Balance = u128;
+type BlockNumber = u64;
 
 mod consts {
     #![allow(unused)]
@@ -62,7 +60,7 @@ pub use consts::*;
 parameter_types! {
     pub const BankAddress: AccountId = BANK_ADDRESS;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -79,32 +77,7 @@ construct_runtime!(
     }
 );
 
-impl frame_system::Config for Test {
-    type BaseCallFilter = Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = RocksDbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = u64;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
-}
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
 
 pub struct FixedBlockAuthor;
 
