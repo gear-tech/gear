@@ -71,32 +71,6 @@ parameter_types! {
     pub ReserveThreshold: BlockNumber = 1;
 }
 
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type WeightInfo = ();
-    type OutgoingLimit = OutgoingLimit;
-    type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = super::Pallet<Test>;
-    type Schedule = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type Voucher = ();
-    type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-    type ProgramRentCostPerBlock = RentCostPerBlock;
-    type ProgramResumeSessionDuration = ResumeSessionDuration;
-    type ProgramRentEnabled = ConstBool<false>;
-    type ProgramRentDisabledDelta = RentFreePeriod;
-}
-
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test where
@@ -126,6 +100,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
+pallet_gear::impl_config!(Test, DebugInfo = pallet_gear_debug::Pallet<Test>, ProgramRentEnabled = ConstBool<false>,);
 pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.

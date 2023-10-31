@@ -76,6 +76,7 @@ construct_runtime!(
 );
 
 common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = RuntimeBlockWeights,);
+pallet_gear::impl_config!(Test, Schedule = GearSchedule,);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -119,32 +120,6 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-}
-
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type WeightInfo = ();
-    type Schedule = GearSchedule;
-    type OutgoingLimit = OutgoingLimit;
-    type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type Voucher = ();
-    type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-    type ProgramRentCostPerBlock = RentCostPerBlock;
-    type ProgramResumeSessionDuration = ResumeSessionDuration;
-    type ProgramRentEnabled = ConstBool<true>;
-    type ProgramRentDisabledDelta = RentFreePeriod;
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
