@@ -952,6 +952,7 @@ mod basic_tests {
         let cell = Mutex::new((false, time::Instant::now()));
 
         // Proposer's `self.now()` function increments the `Instant` by 1s each time it's called
+        // (starting from the moment of the second call)
         let now = Box::new(move || {
             let mut value = cell.lock();
             if !value.0 {
@@ -963,7 +964,14 @@ mod basic_tests {
             *value = (true, new);
             old
         });
-        let max_duration = 3000_u64; // 3s
+
+        // `max_duration` of 3s will be converted into 2s dealine inside `propose()`,
+        // which allows the `self.now()` to be called 4 times before `deadline` is reached`:
+        // - in `proposer::propose()` (1st time)
+        // - after the inherents processing (2nd time)
+        // - to limit the waiting time of the txpool (3rd time)
+        // - at the 1st iteration of the tx processing `loop` (4th time)
+        let max_duration = 3000_u64;
 
         propose_block!(
             client,
@@ -980,9 +988,21 @@ mod basic_tests {
         );
 
         // then
-        // the block should have the timestamp and one ordinary extrinsic
-        assert_eq!(proposal.block.extrinsics().len(), 2);
-        // while some tx are still in the pool (TODO: why two?)
+        // The block should have 2 extrinsics: the timestamp and one ordinary one.
+        // However, there is a tiny chance the `pseudo-inherent` can make it into the block
+        // before the future measuring the timeout gets a chance to run.
+        // We must account for the latter case, as well, to avoid ambiguity.
+        if proposal.block.extrinsics().len() > 2 {
+            assert_eq!(proposal.block.extrinsics().len(), 3);
+            // A "hacky" way to ensure the unaccounted extrinsic is the pseudo-inherent:
+            // its (current) encoded representation is `vec![16, 4, 104, 6, 0]`
+            assert_eq!(
+                proposal.block.extrinsics()[2].encode(),
+                vec![16_u8, 4, 104, 6, 0]
+            );
+        } else {
+            assert_eq!(proposal.block.extrinsics().len(), 2);
+        }
         assert_eq!(txpool.ready().count(), 2);
     }
 
