@@ -24,12 +24,12 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::program::MemoryInfix;
-use sp_runtime::TryRuntimeError;
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::codec::{Decode, Encode},
+    sp_runtime::TryRuntimeError,
     sp_std::vec::Vec,
 };
 
