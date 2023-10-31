@@ -90,7 +90,7 @@ impl CargoCommand {
 
         cargo
             .arg("run")
-            .arg(self.toolchain.nightly_toolchain_str().as_ref())
+            .arg(self.toolchain.try_switch_to_nightly_toolchain()?)
             .arg("cargo")
             .arg("rustc")
             .arg("--target=wasm32-unknown-unknown")
