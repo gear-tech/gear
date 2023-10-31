@@ -88,14 +88,9 @@ impl CargoCommand {
         let mut cargo = Command::new(&self.path);
         self.clean_up_environment(&mut cargo);
 
-        // Allow use of `#![feature(...)]` in stable Rust, but only in wasm builds.
-        if !self.toolchain.is_nightly() {
-            cargo.env("RUSTC_BOOTSTRAP", "1");
-        }
-
         cargo
             .arg("run")
-            .arg(self.toolchain.toolchain_str())
+            .arg(self.toolchain.nightly_toolchain_str().as_ref())
             .arg("cargo")
             .arg("rustc")
             .arg("--target=wasm32-unknown-unknown")
