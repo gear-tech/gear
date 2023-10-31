@@ -88,6 +88,7 @@ impl CargoCommand {
         let mut cargo = Command::new(&self.path);
         self.clean_up_environment(&mut cargo);
 
+        // Allow use of `#![feature(...)]` in stable Rust, but only in wasm builds.
         if !self.toolchain.is_nightly() {
             cargo.env("RUSTC_BOOTSTRAP", "1");
         }
@@ -140,9 +141,11 @@ impl CargoCommand {
     }
 
     fn clean_up_environment(&self, command: &mut Command) {
-        // Inherited build scripts environment variables must be removed,
-        // otherwise we will get compilation errors on the stable toolchain.
+        // Inherited build script environment variables must be removed
+        // so that they cannot change the behavior of the cargo package manager.
 
+        // https://doc.rust-lang.org/cargo/reference/environment-variables.html
+        // `RUSTC_WRAPPER` and `RUSTC_WORKSPACE_WRAPPER` are not removed due to tools like sccache.
         for env_var in [
             "CARGO",
             "CARGO_MANIFEST_DIR",
