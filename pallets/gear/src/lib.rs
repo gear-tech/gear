@@ -1895,13 +1895,19 @@ pub mod pallet {
                     .try_into()
                     .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
+                let existence_requirement = if keep_alive {
+                    ExistenceRequirement::KeepAlive
+                } else {
+                    ExistenceRequirement::AllowDeath
+                };
+
                 CurrencyOf::<T>::transfer(
                     &who,
                     &<T as frame_system::Config>::AccountId::from_origin(
                         message.destination().into_origin(),
                     ),
                     value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
+                    existence_requirement,
                 )?;
 
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
