@@ -97,8 +97,11 @@ impl Toolchain {
             .output()
             .context("`rustup` command failed")?;
 
-        output.status.success().then_some(toolchain).ok_or_else(|| {
-            anyhow::anyhow!(BuilderError::RecommendedToolchainNotFound(toolchain.into()))
-        })
+        anyhow::ensure!(
+            output.status.success(),
+            BuilderError::RecommendedToolchainNotFound(toolchain.into()),
+        );
+
+        Ok(toolchain)
     }
 }
