@@ -45,6 +45,7 @@ impl Node {
         let mut args = args;
         args.push("--ws-port");
         args.push(&port_string);
+        args.push("--no-hardware-benchmarks");
 
         let process = Command::new(path)
             .args(args)
