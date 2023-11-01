@@ -23,8 +23,6 @@
 use anyhow::{anyhow, Result};
 use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
 
-const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
-
 /// HostState for the WASM executor
 #[derive(Default)]
 pub struct HostState {
