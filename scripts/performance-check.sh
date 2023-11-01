@@ -37,8 +37,8 @@ WARMUP_COUNT=3
 collect_data() {
     git checkout $1
 
-    make gear-release
-    make examples
+    cargo make --cwd "$ROOT_DIR" gear-release
+    cargo make --cwd "$ROOT_DIR" examples
 
     rm -rf "$ROOT_DIR/target/tests/"
     mkdir -p "$ROOT_DIR/target/tests/"

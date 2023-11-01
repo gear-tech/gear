@@ -159,13 +159,13 @@ This is the default way of building the tool:
 or simply
 
 ```bash
-make gear-replay
+cargo make gear-replay
 ```
 
 In order to enable native runtime, use one of the following:
 
 ```bash
-make gear-replay-vara-native
+cargo make gear-replay-vara-native
 ```
 
 or
