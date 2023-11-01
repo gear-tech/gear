@@ -14720,6 +14720,18 @@ fn test_handle_signal_wait() {
 
         let signal_mid = MessageId::generate_signal(mid);
         assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        let (mid, block) = get_last_message_waited();
+
+        assert_eq!(mid, signal_mid);
+
+        System::set_block_number(block - 1);
+        Gear::set_block_number(block - 1);
+        run_to_next_block(None);
+
+        assert!(!WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        assert_total_dequeued(4);
     });
 }
 
