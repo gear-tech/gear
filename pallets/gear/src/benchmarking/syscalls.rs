@@ -271,7 +271,7 @@ where
             instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            instructions.extend([I32Const(1), I32Const(r - 1 as i32), Call(1), I32Const(0)]);
+            instructions.extend([I32Const(1), I32Const(r as i32 - 1), Call(1), I32Const(0)]);
             unreachable_condition(&mut instructions, I32Ne); // if free_range returns 0 then it's error
         }
 

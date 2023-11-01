@@ -1177,10 +1177,7 @@ impl Externalities for Ext {
 mod tests {
     use super::*;
     use alloc::vec;
-    use gear_core::{
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
-        pages::PageNumber,
-    };
+    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
@@ -1296,19 +1293,14 @@ mod tests {
                 .build(),
         );
 
-        // Freeing existing page.
+        // Freeing existing and then non existing page.
         // Counters still shouldn't be changed.
-        assert!(ext.free(existing_page).is_ok());
+        assert!(ext.free_range(existing_page..=existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
-        // Freeing non existing page.
-        // Counters shouldn't be changed.
-        assert_eq!(
-            ext.free(non_existing_page),
-            Err(AllocExtError::Alloc(AllocError::InvalidFree(
-                non_existing_page.raw()
-            )))
-        );
+        assert!(ext
+            .free_range(non_existing_page..=non_existing_page)
+            .is_ok());
         assert_eq!(ext.gas_left(), gas_left);
     }
 

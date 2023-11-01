@@ -94,8 +94,11 @@ pub struct HostFnWeights {
     /// Weight per allocated page for `alloc`.
     pub alloc_per_page: u64,
 
-    /// Weight of calling `alloc`.
+    /// Weight of calling `free`.
     pub free: u64,
+
+    /// Weight of calling `free_range` per page
+    pub free_range: u64,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
@@ -326,6 +329,8 @@ pub enum RuntimeCosts {
     Alloc(u32),
     /// Weight of calling `free`.
     Free,
+    /// Weight of calling `free_range` per amount of pages.
+    FreeRange(u32),
     /// Weight of calling `gr_reserve_gas`.
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`.
@@ -463,10 +468,14 @@ impl RuntimeCosts {
             call_weight.saturating_add(weight_per_page.saturating_mul(pages as u64))
         };
 
+        let free_range_cost =
+            |base_weight: u64, pages: u32| base_weight.saturating_mul(pages as u64);
+
         let weight = match *self {
             Null => 0,
             Alloc(pages) => cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages),
             Free => s.free,
+            FreeRange(pages) => free_range_cost(s.free_range, pages),
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             SystemReserveGas => s.gr_system_reserve_gas,

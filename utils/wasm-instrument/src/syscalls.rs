@@ -182,6 +182,7 @@ impl SysCallName {
         [
             Self::Alloc,
             Self::Free,
+            Self::FreeRange,
             Self::Debug,
             Self::Panic,
             Self::OomPanic,

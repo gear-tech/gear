@@ -69,6 +69,7 @@ pub trait WeightInfo {
     fn alloc(r: u32, ) -> Weight;
     fn alloc_per_page(p: u32, ) -> Weight;
     fn free(r: u32, ) -> Weight;
+    fn free_range(r: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
     fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn gr_system_reserve_gas(r: u32, ) -> Weight;
@@ -593,6 +594,14 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(207_251_598, 0)
             // Standard Error: 269_511
             .saturating_add(Weight::from_parts(63_993_415, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn free_range(_r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 208_188_000 picoseconds.
+        Weight::from_parts(1, 0)
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2564,6 +2573,14 @@ impl WeightInfo for () {
         Weight::from_parts(207_251_598, 0)
             // Standard Error: 269_511
             .saturating_add(Weight::from_parts(63_993_415, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn free_range(_r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 208_188_000 picoseconds.
+        Weight::from_parts(1, 0)
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
