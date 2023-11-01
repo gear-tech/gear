@@ -1,0 +1,317 @@
+[env]
+RUST_LOG = "gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug"
+
+[tasks.show]
+command = "./scripts/gear.sh"
+args = ["show"]
+
+[tasks.pre-commit]
+dependencies = ["fmt", "clippy", "test", "check-runtime-imports"]
+
+[tasks.check-spec]
+command = "./scripts/check-spec.sh"
+
+[tasks.clean]
+script_runner = "@duckscript"
+script = """
+  cargo clean
+  git clean -fdx
+"""
+
+
+# Build section
+[tasks.gear]
+command = "./scripts/gear.sh"
+args = ["build", "gear"]
+
+[tasks.gear-release]
+command = "./scripts/gear.sh"
+args = ["build", "gear", "--release"]
+
+[tasks.examples]
+command = "./scripts/gear.sh"
+args = ["build", "examples"]
+
+[tasks.examples-release]
+command = "./scripts/gear.sh"
+args = ["build", "examples", "--release"]
+
+[tasks.wasm-proc]
+command = "./scripts/gear.sh"
+args = ["build", "wasm-proc"]
+
+[tasks.wasm-proc-release]
+command = "./scripts/gear.sh"
+args = ["build", "wasm-proc", "--release"]
+
+[tasks.examples-proc]
+dependencies = ["wasm-proc-release"]
+command = "./scripts/gear.sh"
+args = ["build", "examples-proc"]
+
+[tasks.node]
+command = "./scripts/gear.sh"
+args = ["build", "node"]
+
+[tasks.node-release]
+command = "./scripts/gear.sh"
+args = ["build", "node", "--release"]
+
+[tasks.vara]
+command = "./scripts/gear.sh"
+args = ["build", "node", "--no-default-features", "--features=vara-native"]
+
+[tasks.vara-release]
+command = "./scripts/gear.sh"
+args = [
+	"build",
+	"node",
+	"--release",
+	"--no-default-features",
+	"--features=vara-native",
+]
+
+[tasks.gear-replay]
+command = "./scripts/gear.sh"
+args = ["build", "gear-replay", "--release"]
+
+[tasks.gear-replay-vara-native]
+command = "./scripts/gear.sh"
+args = [
+	"build",
+	"gear-replay",
+	"--release",
+	"--no-default-features",
+	"--features=std,vara-native",
+]
+
+
+# Check section
+[tasks.check]
+command = "./scripts/gear.sh"
+args = ["check", "gear"]
+
+[tasks.check-release]
+command = "./scripts/gear.sh"
+args = ["check", "gear", "--release"]
+
+[tasks.check-runtime-imports]
+command = "./scripts/gear.sh"
+args = ["check", "runtime-imports"]
+
+
+# Clippy section
+[tasks.clippy]
+dependencies = ["clippy-gear", "clippy-examples"]
+
+[tasks.clippy-release]
+dependencies = ["clippy-gear-release", "clippy-examples-release"]
+
+[tasks.clippy-gear]
+command = "./scripts/gear.sh"
+args = ["clippy", "gear", "--all-targets", "--all-features"]
+
+[tasks.clippy-examples]
+command = "./scripts/gear.sh"
+args = ["clippy", "examples", "--all-targets"]
+
+[tasks.clippy-gear-release]
+command = "./scripts/gear.sh"
+args = ["clippy", "gear", "--release"]
+
+[tasks.clippy-examples-release]
+command = "./scripts/gear.sh"
+args = ["clippy", "examples", "--all-targets", "--release"]
+
+
+# Docker section
+[tasks.docker-run]
+command = "./scripts/gear.sh"
+args = ["docker", "run"]
+
+
+# Format section
+[tasks.fmt]
+dependencies = ["fmt-gear", "fmt-doc"]
+
+[tasks.fmt-check]
+dependencies = ["fmt-gear-check", "fmt-doc-check"]
+
+[tasks.fmt-gear]
+command = "./scripts/gear.sh"
+args = ["format", "gear"]
+
+[tasks.fmt-gear-check]
+command = "./scripts/gear.sh"
+args = ["format", "gear", "--check"]
+
+[tasks.fmt-doc]
+command = "./scripts/gear.sh"
+args = ["format", "doc"]
+
+[tasks.fmt-doc-check]
+command = "./scripts/gear.sh"
+args = ["format", "doc", "--check"]
+
+
+# Init section
+[tasks.init]
+dependencies = ["init-wasm", "init-cargo"]
+
+[tasks.init-wasm]
+command = "./scripts/gear.sh"
+args = ["init", "wasm"]
+
+[tasks.init-cargo]
+command = "./scripts/gear.sh"
+args = ["init", "cargo"]
+
+
+# Run section
+[tasks.run-node]
+command = "./scripts/gear.sh"
+args = ["run", "node"]
+
+[tasks.run-node-release]
+command = "./scripts/gear.sh"
+args = ["run", "node", "--release"]
+
+[tasks.run-dev-node]
+command = "./scripts/gear.sh"
+args = ["run", "node", "--", "--dev"]
+
+[tasks.run-dev-node-release]
+command = "./scripts/gear.sh"
+args = ["run", "node", "--release", "--", "--dev"]
+
+[tasks.purge-chain]
+command = "./scripts/gear.sh"
+args = ["run", "purge-chain"]
+
+[tasks.purge-chain-release]
+command = "./scripts/gear.sh"
+args = ["run", "purge-chain", "--release"]
+
+[tasks.purge-dev-chain]
+command = "./scripts/gear.sh"
+args = ["run", "purge-dev-chain"]
+
+[tasks.purge-dev-chain-release]
+command = "./scripts/gear.sh"
+args = ["run", "purge-dev-chain", "--release"]
+
+
+# Test section
+[tasks.test]
+dependencies = ["test-gear"]
+
+# There should be no release builds to keep checks fast.
+[tasks.test-release]
+dependencies = ["test-gear-release"]
+
+[tasks.test-doc]
+command = "./scripts/gear.sh"
+args = ["test", "docs"]
+
+[tasks.test-gear]
+# We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+# and fact that pallet-gear default is lazy-pages.
+command = "./scripts/gear.sh"
+args = [
+	"test",
+	"gear",
+	"--exclude",
+	"gclient",
+	"--exclude",
+	"gcli",
+	"--exclude",
+	"gsdk",
+]
+
+[tasks.test-gear-release]
+# We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+# and fact that pallet-gear default is lazy-pages.
+command = "./scripts/gear.sh"
+args = [
+	"test",
+	"gear",
+	"--release",
+	"--exclude",
+	"gclient",
+	"--exclude",
+	"gcli",
+	"--exclude",
+	"gsdk",
+]
+
+[tasks.test-gsdk]
+dependencies = ["node-release"]
+command = "./scripts/gear.sh"
+args = ["test", "gsdk"]
+
+[tasks.test-gsdk-release]
+dependencies = ["node-release"]
+command = "./scripts/gear.sh"
+args = ["test", "gsdk", "--release"]
+
+[tasks.test-gcli]
+dependencies = ["node"]
+command = "./scripts/gear.sh"
+args = ["test", "gcli"]
+
+[tasks.test-gcli-release]
+dependencies = ["node-release"]
+command = "./scripts/gear.sh"
+args = ["test", "gcli", "--release"]
+
+[tasks.test-pallet]
+command = "./scripts/gear.sh"
+args = ["test", "pallet"]
+
+[tasks.test-pallet-release]
+command = "./scripts/gear.sh"
+args = ["test", "pallet", "--release"]
+
+[tasks.test-client]
+dependencies = ["node-release"]
+command = "./scripts/gear.sh"
+args = ["test", "client"]
+
+[tasks.test-client-release]
+dependencies = ["node-release"]
+command = "./scripts/gear.sh"
+args = ["test", "client", "--release"]
+
+[tasks.test-syscalls-integrity]
+command = "./scripts/gear.sh"
+args = ["test", "syscalls"]
+
+[tasks.test-syscalls-integrity-release]
+command = "./scripts/gear.sh"
+args = ["test", "syscalls", "--release"]
+
+
+# Misc section
+[tasks.doc]
+script_runner = "@shell"
+script = """
+RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
+-p galloc -p gclient -p gcore -p gear-core-backend \
+-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
+-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
+-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
+-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
+cp -f images/logo.svg target/doc/rust-logo.svg
+"""
+
+[tasks.kill]
+command = "pkill"
+args = ["-f", "gear |gear$", "-9"]
+
+[tasks.kill-rust]
+script_runner = "@shell"
+script = """pgrep -f "rust" | sudo xargs kill -9"""
+
+[tasks.install]
+command = "cargo"
+args = ["install", "--path", "./node/cli", "--force", "--locked"]
