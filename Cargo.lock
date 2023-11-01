@@ -7219,7 +7219,7 @@ dependencies = [
  "log",
  "num-traits",
  "parity-scale-codec",
- "rand 0.8.5",
+ "proptest",
  "scale-info",
 ]
 

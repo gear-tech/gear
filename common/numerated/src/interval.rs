@@ -235,7 +235,7 @@ impl<T: Numerated, S: Into<T::B>, E: Into<T::B>> TryFrom<(S, E)> for Interval<T>
     }
 }
 
-impl<T: Numerated + UpperBounded, I: Into<T::B>> TryFrom<Range<I>> for Interval<T> {
+impl<T: Numerated, I: Into<T::B>> TryFrom<Range<I>> for Interval<T> {
     type Error = IntoIntervalError;
 
     fn try_from(range: Range<I>) -> Result<Self, Self::Error> {

@@ -373,87 +373,77 @@ fn test_and_not_iter() {
 
 mod stress_tests {
     use crate::{
-        mock::{self, TreeAction},
-        BoundValue, Interval, Numerated,
+        mock::{self, test_interval, test_numerated, IntervalAction, TreeAction},
+        BoundValue, Interval,
     };
-    use alloc::vec::Vec;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use alloc::{collections::BTreeSet, vec::Vec};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::Into)]
-    struct Number(i32);
+    use proptest::{
+        arbitrary::any, prop_oneof, proptest, strategy::Strategy,
+        test_runner::Config as ProptestConfig,
+    };
 
-    impl Numerated for Number {
-        type N = u32;
-        type B = BoundValue<Self>;
-
-        fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self> {
-            let num = <i32>::try_from(num).unwrap();
-            self.0
-                .checked_add(num)
-                .filter(|&res| res <= other.0)
-                .map(Self)
-        }
-        fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
-            let num = <i32>::try_from(num).unwrap();
-            self.0
-                .checked_sub(num)
-                .filter(|&res| res >= other.0)
-                .map(Self)
-        }
-        fn sub(self, other: Self) -> Option<Self::N> {
-            self.0.checked_sub(other.0).map(|res| res as u32)
-        }
+    fn rand_interval() -> impl Strategy<Value = Interval<i16>> {
+        any::<i16>()
+            .prop_flat_map(|start| (start..).prop_map(move |end| (start..=end).try_into().unwrap()))
     }
 
-    fn rand_interval(rng: &mut StdRng, max: i32, min: i32, max_len: u32) -> Interval<Number> {
-        let max_len = <i32>::try_from(max_len).unwrap();
-        let end = rng.gen_range(min..=max);
-        let start = rng.gen_range(end.saturating_sub(max_len)..=end);
-        (Number(start)..=Number(end)).try_into().unwrap()
+    fn rand_set() -> impl Strategy<Value = BTreeSet<i16>> {
+        proptest::collection::btree_set(any::<i16>(), 0..1000)
     }
 
-    fn stress_test(
-        rng: &mut StdRng,
-        max: i32,
-        min: i32,
-        actions_amount: usize,
-        interval_max_len: u32,
-    ) {
-        let drops_diapason_max_len = interval_max_len * 3;
-
-        let actions = (0..actions_amount)
-            .map(|_| match rng.gen_range(0..3) {
-                0 => TreeAction::Insert(rand_interval(rng, max, min, interval_max_len)),
-                1 => TreeAction::Remove(rand_interval(rng, max, min, interval_max_len)),
-                2 => TreeAction::Voids(rand_interval(rng, max, min, drops_diapason_max_len)),
-                _ => unreachable!(),
-            })
-            .collect::<Vec<_>>();
-
-        let initial = (min..=max)
-            .filter(|_| rng.gen_range(0..10) == 0)
-            .map(Number)
-            .collect();
-
-        mock::test_tree(initial, actions);
+    fn tree_actions() -> impl Strategy<Value = Vec<TreeAction<i16>>> {
+        let action = prop_oneof![
+            rand_interval().prop_map(TreeAction::Insert),
+            rand_interval().prop_map(TreeAction::Remove),
+            rand_interval().prop_map(TreeAction::Voids),
+            rand_set().prop_map(TreeAction::AndNotIterator),
+        ];
+        proptest::collection::vec(action, 10..20)
     }
 
-    #[test]
-    fn stress_simple() {
-        env_logger::init();
-        let mut rng = StdRng::seed_from_u64(42);
-        for _ in 0..100_000 {
-            stress_test(&mut rng, 100, -100, 10, 20);
+    fn interval_action() -> impl Strategy<Value = IntervalAction<i16>> {
+        let start = any::<Option<i16>>();
+        let end = any::<Option<i16>>();
+        (start, end).prop_map(|(start, end)| {
+            let start: BoundValue<i16> = start.into();
+            let end: BoundValue<i16> = end.into();
+            match (start, end) {
+                (_, BoundValue::Upper(_)) => IntervalAction::Correct(start, end),
+                (BoundValue::Value(s), BoundValue::Value(e)) => {
+                    if s > e {
+                        IntervalAction::Incorrect(start, end)
+                    } else {
+                        IntervalAction::Correct(start, end)
+                    }
+                }
+                (BoundValue::Upper(_), BoundValue::Value(_)) => {
+                    IntervalAction::Incorrect(start, end)
+                }
+            }
+        })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100_000))]
+
+        #[test]
+        fn proptest_numerated(x in any::<i16>(), y in any::<i16>()) {
+            test_numerated(x, y);
+        }
+
+        #[test]
+        fn proptest_interval(action in interval_action()) {
+            test_interval(action);
         }
     }
 
-    #[ignore = "takes too long"]
-    #[test]
-    fn stress_hard() {
-        env_logger::init();
-        let mut rng = StdRng::seed_from_u64(43);
-        for _ in 0..1_000_000 {
-            stress_test(&mut rng, 10_000, -1_000, 100, 100);
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        #[test]
+        fn proptest_tree(actions in tree_actions(), initial in rand_set()) {
+            mock::test_tree(initial, actions);
         }
     }
 }

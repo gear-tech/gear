@@ -1,6 +1,6 @@
 use num_traits::{bounds::UpperBounded, One, PrimInt, Unsigned};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundValue<T: Sized> {
     /// The bound is a value.
     Value(T),
