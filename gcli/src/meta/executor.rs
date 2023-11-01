@@ -39,10 +39,6 @@ pub fn call_metadata(wasm: &[u8]) -> Result<Vec<u8>> {
 
 /// Executes the WASM code.
 fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
-    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-        PAGE_STORAGE_PREFIX
-    ));
-
     let engine = Engine::default();
     let module = Module::new(&engine, wasm).unwrap();
 
