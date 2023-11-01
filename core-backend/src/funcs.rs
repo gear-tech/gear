@@ -659,12 +659,39 @@ where
                 ))
             })?;
 
-            let res = ctx.ext_mut().free(page);
+            let res = ctx.ext_mut().free_range(page..=page);
             let res = ctx.process_alloc_func_result(res)?;
 
             match &res {
                 Ok(()) => {
                     log::trace!("Free {page:?}");
+                }
+                Err(err) => {
+                    log::trace!("Free failed: {err}");
+                }
+            };
+
+            Ok(res.is_err() as i32)
+        })
+    }
+
+    pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i32> {
+        InfallibleSysCall::new(RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
+            let err = |_| {
+                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                    TrapExplanation::Unknown,
+                ))
+            };
+
+            let start = WasmPage::new(start).map_err(err)?;
+            let end = WasmPage::new(end).map_err(err)?;
+
+            let res = ctx.ext_mut().free_range(start..=end);
+            let res = ctx.process_alloc_func_result(res)?;
+
+            match &res {
+                Ok(()) => {
+                    log::trace!("Free range {start:?}:{end:?}");
                 }
                 Err(err) => {
                     log::trace!("Free failed: {err}");

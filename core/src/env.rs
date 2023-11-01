@@ -26,7 +26,7 @@ use crate::{
     pages::WasmPage,
 };
 use alloc::collections::BTreeSet;
-use core::{fmt::Display, mem};
+use core::{fmt::Display, mem, ops::RangeInclusive};
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -192,11 +192,8 @@ pub trait Externalities {
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError>;
 
-    /// Free specific memory page.
-    ///
-    /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
-    /// should be `free`-d separately.
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
+    /// Free specific memory range
+    fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError>;
 
     /// Get environment variables currently set in the system and in the form
     /// corresponded to the requested version.

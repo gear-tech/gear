@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::ops::RangeInclusive;
+
 use crate::{
     configs::{BlockInfo, PageCosts},
     context::SystemReservationContext,
@@ -721,10 +723,10 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+    fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
         self.context
             .allocations_context
-            .free(page)
+            .free_range(range)
             .map_err(Into::into)
     }
 

@@ -262,6 +262,29 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    pub fn free_range(r: u32) -> Result<Exec<T>, &'static str> {
+        assert!(r <= max_pages::<T>() as u32);
+
+        use Instruction::*;
+        let mut instructions = vec![];
+        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
+            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
+
+            instructions.extend([I32Const(1), I32Const(r - 1 as i32), Call(1), I32Const(0)]);
+            unreachable_condition(&mut instructions, I32Ne); // if free_range returns 0 then it's error
+        }
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(0)),
+            imported_functions: vec![SysCallName::Alloc, SysCallName::FreeRange],
+            handle_body: Some(body::from_instructions(instructions)),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
         let res_offset = COMMON_OFFSET;

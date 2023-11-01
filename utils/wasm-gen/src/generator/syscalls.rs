@@ -236,6 +236,7 @@ impl InvocableSysCall {
             | SysCallName::Wait
             | SysCallName::Alloc
             | SysCallName::Free
+            | SysCallName::FreeRange
             | SysCallName::OutOfGas => false,
             SysCallName::CreateProgramWGas
             | SysCallName::CreateProgram

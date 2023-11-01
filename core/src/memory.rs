@@ -29,7 +29,7 @@ use core::{
     fmt,
     fmt::Debug,
     iter,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, RangeInclusive},
 };
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
@@ -376,15 +376,21 @@ impl AllocationsContext {
         Ok(start)
     }
 
-    /// Free specific page.
+    /// Try to free pages in range. Will only return error if range is invalid.
     ///
-    /// Currently running program should own this page.
-    pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
-            Err(AllocError::InvalidFree(page.0))
-        } else {
-            Ok(())
+    /// Currently running program should own this pages.
+    pub fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), AllocError> {
+        if *range.start() < self.static_pages || *range.end() >= self.max_pages {
+            let page = if *range.start() < self.static_pages {
+                range.start().0
+            } else {
+                range.end().0
+            };
+            return Err(AllocError::InvalidFree(page));
         }
+
+        self.allocations.retain(|p| !range.contains(p));
+        Ok(())
     }
 
     /// Decomposes this instance and returns allocations.
@@ -450,14 +456,30 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
+        assert_eq!(
+            ctx.free_range(WasmPage(1)..=WasmPage(1)),
+            Err(AllocError::InvalidFree(1))
+        );
 
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(0)), Err(AllocError::InvalidFree(0)));
+        assert_eq!(
+            ctx.free_range(WasmPage(0)..=WasmPage(0)),
+            Err(AllocError::InvalidFree(0))
+        );
 
         let mut ctx =
             AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
-        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
+        assert_eq!(
+            ctx.free_range(WasmPage(1)..=WasmPage(1)),
+            Err(AllocError::InvalidFree(1))
+        );
+
+        let mut ctx = AllocationsContext::new(
+            BTreeSet::from([WasmPage(1), WasmPage(3)]),
+            WasmPage(1),
+            WasmPage(4),
+        );
+        assert_eq!(ctx.free_range(WasmPage(1)..=WasmPage(3)), Ok(()));
     }
 
     #[test]
@@ -606,7 +628,7 @@ mod tests {
                             }
                         }
                         Action::Free { page } => {
-                            if let Err(err) = ctx.free(page) {
+                            if let Err(err) = ctx.free_range(page..=page) {
                                 assert_free_error(err);
                             }
                         }

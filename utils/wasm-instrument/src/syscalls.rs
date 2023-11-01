@@ -93,6 +93,7 @@ pub enum SysCallName {
     // Hard under the hood calls, serving proper program execution
     Alloc,
     Free,
+    FreeRange,
     OutOfGas,
 
     // Miscellaneous
@@ -120,6 +121,7 @@ impl SysCallName {
             SysCallName::OomPanic => "gr_oom_panic",
             SysCallName::Exit => "gr_exit",
             SysCallName::Free => "free",
+            SysCallName::FreeRange => "free_range",
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
@@ -242,6 +244,7 @@ impl SysCallName {
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
+            Self::FreeRange => SysCallSignature::system([Free, Free], [I32]),
             Self::Debug => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
