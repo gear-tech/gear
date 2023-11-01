@@ -44,8 +44,7 @@ pub fn panic(_: &PanicInfo) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    use crate::prelude::format;
-    use crate::ext;
+    use crate::{ext, prelude::format};
 
     let msg = match (panic_info.message(), panic_info.location()) {
         (Some(msg), Some(loc)) => format!(
