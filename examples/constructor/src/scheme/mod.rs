@@ -27,6 +27,8 @@ pub enum Scheme {
     /// Better to use this scheme if you need common-purpose program that
     /// executes the same commands across different incoming payloads.
     Predefined(Vec<Call>, Vec<Call>, Vec<Call>),
+    /// Same as predefined scheme, but with the special `handle_signal` function.
+    Signal(Vec<Call>, Vec<Call>, Vec<Call>, Vec<Call>),
 }
 
 impl Scheme {
@@ -42,16 +44,22 @@ impl Scheme {
         Self::Predefined(init.calls(), handle.calls(), handle_reply.calls())
     }
 
+    pub fn signal(init: Calls, handle: Calls, handle_reply: Calls, handle_signal: Calls) -> Self {
+        Self::Signal(init.calls(), handle.calls(), handle_reply.calls(), handle_signal.calls())
+    }
+
     pub fn init(&self) -> &Vec<Call> {
         match self {
             Self::Direct(init) => init,
             Self::Predefined(init, ..) => init,
+            Self::Signal(init, ..) => init,
         }
     }
 
     pub fn handle(&self) -> Option<&Vec<Call>> {
         match self {
             Self::Predefined(_, handle, _) => Some(handle),
+            Self::Signal(_, handle, _, _) => Some(handle),
             _ => None,
         }
     }
@@ -59,6 +67,14 @@ impl Scheme {
     pub fn handle_reply(&self) -> Option<&Vec<Call>> {
         match self {
             Self::Predefined(_, _, handle_reply) => Some(handle_reply),
+            Self::Signal(_, _, handle_reply, _) => Some(handle_reply),
+            _ => None,
+        }
+    }
+
+    pub fn handle_signal(&self) -> Option<&Vec<Call>> {
+        match self {
+            Self::Signal(_, _, _, handle_signal) => Some(handle_signal),
             _ => None,
         }
     }
