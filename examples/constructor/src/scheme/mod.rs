@@ -45,7 +45,12 @@ impl Scheme {
     }
 
     pub fn signal(init: Calls, handle: Calls, handle_reply: Calls, handle_signal: Calls) -> Self {
-        Self::Signal(init.calls(), handle.calls(), handle_reply.calls(), handle_signal.calls())
+        Self::Signal(
+            init.calls(),
+            handle.calls(),
+            handle_reply.calls(),
+            handle_signal.calls(),
+        )
     }
 
     pub fn init(&self) -> &Vec<Call> {
