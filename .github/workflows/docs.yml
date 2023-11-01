@@ -25,8 +25,10 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
+      - uses: davidB/rust-cargo-make@v1
+
       - name: Build docs
-        run: make doc
+        run: cargo make doc
 
       - name: Copy logo image
         run: cp ./images/logo.svg ./target/doc/
