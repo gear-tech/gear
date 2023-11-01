@@ -324,7 +324,7 @@ mod wasm {
             };
 
             let gas = gas.value();
-            exec::system_reserve_gas(gas);
+            exec::system_reserve_gas(gas).expect("Failed to reserve gas");
 
             None
         }
