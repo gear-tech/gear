@@ -21,6 +21,10 @@ futures = { workspace = true, features = ["alloc"] }
 static_assertions.workspace = true
 
 [features]
-default = ["panic-handler"]
+default = ["default-stable", "nightly"]
+default-stable = ["panic-handler"]
+nightly = ["panic-messages", "oom-handler"]
 panic-handler = []
 debug = ["galloc/debug", "gcore/debug"]
+panic-messages = []
+oom-handler = []

@@ -124,10 +124,10 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
+    all(target_arch = "wasm32", any(feature = "debug", debug_assertions), feature = "panic-messages"),
     feature(panic_info_message)
 )]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
+#![cfg_attr(all(target_arch = "wasm32", feature = "oom-handler"), feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
