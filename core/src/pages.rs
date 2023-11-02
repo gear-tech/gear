@@ -232,11 +232,15 @@ impl<const SIZE: u32> Numerated for Page<SIZE> {
     type B = PagesAmount<SIZE>;
 
     fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-        (self.0.checked_add(num)? <= other.0).then_some(Self(self.0 + num))
+        self.0
+            .checked_add(num)
+            .and_then(|sum| sum.is_between(self.0, other.0).then_some(Self(sum)))
     }
 
     fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-        (self.0.checked_sub(num)? >= other.0).then_some(Self(self.0 - num))
+        self.0
+            .checked_sub(num)
+            .and_then(|sub| sub.is_between(self.0, other.0).then_some(Self(sub)))
     }
 
     fn distance(self, other: Self) -> Option<Self::N> {
@@ -402,5 +406,30 @@ pub trait PageU32Size: Numerated + PageNumber {
         let end: P = P::from_offset(self.end_offset());
         // Safe, cause end_offset is always greater or equal to offset, so start <= end.
         unsafe { NotEmptyInterval::new_unchecked(start, end).into() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerated::mock::test_numerated;
+    use proptest::{proptest, strategy::Strategy, test_runner::Config as ProptestConfig};
+
+    fn rand_page<const S: u32>() -> impl Strategy<Value = Page<S>> {
+        (0..=GearPage::UPPER.raw()).prop_map(Page)
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1024))]
+
+        #[test]
+        fn proptest_gear_page_numerated(p1 in rand_page::<GEAR_PAGE_SIZE32>(), p2 in rand_page::<GEAR_PAGE_SIZE32>()) {
+            test_numerated(p1, p2);
+        }
+
+        #[test]
+        fn proptest_wasm_page_numerated(p1 in rand_page::<WASM_PAGE_SIZE32>(), p2 in rand_page::<WASM_PAGE_SIZE32>()) {
+            test_numerated(p1, p2);
+        }
     }
 }

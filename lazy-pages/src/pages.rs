@@ -201,15 +201,17 @@ impl<S: SizeNumber> Numerated for Page<S> {
     type B = PagesAmount<S>;
 
     fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-        self.raw
-            .checked_add(num)
-            .and_then(|r| (r <= other.raw).then_some(Self::from_raw(r)))
+        self.raw.checked_add(num).and_then(|r| {
+            r.is_between(self.raw, other.raw)
+                .then_some(Self::from_raw(r))
+        })
     }
 
     fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-        self.raw
-            .checked_sub(num)
-            .and_then(|r| (r >= other.raw).then_some(Self::from_raw(r)))
+        self.raw.checked_sub(num).and_then(|r| {
+            r.is_between(self.raw, other.raw)
+                .then_some(Self::from_raw(r))
+        })
     }
 
     fn distance(self, other: Self) -> Option<Self::N> {
@@ -221,3 +223,31 @@ pub type GearPage = Page<GearSizeNo>;
 pub type WasmPage = Page<WasmSizeNo>;
 pub type WasmPagesAmount = PagesAmount<WasmSizeNo>;
 pub type GearPagesAmount = PagesAmount<GearSizeNo>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerated::mock::test_numerated;
+    use proptest::{
+        arbitrary::any, proptest, strategy::Strategy, test_runner::Config as ProptestConfig,
+    };
+    use std::fmt::Debug;
+
+    fn rand_page<S: SizeNumber + Debug>() -> impl Strategy<Value = Page<S>> {
+        any::<u16>().prop_map(|raw| Page::from_raw(raw as u32))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1024))]
+
+        #[test]
+        fn proptest_gear_page_numerated(p1 in rand_page::<GearSizeNo>(), p2 in rand_page::<GearSizeNo>()) {
+            test_numerated(p1, p2);
+        }
+
+        #[test]
+        fn proptest_wasm_page_numerated(p1 in rand_page::<WasmSizeNo>(), p2 in rand_page::<WasmSizeNo>()) {
+            test_numerated(p1, p2);
+        }
+    }
+}
