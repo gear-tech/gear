@@ -723,6 +723,10 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+        self.free_range(page..=page)
+    }
+
     fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
         self.context
             .allocations_context
@@ -1295,12 +1299,10 @@ mod tests {
 
         // Freeing existing and then non existing page.
         // Counters still shouldn't be changed.
-        assert!(ext.free_range(existing_page..=existing_page).is_ok());
+        assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
-        assert!(ext
-            .free_range(non_existing_page..=non_existing_page)
-            .is_ok());
+        assert!(ext.free(non_existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
     }
 

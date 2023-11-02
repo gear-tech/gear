@@ -376,6 +376,11 @@ impl AllocationsContext {
         Ok(start)
     }
 
+    /// Free specific memory page.
+    pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
+        self.free_range(page..=page)
+    }
+
     /// Try to free pages in range. Will only return error if range is invalid.
     ///
     /// Currently running program should own this pages.
@@ -561,14 +566,14 @@ mod tests {
         #[derive(Debug, Clone)]
         enum Action {
             Alloc { pages: WasmPage },
-            Free { page: WasmPage },
+            Free { page: WasmPage, size: u8 },
         }
 
         fn actions() -> impl Strategy<Value = Vec<Action>> {
             let action = wasm_page_number().prop_flat_map(|page| {
                 prop_oneof![
                     Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
+                    any::<u8>().prop_map(move |size| Action::Free { page, size }),
                 ]
             });
             proptest::collection::vec(action, 0..1024)
@@ -627,8 +632,9 @@ mod tests {
                                 assert_alloc_error(err);
                             }
                         }
-                        Action::Free { page } => {
-                            if let Err(err) = ctx.free_range(page..=page) {
+                        Action::Free { page, size } => {
+                            let end = WasmPage::from(page.0.saturating_add(size as u32) as u16);
+                            if let Err(err) = ctx.free_range(page..=end) {
                                 assert_free_error(err);
                             }
                         }

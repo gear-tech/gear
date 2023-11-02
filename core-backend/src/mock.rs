@@ -112,6 +112,9 @@ impl Externalities for MockExt {
     ) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
     }
+    fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
+        Err(Error)
+    }
     fn free_range(&mut self, _range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
         Err(Error)
     }

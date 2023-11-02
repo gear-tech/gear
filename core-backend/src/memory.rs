@@ -526,7 +526,7 @@ mod tests {
         );
 
         // but we free some
-        ctx.free_range(137.into()..=137.into()).unwrap();
+        ctx.free(137.into()).unwrap();
 
         // and now can allocate page that was freed
         assert_eq!(
@@ -543,8 +543,8 @@ mod tests {
         );
 
         // but if 2 are not in a row, bad luck
-        ctx.free_range(117.into()..=117.into()).unwrap();
-        ctx.free_range(158.into()..=158.into()).unwrap();
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),

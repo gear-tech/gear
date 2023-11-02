@@ -659,7 +659,7 @@ where
                 ))
             })?;
 
-            let res = ctx.ext_mut().free_range(page..=page);
+            let res = ctx.ext_mut().free(page);
             let res = ctx.process_alloc_func_result(res)?;
 
             match &res {
