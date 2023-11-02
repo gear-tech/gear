@@ -200,19 +200,19 @@ impl<S: SizeNumber> Numerated for Page<S> {
     type N = u32;
     type B = PagesAmount<S>;
 
-    fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self> {
+    fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
         self.raw
             .checked_add(num)
             .and_then(|r| (r <= other.raw).then_some(Self::from_raw(r)))
     }
 
-    fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
+    fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
         self.raw
             .checked_sub(num)
             .and_then(|r| (r >= other.raw).then_some(Self::from_raw(r)))
     }
 
-    fn sub(self, other: Self) -> Option<Self::N> {
+    fn distance(self, other: Self) -> Option<Self::N> {
         self.raw.checked_sub(other.raw)
     }
 }

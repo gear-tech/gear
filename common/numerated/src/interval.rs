@@ -12,12 +12,15 @@ use crate::{
     Bound,
 };
 
+/// Describes not empty interval start..=end.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NotEmptyInterval<T> {
     start: T,
     end: T,
 }
 
+/// Describes interval start..=end, where end can be None,
+/// which means that interval is empty.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Interval<T> {
     start: T,
@@ -51,18 +54,22 @@ impl<T: Numerated> NotEmptyInterval<T> {
         (start <= end).then_some(Self { start, end })
     }
 
+    /// Interval start (the smallest value inside interval)
     pub fn start(&self) -> T {
         self.start
     }
 
+    /// Interval end (the biggest value inside interval)
     pub fn end(&self) -> T {
         self.end
     }
 
+    /// Converts to [Interval], which implements iterator.
     pub fn iter(&self) -> Interval<T> {
         (*self).into()
     }
 
+    /// Into (start, end)
     pub fn into_inner(self) -> (T, T) {
         self.into()
     }
@@ -74,21 +81,29 @@ impl<T: Numerated> Interval<T> {
     pub fn new<S: Into<T::B>, E: Into<T::B>>(start: S, end: E) -> Option<Self> {
         Self::try_from((start, end)).ok()
     }
+    /// Interval start.
+    /// If interval is empty, then returns any existed `T` point,
+    /// which user set when creates this interval.
+    /// If interval is not empty, then returns the smallest value inside interval.
     pub fn start(&self) -> T {
         self.start
     }
+    /// Returns whether interval is empty.
     pub fn is_empty(&self) -> bool {
         self.end.is_none()
     }
+    /// Tries to convert into not empty interval.
     pub fn into_not_empty(self) -> Option<NotEmptyInterval<T>> {
         self.end.map(|end| unsafe {
             // Guaranteed by `Self` that start <= end
             NotEmptyInterval::new_unchecked(self.start, end)
         })
     }
+    /// Tries to convert into (start, end).
     pub fn into_inner(self) -> Option<(T, T)> {
         self.into_not_empty().map(Into::into)
     }
+    /// Tries to convert into range inclusive.
     pub fn into_range_inclusive(self) -> Option<RangeInclusive<T>> {
         self.into_not_empty().map(Into::into)
     }
@@ -255,15 +270,17 @@ impl<T: Numerated> TryFrom<RangeInclusive<T>> for Interval<T> {
 }
 
 impl<T: Numerated> NotEmptyInterval<T> {
+    /// Returns amount of elements in interval in `T::N` if it's possible.
+    /// None means that interval size is bigger, than `T::N::max_value()`.
     pub fn raw_size(&self) -> Option<T::N> {
         let (start, end) = self.into_inner();
 
         // Guarantied by NotEmptyInterval
         debug_assert!(start <= end);
 
-        let distance = end.sub(start).unwrap_or_else(|| {
+        let distance = end.distance(start).unwrap_or_else(|| {
             unreachable!(
-                "`T: Numerated` impl error: for each s: T, e: T, e >= s => e.sub(s) == Some(_)"
+                "`T: Numerated` impl error: for each s: T, e: T, e >= s => e.distance(s) == Some(_)"
             )
         });
 
@@ -278,13 +295,17 @@ impl<T: Numerated + LowerBounded + UpperBounded> NotEmptyInterval<T> {
     pub fn size(&self) -> Option<T> {
         let raw_size = self.raw_size()?;
         let size = T::min_value()
-            .raw_add_if_lt(raw_size, T::max_value())
+            .add_if_between(raw_size, T::max_value())
             .unwrap_or_else(|| unreachable!("`T: Numerated` impl error"));
         Some(size)
     }
 }
 
 impl<T: Numerated> Interval<T> {
+    /// Returns amount of elements in interval in `T::N` if it's possible.
+    /// None means that interval size is bigger, than `T::N::max_value()`.
+    /// If interval is empty, then returns `Some(T::min_value())`,
+    /// which is actually equal to `Some(T::zero())`.
     pub fn raw_size(&self) -> Option<T::N> {
         let Some(interval) = self.into_not_empty() else {
             return Some(T::N::min_value());
@@ -326,9 +347,9 @@ impl<T: Numerated + UpperBounded> Interval<T> {
             (Value(s), c) => {
                 // subtraction is safe, because c != 0
                 let c = c.map(|c| c - T::N::one()).unwrap_or(T::N::max_value());
-                s.raw_add_if_lt(c, T::max_value())
+                s.add_if_between(c, T::max_value())
                     .map(|e| NotEmptyInterval::new(s, e).unwrap_or_else(|| {
-                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N => s.raw_add_if_lt(_) >= s")
+                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N => s.add_if_between(c, _) >= s")
                     }).into())
             }
         }
@@ -360,5 +381,75 @@ impl<T: Display> Display for Interval<T> {
         } else {
             write!(f, "∅({})", self.start)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn size() {
+        assert_eq!(Interval::<u8>::try_from(11..111).unwrap().size(), Some(100),);
+        assert_eq!(Interval::<u8>::try_from(..1).unwrap().size(), Some(1),);
+        assert_eq!(Interval::<u8>::from(..=1).size(), Some(2));
+        assert_eq!(Interval::<u8>::from(1..).size(), Some(255));
+        assert_eq!(Interval::<u8>::from(0..).size(), None);
+        assert_eq!(Interval::<u8>::from(..).size(), None);
+        assert_eq!(Interval::<u8>::try_from(1..1).unwrap().size(), Some(0));
+
+        assert_eq!(
+            Interval::<u8>::try_from(11..111).unwrap().raw_size(),
+            Some(100),
+        );
+        assert_eq!(Interval::<u8>::try_from(..1).unwrap().raw_size(), Some(1),);
+        assert_eq!(Interval::<u8>::from(..=1).raw_size(), Some(2));
+        assert_eq!(Interval::<u8>::from(1..).raw_size(), Some(255));
+        assert_eq!(Interval::<u8>::from(0..).raw_size(), None);
+        assert_eq!(Interval::<u8>::from(..).raw_size(), None);
+        assert_eq!(Interval::<u8>::try_from(1..1).unwrap().raw_size(), Some(0));
+
+        assert_eq!(Interval::<i8>::try_from(-1..99).unwrap().size(), Some(-28)); // corresponds to 100 numeration
+        assert_eq!(Interval::<i8>::try_from(..1).unwrap().size(), Some(1)); // corresponds to 129 numeration
+        assert_eq!(Interval::<i8>::from(..=1).size(), Some(2)); // corresponds to 130 numeration
+        assert_eq!(Interval::<i8>::from(1..).size(), Some(-1)); // corresponds to 127 numeration
+        assert_eq!(Interval::<i8>::from(0..).size(), Some(0)); // corresponds to 128 numeration
+        assert_eq!(Interval::<i8>::from(..).size(), None); // corresponds to 256 numeration
+        assert_eq!(Interval::<i8>::try_from(1..1).unwrap().size(), Some(-128)); // corresponds to 0 numeration
+
+        assert_eq!(
+            Interval::<i8>::try_from(-1..99).unwrap().raw_size(),
+            Some(100)
+        );
+        assert_eq!(Interval::<i8>::try_from(..1).unwrap().raw_size(), Some(129));
+        assert_eq!(Interval::<i8>::from(..=1).raw_size(), Some(130));
+        assert_eq!(Interval::<i8>::from(1..).raw_size(), Some(127));
+        assert_eq!(Interval::<i8>::from(0..).raw_size(), Some(128));
+        assert_eq!(Interval::<i8>::from(..).raw_size(), None);
+        assert_eq!(Interval::<i8>::try_from(1..1).unwrap().raw_size(), Some(0));
+    }
+
+    #[test]
+    fn count_from() {
+        assert_eq!(
+            Interval::<u8>::count_from(0, 100).and_then(Interval::into_range_inclusive),
+            Some(0..=99)
+        );
+        assert_eq!(
+            Interval::<u8>::count_from(0, 255).and_then(Interval::into_range_inclusive),
+            Some(0..=254)
+        );
+        assert_eq!(
+            Interval::<u8>::count_from(0, None).and_then(Interval::into_range_inclusive),
+            Some(0..=255)
+        );
+        assert_eq!(
+            Interval::<u8>::count_from(1, 255).and_then(Interval::into_range_inclusive),
+            Some(1..=255)
+        );
+
+        assert!(Interval::<u8>::count_from(1, 0).unwrap().is_empty());
+        assert_eq!(Interval::<u8>::count_from(1, None), None);
+        assert_eq!(Interval::<u8>::count_from(2, 255), None);
     }
 }

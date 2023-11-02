@@ -57,24 +57,30 @@ pub trait Bound<T: Sized>: From<T> + Copy {
     }
 }
 
+/// Numerated type is a type, which has type for distances between any two values of `Self`,
+/// and provide an interface to add/subtract distance to/from value.
 pub trait Numerated: Copy + Sized + Ord + Eq {
+    /// Numerate type: type that describes the distances between two values of `Self`.
     type N: PrimInt + Unsigned;
+    /// Bound type: type for which any value can be mapped to `Self`,
+    /// and also has __upper__ value, which is bigger than any value of `Self`.
     type B: Bound<Self>;
-    // +_+_+ rename to add_if_le
-    fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self>;
-    fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self>;
-    fn sub(self, other: Self) -> Option<Self::N>;
+    /// Adds `num` to `self` if `self + num` is between `self` and `other`.
+    fn add_if_between(self, num: Self::N, other: Self) -> Option<Self>;
+    /// Subtracts `num` from `self` if `self - num` is between `self` and `other`.
+    fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self>;
+    /// Returns `self - other` if `self >= other`.
+    fn distance(self, other: Self) -> Option<Self::N>;
+    /// Increments `self` if `self < other`.
     fn inc_if_lt(self, other: Self) -> Option<Self> {
-        self.raw_add_if_lt(Self::N::one(), other).map(|res| {
-            debug_assert!(res > self && res <= other);
-            res
-        })
+        self.add_if_between(Self::N::one(), other)
     }
+    /// Decrements `self` if `self > other`.
     fn dec_if_gt(self, other: Self) -> Option<Self> {
-        self.raw_sub_if_gt(Self::N::one(), other).map(|res| {
-            debug_assert!(res < self && res >= other);
-            res
-        })
+        self.sub_if_between(Self::N::one(), other)
+    }
+    fn is_between(self, a: Self, b: Self) -> bool {
+        self <= a.max(b) && self >= a.min(b)
     }
 }
 
@@ -104,35 +110,13 @@ macro_rules! impl_for_unsigned {
         impl Numerated for $t {
             type N = $t;
             type B = BoundValue<$t>;
-            fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self> {
-                if num == 0 {
-                    return Some(self);
-                }
-                if self < other {
-                    if other - self >= num {
-                        Some(self + num)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+            fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
+                self.checked_add(num).and_then(|res| res.is_between(self, other).then_some(res))
             }
-            fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
-                if num == 0 {
-                    return Some(self);
-                }
-                if self > other {
-                    if self - other >= num {
-                        Some(self - num)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+            fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
+                self.checked_sub(num).and_then(|res| res.is_between(self, other).then_some(res))
             }
-            fn sub(self, other: Self) -> Option<$t> {
+            fn distance(self, other: Self) -> Option<$t> {
                 self.checked_sub(other)
             }
         }
@@ -154,31 +138,17 @@ macro_rules! impl_for_signed {
             impl Numerated for $s {
                 type N = $u;
                 type B = BoundValue<$s>;
-                fn raw_add_if_lt(self, num: $u, other: Self) -> Option<Self> {
-                    if num == 0 {
-                        return Some(self);
-                    }
+                fn add_if_between(self, num: $u, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
-                    if a < b && b - a >= num {
-                        Some(toggle_msb!(a + num) as $s)
-                    } else {
-                        None
-                    }
+                    a.checked_add(num).and_then(|res| res.is_between(a, b).then_some(toggle_msb!(res) as $s))
                 }
-                fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
-                    if num == 0 {
-                        return Some(self);
-                    }
+                fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
-                    if a > b && a - b >= num {
-                        Some(toggle_msb!(a - num) as $s)
-                    } else {
-                        None
-                    }
+                    a.checked_sub(num).and_then(|res| res.is_between(a, b).then_some(toggle_msb!(res) as $s))
                 }
-                fn sub(self, other: Self) -> Option<$u> {
+                fn distance(self, other: Self) -> Option<$u> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
                     a.checked_sub(b)

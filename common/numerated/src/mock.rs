@@ -6,30 +6,30 @@ where
     T: Numerated + Debug,
     T::N: Debug,
 {
-    assert_eq!(x.raw_add_if_lt(T::N::one(), y), x.inc_if_lt(y));
-    assert_eq!(x.raw_sub_if_gt(T::N::one(), y), x.dec_if_gt(y));
-    assert_eq!(y.raw_add_if_lt(T::N::one(), x), y.inc_if_lt(x));
-    assert_eq!(y.raw_sub_if_gt(T::N::one(), x), y.dec_if_gt(x));
+    assert_eq!(x.add_if_between(T::N::one(), y), x.inc_if_lt(y));
+    assert_eq!(x.sub_if_between(T::N::one(), y), x.dec_if_gt(y));
+    assert_eq!(y.add_if_between(T::N::one(), x), y.inc_if_lt(x));
+    assert_eq!(y.sub_if_between(T::N::one(), x), y.dec_if_gt(x));
 
-    assert_eq!(x.raw_add_if_lt(T::N::zero(), y), Some(x));
-    assert_eq!(x.raw_sub_if_gt(T::N::zero(), y), Some(x));
-    assert_eq!(y.raw_add_if_lt(T::N::zero(), x), Some(y));
-    assert_eq!(y.raw_sub_if_gt(T::N::zero(), x), Some(y));
+    assert_eq!(x.add_if_between(T::N::zero(), y), Some(x));
+    assert_eq!(x.sub_if_between(T::N::zero(), y), Some(x));
+    assert_eq!(y.add_if_between(T::N::zero(), x), Some(y));
+    assert_eq!(y.sub_if_between(T::N::zero(), x), Some(y));
 
     let (x, y) = (x.min(y), x.max(y));
     if x == y {
         assert_eq!(x.inc_if_lt(y), None);
         assert_eq!(x.dec_if_gt(y), None);
-        assert_eq!(x.sub(y), Some(T::N::zero()));
+        assert_eq!(x.distance(y), Some(T::N::zero()));
     } else {
         assert!(x.inc_if_lt(y).is_some());
         assert!(x.dec_if_gt(y).is_none());
         assert!(y.inc_if_lt(y).is_none());
         assert!(y.dec_if_gt(x).is_some());
-        assert!(x.sub(y).is_none());
-        let d = y.sub(x).unwrap();
-        assert_eq!(x.raw_add_if_lt(d, y), Some(y));
-        assert_eq!(y.raw_sub_if_gt(d, x), Some(x));
+        assert!(x.distance(y).is_none());
+        let d = y.distance(x).unwrap();
+        assert_eq!(x.add_if_between(d, y), Some(y));
+        assert_eq!(y.sub_if_between(d, x), Some(x));
     }
 }
 

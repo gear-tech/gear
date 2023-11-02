@@ -231,15 +231,15 @@ impl<const SIZE: u32> Numerated for Page<SIZE> {
     type N = u32;
     type B = PagesAmount<SIZE>;
 
-    fn raw_add_if_lt(self, num: Self::N, other: Self) -> Option<Self> {
+    fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
         (self.0.checked_add(num)? <= other.0).then_some(Self(self.0 + num))
     }
 
-    fn raw_sub_if_gt(self, num: Self::N, other: Self) -> Option<Self> {
+    fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
         (self.0.checked_sub(num)? >= other.0).then_some(Self(self.0 - num))
     }
 
-    fn sub(self, other: Self) -> Option<Self::N> {
+    fn distance(self, other: Self) -> Option<Self::N> {
         self.0.checked_sub(other.0)
     }
 }
