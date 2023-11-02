@@ -677,6 +677,13 @@ where
 
     pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i32> {
         InfallibleSysCall::new(RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
+            if start > end {
+                log::trace!("Invalid range {start:?}:{end:?}");
+                return Err(UndefinedTerminationReason::Actor(
+                    ActorTerminationReason::Trap(TrapExplanation::Unknown),
+                ));
+            }
+
             let err = |_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,

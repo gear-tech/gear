@@ -13681,12 +13681,59 @@ fn free_range_oob_error() {
     (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
     (export "init" (func $init))
     (func $init
-        ;; free impossible and non-existing page
+        ;; free impossible and non-existing range
         i32.const 0x0
         i32.const 0xffffffff
         call $free_range
-        ;; free must return 1 so we will get `unreachable` instruction
-        i32.const 0
+
+        i32.const 1
+        i32.ne
+        if
+            unreachable
+        end
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+            false,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+        );
+    });
+}
+
+#[test]
+fn free_range_invalid_range_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; free invalid range (start > end)
+        i32.const 0x55
+        i32.const 0x2
+        call $free_range
+
+        i32.const 1
         i32.ne
         if
             unreachable
