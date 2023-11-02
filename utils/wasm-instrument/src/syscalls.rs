@@ -245,7 +245,7 @@ impl SysCallName {
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
-            Self::FreeRange => SysCallSignature::system([Free, Free], [I32]),
+            Self::FreeRange => SysCallSignature::system([Free, FreeUpperBound], [I32]),
             Self::Debug => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
@@ -612,7 +612,9 @@ pub enum ParamType {
     Handler,         // i32 handler number
     Alloc,           // i32 alloc pages
     Free,            // i32 free page
-    Version,         // i32 version number of exec settings
+    // i32 free upper bound for use with free_range. Should be placed after Free in fn signature
+    FreeUpperBound,
+    Version, // i32 version number of exec settings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

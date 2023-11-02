@@ -49,6 +49,9 @@ pub(crate) enum ProcessedSysCallParams {
     MemoryArraySize,
     MemoryArrayPtr,
     MemoryPtrValue,
+    FreeUpperBound {
+        allowed_values: Option<SysCallParamAllowedValues>,
+    },
 }
 
 pub(crate) fn process_syscall_params(
@@ -84,6 +87,10 @@ pub(crate) fn process_syscall_params(
                 ..
             }) => ProcessedSysCallParams::MemoryArrayPtr,
             ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
+            ParamType::FreeUpperBound => {
+                let allowed_values = params_config.get_rule(&param);
+                ProcessedSysCallParams::FreeUpperBound { allowed_values }
+            }
             _ => ProcessedSysCallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -166,6 +173,10 @@ impl ParamSetter {
         }
     }
 
+    /// Get value of the instruction.
+    ///
+    /// # Panics
+    /// Panics if the instruction is not `I32Const` or `I64Const`.
     fn get_value(&self) -> i64 {
         match self.0 {
             Instruction::I32Const(value) => value as i64,
@@ -542,6 +553,23 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory pointer value - {offset}");
 
                     setters.push(setter);
+                }
+                ProcessedSysCallParams::FreeUpperBound { allowed_values } => {
+                    let previous_param = setters
+                        .last()
+                        .expect("expected Free parameter before FreeUpperBound")
+                        .as_i32()
+                        .expect("referenced param should evaluate to I32Const");
+
+                    let size = allowed_values
+                        .expect("allowed_values should be set for FreeUpperBound")
+                        .get_i32(self.unstructured)?;
+
+                    let value = previous_param.saturating_add(size);
+
+                    log::trace!("  ----  Add value - {}", value);
+
+                    setters.push(ParamSetter::new_i32(value))
                 }
             }
         }
