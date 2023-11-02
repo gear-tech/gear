@@ -26,9 +26,7 @@ pub enum Scheme {
     ///
     /// Better to use this scheme if you need common-purpose program that
     /// executes the same commands across different incoming payloads.
-    Predefined(Vec<Call>, Vec<Call>, Vec<Call>),
-    /// Same as predefined scheme, but with the special `handle_signal` function.
-    Signal(Vec<Call>, Vec<Call>, Vec<Call>, Vec<Call>),
+    Predefined(Vec<Call>, Vec<Call>, Vec<Call>, Vec<Call>),
 }
 
 impl Scheme {
@@ -41,11 +39,16 @@ impl Scheme {
     }
 
     pub fn predefined(init: Calls, handle: Calls, handle_reply: Calls) -> Self {
-        Self::Predefined(init.calls(), handle.calls(), handle_reply.calls())
+        Self::Predefined(
+            init.calls(),
+            handle.calls(),
+            handle_reply.calls(),
+            Default::default(),
+        )
     }
 
     pub fn signal(init: Calls, handle: Calls, handle_reply: Calls, handle_signal: Calls) -> Self {
-        Self::Signal(
+        Self::Predefined(
             init.calls(),
             handle.calls(),
             handle_reply.calls(),
@@ -57,29 +60,26 @@ impl Scheme {
         match self {
             Self::Direct(init) => init,
             Self::Predefined(init, ..) => init,
-            Self::Signal(init, ..) => init,
         }
     }
 
     pub fn handle(&self) -> Option<&Vec<Call>> {
         match self {
-            Self::Predefined(_, handle, _) => Some(handle),
-            Self::Signal(_, handle, _, _) => Some(handle),
+            Self::Predefined(_, handle, _, _) => Some(handle),
             _ => None,
         }
     }
 
     pub fn handle_reply(&self) -> Option<&Vec<Call>> {
         match self {
-            Self::Predefined(_, _, handle_reply) => Some(handle_reply),
-            Self::Signal(_, _, handle_reply, _) => Some(handle_reply),
+            Self::Predefined(_, _, handle_reply, _) => Some(handle_reply),
             _ => None,
         }
     }
 
     pub fn handle_signal(&self) -> Option<&Vec<Call>> {
         match self {
-            Self::Signal(_, _, _, handle_signal) => Some(handle_signal),
+            Self::Predefined(_, _, _, handle_signal) => Some(handle_signal),
             _ => None,
         }
     }
