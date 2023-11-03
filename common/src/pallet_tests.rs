@@ -100,16 +100,16 @@ macro_rules! impl_pallet_system_inner {
         }
     };
 
-    ($runtime:ty, DbWeight = $db_weight:ty, $( $rest:tt )*) => {
+    ($runtime:ty, DbWeight = $db_weight:ty $(, $( $rest:tt )*)?) => {
         type SystemConfigDbWeight = $db_weight;
 
-        $crate::impl_pallet_system_inner!($runtime, $( $rest )*);
+        $crate::impl_pallet_system_inner!($runtime, $($( $rest )*)?);
     };
 
-    ($runtime:ty, BlockWeights = $block_weights:ty, $( $rest:tt )*) => {
+    ($runtime:ty, BlockWeights = $block_weights:ty $(, $( $rest:tt )*)?) => {
         type SystemConfigBlockWeights = $block_weights;
 
-        $crate::impl_pallet_system_inner!($runtime, $( $rest )*);
+        $crate::impl_pallet_system_inner!($runtime, $($( $rest )*)?);
     };
 }
 

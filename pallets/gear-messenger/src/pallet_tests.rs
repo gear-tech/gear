@@ -39,9 +39,9 @@ macro_rules! impl_config_inner {
         }
     };
 
-    ($runtime:ty, CurrentBlockNumber = $current_block_number:ty, $( $rest:tt )*) => {
+    ($runtime:ty, CurrentBlockNumber = $current_block_number:ty $(, $( $rest:tt )*)?) => {
         type GearMessengerCurrentBlockNumber = $current_block_number;
 
-        $crate::impl_config_inner!($runtime, $( $rest )*);
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 }

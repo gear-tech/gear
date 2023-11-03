@@ -77,7 +77,7 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
 pallet_gear_bank::impl_config!(Test);

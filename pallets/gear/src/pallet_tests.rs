@@ -66,27 +66,27 @@ macro_rules! impl_config_inner {
         }
     };
 
-    ($runtime:ty, Schedule = $schedule:ty, $( $rest:tt )*) => {
+    ($runtime:ty, Schedule = $schedule:ty $(, $( $rest:tt )*)?) => {
         type GearConfigSchedule = $schedule;
 
-        $crate::impl_config_inner!($runtime, $( $rest )*);
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 
-    ($runtime:ty, Voucher = $voucher:ty, $( $rest:tt )*) => {
+    ($runtime:ty, Voucher = $voucher:ty $(, $( $rest:tt )*)?) => {
         type GearConfigVoucher = $voucher;
 
-        $crate::impl_config_inner!($runtime, $( $rest )*);
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 
-    ($runtime:ty, DebugInfo = $debug_info:ty, $( $rest:tt )*) => {
+    ($runtime:ty, DebugInfo = $debug_info:ty $(, $( $rest:tt )*)?) => {
         type GearConfigDebugInfo = $debug_info;
 
-        $crate::impl_config_inner!($runtime, $( $rest )*);
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 
-    ($runtime:ty, ProgramRentEnabled = $program_rent_enabled:ty, $( $rest:tt )*) => {
+    ($runtime:ty, ProgramRentEnabled = $program_rent_enabled:ty $(, $( $rest:tt )*)?) => {
         type GearConfigProgramRentEnabled = $program_rent_enabled;
 
-        $crate::impl_config_inner!($runtime, $( $rest )*);
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 }

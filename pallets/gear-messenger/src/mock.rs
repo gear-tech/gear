@@ -51,7 +51,7 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = (),);
+common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = ());
 common::impl_pallet_balances!(Test);
 pallet_gear_gas::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test);

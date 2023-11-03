@@ -51,8 +51,8 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
-pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = GearBlockNumber,);
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = GearBlockNumber);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 

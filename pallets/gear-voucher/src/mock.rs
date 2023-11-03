@@ -55,7 +55,7 @@ parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
 }
 
-common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_balances!(Test);
 
 parameter_types! {

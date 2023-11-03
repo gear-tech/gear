@@ -68,15 +68,15 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_timestamp!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
 pallet_gear_program::impl_config!(Test);
-pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear,);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, Schedule = GearSchedule,);
+pallet_gear::impl_config!(Test, Schedule = GearSchedule);
 pallet_gear_gas::impl_config!(Test);
 
 parameter_types! {

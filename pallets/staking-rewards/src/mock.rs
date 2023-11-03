@@ -105,7 +105,7 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = (),);
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test, EventHandler = Staking);
 common::impl_pallet_timestamp!(Test);
