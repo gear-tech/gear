@@ -25,26 +25,29 @@
 //! debug and non-debug mode, for programs built in `wasm32` architecture.
 //! For `debug` mode it provides more extensive logging.
 
+#[cfg(target_arch = "wasm32")]
+use crate::ext;
+#[cfg(target_arch = "wasm32")]
+use core::panic::PanicInfo;
+
 #[cfg(feature = "oom-handler")]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    crate::ext::oom_panic()
+    ext::oom_panic()
 }
 
 #[cfg(not(all(feature = "panic-message", feature = "debug")))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(_: &PanicInfo) -> ! {
-    crate::ext::panic("no info")
+    ext::panic("no info")
 }
 
 #[cfg(all(feature = "panic-message", feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    use crate::{ext, prelude::format};
-
+pub fn panic(panic_info: &PanicInfo) -> ! {
     let msg = match (panic_info.message(), panic_info.location()) {
         (Some(msg), Some(loc)) => format!(
             "'{:?}', {}:{}:{}",
