@@ -7159,6 +7159,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
+name = "numerated"
+version = "1.0.2"
+dependencies = [
+ "derive_more",
+ "env_logger",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "proptest",
+ "scale-info",
+]
+
+[[package]]
 name = "object"
 version = "0.28.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
