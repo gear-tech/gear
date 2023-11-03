@@ -124,11 +124,7 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(
-        target_arch = "wasm32",
-        any(feature = "debug", debug_assertions),
-        feature = "panic-messages"
-    ),
+    all(target_arch = "wasm32", feature = "panic-messages",),
     feature(panic_info_message)
 )]
 #![cfg_attr(

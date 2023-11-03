@@ -32,15 +32,14 @@ pub fn oom(_: core::alloc::Layout) -> ! {
     crate::ext::oom_panic()
 }
 
-#[cfg(not(any(feature = "debug", debug_assertions)))]
+#[cfg(not(all(feature = "panic-message", feature = "debug")))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(_: &PanicInfo) -> ! {
     crate::ext::panic("no info")
 }
 
-#[cfg(feature = "panic-message")]
-#[cfg(any(feature = "debug", debug_assertions))]
+#[cfg(all(feature = "panic-message", feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
