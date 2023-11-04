@@ -34,10 +34,10 @@
 //!   impacts gas cost and is thus disabled by default.
 //! - **default** - Includes all default features.
 //!   - **default-stable** - Includes default stable features
-//!     - **panic-handler** - When enabled, a panic handler is provided
-//!       by this crate.
-//!   - **nightly** - Includes default nightly features.
-//!     These features depend on unstable Rust API and require nightly toolchain.
+//!     - **panic-handler** - When enabled, a panic handler is provided by this
+//!       crate.
+//!   - **nightly** - Includes default nightly features. These features depend
+//!     on unstable Rust API and require nightly toolchain.
 //!     - **panic-messages** - When enabled, additional context information is
 //!       available from panic messages in debug mode. Relies on
 //!       [`panic_info_message`][rust-66745].
