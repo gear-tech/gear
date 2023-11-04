@@ -38,16 +38,12 @@ impl Scheme {
         Self::Direct(init.calls())
     }
 
-    pub fn predefined(init: Calls, handle: Calls, handle_reply: Calls) -> Self {
-        Self::Predefined(
-            init.calls(),
-            handle.calls(),
-            handle_reply.calls(),
-            Default::default(),
-        )
-    }
-
-    pub fn signal(init: Calls, handle: Calls, handle_reply: Calls, handle_signal: Calls) -> Self {
+    pub fn predefined(
+        init: Calls,
+        handle: Calls,
+        handle_reply: Calls,
+        handle_signal: Calls,
+    ) -> Self {
         Self::Predefined(
             init.calls(),
             handle.calls(),
