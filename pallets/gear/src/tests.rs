@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::tests::utils::ProgramCodeKind::Default;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
