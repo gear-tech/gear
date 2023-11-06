@@ -822,20 +822,28 @@ benchmarks! {
     }: {
         res.replace(run_process(exec));
     }
-
     verify {
         verify_process(res.unwrap());
     }
 
-
     free_range {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::free_range(r)?;
+        let exec = Benches::<T>::free_range(r, 1)?;
     }: {
         res.replace(run_process(exec));
     }
+    verify {
+        verify_process(res.unwrap());
+    }
 
+    free_range_per_page {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::free_range(1, 512)?;
+    }: {
+        res.replace(run_process(exec));
+    }
     verify {
         verify_process(res.unwrap());
     }

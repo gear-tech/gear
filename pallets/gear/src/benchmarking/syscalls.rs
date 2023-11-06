@@ -262,17 +262,25 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn free_range(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>() as u32);
-
+    pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
+        for _ in 0..(API_BENCHMARK_BATCH_SIZE * repetitions) {
+            let n_pages = 512;
+            instructions.extend([I32Const(n_pages), Call(0), I32Const(-1)]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            instructions.extend([I32Const(1), I32Const(r as i32 - 1), Call(1), I32Const(0)]);
-            unreachable_condition(&mut instructions, I32Ne); // if free_range returns 0 then it's error
+            // if pages_per_call is
+            for chunk in (1..=512)
+                .collect::<Vec<i32>>()
+                .chunks(pages_per_call as usize)
+            {
+                let start = *chunk.first().unwrap();
+                let end = *chunk.last().unwrap();
+
+                instructions.extend([I32Const(start), I32Const(end), Call(1), I32Const(0)]);
+                unreachable_condition(&mut instructions, I32Ne); // if free_range returns not 0 then it's error
+            }
         }
 
         let module = ModuleDefinition {

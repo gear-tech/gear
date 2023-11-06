@@ -723,10 +723,6 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.free_range(page..=page)
-    }
-
     fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
         self.context
             .allocations_context

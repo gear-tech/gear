@@ -676,37 +676,42 @@ where
     }
 
     pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i32> {
-        InfallibleSysCall::new(RuntimeCosts::Free, move |ctx: &mut CallerWrap<Ext>| {
-            if start > end {
-                log::trace!("Invalid range {start:?}:{end:?}");
-                return Err(UndefinedTerminationReason::Actor(
-                    ActorTerminationReason::Trap(TrapExplanation::Unknown),
-                ));
-            }
+        let page_count = start.abs_diff(end).saturating_add(1);
 
-            let err = |_| {
-                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
-                    TrapExplanation::Unknown,
-                ))
-            };
-
-            let start = WasmPage::new(start).map_err(err)?;
-            let end = WasmPage::new(end).map_err(err)?;
-
-            let res = ctx.ext_mut().free_range(start..=end);
-            let res = ctx.process_alloc_func_result(res)?;
-
-            match &res {
-                Ok(()) => {
-                    log::trace!("Free range {start:?}:{end:?}");
+        InfallibleSysCall::new(
+            RuntimeCosts::FreeRange(page_count),
+            move |ctx: &mut CallerWrap<Ext>| {
+                if start > end {
+                    log::trace!("Invalid range {start:?}:{end:?}");
+                    return Err(UndefinedTerminationReason::Actor(
+                        ActorTerminationReason::Trap(TrapExplanation::Unknown),
+                    ));
                 }
-                Err(err) => {
-                    log::trace!("Free failed: {err}");
-                }
-            };
 
-            Ok(res.is_err() as i32)
-        })
+                let err = |_| {
+                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                        TrapExplanation::Unknown,
+                    ))
+                };
+
+                let start = WasmPage::new(start).map_err(err)?;
+                let end = WasmPage::new(end).map_err(err)?;
+
+                let res = ctx.ext_mut().free_range(start..=end);
+                let res = ctx.process_alloc_func_result(res)?;
+
+                match &res {
+                    Ok(()) => {
+                        log::trace!("Free range {start:?}:{end:?}");
+                    }
+                    Err(err) => {
+                        log::trace!("Free failed: {err}");
+                    }
+                };
+
+                Ok(res.is_err() as i32)
+            },
+        )
     }
 
     pub fn env_vars(vars_ver: u32, vars_ptr: u32) -> impl SysCall<Ext> {

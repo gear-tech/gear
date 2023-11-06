@@ -461,23 +461,14 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(
-            ctx.free_range(WasmPage(1)..=WasmPage(1)),
-            Err(AllocError::InvalidFree(1))
-        );
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
 
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
-        assert_eq!(
-            ctx.free_range(WasmPage(0)..=WasmPage(0)),
-            Err(AllocError::InvalidFree(0))
-        );
+        assert_eq!(ctx.free(WasmPage(0)), Err(AllocError::InvalidFree(0)));
 
         let mut ctx =
             AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
-        assert_eq!(
-            ctx.free_range(WasmPage(1)..=WasmPage(1)),
-            Err(AllocError::InvalidFree(1))
-        );
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
 
         let mut ctx = AllocationsContext::new(
             BTreeSet::from([WasmPage(1), WasmPage(3)]),
