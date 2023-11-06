@@ -5945,9 +5945,9 @@ fn pause_terminated_exited_program() {
             DEFAULT_SALT,
             Scheme::predefined(
                 init,
-                Calls::default(),
-                Calls::default(),
-                Calls::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
             ),
             0,
         );
@@ -8566,7 +8566,7 @@ fn demo_constructor_is_demo_ping() {
 
         let handle_reply = Calls::builder().panic("I don't like replies");
 
-        let scheme = Scheme::predefined(init, handle, handle_reply, Calls::default());
+        let scheme = Scheme::predefined(init, handle, handle_reply, Default::default());
 
         // checking init
         let (_init_mid, constructor_id) = utils::init_constructor(scheme);
@@ -14117,10 +14117,10 @@ fn double_read_works() {
             .bytes_eq("is_eq", "read1", "read2")
             .if_else("is_eq", noop_branch, panic_branch);
         let predefined_scheme = Scheme::predefined(
-            Calls::default(),
+            Default::default(),
             handle,
-            Calls::default(),
-            Calls::default(),
+            Default::default(),
+            Default::default(),
         );
 
         let (_, pid) = utils::init_constructor(predefined_scheme);
