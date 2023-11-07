@@ -827,9 +827,9 @@ benchmarks! {
     }
 
     free_range {
-        let p in 0..512;
+        let r in 0..512;
         let mut res = None;
-        let exec = Benches::<T>::free_range(p, 1)?;
+        let exec = Benches::<T>::free_range(r, 1)?;
     }: {
         res.replace(run_process(exec));
     }

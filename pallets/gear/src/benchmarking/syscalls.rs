@@ -266,8 +266,6 @@ where
     pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
 
-        const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
-
         let mut instructions = vec![];
 
         for _ in 0..API_BENCHMARK_BATCH_SIZE {
@@ -277,7 +275,7 @@ where
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
             // free them in steps
-            let mut i = 1;
+            let mut i = 0;
             for _ in 0..repetitions {
                 instructions.extend([
                     I32Const(i),
@@ -297,7 +295,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
