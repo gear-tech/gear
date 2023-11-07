@@ -182,7 +182,6 @@ pub struct ContextStore {
     outgoing: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
     initialized: BTreeSet<ProgramId>,
-    awaken: BTreeSet<MessageId>,
     reply_sent: bool,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
@@ -484,13 +483,9 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        if self.store.awaken.insert(waker_id) {
-            self.outcome.awakening.push((waker_id, delay));
+        self.outcome.awakening.push((waker_id, delay));
 
-            Ok(())
-        } else {
-            Err(Error::DuplicateWaking)
-        }
+        Ok(())
     }
 
     /// Create deposit to handle future reply on message id was sent.
