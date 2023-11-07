@@ -286,6 +286,8 @@ extern "C" fn metahash() {{
             )?;
         }
 
+        optimize::optimize_wasm(meta_wasm_path.clone(), meta_wasm_path.clone(), "4", false)?;
+
         smart_fs::write(
             self.out_dir.join("wasm_binary.rs"),
             format!(

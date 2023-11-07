@@ -6,7 +6,7 @@ use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
+    parity_wasm::elements::{Module, Section, Serialize},
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
@@ -30,6 +30,8 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "metahash",
     STACK_END_EXPORT_NAME,
 ];
+
+const OPTIMIZED_META_EXPORTS: [&str; 1] = ["metadata"];
 
 /// Type of the output wasm.
 #[derive(PartialEq, Eq)]
@@ -88,20 +90,7 @@ impl Optimizer {
         let exports = if ty == OptType::Opt {
             OPTIMIZED_EXPORTS.to_vec()
         } else {
-            self.module
-                .export_section()
-                .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
-                .entries()
-                .iter()
-                .flat_map(|entry| {
-                    if let Internal::Function(_) = entry.internal() {
-                        let entry = entry.field();
-                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
+            OPTIMIZED_META_EXPORTS.to_vec()
         };
 
         pwasm_utils::optimize(&mut module, exports)
