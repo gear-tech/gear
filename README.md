@@ -72,7 +72,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     gear
     ```
 
-3. Connect to the tet network:
+3. Connect to the test network:
 
     ```bash
     gear --chain=testnet
