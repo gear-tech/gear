@@ -30,7 +30,7 @@
 //!
 //! # Crate features
 //!
-//! - **debug** - When enabled, logging becomes more verbose; this heavily
+//! - **debug** - Enables debug logging; this heavily
 //!   impacts gas cost and is thus disabled by default.
 //! - **default** - Includes all default features.
 //!   - **default-stable** - Includes default stable features
