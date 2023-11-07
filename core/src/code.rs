@@ -545,7 +545,6 @@ impl Code {
             TryNewCodeConfig {
                 version,
                 stack_height,
-                export_stack_height: true,
                 ..Default::default()
             },
         )
