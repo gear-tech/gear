@@ -26,12 +26,9 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(feature = "oom-handler")]
-use crate::ext;
-
-#[cfg(feature = "oom-handler")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    ext::oom_panic()
+    crate::ext::oom_panic()
 }
 
 #[cfg(feature = "panic-handler")]
