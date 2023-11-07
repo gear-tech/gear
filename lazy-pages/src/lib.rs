@@ -55,7 +55,6 @@ use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
-use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
 /// Initialize lazy-pages once for process.

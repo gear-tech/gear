@@ -4116,7 +4116,6 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "region",
- "sp-std 5.0.0",
  "sp-wasm-interface",
  "winapi",
 ]
