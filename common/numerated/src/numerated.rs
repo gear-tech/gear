@@ -100,7 +100,7 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
         self.sub_if_between(Self::N::one(), other)
     }
     fn enclosed_by(self, a: &Self, b: &Self) -> bool {
-        self <= a.max(b) && self >= a.min(b)
+        self <= *a.max(b) && self >= *a.min(b)
     }
 }
 
