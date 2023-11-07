@@ -42,20 +42,20 @@ pub enum BoundValue<T: Sized> {
 /// use numerated::{Bound, BoundValue};
 ///
 /// /// `inner` is a value from 0 to 99.
-/// struct T { inner: u32 }
+/// struct Number { inner: u32 }
 ///
 /// /// `inner` is a value from 0 to 100.
 /// #[derive(Clone, Copy)]
-/// struct B { inner: u32 }
+/// struct BoundForNumber { inner: u32 }
 ///
-/// impl From<T> for B {
-///     fn from(t: T) -> Self {
+/// impl From<Number> for BoundForNumber {
+///     fn from(t: Number) -> Self {
 ///         Self { inner: t.inner }
 ///     }
 /// }
 ///
-/// impl Bound<T> for B {
-///    fn unbound(self) -> BoundValue<T> {
+/// impl Bound<Number> for BoundForNumber {
+///    fn unbound(self) -> BoundValue<Number> {
 ///        if self.inner == 100 {
 ///            BoundValue::Upper(T { inner: 99 })
 ///        } else {
