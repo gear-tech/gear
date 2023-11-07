@@ -812,7 +812,6 @@ pub mod runtime_types {
                             >,
                         >,
                         pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
-                        pub awaken: ::std::vec::Vec<runtime_types::gear_core::ids::MessageId>,
                         pub reply_sent: ::core::primitive::bool,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
