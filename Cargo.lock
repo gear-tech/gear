@@ -4268,7 +4268,6 @@ name = "gear-runtime-interface"
 version = "1.0.2"
 dependencies = [
  "byteorder",
- "derive_more",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
