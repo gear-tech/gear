@@ -827,9 +827,9 @@ benchmarks! {
     }
 
     free_range {
-        let r in 0..511;
+        let p in 0..511;
         let mut res = None;
-        let exec = Benches::<T>::free_range(r, 1)?;
+        let exec = Benches::<T>::free_range(p, 1)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -838,9 +838,9 @@ benchmarks! {
     }
 
     free_range_per_page {
-        let r in 0..511;
+        let p in 0..511;
         let mut res = None;
-        let exec = Benches::<T>::free_range(1, r)?;
+        let exec = Benches::<T>::free_range(1, p)?;
     }: {
         res.replace(run_process(exec));
     }
