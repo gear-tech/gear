@@ -603,6 +603,14 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 208_188_000 picoseconds.
         Weight::from_parts(1, 0)
     }
+    /// The range of component `r` is `[0, 20]`.
+    fn free_range_per_page(_r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 208_188_000 picoseconds.
+        Weight::from_parts(1, 0)
+    }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
