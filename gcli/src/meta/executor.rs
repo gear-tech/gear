@@ -99,24 +99,6 @@ mod env {
         pub memory: Memory,
     }
 
-    macro_rules! func {
-        ($store:tt) => {
-            func!($store,)
-        };
-        ($store:tt, $($ty:tt),* ) => {
-            Extern::Func(Func::wrap(
-                $store,
-                move |_caller: Caller<'_, HostState>, $(_: $ty),*| { Ok(()) },
-            ))
-        };
-        (@result $store:tt, $($ty:tt),* ) => {
-            Extern::Func(Func::wrap(
-                $store,
-                move |_caller: Caller<'_, HostState>, $(_: $ty),*| { 0 },
-            ))
-        };
-    }
-
     impl Env<'_> {
         /// Define function in the environment.
         pub fn define(&mut self, module: &str, name: &str) -> Result<()> {
@@ -130,58 +112,13 @@ mod env {
             let external = match name {
                 "memory" => Extern::Memory(memory),
                 "alloc" => alloc(self.store, memory),
+                "free" => free(self.store),
                 "gr_oom_panic" => gr_oom_panic(store),
                 "gr_read" => gr_read(store, memory),
                 "gr_reply" => gr_reply(store, memory),
                 "gr_panic" => gr_panic(store, memory),
                 "gr_size" => gr_size(store, memory),
-                // methods may be used by programs but not required by metadata.
-                "free" => func!(@result store, i32),
-                "gr_block_height" => func!(store, u32),
-                "gr_block_timestamp" => func!(store, u32),
-                "gr_create_program_wgas" => func!(store, i32, i32, u32, i32, u32, u64, u32, i32),
-                "gr_create_program" => func!(store, i32, i32, u32, i32, u32, u64, i32),
-                "gr_debug" => func!(store, i32, u32),
-                "gr_exit" => func!(store, i32),
-                "gr_gas_available" => func!(store, i32),
-                "gr_leave" => func!(store),
-                "gr_message_id" => func!(store, i32),
-                "gr_out_of_gas" => func!(store),
-                "gr_pay_program_rent" => func!(store, i32, i32),
-                "gr_program_id" => func!(store, i32),
-                "gr_random" => func!(store, i32, i32),
-                "gr_reply_code" => func!(store, i32),
-                "gr_reply_commit" => func!(store, i32, i32),
-                "gr_reply_deposit" => func!(store, i32, u64, i32),
-                "gr_reply_input" => func!(store, u32, u32, i32, i32),
-                "gr_reply_push" => func!(store, i32, u32, i32),
-                "gr_reply_push_input" => func!(store, u32, u32, i32),
-                "gr_reply_push_input_wgas" => func!(store, u32, u32, u64, i32, i32),
-                "gr_reply_to" => func!(store, i32),
-                "gr_reply_wgas" => func!(store, i32, u32, u64, i32, i32),
-                "gr_reservation_reply" => func!(store, i32, i32, u32, i32),
-                "gr_reservation_send_commit" => func!(store, u32, i32, u32, i32),
-                "gr_reservation_send" => func!(store, i32, i32, u32, u32, i32),
-                "gr_reserve_gas" => func!(store, u64, u32, i32),
-                "gr_send" => func!(store, i32, i32, u32, u32, i32),
-                "gr_send_commit" => func!(store, u32, i32, u32, i32),
-                "gr_send_commit_wgas" => func!(store, u32, i32, u64, u32, i32),
-                "gr_send_init" => func!(store, i32),
-                "gr_send_input" => func!(store, i32, u32, u32, u32, i32),
-                "gr_send_input_wgas" => func!(store, i32, u32, u32, u64, u32, i32),
-                "gr_send_push" => func!(store, u32, i32, u32, i32),
-                "gr_send_push_input" => func!(store, u32, u32, u32, i32),
-                "gr_send_wgas" => func!(store, i32, i32, u32, u64, u32, i32),
-                "gr_signal_code" => func!(store, i32),
-                "gr_signal_from" => func!(store, i32),
-                "gr_source" => func!(store, i32),
-                "gr_system_reserve_gas" => func!(store, u64, i32),
-                "gr_unreserve_gas" => func!(store, i32, i32),
-                "gr_value" => func!(store, i32),
-                "gr_wait" => func!(store, u32),
-                "gr_wait_for" => func!(store, u32),
-                "gr_wait_up_to" => func!(store, u32),
-                "gr_wake" => func!(store, i32, u32, i32),
+                "gr_out_of_gas" => gr_out_of_gas(store),
                 _ => return Err(anyhow!("export \"{}\" not found in env", name,)),
             };
 
@@ -209,6 +146,13 @@ mod env {
                         |pages| pages.to_bytes().unwrap_or_default() as i32,
                     )
             },
+        ))
+    }
+
+    fn free(ctx: &mut Store<HostState>) -> Extern {
+        Extern::Func(Func::wrap(
+            ctx,
+            move |_caller: Caller<'_, HostState>, _: i32| 0,
         ))
     }
 
@@ -306,6 +250,13 @@ mod env {
     fn gr_oom_panic(ctx: impl AsContextMut) -> Extern {
         Extern::Func(Func::wrap(ctx, || {
             log::error!("OOM panic occurred");
+            Ok(())
+        }))
+    }
+
+    fn gr_out_of_gas(ctx: impl AsContextMut) -> Extern {
+        Extern::Func(Func::wrap(ctx, || {
+            log::error!("Out of gas");
             Ok(())
         }))
     }
