@@ -125,15 +125,7 @@ impl LazyPagesContext {
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct PageSizes(pub(crate) [NonZeroU32; PageSizeNo::Amount as usize]);
-
-impl SizeManager for PageSizes {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.0[P::SIZE_NO]
-    }
-}
+pub type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
@@ -209,7 +201,7 @@ pub enum LazyPagesVersion {
 
 impl SizeManager for LazyPagesRuntimeContext {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes.size_non_zero::<P>()
+        self.page_sizes[P::SIZE_NO]
     }
 }
 

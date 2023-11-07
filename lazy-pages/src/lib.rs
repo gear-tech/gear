@@ -51,7 +51,7 @@ use crate::{
     init_flag::InitializationFlag,
 };
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_core::pages::{GearPage, PageDynSize, PageNumber, PageSizeNo, SizeManager, WasmPage};
+use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
@@ -399,13 +399,13 @@ fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
         .map_err(|_| ZeroPageSize)?;
 
     let page_sizes: PageSizes = match page_sizes.try_into() {
-        Ok(sizes) => PageSizes(sizes),
+        Ok(sizes) => sizes,
         Err(sizes) => return Err(WrongSizesAmount(sizes.len(), PageSizeNo::Amount as usize)),
     };
 
     // Check sizes suitability
-    let wasm_page_size = page_sizes.size_non_zero::<WasmPage>();
-    let gear_page_size = page_sizes.size_non_zero::<GearPage>();
+    let wasm_page_size = page_sizes[PageSizeNo::WasmSizeNo as usize];
+    let gear_page_size = page_sizes[PageSizeNo::GearSizeNo as usize];
     let native_page_size = region::page::size();
     if wasm_page_size < gear_page_size
         || (gear_page_size.get() as usize) < native_page_size
