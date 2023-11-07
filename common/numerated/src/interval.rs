@@ -315,7 +315,7 @@ impl<T: Numerated + LowerBounded + UpperBounded> NotEmptyInterval<T> {
     pub fn size(&self) -> Option<T> {
         let raw_size = self.raw_size()?;
         let size = T::min_value()
-            .add_if_between(raw_size, T::max_value())
+            .add_if_enclosed_by(raw_size, T::max_value())
             .unwrap_or_else(|| unreachable!("`T: Numerated` impl error"));
         Some(size)
     }
@@ -367,7 +367,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
             (Value(s), c) => {
                 // subtraction is safe, because c != 0
                 let c = c.map(|c| c - T::N::one()).unwrap_or(T::N::max_value());
-                s.add_if_between(c, T::max_value())
+                s.add_if_enclosed_by(c, T::max_value())
                     .map(|e| NotEmptyInterval::new(s, e).unwrap_or_else(|| {
                         unreachable!("`T: Numerated` impl error: for each s: T, c: T::N => s.add_if_between(c, _) >= s")
                     }).into())

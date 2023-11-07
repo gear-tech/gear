@@ -85,19 +85,27 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     /// Bound type: type for which any value can be mapped to `Self`,
     /// and also has __upper__ value, which is bigger than any value of `Self`.
     type B: Bound<Self>;
-    /// Adds `num` to `self` if `self + num` is between `self` and `other`.
-    fn add_if_between(self, num: Self::N, other: Self) -> Option<Self>;
-    /// Subtracts `num` from `self` if `self - num` is between `self` and `other`.
-    fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self>;
+    /// Adds `num` to `self` if `self + num` is enclosed by `self` and `other`.
+    /// This method must guaranties that:
+    /// - iff `self + num` is enclosed by `self` and `other`, then returns `Some(_)`.
+    /// - iff `self.add_if_enclosed_by(num, other).unwrap() == Some(a)`,
+    /// then `a.sub_if_enclosed_by(num, self) == Some(self)`.
+    fn add_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
+    /// Subtracts `num` from `self` if `self - num` is enclosed by `self` and `other`.
+    /// This method must guaranties that:
+    /// - iff `self - num` is enclosed by `self` and `other`, then returns `Some(_)`.
+    /// - iff `self.sub_if_enclosed_by(num, other).unwrap() == Some(a)`,
+    /// then `a.add_if_enclosed_by(num, self) == Some(self)`.
+    fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
     /// Returns `self - other` if `self >= other`.
     fn distance(self, other: Self) -> Option<Self::N>;
     /// Increments `self` if `self < other`.
     fn inc_if_lt(self, other: Self) -> Option<Self> {
-        self.add_if_between(Self::N::one(), other)
+        self.add_if_enclosed_by(Self::N::one(), other)
     }
     /// Decrements `self` if `self > other`.
     fn dec_if_gt(self, other: Self) -> Option<Self> {
-        self.sub_if_between(Self::N::one(), other)
+        self.sub_if_enclosed_by(Self::N::one(), other)
     }
     fn enclosed_by(self, a: &Self, b: &Self) -> bool {
         self <= *a.max(b) && self >= *a.min(b)
@@ -130,10 +138,10 @@ macro_rules! impl_for_unsigned {
         impl Numerated for $t {
             type N = $t;
             type B = BoundValue<$t>;
-            fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
+            fn add_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self> {
                 self.checked_add(num).and_then(|res| res.enclosed_by(&self, &other).then_some(res))
             }
-            fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
+            fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self> {
                 self.checked_sub(num).and_then(|res| res.enclosed_by(&self, &other).then_some(res))
             }
             fn distance(self, other: Self) -> Option<$t> {
@@ -158,12 +166,12 @@ macro_rules! impl_for_signed {
             impl Numerated for $s {
                 type N = $u;
                 type B = BoundValue<$s>;
-                fn add_if_between(self, num: $u, other: Self) -> Option<Self> {
+                fn add_if_enclosed_by(self, num: $u, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
                     a.checked_add(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
                 }
-                fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
+                fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
                     a.checked_sub(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
