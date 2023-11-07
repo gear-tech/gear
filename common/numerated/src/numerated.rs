@@ -98,6 +98,12 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     /// then `a.add_if_enclosed_by(num, self) == Some(self)`.
     fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
     /// Returns `self - other` if `self >= other`.
+    /// This method must guaranties that:
+    /// - iff `self >= other`, then returns `Some(_)`.
+    /// - iff `self == other`, then returns `Some(0)`.
+    /// - iff `self.distance(other) == Some(a)`,
+    /// then `self.sub_if_enclosed_by(a, other) == Some(other)`
+    /// and `other.add_if_enclosed_by(a, self) == Some(self)`.
     fn distance(self, other: Self) -> Option<Self::N>;
     /// Increments `self` if `self < other`.
     fn inc_if_lt(self, other: Self) -> Option<Self> {
@@ -107,6 +113,7 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     fn dec_if_gt(self, other: Self) -> Option<Self> {
         self.sub_if_enclosed_by(Self::N::one(), other)
     }
+    /// Returns `true` iff `self` is enclosed by `a` and `b`.
     fn enclosed_by(self, a: &Self, b: &Self) -> bool {
         self <= *a.max(b) && self >= *a.min(b)
     }
