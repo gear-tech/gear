@@ -57,9 +57,9 @@ pub enum BoundValue<T: Sized> {
 /// impl Bound<Number> for BoundForNumber {
 ///    fn unbound(self) -> BoundValue<Number> {
 ///        if self.inner == 100 {
-///            BoundValue::Upper(T { inner: 99 })
+///            BoundValue::Upper(Number { inner: 99 })
 ///        } else {
-///            BoundValue::Value(T { inner: self.inner })
+///            BoundValue::Value(Number { inner: self.inner })
 ///        }
 ///    }
 /// }
@@ -99,7 +99,7 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     fn dec_if_gt(self, other: Self) -> Option<Self> {
         self.sub_if_between(Self::N::one(), other)
     }
-    fn is_between(self, a: Self, b: Self) -> bool {
+    fn enclosed_by(self, a: &Self, b: &Self) -> bool {
         self <= a.max(b) && self >= a.min(b)
     }
 }
@@ -131,10 +131,10 @@ macro_rules! impl_for_unsigned {
             type N = $t;
             type B = BoundValue<$t>;
             fn add_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-                self.checked_add(num).and_then(|res| res.is_between(self, other).then_some(res))
+                self.checked_add(num).and_then(|res| res.enclosed_by(&self, &other).then_some(res))
             }
             fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
-                self.checked_sub(num).and_then(|res| res.is_between(self, other).then_some(res))
+                self.checked_sub(num).and_then(|res| res.enclosed_by(&self, &other).then_some(res))
             }
             fn distance(self, other: Self) -> Option<$t> {
                 self.checked_sub(other)
@@ -161,12 +161,12 @@ macro_rules! impl_for_signed {
                 fn add_if_between(self, num: $u, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
-                    a.checked_add(num).and_then(|res| res.is_between(a, b).then_some(toggle_msb!(res) as $s))
+                    a.checked_add(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
                 }
                 fn sub_if_between(self, num: Self::N, other: Self) -> Option<Self> {
                     let a = toggle_msb!(self) as $u;
                     let b = toggle_msb!(other) as $u;
-                    a.checked_sub(num).and_then(|res| res.is_between(a, b).then_some(toggle_msb!(res) as $s))
+                    a.checked_sub(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
                 }
                 fn distance(self, other: Self) -> Option<$u> {
                     let a = toggle_msb!(self) as $u;
