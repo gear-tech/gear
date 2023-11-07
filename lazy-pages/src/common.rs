@@ -39,8 +39,8 @@ pub(crate) enum Error {
     ReadAccessSignalFromAccessedPage,
     #[display(fmt = "WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
-    #[display(fmt = "Pages store error: {_0}")]
-    PagesStorage(String),
+    #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
+    InvalidPageDataSize { expected: u32, actual: u32 },
     #[display(fmt = "Any page cannot be write accessed twice: {_0:?}")]
     DoubleWriteAccess(GearPage),
     #[display(fmt = "Any page cannot be read charged twice: {_0:?}")]
@@ -154,22 +154,24 @@ impl LazyPagesRuntimeContext {
         page: GearPage,
         buffer: &mut [u8],
     ) -> Result<bool, Error> {
-        self.program_storage
-            .load_page(&self.page_sizes, prefix, page, buffer)
-            .map_err(Error::PagesStorage)
+        if let Some(size) = self.program_storage.load_page(prefix, page, buffer) {
+            if size != GearPage::size(self) {
+                return Err(Error::InvalidPageDataSize {
+                    expected: GearPage::size(self),
+                    actual: size,
+                });
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
 pub trait LazyPagesStorage: fmt::Debug {
     fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool;
 
-    fn load_page(
-        &mut self,
-        page_sizes: &PageSizes,
-        prefix: &PagePrefix,
-        page: GearPage,
-        buffer: &mut [u8],
-    ) -> Result<bool, String>;
+    fn load_page(&mut self, prefix: &PagePrefix, page: GearPage, buffer: &mut [u8]) -> Option<u32>;
 }
 
 #[derive(Debug)]

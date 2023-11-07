@@ -28,11 +28,11 @@ use codec::{Decode, Encode};
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
-    pages::{GearPage, PageDynSize},
+    pages::GearPage,
     str::LimitedStr,
 };
 #[cfg(feature = "std")]
-use gear_lazy_pages::{LazyPagesStorage, PagePrefix, PageSizes};
+use gear_lazy_pages::{LazyPagesStorage, PagePrefix};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -116,12 +116,6 @@ impl PassBy for LazyPagesInitContext {
     type PassBy = Codec<LazyPagesInitContext>;
 }
 
-#[derive(Debug, derive_more::Display)]
-enum SpIoProgramStorageError {
-    #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
-    InvalidPageDataSize { expected: u32, actual: u32 },
-}
-
 #[derive(Debug, Default)]
 struct SpIoProgramStorage;
 
@@ -132,26 +126,9 @@ impl LazyPagesStorage for SpIoProgramStorage {
         sp_io::storage::exists(&key)
     }
 
-    fn load_page(
-        &mut self,
-        page_sizes: &PageSizes,
-        prefix: &PagePrefix,
-        page: GearPage,
-        buffer: &mut [u8],
-    ) -> Result<bool, String> {
+    fn load_page(&mut self, prefix: &PagePrefix, page: GearPage, buffer: &mut [u8]) -> Option<u32> {
         let key = prefix.key_for_page(page);
-        if let Some(size) = sp_io::storage::read(&key, buffer, 0) {
-            if size != GearPage::size(page_sizes) {
-                return Err(SpIoProgramStorageError::InvalidPageDataSize {
-                    expected: GearPage::size(page_sizes),
-                    actual: size,
-                }
-                .to_string());
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        sp_io::storage::read(&key, buffer, 0)
     }
 }
 

@@ -31,7 +31,7 @@ use gear_core::{
     pages::GearPage,
     program::MemoryInfix,
 };
-use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion, PagePrefix, PageSizes};
+use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion, PagePrefix};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{
@@ -112,19 +112,11 @@ impl LazyPagesStorage for PagesStorage {
         self.pages_data.get_page(program_id, page).is_some()
     }
 
-    fn load_page(
-        &mut self,
-        _page_sizes: &PageSizes,
-        prefix: &PagePrefix,
-        page: GearPage,
-        buffer: &mut [u8],
-    ) -> Result<bool, String> {
+    fn load_page(&mut self, prefix: &PagePrefix, page: GearPage, buffer: &mut [u8]) -> Option<u32> {
         let (program_id, _infix) = Self::parse_key(prefix.as_slice());
-        let Some(page_buf) = self.pages_data.get_page(program_id, page) else {
-            return Ok(false);
-        };
+        let page_buf = self.pages_data.get_page(program_id, page)?;
         buffer.copy_from_slice(&page_buf);
-        Ok(true)
+        Some(page_buf.len() as u32)
     }
 }
 

@@ -17,10 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{Error, PageSizes},
-    init_with_handler, mprotect,
-    signal::ExceptionInfo,
-    LazyPagesStorage, LazyPagesVersion, PagePrefix, UserSignalHandler,
+    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesStorage,
+    LazyPagesVersion, PagePrefix, UserSignalHandler,
 };
 use gear_core::{
     pages::{GearPage, PageDynSize, PageU32Size, WasmPage},
@@ -39,11 +37,10 @@ impl LazyPagesStorage for NoopStorage {
 
     fn load_page(
         &mut self,
-        _page_sizes: &PageSizes,
         _prefix: &PagePrefix,
         _page: GearPage,
         _buffer: &mut [u8],
-    ) -> Result<bool, String> {
+    ) -> Option<u32> {
         unreachable!()
     }
 }
