@@ -338,7 +338,7 @@ impl Default for TryNewCodeConfig {
         Self {
             version: 1,
             stack_height: None,
-            export_stack_height: true,
+            export_stack_height: false,
             check_exports: true,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
