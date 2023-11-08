@@ -14723,7 +14723,7 @@ version = "0.115.0"
 source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
 dependencies = [
  "indexmap 2.1.0",
- "semver 1.0.18",
+ "semver 1.0.20",
 ]
 
 [[package]]
@@ -14733,7 +14733,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53290b1276c5c2d47d694fb1a920538c01f51690e7e261acbe1d10c5fc306ea1"
 dependencies = [
  "indexmap 2.1.0",
- "semver 1.0.18",
+ "semver 1.0.20",
 ]
 
 [[package]]
