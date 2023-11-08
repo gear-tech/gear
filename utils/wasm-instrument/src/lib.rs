@@ -99,7 +99,10 @@ pub fn inject<R: Rules>(
     let out_of_gas_index = import_count as u32 - 1;
 
     let gas_charge_index = module.functions_space();
-    let gas_index = module.globals_space() as u32;
+    let gas_index = module
+        .global_section()
+        .map(|section| section.entries().len())
+        .unwrap_or_default() as u32;
 
     let mut mbuilder = builder::from_module(module);
 
