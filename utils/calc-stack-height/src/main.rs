@@ -7,7 +7,7 @@ use sandbox_wasmer_types::TrapCode;
 use std::{env, fs};
 
 fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let schedule = vara_runtime::Schedule::get();
     let inf_recursion = fs::read("examples/wat/spec/inf_recursion.wat")?;

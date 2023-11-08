@@ -74,11 +74,11 @@ jobs:
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
+      - name: "Check: Stack height limit"
+        run: cargo run -p calc-stack-height --release --locked
+
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
-
-      - name: "Test: Stack height limit"
-        run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
@@ -231,7 +231,7 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
-      - name: "Test: Stack height limit"
+      - name: "Check: Stack height limit"
         run: cargo xwin run -p calc-stack-height --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
