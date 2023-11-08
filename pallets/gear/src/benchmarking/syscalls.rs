@@ -264,28 +264,31 @@ where
 
     // repetitions
     pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
+        const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
+
         use Instruction::*;
 
         let mut instructions = vec![];
 
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            // allocate pages
-            let n_pages = 512;
-            instructions.extend([I32Const(n_pages), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
+        let n_pages = repetitions * pages_per_call * API_BENCHMARK_BATCH_SIZE;
+        assert!(n_pages <= MAX_PAGES_OVERRIDE as u32);
 
+        // allocate pages
+        instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
+        unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
+
+        let mut i = 0;
+
+        for _ in 0..(API_BENCHMARK_BATCH_SIZE * repetitions) {
             // free them in steps
-            let mut i = 0;
-            for _ in 0..repetitions {
-                instructions.extend([
-                    I32Const(i),
-                    I32Const(i + pages_per_call as i32),
-                    Call(1),
-                    I32Const(0),
-                ]);
-                unreachable_condition(&mut instructions, I32Ne); // if free_range returns not 0 then it's error
-                i += pages_per_call as i32
-            }
+            instructions.extend([
+                I32Const(i),
+                I32Const(i + pages_per_call as i32),
+                Call(1),
+                I32Const(0),
+            ]);
+            unreachable_condition(&mut instructions, I32Ne); // if free_range returns not 0 then it's error
+            i += pages_per_call as i32
         }
 
         let module = ModuleDefinition {
@@ -295,7 +298,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
