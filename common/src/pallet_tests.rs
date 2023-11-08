@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Module contains macros that help to implement Config type
-/// for various pallets of Substrate.
-/// All used types should be in scope.
+//! Module contains macros that help to implement Config type
+//! for various pallets of Substrate.
+//! All used types should be in scope.
+
 use frame_support::{pallet_prelude::*, weights::RuntimeDbWeight};
 use frame_system::limits::BlockWeights;
 use sp_arithmetic::Perbill;
