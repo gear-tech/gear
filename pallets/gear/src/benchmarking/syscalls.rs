@@ -277,18 +277,16 @@ where
         instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
         unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-        let mut i = 0;
-
-        for _ in 0..(API_BENCHMARK_BATCH_SIZE * repetitions) {
+        for i in 0..(API_BENCHMARK_BATCH_SIZE * repetitions) {
             // free them in steps
+            let start = i as i32 * pages_per_call as i32;
             instructions.extend([
-                I32Const(i),
-                I32Const(i + pages_per_call as i32),
+                I32Const(start),
+                I32Const(start + pages_per_call as i32),
                 Call(1),
                 I32Const(0),
             ]);
             unreachable_condition(&mut instructions, I32Ne); // if free_range returns not 0 then it's error
-            i += pages_per_call as i32
         }
 
         let module = ModuleDefinition {
