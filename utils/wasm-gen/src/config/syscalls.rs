@@ -78,8 +78,7 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` syscalls must use some address from `addresses` collection
-    /// as a syscall destination.
+    // todo change name and docs
     pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
             hash: pid.into(),

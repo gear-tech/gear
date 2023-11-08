@@ -203,11 +203,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let precise_syscalls: [(
             SysCallName,
             fn(&mut Self, SysCallName) -> Result<CallIndexesHandle, PreciseSysCallError>,
-        ); 4] = [
+        ); 5] = [
             (ReservationSend, Self::generate_send_from_reservation),
             (ReservationReply, Self::generate_reply_from_reservation),
             (SendCommit, Self::generate_send_commit),
             (SendCommitWGas, Self::generate_send_commit_with_gas),
+            (ReplyDeposit, Self::generate_reply_deposit),
         ];
 
         for (precise_syscall, generate_method) in precise_syscalls {
@@ -689,6 +690,95 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
         let func_instructions = Instructions::new(elements);
+        let call_indexes_handle =
+            self.generate_proper_syscall_invocation(syscall, func_instructions);
+
+        Ok(call_indexes_handle)
+    }
+
+    // TODO
+    // 1. check signature for the precise call and potential values there
+    // 2. tests
+    fn generate_reply_deposit(
+        &mut self,
+        syscall: SysCallName,
+    ) -> Result<CallIndexesHandle, PreciseSysCallError> {
+        let [send_input_idx, reply_deposit_idx] =
+            self.invocable_syscalls_indexes(InvocableSysCall::required_imports(syscall))?;
+
+        let mid_ptr = self.reserve_memory();
+
+        let precise_reply_deposit_invocation = [
+            // Pointer to pid_value argument of HashWithValue type.
+            Instruction::GetLocal(0),
+            // Pointer to offset defining starting index in the received message payload.
+            Instruction::GetLocal(1),
+            // Pointer to length of the slice of the received message payload.
+            Instruction::GetLocal(2),
+            // Pointer to value of delay.
+            Instruction::GetLocal(3),
+            // Pointer to the result of the `gr_send_input`, which is of type ErrorWithHash.
+            Instruction::GetLocal(5),
+            // Invocation of the `gr_send_input`.
+            Instruction::Call(send_input_idx as u32),
+            // Load ErrorWithHash.
+            Instruction::GetLocal(5),
+            // Take first 4 bytes from the data of ErrorWithHash type, which is error code, i.e.
+            // ErrorWithHash.error.
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHash.error == 0.
+            Instruction::I32Eqz,
+            // If ErrorWithHash.error == 0.
+            Instruction::If(BlockType::NoResult),
+            // Copy Hash struct (32 bytes) containing message id.
+            // Push on stack ptr to address where message id will be defined.
+            Instruction::I32Const(mid_ptr),
+            // Get the ErrorWithHash result of the `gr_send_input` call
+            Instruction::GetLocal(5),
+            // Load 8 bytes from the ErrorWithHash skipping first 4 bytes,
+            // which are bytes of i32 error_code value.
+            Instruction::I64Load(3, 4),
+            // Store these 8 bytes in the `mid_ptr` starting from the byte 0.
+            Instruction::I64Store(3, 0),
+            // Perform same procedure 3 times more to complete
+            // 32 bytes message id value under `mid_ptr`.
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
+            // Pointer to message id.
+            Instruction::I32Const(mid_ptr),
+            // Pointer to gas value for `gr_reply_deposit`.
+            Instruction::GetLocal(4),
+            // Pointer to the result of the `gr_reply_deposit`.
+            Instruction::GetLocal(5),
+            // Invocation of `gr_reply_deposit`.
+            Instruction::Call(reply_deposit_idx as u32),
+        ];
+
+        let invocations_amount = self.unstructured.int_in_range(
+            self.config
+                .precise_syscalls_config()
+                .range_of_send_input_calls(),
+        )?;
+
+        // The capacity is amount of times `gr_reply_deposit` is invoked precisely + 2 `End` instructions in the end of the function
+        let mut func_instructions =
+            Vec::with_capacity(precise_reply_deposit_invocation.len() * invocations_amount + 2);
+        for _ in 0..invocations_amount {
+            func_instructions.extend_from_slice(&precise_reply_deposit_invocation);
+        }
+        func_instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
+
+        let func_instructions = Instructions::new(func_instructions);
         let call_indexes_handle =
             self.generate_proper_syscall_invocation(syscall, func_instructions);
 

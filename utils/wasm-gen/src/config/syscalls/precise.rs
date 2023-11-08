@@ -25,13 +25,18 @@ use std::ops::RangeInclusive;
 #[derive(Debug, Clone)]
 pub struct PreciseSysCallsConfig {
     range_of_send_push_calls: RangeInclusive<usize>,
+    range_of_send_input_calls: RangeInclusive<usize>,
 }
 
 impl PreciseSysCallsConfig {
     /// Creates a new configuration for precise syscalls, filled with the given values.
-    pub fn new(range_of_send_push_calls: RangeInclusive<usize>) -> Self {
+    pub fn new(
+        range_of_send_push_calls: RangeInclusive<usize>,
+        range_of_send_input_calls: RangeInclusive<usize>,
+    ) -> Self {
         Self {
             range_of_send_push_calls,
+            range_of_send_input_calls,
         }
     }
 
@@ -39,10 +44,15 @@ impl PreciseSysCallsConfig {
     pub fn range_of_send_push_calls(&self) -> RangeInclusive<usize> {
         self.range_of_send_push_calls.clone()
     }
+
+    /// Get the range of `send_push*` syscalls.
+    pub fn range_of_send_input_calls(&self) -> RangeInclusive<usize> {
+        self.range_of_send_input_calls.clone()
+    }
 }
 
 impl Default for PreciseSysCallsConfig {
     fn default() -> Self {
-        Self::new(0..=3)
+        Self::new(0..=3, 1..=3)
     }
 }

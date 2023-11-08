@@ -148,6 +148,19 @@ impl InvocableSysCall {
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
+                SysCallName::ReplyDeposit => SysCallSignature::gr([
+                    // Address of recipient and value (HashWithValue struct)
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                        HashType::ActorId,
+                    ))),
+                    ParamType::Size,
+                    ParamType::Size,
+                    ParamType::Delay,
+                    ParamType::Gas,
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                        HashType::MessageId,
+                    ))),
+                ]),
                 _ => unimplemented!(),
             },
         }
@@ -189,6 +202,7 @@ impl InvocableSysCall {
                 SysCallName::SendPushInput,
                 SysCallName::SendCommitWGas,
             ],
+            SysCallName::ReplyDeposit => &[SysCallName::SendInput, SysCallName::ReplyDeposit],
             _ => return None,
         })
     }
@@ -200,7 +214,7 @@ impl InvocableSysCall {
 
         match *self {
             Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
-            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Some(0),
+            | Precise(ReservationSend | SendCommit | SendCommitWGas | ReplyDeposit) => Some(0),
             Loose(SendCommit | SendCommitWGas) => Some(1),
             _ => None,
         }

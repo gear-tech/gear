@@ -376,6 +376,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let upper_limit = mem_size.saturating_sub(100);
             let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
+            // TODO bug!
             vec![
                 // call `gsys::gr_source` with a memory offset
                 Instruction::I32Const(offset as i32),
