@@ -4828,7 +4828,7 @@ dependencies = [
 [[package]]
 name = "gwasm-instrument"
 version = "0.2.2"
-source = "git+https://github.com/StackOverflowExcept1on/wasm-instrument?branch=v0.2.1-sign-ext-stack-height#51b6ac1215d87e9db2591512a6f081224a817d78"
+source = "git+https://github.com/StackOverflowExcept1on/wasm-instrument?branch=v0.2.1-sign-ext-stack-height#c5e0cf40de1cb0678483e0c05f1656e472c7c433"
 dependencies = [
  "gear-wasm",
 ]
