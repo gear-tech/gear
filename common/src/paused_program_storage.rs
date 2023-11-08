@@ -18,69 +18,61 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-};
-use sp_core::MAX_POSSIBLE_ALLOCATION;
+use core::mem;
+use gear_core::program::MemoryInfix;
 use sp_io::hashing;
-
-const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
 
 pub type SessionId = u32;
 
-// The entity helps to calculate hash of program's data and memory pages.
-// Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
-struct Item {
-    data: (BTreeSet<WasmPage>, H256, MemoryMap),
-    remaining_pages: MemoryMap,
+pub fn hash(allocations: &BTreeSet<WasmPage>, code_hash: H256, hashes: &[H256]) -> H256 {
+    (allocations, code_hash, hashes)
+        .using_encoded(hashing::blake2_256)
+        .into()
 }
 
-impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
-    fn from(
-        (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
-    ) -> Self {
-        let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
-        Self {
-            data: (allocations, code_hash, memory_pages),
-            remaining_pages,
-        }
-    }
-}
+pub fn batch_hash(pages: &MemoryMap) -> H256 {
+    let mut data = Vec::with_capacity(sp_core::MAX_POSSIBLE_ALLOCATION as usize);
+    pages.encode_to(&mut data);
 
-impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap)> for Item {
-    fn from((program, memory_pages): (ActiveProgram<BlockNumber>, MemoryMap)) -> Self {
-        From::from((program.allocations, program.code_hash, memory_pages))
-    }
-}
-
-impl Item {
-    fn hash(&self) -> H256 {
-        let hash = self.data.using_encoded(hashing::blake2_256);
-        if self.remaining_pages.is_empty() {
-            hash.into()
-        } else {
-            // hash the remaining memory pages prepended with the first hash
-            let mut array = Vec::with_capacity(MAX_POSSIBLE_ALLOCATION as usize);
-            array.extend_from_slice(&hash);
-            self.remaining_pages.encode_to(&mut array);
-
-            hashing::blake2_256(&array).into()
-        }
-    }
+    hashing::blake2_256(&data).into()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct ResumeSession<AccountId, BlockNumber> {
-    page_count: u32,
     user: AccountId,
     program_id: ProgramId,
     allocations: BTreeSet<WasmPage>,
     pages_with_data: BTreeSet<GearPage>,
     code_hash: CodeId,
     end_block: BlockNumber,
+    page_batches: Vec<PageBatch>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum PageBatchState {
+    Uploading(BTreeSet<GearPage>),
+    Checked,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct PageBatch {
+    hash: H256,
+    state: PageBatchState,
+}
+
+impl From<H256> for PageBatch {
+    fn from(hash: H256) -> Self {
+        Self {
+            hash,
+            state: PageBatchState::Uploading(Default::default()),
+        }
+    }
 }
 
 /// The entity defines result of the [`PausedProgramStorage::resume_session_commit()`] method.
@@ -149,14 +141,15 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             Ok((program, memory_pages))
         })?;
 
-        let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
+        // let gas_reservations = mem::take(&mut program.gas_reservation_map);
 
-        Self::PausedProgramMap::insert(
-            program_id,
-            (block_number, Item::from((program, memory_pages)).hash()),
-        );
+        // Self::PausedProgramMap::insert(
+        //     program_id,
+        //     (block_number, hash),
+        // );
 
-        Ok(gas_reservations)
+        // Ok(gas_reservations)
+        todo!()
     }
 
     /// Create a session for program resume. Returns the session id on success.
@@ -166,9 +159,15 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         program_id: ProgramId,
         allocations: BTreeSet<WasmPage>,
         code_hash: CodeId,
+        hashes: Vec<H256>,
     ) -> Result<SessionId, Self::Error> {
-        if !Self::paused_program_exists(&program_id) {
+        let Some((_bn, hash)) = Self::PausedProgramMap::get(&program_id) else {
             return Err(Self::InternalError::program_not_found().into());
+        };
+
+        let new_hash = self::hash(&allocations, code_hash.into_origin(), &hashes);
+        if new_hash != hash {
+            return Err(Self::InternalError::wrong_init_data().into());
         }
 
         let session_id = Self::NonceStorage::mutate(|nonce| {
@@ -185,28 +184,34 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             }
 
             *session = Some(ResumeSession {
-                page_count: 0,
                 user,
                 program_id,
                 allocations,
                 pages_with_data: Default::default(),
                 code_hash,
                 end_block,
+                page_batches: hashes.into_iter().map(PageBatch::from).collect(),
             });
 
             Ok(session_id)
         })
     }
 
-    /// Get the count of uploaded memory pages of the specified session.
-    fn resume_session_page_count(session_id: &SessionId) -> Option<u32> {
-        Self::ResumeSessions::get(session_id).map(|session| session.page_count)
+    /// Get the count of uploaded memory pages of the specified memory pages batch within the session.
+    fn resume_session_batch_count(session_id: &SessionId, index: usize) -> Option<u32> {
+        Self::ResumeSessions::get(session_id).and_then(|session| {
+            session.page_batches.get(index).and_then(|b| match b.state {
+                PageBatchState::Checked => None,
+                PageBatchState::Uploading(ref p) => Some(p.len() as u32),
+            })
+        })
     }
 
     /// Append program memory pages to the session data.
     fn resume_session_push(
         session_id: SessionId,
         user: Self::AccountId,
+        batch_index: usize,
         memory_pages: Vec<(GearPage, PageBuf)>,
     ) -> Result<(), Self::Error> {
         // TODO: #3447 additional check
@@ -218,9 +223,16 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 None => return Err(Self::InternalError::resume_session_not_found().into()),
             };
 
-            session.page_count += memory_pages.len() as u32;
+            let pages = match session.page_batches.get_mut(batch_index) {
+                Some(b) => match b.state {
+                    PageBatchState::Checked => return Ok(()),
+                    PageBatchState::Uploading(ref mut pages) => pages,
+                },
+                None => return Err(Self::InternalError::batch_not_found().into()),
+            };
+
             for (page, page_buf) in memory_pages {
-                session.pages_with_data.insert(page);
+                pages.insert(page);
                 Self::set_program_page_data(
                     session.program_id,
                     MemoryInfix::new(session_id),
@@ -228,6 +240,45 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                     page_buf,
                 );
             }
+
+            Ok(())
+        })
+    }
+
+    /// Append program memory pages to the session data.
+    fn resume_session_check(
+        session_id: SessionId,
+        user: Self::AccountId,
+        batch_index: usize,
+    ) -> Result<(), Self::Error> {
+        Self::ResumeSessions::mutate(session_id, |maybe_session| {
+            let session = match maybe_session.as_mut() {
+                Some(s) if s.user == user => s,
+                Some(_) => return Err(Self::InternalError::not_session_owner().into()),
+                None => return Err(Self::InternalError::resume_session_not_found().into()),
+            };
+
+            let (batch_hash, page_batch) = match session.page_batches.get_mut(batch_index) {
+                Some(b) => (b.hash, b),
+                None => return Err(Self::InternalError::batch_not_found().into()),
+            };
+
+            let page_indexes = match page_batch.state {
+                PageBatchState::Checked => return Ok(()),
+                PageBatchState::Uploading(ref mut p) => p,
+            };
+
+            let pages = Self::get_program_data_for_pages(
+                session.program_id,
+                MemoryInfix::new(session_id),
+                page_indexes.iter(),
+            )?;
+            if self::batch_hash(&pages) != batch_hash {
+                return Err(Self::InternalError::incorrect_batch_hash().into());
+            }
+
+            session.pages_with_data.append(page_indexes);
+            page_batch.state = PageBatchState::Checked;
 
             Ok(())
         })
@@ -246,7 +297,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 None => return Err(Self::InternalError::resume_session_not_found().into()),
             };
 
-            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id)
+            let Some((_block_number, _hash)) = Self::PausedProgramMap::get(&session.program_id)
             else {
                 let result = ResumeResult {
                     end_block: session.end_block,
@@ -260,43 +311,23 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 return Ok(result);
             };
 
-            if !Self::CodeStorage::exists(session.code_hash) {
-                log::debug!(
-                    "Failed to find the code {} to resume program",
-                    session.code_hash
-                );
+            for batch in session.page_batches.iter() {
+                if !matches!(batch.state, PageBatchState::Checked) {
+                    return Err(Self::InternalError::resume_session_failed().into());
+                }
+            }
+
+            let code_id = session.code_hash;
+            let Some(code) = Self::CodeStorage::get_code(code_id) else {
+                log::debug!("Failed to find the code {code_id} to resume program",);
 
                 return Err(Self::InternalError::program_code_not_found().into());
-            }
-
-            let memory_pages = Self::get_program_data_for_pages(
-                session.program_id,
-                MemoryInfix::new(session_id),
-                session.pages_with_data.iter(),
-            )
-            .unwrap_or_default();
-            let code_hash = session.code_hash.into_origin();
-            let item = Item::from((session.allocations.clone(), code_hash, memory_pages));
-            if item.hash() != hash {
-                return Err(Self::InternalError::resume_session_failed().into());
-            }
-
-            let code = Self::CodeStorage::get_code(session.code_hash).unwrap_or_else(|| {
-                unreachable!("Code storage corrupted: item existence checked before")
-            });
-            let Item {
-                data: (allocations, _, memory_pages),
-                remaining_pages,
-            } = item;
+            };
             let program = ActiveProgram {
-                allocations,
-                pages_with_data: memory_pages
-                    .keys()
-                    .copied()
-                    .chain(remaining_pages.keys().copied())
-                    .collect(),
+                allocations: mem::take(&mut session.allocations),
+                pages_with_data: mem::take(&mut session.pages_with_data),
                 gas_reservation_map: Default::default(),
-                code_hash,
+                code_hash: code_id.into_origin(),
                 code_exports: code.exports().clone(),
                 static_pages: code.static_pages(),
                 state: ProgramState::Initialized,

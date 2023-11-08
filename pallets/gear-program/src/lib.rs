@@ -197,6 +197,9 @@ pub mod pallet {
         ResumeSessionFailed,
         ProgramCodeNotFound,
         DuplicateResumeSession,
+        WrongInitData,
+        BatchNotFound,
+        IncorrectBatchHash,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -234,6 +237,18 @@ pub mod pallet {
 
         fn duplicate_resume_session() -> Self {
             Self::DuplicateResumeSession
+        }
+
+        fn wrong_init_data() -> Self {
+            Self::WrongInitData
+        }
+
+        fn batch_not_found() -> Self {
+            Self::BatchNotFound
+        }
+
+        fn incorrect_batch_hash() -> Self {
+            Self::IncorrectBatchHash
         }
     }
 

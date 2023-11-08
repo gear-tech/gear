@@ -1688,6 +1688,7 @@ pub mod pallet {
             program_id: ProgramId,
             allocations: BTreeSet<WasmPage>,
             code_hash: CodeId,
+            hashes: Vec<H256>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1704,6 +1705,7 @@ pub mod pallet {
                 program_id,
                 allocations,
                 code_hash,
+                hashes,
             )?;
 
             let task = ScheduledTask::RemoveResumeSession(session_id);
@@ -1732,6 +1734,7 @@ pub mod pallet {
         pub fn resume_session_push(
             origin: OriginFor<T>,
             session_id: SessionId,
+            batch_index: u32,
             memory_pages: Vec<(GearPage, PageBuf)>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
@@ -1741,7 +1744,12 @@ pub mod pallet {
                 Error::<T>::ProgramRentDisabled
             );
 
-            ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
+            ProgramStorageOf::<T>::resume_session_push(
+                session_id,
+                who,
+                batch_index as usize,
+                memory_pages,
+            )?;
 
             Ok(().into())
         }
@@ -1754,7 +1762,7 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `block_count`: the specified period of rent.
         #[pallet::call_index(11)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_commit(0u32))]
         pub fn resume_session_commit(
             origin: OriginFor<T>,
             session_id: SessionId,
@@ -1809,6 +1817,32 @@ pub mod pallet {
                     },
                 });
             }
+
+            Ok(().into())
+        }
+
+        /// Appends memory pages to the resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `memory_pages`: program memory (or its part) before it was paused.
+        #[pallet::call_index(12)]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(0u32))]
+        pub fn resume_session_check(
+            origin: OriginFor<T>,
+            session_id: SessionId,
+            batch_index: u32,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ensure!(
+                <T as Config>::ProgramRentEnabled::get(),
+                Error::<T>::ProgramRentDisabled
+            );
+
+            ProgramStorageOf::<T>::resume_session_check(session_id, who, batch_index as usize)?;
 
             Ok(().into())
         }

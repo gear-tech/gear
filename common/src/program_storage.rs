@@ -50,6 +50,15 @@ pub trait Error {
 
     /// Resume session with the specified id already exists in storage.
     fn duplicate_resume_session() -> Self;
+
+    /// Provided data for initializing a resume session is wrong.
+    fn wrong_init_data() -> Self;
+
+    /// Memory page batch is not found.
+    fn batch_not_found() -> Self;
+
+    /// Hash of memory page batch doesn't match to the provided one.
+    fn incorrect_batch_hash() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
