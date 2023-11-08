@@ -31,9 +31,10 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature},
 };
+use gsys::Hash;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
-    iter,
+    iter, mem,
     num::NonZeroU32,
 };
 
@@ -321,7 +322,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        if let Some(argument_index) = invocable.has_destination_param() {
+        if let Some(argument_index) = invocable.destination_param_idx() {
             log::trace!(
                 " -- Building call instructions for a `{}` syscall with destination",
                 invocable.to_str()
@@ -376,13 +377,36 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let upper_limit = mem_size.saturating_sub(100);
             let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
-            vec![
-                // call `gsys::gr_source` with a memory offset
+            let mut ret = {
+                // 3 instructions for invoking `gsys::gr_source` and possibly 3 more
+                // for defining value param so HashWithValue will be constructed.
+                let capacity = 3 + invocable
+                    .has_destination_param_with_value()
+                    .then_some(3)
+                    .unwrap_or_default();
+                Vec::with_capacity(capacity)
+            };
+            ret.extend_from_slice(&[
+                // call `gsys::gr_source` storing actor id and some `offset` pointer
                 Instruction::I32Const(offset as i32),
                 Instruction::Call(gr_source_call_indexes_handle),
-                // pass the offset as the first argument to the send-call
                 Instruction::I32Const(offset as i32),
-            ]
+            ]);
+
+            if invocable.has_destination_param_with_value() {
+                // We have to skip actor id bytes to define the following value param.
+                let skip_bytes = mem::size_of::<Hash>();
+                ret.extend_from_slice(&[
+                    // Define 0 value for HashWithValue
+                    Instruction::I32Const(0),
+                    // Store value on the offset + skip_bytes. That will form HashWithValue.
+                    Instruction::I32Store(2, skip_bytes as u32),
+                    // Pass the offset as the first argument to the syscall with destination
+                    Instruction::I32Const(offset as i32),
+                ]);
+            }
+
+            ret
         } else {
             let address_offset = match self.offsets.as_mut() {
                 Some(offsets) => {
