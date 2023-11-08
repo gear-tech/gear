@@ -110,7 +110,7 @@ pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: u32,
     stack_end: Option<u32>,
-    program_id: Vec<u8>,
+    program_key: Vec<u8>,
     globals_config: Option<GlobalsAccessConfig>,
     weights: Vec<u64>,
 ) -> Result<(), Error> {
@@ -158,7 +158,7 @@ pub fn initialize_for_program(
                 runtime_ctx
                     .pages_storage_prefix
                     .iter()
-                    .chain(program_id.iter())
+                    .chain(program_key.iter())
                     .copied()
                     .collect(),
             ),

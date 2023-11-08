@@ -218,6 +218,7 @@ pub mod pallet {
                     };
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
+                        active.memory_infix,
                         active.pages_with_data.iter(),
                     )
                     .unwrap();

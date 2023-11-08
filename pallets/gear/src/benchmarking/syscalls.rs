@@ -1531,6 +1531,7 @@ where
         {
             ProgramStorageOf::<T>::set_program_page_data(
                 program_id,
+                exec.context.program().memory_infix(),
                 page,
                 PageBuf::from_inner(PageBufInner::filled_with(1)),
             );
