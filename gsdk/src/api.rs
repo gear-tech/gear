@@ -65,20 +65,20 @@ impl Api {
     ///
     /// ```ignore
     /// let api = Api::new(None).await?;
-    /// let blocks = api.blocks().await?;
+    /// let blocks = api.subscribe_blocks().await?;
     ///
     /// while let Ok(block) = blocks.next().await {
     ///   // ...
     /// }
     /// ```
-    pub async fn blocks(&self) -> Result<Blocks> {
+    pub async fn subscribe_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized blocks
     ///
-    /// Same as `blocks` but only finalized blocks.
-    pub async fn finalized_blocks(&self) -> Result<Blocks> {
+    /// Same as `subscribe_blocks` but only finalized blocks.
+    pub async fn subscribe_finalized_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
