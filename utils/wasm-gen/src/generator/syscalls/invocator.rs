@@ -387,7 +387,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 Vec::with_capacity(capacity)
             };
             ret.extend_from_slice(&[
-                // call `gsys::gr_source` storing actor id and some `offset` pointer
+                // call `gsys::gr_source` storing actor id and some `offset` pointer.
                 Instruction::I32Const(offset as i32),
                 Instruction::Call(gr_source_call_indexes_handle),
                 Instruction::I32Const(offset as i32),
@@ -401,7 +401,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     Instruction::I32Const(0),
                     // Store value on the offset + skip_bytes. That will form HashWithValue.
                     Instruction::I32Store(2, skip_bytes as u32),
-                    // Pass the offset as the first argument to the syscall with destination
+                    // Pass the offset as the first argument to the syscall with destination.
                     Instruction::I32Const(offset as i32),
                 ]);
             }
