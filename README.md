@@ -66,16 +66,16 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz)
     - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
 
-2. Run Gear node without special arguments to get a node connected to Vara Network:
+2. Run Gear node without special arguments to get a node connected to the test network:
 
     ```bash
     gear
     ```
 
-3. Connect to the test network:
+3. Connect to the Vara network:
 
     ```bash
-    gear --chain=testnet
+    gear --chain=vara
     ```
 
 4. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and storing the state in temporary storage:
