@@ -21,7 +21,7 @@ use gear_wasm_instrument::{
         builder,
         elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
     },
-    wasm_instrument,
+    wasm_instrument::{self, InjectionConfig},
 };
 use gsys::HashWithValue;
 use std::{
@@ -219,24 +219,33 @@ fn find_recursion_impl<Callback>(
 }
 
 pub fn inject_stack_limiter(module: Module) -> Module {
-    wasm_instrument::inject_custom_stack_limiter(module, 15_000, |signature| {
-        let results = signature.results();
-        let mut body = Vec::with_capacity(results.len() + 1);
+    wasm_instrument::inject_stack_limiter_with_config(
+        module,
+        InjectionConfig {
+            stack_limit: 15_000,
+            injection_fn: |signature| {
+                let results = signature.results();
+                let mut body = Vec::with_capacity(results.len() + 1);
 
-        for result in results {
-            let instruction = match result {
-                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
-                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
-                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
-            };
+                for result in results {
+                    let instruction = match result {
+                        ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                        ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                        ValueType::F32 | ValueType::F64 => {
+                            unreachable!("f32/64 types are not supported")
+                        }
+                    };
 
-            body.push(instruction);
-        }
+                    body.push(instruction);
+                }
 
-        body.push(Instruction::Return);
+                body.push(Instruction::Return);
 
-        body
-    })
+                body
+            },
+            stack_height_export_name: None,
+        },
+    )
     .expect("Failed to inject stack height limits")
 }
 
