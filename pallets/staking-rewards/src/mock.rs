@@ -22,10 +22,7 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{
-        ConstU32, Contains, Currency, Everything, FindAuthor, GenesisBuild, Hooks,
-        NeverEnsureOrigin,
-    },
+    traits::{ConstU32, Contains, Currency, FindAuthor, GenesisBuild, Hooks, NeverEnsureOrigin},
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
@@ -34,7 +31,8 @@ use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    testing::{Block as TestBlock, Header, UintAuthorityId},
+    generic,
+    testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
     KeyTypeId, Perbill, Permill, Perquintill,
 };
@@ -58,6 +56,7 @@ pub(crate) type Executive = frame_executive::Executive<
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
+pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
 pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
 pub(crate) const VAL_2_STASH: AccountId = 20;
 pub(crate) const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(22);
@@ -99,81 +98,14 @@ construct_runtime!(
     }
 );
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ConstU32<1024>;
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type FreezeIdentifier = ();
-    type MaxFreezes = ();
-    type HoldIdentifier = ();
-    type MaxHolds = ();
-}
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test, EventHandler = Staking);
+common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = RocksDbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(VAL_1_STASH)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = Staking;
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
 }
 
 impl pallet_sudo::Config for Test {

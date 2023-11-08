@@ -8069,6 +8069,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "gear-common",
  "impl-trait-for-tuples",
  "log",
  "pallet-authorship",

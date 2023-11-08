@@ -38,6 +38,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod pallet_tests;
+
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,

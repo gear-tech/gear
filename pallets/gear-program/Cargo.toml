@@ -33,6 +33,7 @@ sp-io.workspace = true
 sp-runtime.workspace = true
 
 [dev-dependencies]
+common = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
