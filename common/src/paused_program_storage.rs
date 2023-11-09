@@ -149,7 +149,11 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             unimplemented!("todo");
         }
 
-        let hashes = vec![batch_hash(&memory_pages)];
+        let hashes = if !memory_pages.is_empty() {
+            vec![batch_hash(&memory_pages)]
+        } else {
+            vec![]
+        };
         let hash = hash(&program.allocations, program.code_hash, &hashes);
 
         Self::PausedProgramMap::insert(program_id, (block_number, hash));

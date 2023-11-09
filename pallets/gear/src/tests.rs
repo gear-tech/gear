@@ -51,8 +51,9 @@ use crate::{
     TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
+    event::*, paused_program_storage, scheduler::*, storage::*, ActiveProgram, CodeStorage,
+    GasTree, LockId, LockableTree, Origin as _, PausedProgramStorage, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
@@ -6327,6 +6328,22 @@ fn resume_session_init_works() {
             &program_id
         ));
 
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.memory_infix,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        assert!(memory_pages.is_empty());
+
+        let hashes = vec![];
+
         // attempt to resume an active program should fail
         assert_err!(
             Gear::resume_session_init(
@@ -6334,14 +6351,10 @@ fn resume_session_init_works() {
                 program_id,
                 Default::default(),
                 Default::default(),
+                hashes.clone(),
             ),
             pallet_gear_program::Error::<Test>::ProgramNotFound,
         );
-
-        let program = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-        let expected_block = program.expiration_block;
 
         System::set_block_number(expected_block - 1);
         Gear::set_block_number(expected_block - 1);
@@ -6350,11 +6363,24 @@ fn resume_session_init_works() {
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
+        // attempt to init a resume session with the wrong data should fail
+        assert_err!(
+            Gear::resume_session_init(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Default::default(),
+                Default::default(),
+                vec![],
+            ),
+            pallet_gear_program::Error::<Test>::WrongInitData,
+        );
+
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            Default::default(),
-            Default::default(),
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+            hashes.clone(),
         ));
 
         let (session_id, session_end_block, resume_program_id, _) = get_last_session();
@@ -6373,8 +6399,9 @@ fn resume_session_init_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_2),
             program_id,
-            Default::default(),
-            Default::default(),
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+            hashes.clone(),
         ));
 
         let (session_id_2, ..) = get_last_session();
@@ -6384,8 +6411,9 @@ fn resume_session_init_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_2),
             program_id,
-            Default::default(),
-            Default::default(),
+            program.allocations,
+            CodeId::from_origin(program.code_hash),
+            hashes,
         ));
 
         let (session_id_3, ..) = get_last_session();
@@ -6502,6 +6530,11 @@ fn resume_session_push_works() {
         )
         .unwrap();
 
+        assert!(!memory_pages.is_empty());
+        assert!(memory_pages.len() < utils::batch_capacity::<Test>());
+
+        let hashes = vec![paused_program_storage::batch_hash(&memory_pages)];
+
         System::set_block_number(expected_block - 1);
         Gear::set_block_number(expected_block - 1);
 
@@ -6512,8 +6545,9 @@ fn resume_session_push_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            Default::default(),
-            Default::default(),
+            program.allocations,
+            CodeId::from_origin(program.code_hash),
+            hashes.clone(),
         ));
 
         let (session_id, session_end_block, ..) = get_last_session();
@@ -6523,6 +6557,7 @@ fn resume_session_push_works() {
             Gear::resume_session_push(
                 RuntimeOrigin::signed(USER_2),
                 session_id,
+                0,
                 Default::default()
             ),
             pallet_gear_program::Error::<Test>::NotSessionOwner,
@@ -6533,6 +6568,7 @@ fn resume_session_push_works() {
             Gear::resume_session_push(
                 RuntimeOrigin::signed(USER_1),
                 session_id.wrapping_add(1),
+                0,
                 Default::default()
             ),
             pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
@@ -6541,10 +6577,11 @@ fn resume_session_push_works() {
         assert_ok!(Gear::resume_session_push(
             RuntimeOrigin::signed(USER_1),
             session_id,
+            0,
             memory_pages.clone().into_iter().collect()
         ));
         assert_eq!(
-            ProgramStorageOf::<Test>::resume_session_page_count(&session_id).unwrap(),
+            ProgramStorageOf::<Test>::resume_session_batch_count(&session_id, 0).unwrap(),
             memory_pages.len() as u32
         );
 
@@ -6557,11 +6594,12 @@ fn resume_session_push_works() {
             Gear::resume_session_push(
                 RuntimeOrigin::signed(USER_1),
                 session_id,
+                0,
                 memory_pages.into_iter().collect()
             ),
             pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
         );
-        assert!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none());
+        assert!(ProgramStorageOf::<Test>::resume_session_batch_count(&session_id, 0).is_none());
         assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
             program.memory_infix,
@@ -6620,6 +6658,11 @@ fn resume_program_works() {
         )
         .unwrap();
 
+        assert!(!memory_pages.is_empty());
+        assert!(memory_pages.len() < utils::batch_capacity::<Test>());
+
+        let hashes = vec![paused_program_storage::batch_hash(&memory_pages)];
+
         System::set_block_number(expected_block - 1);
         Gear::set_block_number(expected_block - 1);
 
@@ -6634,6 +6677,7 @@ fn resume_program_works() {
             program_id,
             program.allocations.clone(),
             CodeId::from_origin(program.code_hash),
+            hashes.clone(),
         ));
         assert_ne!(
             old_nonce,
@@ -6645,6 +6689,7 @@ fn resume_program_works() {
             program_id,
             program.allocations.clone(),
             CodeId::from_origin(program.code_hash),
+            hashes.clone(),
         ));
 
         let (session_id, session_end_block, ..) = get_last_session();
@@ -6655,6 +6700,7 @@ fn resume_program_works() {
             program_id,
             program.allocations,
             CodeId::from_origin(program.code_hash),
+            hashes,
         ));
 
         let (session_id_2, session_end_block_2, ..) = get_last_session();
@@ -6663,10 +6709,23 @@ fn resume_program_works() {
         assert_ok!(Gear::resume_session_push(
             RuntimeOrigin::signed(USER_3),
             session_id,
+            0,
             memory_pages.into_iter().collect()
         ));
 
         let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        // attempt to finish session will fail if batch hashes isn't checked
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, block_count,),
+            pallet_gear_program::Error::<Test>::ResumeSessionFailed
+        );
+
+        assert_ok!(Gear::resume_session_check(
+            RuntimeOrigin::signed(USER_3),
+            session_id,
+            0,
+        ));
+
         // access to finish session by another user is denied
         assert_err!(
             Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
@@ -14684,6 +14743,7 @@ mod utils {
         assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
+        self as pallet_gear,
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
         ProgramStorageOf, SentOf,
@@ -14692,7 +14752,7 @@ mod utils {
         event::*,
         paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage, ReservableTree,
+        Origin, PausedProgramStorage, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
@@ -14726,6 +14786,11 @@ mod utils {
 
     pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
         sp_core::blake2_256(data.as_ref())
+    }
+
+    pub(super) fn batch_capacity<T: pallet_gear::Config>() -> usize {
+        <<ProgramStorageOf<T> as PausedProgramStorage>::BatchCapacity as sp_core::Get<_>>::get()
+            .get() as usize
     }
 
     pub fn init_logger() {

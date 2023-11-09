@@ -997,11 +997,12 @@ fn disabled_program_rent() {
                 pay_rent_id,
                 Default::default(),
                 Default::default(),
+                vec![],
             ),
             pallet_gear::Error::<Test>::ProgramRentDisabled
         );
         assert_err!(
-            Gear::resume_session_push(RuntimeOrigin::signed(2), 5, Default::default(),),
+            Gear::resume_session_push(RuntimeOrigin::signed(2), 5, 0, Default::default(),),
             pallet_gear::Error::<Test>::ProgramRentDisabled
         );
         assert_err!(
