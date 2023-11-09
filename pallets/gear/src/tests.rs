@@ -14698,7 +14698,7 @@ fn test_gas_info_of_terminated_program() {
 }
 
 #[test]
-fn test_handle_signal_wait() {
+fn test_handle_signal_wait_old() {
     use demo_signal_wait::WASM_BINARY;
 
     init_logger();
@@ -14719,6 +14719,68 @@ fn test_handle_signal_wait() {
 
         assert!(Gear::is_active(pid));
         assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+
+        run_to_next_block(None);
+
+        let signal_mid = MessageId::generate_signal(mid);
+        assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        let (mid, block) = get_last_message_waited();
+
+        assert_eq!(mid, signal_mid);
+
+        System::set_block_number(block - 1);
+        Gear::set_block_number(block - 1);
+        run_to_next_block(None);
+
+        assert!(!WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        assert_total_dequeued(4);
+    });
+}
+
+#[test]
+fn test_handle_signal_wait() {
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let first_exec_key = "first_exec";
+
+        let init = Calls::builder().bool(first_exec_key, true);
+
+        let first_exec = Calls::builder().bool(first_exec_key, false).system_reserve_gas(1_000_000_000).wait_for(1);
+
+        let handle = Calls::builder().if_else(
+            Arg::get(first_exec_key),
+            first_exec,
+            Calls::builder().panic(None)
+        );
+
+        let handle_signal = Calls::builder().wait();
+
+        let (_, pid) = init_constructor(Scheme::predefined(
+            init,
+            handle,
+            Default::default(),
+            handle_signal,
+        ));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
