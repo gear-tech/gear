@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::ops::RangeInclusive;
-
 use crate::{
     configs::{BlockInfo, PageCosts},
     context::SystemReservationContext,
@@ -723,10 +721,28 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
-    fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
+    fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
+        if start > end {
+            return Err(AllocExtError::Alloc(AllocError::InvalidRange(
+                start.into(),
+                end.into(),
+            )));
+        }
+
+        let page_count = u32::from(end) - u32::from(start);
+
+        Ext::charge_gas_if_enough(
+            &mut self.context.gas_counter,
+            &mut self.context.gas_allowance_counter,
+            self.context
+                .host_fn_weights
+                .free_range_per_page
+                .saturating_mul(page_count as u64),
+        )?;
+
         self.context
             .allocations_context
-            .free_range(range)
+            .free_range(start..=end)
             .map_err(Into::into)
     }
 

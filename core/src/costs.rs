@@ -332,8 +332,10 @@ pub enum RuntimeCosts {
     Alloc(u32),
     /// Weight of calling `free`.
     Free,
+    /// Base weight of calling `free_range`
+    FreeRangeBase,
     /// Weight of calling `free_range` per amount of pages.
-    FreeRange(u32),
+    FreeRangePages(u32),
     /// Weight of calling `gr_reserve_gas`.
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`.
@@ -475,9 +477,8 @@ impl RuntimeCosts {
             Null => 0,
             Alloc(pages) => cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages),
             Free => s.free,
-            FreeRange(pages) => {
-                cost_with_weight_per_page(s.free_range, s.free_range_per_page, pages)
-            }
+            FreeRangeBase => s.free_range,
+            FreeRangePages(pages) => cost_with_weight_per_page(0, s.free_range_per_page, pages),
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             SystemReserveGas => s.gr_system_reserve_gas,

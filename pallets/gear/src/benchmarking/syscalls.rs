@@ -270,7 +270,7 @@ where
 
         let mut instructions = vec![];
 
-        let n_pages = repetitions * pages_per_call * API_BENCHMARK_BATCH_SIZE;
+        let n_pages = 512 * API_BENCHMARK_BATCH_SIZE;
         assert!(n_pages <= MAX_PAGES_OVERRIDE as u32);
 
         // allocate pages
@@ -282,7 +282,7 @@ where
             let start = i as i32 * pages_per_call as i32;
             instructions.extend([
                 I32Const(start),
-                I32Const(start + pages_per_call as i32),
+                I32Const(start + pages_per_call as i32 - 1),
                 Call(1),
                 I32Const(0),
             ]);

@@ -274,6 +274,9 @@ pub enum AllocError {
     #[from]
     #[display(fmt = "{_0}")]
     GasCharge(ChargeError),
+    /// Invalid range for free_range
+    #[display(fmt = "Invalid range {_0}:{_1} for free_range")]
+    InvalidRange(u32, u32),
 }
 
 impl AllocationsContext {

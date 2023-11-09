@@ -24,7 +24,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::{Decode, Encode};
-use core::{cell::Cell, fmt, fmt::Debug, ops::RangeInclusive};
+use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -115,7 +115,7 @@ impl Externalities for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn free_range(&mut self, _range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError> {
+    fn free_range(&mut self, _start: WasmPage, _end: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
     fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {

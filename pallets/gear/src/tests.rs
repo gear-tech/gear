@@ -13683,7 +13683,7 @@ fn free_range_oob_error() {
     (func $init
         ;; free impossible and non-existing range
         i32.const 0x0
-        i32.const 0xffffffff
+        i32.const 0xffffff
         call $free_range
 
         i32.const 1
@@ -13702,7 +13702,7 @@ fn free_range_oob_error() {
             ProgramCodeKind::Custom(WAT).to_bytes(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            500_000_000_u64,
+            10_000_000_000_u64,
             0,
             false,
         )
@@ -13733,7 +13733,7 @@ fn free_range_invalid_range_error() {
         i32.const 0x2
         call $free_range
 
-        i32.const 1
+        i32.const 0
         i32.ne
         if
             unreachable

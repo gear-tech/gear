@@ -26,7 +26,7 @@ use crate::{
     pages::WasmPage,
 };
 use alloc::collections::BTreeSet;
-use core::{fmt::Display, mem, ops::RangeInclusive};
+use core::{fmt::Display, mem};
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -194,11 +194,11 @@ pub trait Externalities {
 
     /// Free specific memory page
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.free_range(page..=page)
+        self.free_range(page, page)
     }
 
     /// Free specific memory range
-    fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), Self::AllocError>;
+    fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Get environment variables currently set in the system and in the form
     /// corresponded to the requested version.

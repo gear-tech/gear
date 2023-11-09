@@ -676,18 +676,9 @@ where
     }
 
     pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i32> {
-        let page_count = start.abs_diff(end).saturating_add(1);
-
         InfallibleSysCall::new(
-            RuntimeCosts::FreeRange(page_count),
+            RuntimeCosts::FreeRangeBase,
             move |ctx: &mut CallerWrap<Ext>| {
-                if start > end {
-                    log::trace!("Invalid range {start:?}:{end:?}");
-                    return Err(UndefinedTerminationReason::Actor(
-                        ActorTerminationReason::Trap(TrapExplanation::Unknown),
-                    ));
-                }
-
                 let err = |_| {
                     UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                         TrapExplanation::Unknown,
@@ -697,7 +688,7 @@ where
                 let start = WasmPage::new(start).map_err(err)?;
                 let end = WasmPage::new(end).map_err(err)?;
 
-                let res = ctx.ext_mut().free_range(start..=end);
+                let res = ctx.ext_mut().free_range(start, end);
                 let res = ctx.process_alloc_func_result(res)?;
 
                 match &res {
