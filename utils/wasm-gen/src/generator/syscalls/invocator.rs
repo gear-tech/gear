@@ -377,15 +377,9 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
             let upper_limit = mem_size.saturating_sub(100);
             let offset = self.unstructured.int_in_range(0..=upper_limit)?;
 
-            let mut ret = {
-                // 3 instructions for invoking `gsys::gr_source` and possibly 3 more
-                // for defining value param so HashWithValue will be constructed.
-                let capacity = 3 + invocable
-                    .has_destination_param_with_value()
-                    .then_some(3)
-                    .unwrap_or_default();
-                Vec::with_capacity(capacity)
-            };
+            // 3 instructions for invoking `gsys::gr_source` and possibly 3 more
+            // for defining value param so HashWithValue will be constructed.
+            let mut ret = Vec::with_capacity(6);
             ret.extend_from_slice(&[
                 // call `gsys::gr_source` storing actor id and some `offset` pointer.
                 Instruction::I32Const(offset as i32),
