@@ -46,6 +46,8 @@ impl Calls {
         self
     }
 
+    // TODO #3452: remove this on next rust update
+    #[allow(clippy::useless_conversion)]
     pub fn add_from_iter(mut self, calls: impl Iterator<Item = Call>) -> Self {
         self.0.extend(calls.into_iter());
         self
@@ -322,5 +324,9 @@ impl Calls {
 
     pub fn infinite_loop(self) -> Self {
         self.add_call(Call::Loop)
+    }
+
+    pub fn system_reserve_gas(self, gas: impl Into<Arg<u64>>) -> Self {
+        self.add_call(Call::SystemReserveGas(gas.into()))
     }
 }

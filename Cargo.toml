@@ -92,14 +92,14 @@ members = [
 
 [workspace.dependencies]
 anyhow = "1.0.75"
-arbitrary = "1.3.1"
+arbitrary = "1.3.2"
 async-recursion = "1.0.5"
 async-trait = "0.1.74"
 base64 = "0.21.5"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
-clap = { version = "4.4.6" }
+clap = { version = "4.4.7" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -112,7 +112,7 @@ enum-iterator = "1.4.0"
 env_logger = "0.10"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
-futures-util = "0.3.28"
+futures-util = "0.3.29"
 hashbrown = "0.14.2"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
@@ -162,7 +162,7 @@ syn = "2.0.38"
 thiserror = "1.0.50"
 tokio = { version = "1.33.0" }
 url = "2.4.1"
-wat = "1.0.77"
+wat = "1.0.78"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
@@ -421,7 +421,7 @@ cfg-if = "1.0.0"                                                          # gear
 cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "2.0.2"                                                        # utils/weight-diff
+indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)

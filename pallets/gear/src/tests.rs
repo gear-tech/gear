@@ -167,7 +167,12 @@ fn value_counter_set_correctly_for_interruptions() {
         .send_value(Arg::new([0u8; 32]), Arg::new(vec![]), "value_store")
         .wait_for(1);
 
-    let scheme = Scheme::predefined(Calls::builder().noop(), handle, Calls::builder().noop());
+    let scheme = Scheme::predefined(
+        Calls::builder().noop(),
+        handle,
+        Calls::builder().noop(),
+        Calls::builder().noop(),
+    );
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5937,7 +5942,12 @@ fn pause_terminated_exited_program() {
         let (_, terminated_pid) = submit_constructor_with_args(
             USER_1,
             DEFAULT_SALT,
-            Scheme::predefined(init, Default::default(), Default::default()),
+            Scheme::predefined(
+                init,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
             0,
         );
 
@@ -8555,7 +8565,7 @@ fn demo_constructor_is_demo_ping() {
 
         let handle_reply = Calls::builder().panic("I don't like replies");
 
-        let scheme = Scheme::predefined(init, handle, handle_reply);
+        let scheme = Scheme::predefined(init, handle, handle_reply, Default::default());
 
         // checking init
         let (_init_mid, constructor_id) = utils::init_constructor(scheme);
@@ -14105,7 +14115,12 @@ fn double_read_works() {
             .load("read2")
             .bytes_eq("is_eq", "read1", "read2")
             .if_else("is_eq", noop_branch, panic_branch);
-        let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
+        let predefined_scheme = Scheme::predefined(
+            Default::default(),
+            handle,
+            Default::default(),
+            Default::default(),
+        );
 
         let (_, pid) = utils::init_constructor(predefined_scheme);
 
@@ -14334,7 +14349,7 @@ fn test_send_to_terminated_from_program() {
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
             b"salt1",
-            Scheme::predefined(init, handle, Calls::default()),
+            Scheme::predefined(init, handle, Calls::default(), Calls::default()),
             0,
         );
 
@@ -14351,7 +14366,7 @@ fn test_send_to_terminated_from_program() {
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
             USER_2,
             b"salt2",
-            Scheme::predefined(Calls::default(), handle, handle_reply),
+            Scheme::predefined(Calls::default(), handle, handle_reply, Calls::default()),
             0,
         );
 
@@ -14650,7 +14665,7 @@ fn test_gas_info_of_terminated_program() {
         let (_, pid_dead) = utils::submit_constructor_with_args(
             USER_1,
             b"salt1",
-            Scheme::predefined(init_dead, handle_dead, Calls::default()),
+            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()),
             0,
         );
 
@@ -14659,7 +14674,12 @@ fn test_gas_info_of_terminated_program() {
         let (_, proxy_pid) = utils::submit_constructor_with_args(
             USER_1,
             b"salt2",
-            Scheme::predefined(Calls::default(), handle_proxy, Calls::default()),
+            Scheme::predefined(
+                Calls::default(),
+                handle_proxy,
+                Calls::default(),
+                Calls::default(),
+            ),
             0,
         );
 
