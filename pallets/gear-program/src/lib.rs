@@ -149,6 +149,7 @@ pub mod pallet {
         storage::*,
         CodeMetadata, Program,
     };
+    use core::num::NonZeroU16;
     use frame_support::{
         dispatch::EncodeLike,
         pallet_prelude::*,
@@ -180,6 +181,11 @@ pub mod pallet {
 
         /// Custom block number tracker.
         type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
+
+        /// Capacity of memory pages batch when programs
+        /// are being paused.
+        #[pallet::constant]
+        type PauseBatchCapacity: Get<NonZeroU16>;
     }
 
     #[pallet::pallet]
@@ -403,6 +409,7 @@ pub mod pallet {
         type CodeStorage = Self;
         type NonceStorage = ResumeSessionsNonceWrap<T>;
         type ResumeSessions = ResumeSessionsWrap<T>;
+        type BatchCapacity = <T as Config>::PauseBatchCapacity;
     }
 
     impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {

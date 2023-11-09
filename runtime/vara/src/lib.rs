@@ -69,8 +69,8 @@ pub use pallet_transaction_payment::{
 use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
+        PauseBatchCapacity, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
+        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
@@ -946,6 +946,7 @@ impl pallet_proxy::Config for Runtime {
 impl pallet_gear_program::Config for Runtime {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = Gear;
+    type PauseBatchCapacity = PauseBatchCapacity;
 }
 
 parameter_types! {

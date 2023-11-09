@@ -18,7 +18,7 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use core::mem;
+use core::{mem, num::NonZeroU16};
 use gear_core::program::MemoryInfix;
 use sp_io::hashing;
 
@@ -93,6 +93,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         Key = SessionId,
         Value = ResumeSession<Self::AccountId, Self::BlockNumber>,
     >;
+    type BatchCapacity: Get<NonZeroU16>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -141,15 +142,19 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             Ok((program, memory_pages))
         })?;
 
-        // let gas_reservations = mem::take(&mut program.gas_reservation_map);
+        let gas_reservations = mem::take(&mut program.gas_reservation_map);
 
-        // Self::PausedProgramMap::insert(
-        //     program_id,
-        //     (block_number, hash),
-        // );
+        let batch_capacity = Self::BatchCapacity::get().get() as usize;
+        if memory_pages.len() > batch_capacity {
+            unimplemented!("todo");
+        }
 
-        // Ok(gas_reservations)
-        todo!()
+        let hashes = vec![batch_hash(&memory_pages)];
+        let hash = hash(&program.allocations, program.code_hash, &hashes);
+
+        Self::PausedProgramMap::insert(program_id, (block_number, hash));
+
+        Ok(gas_reservations)
     }
 
     /// Create a session for program resume. Returns the session id on success.

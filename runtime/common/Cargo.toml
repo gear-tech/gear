@@ -17,6 +17,7 @@ frame-system.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
 pallet-session.workspace = true
+sp-core.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 
@@ -53,6 +54,7 @@ std = [
 	"pallet-gear-messenger/std",
 	"runtime-primitives/std",
 	"gear-core-processor/std",
+	"sp-core/std",
 	"sp-runtime/std",
 	"sp-std/std",
 ]

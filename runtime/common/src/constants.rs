@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::num::NonZeroU16;
 use runtime_primitives::BlockNumber;
 
 /// Vara SS58 Prefix
@@ -42,3 +43,14 @@ pub const RENT_FREE_PERIOD_MONTH_FACTOR: BlockNumber = 6;
 /// The amount of blocks on which tasks of pausing program shifted
 /// in a case of disabled program rent logic, represented as a factor of weeks.
 pub const RENT_DISABLED_DELTA_WEEK_FACTOR: BlockNumber = 1;
+
+/// The constant determines how many memory pages included in a batch for hashing.
+pub struct PauseBatchCapacity;
+
+impl sp_core::Get<NonZeroU16> for PauseBatchCapacity {
+    fn get() -> NonZeroU16 {
+        const PAUSE_BATCH_CAPACITY: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(256) };
+
+        PAUSE_BATCH_CAPACITY
+    }
+}

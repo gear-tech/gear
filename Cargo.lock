@@ -4262,6 +4262,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-session",
+ "sp-core",
  "sp-runtime",
  "sp-std 5.0.0",
 ]
