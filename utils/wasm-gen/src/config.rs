@@ -187,7 +187,8 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let mut injection_types = injection_types;
         if remove_recursion {
-            injection_types.enable_syscall_import(InvocableSysCall::Loose(SysCallName::GasAvailable));
+            injection_types
+                .enable_syscall_import(InvocableSysCall::Loose(SysCallName::GasAvailable));
         }
 
         let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
