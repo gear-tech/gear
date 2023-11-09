@@ -297,20 +297,13 @@ impl Calls {
     pub fn if_else(
         self,
         bool_arg: impl Into<Arg<bool>>,
-        mut true_call: Self,
-        mut false_call: Self,
+        mut true_calls: Self,
+        mut false_calls: Self,
     ) -> Self {
-        if true_call.len() != 1 || false_call.len() != 1 {
-            unimplemented!()
-        };
-
-        let true_call = true_call.0.remove(0);
-        let false_call = false_call.0.remove(0);
-
         self.add_call(Call::IfElse(
             bool_arg.into(),
-            Box::new(true_call),
-            Box::new(false_call),
+            true_calls.calls(),
+            false_calls.calls(),
         ))
     }
 

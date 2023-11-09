@@ -34,7 +34,7 @@ pub enum Call {
     Exit(Arg<[u8; 32]>),
     BytesEq(Arg<Vec<u8>>, Arg<Vec<u8>>),
     Noop,
-    IfElse(Arg<bool>, Box<Self>, Box<Self>),
+    IfElse(Arg<bool>, Vec<Self>, Vec<Self>),
     Load,
     LoadBytes,
     Wait,
@@ -246,18 +246,20 @@ mod wasm {
             Some((left == right).encode())
         }
 
-        fn if_else(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
-            let Self::IfElse(flag, true_call, false_call) = self else {
+        fn if_else(self, mut previous: Option<CallResult>) -> Option<Vec<u8>> {
+            let Self::IfElse(flag, true_calls, false_calls) = self else {
                 unreachable!()
             };
 
             let flag = flag.value();
 
-            let call = if flag { true_call } else { false_call };
+            let calls = if flag { true_calls } else { false_calls };
 
-            let (_call, value) = call.process(previous);
+            for call in calls {
+                previous = Some(call.process(previous));
+            }
 
-            value
+            previous.map(|res| res.1).unwrap_or(None)
         }
 
         fn value(self) -> Option<Vec<u8>> {
