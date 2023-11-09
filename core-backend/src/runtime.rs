@@ -111,11 +111,10 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
             gas,
             cost,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
+                let write_res = ctx.manager.register_write_as::<R>(res_ptr);
+
                 let res = f(ctx);
                 let res = ctx.process_fallible_func_result(res)?;
-
-                // TODO: move above or make normal process memory access.
-                let write_res = ctx.manager.register_write_as::<R>(res_ptr);
 
                 ctx.write_as(write_res, R::from(res)).map_err(Into::into)
             },
