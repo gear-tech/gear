@@ -27,6 +27,7 @@ use alloc::{
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, Token, ValueCounter,
@@ -40,7 +41,7 @@ use gear_core::{
         MessageContext, Packet, ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    percent::Percent,
+    program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -77,7 +78,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Performance multiplier.
-    pub performance_multiplier: Percent,
+    pub performance_multiplier: gsys::Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -109,6 +110,8 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
 }
 
 #[cfg(any(feature = "mock", test))]
@@ -138,7 +141,7 @@ impl ProcessorContext {
                 ContextSettings::new(0, 0, 0, 0, 0, 0),
             ),
             block_info: Default::default(),
-            performance_multiplier: Percent::new(100),
+            performance_multiplier: gsys::Percent::new(100),
             max_pages: 512.into(),
             page_costs: Default::default(),
             existential_deposit: 0,
@@ -154,6 +157,7 @@ impl ProcessorContext {
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             rent_cost: 0,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
         }
     }
 }
@@ -186,6 +190,7 @@ pub trait ProcessorExternalities {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
+        memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
@@ -436,6 +441,7 @@ impl ProcessorExternalities for Ext {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
+        memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
@@ -443,6 +449,7 @@ impl ProcessorExternalities for Ext {
         gear_lazy_pages_interface::init_for_program(
             mem,
             prog_id,
+            memory_infix,
             stack_end,
             globals_config,
             lazy_pages_weights,
@@ -721,16 +728,24 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
+        match version {
+            1 => Ok(EnvVars::V1(EnvVarsV1 {
+                performance_multiplier: self.context.performance_multiplier,
+                existential_deposit: self.context.existential_deposit,
+                mailbox_threshold: self.context.mailbox_threshold,
+                gas_multiplier: self.context.gas_multiplier,
+            })),
+            _ => Err(UnrecoverableExecutionError::UnsupportedEnvVarsVersion.into()),
+        }
+    }
+
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
         Ok(self.context.block_info.height)
     }
 
     fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError> {
         Ok(self.context.block_info.timestamp)
-    }
-
-    fn performance_multiplier(&self) -> Result<Percent, Self::UnrecoverableError> {
-        Ok(self.context.performance_multiplier)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::FallibleError> {

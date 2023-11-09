@@ -38,9 +38,6 @@ pub enum BuilderError {
     #[error("code check failed: `{0}`")]
     CodeCheckFailed(CodeError),
 
-    #[error("cargo path is invalid `{0}`")]
-    CargoPathInvalid(PathBuf),
-
     #[error("cargo toolchain is invalid `{0}`")]
     CargoToolchainInvalid(String),
 }

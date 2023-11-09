@@ -92,7 +92,6 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-    percent::Percent,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -188,22 +187,23 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        performance_multiplier: Percent::new(100),
+        performance_multiplier: gsys::Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
-        existential_deposit: 0,
+        existential_deposit: 42,
         program_id: Default::default(),
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
-        mailbox_threshold: 0,
+        mailbox_threshold: 500,
         waitlist_cost: 0,
         dispatch_hold_cost: 0,
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
         rent_cost: 0,
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
     }
 }
 
@@ -594,12 +594,12 @@ benchmarks! {
             page
         };
 
-        for i in 0 .. c {
-            ProgramStorageOf::<T>::set_program_page_data(program_id, GearPage::from(i as u16), memory_page.clone());
-        }
-
         let program: ActiveProgram<_> = ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            program.pages_with_data = BTreeSet::from_iter((0..c).map(|i| GearPage::from(i as u16)));
+            for i in 0 .. c {
+                let page = GearPage::from(i as u16);
+                ProgramStorageOf::<T>::set_program_page_data(program_id, program.memory_infix, page, memory_page.clone());
+                program.pages_with_data.insert(page);
+            }
 
             let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
             program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
@@ -951,6 +951,17 @@ benchmarks! {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_env_vars {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_env_vars(r)?;
     }: {
         res.replace(run_process(exec));
     }

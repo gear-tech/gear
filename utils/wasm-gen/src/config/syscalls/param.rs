@@ -60,6 +60,7 @@ impl SysCallsParamsConfig {
                 ParamType::Delay,
                 ParamType::Handler,
                 ParamType::Free,
+                ParamType::Version,
             ]
             .into_iter()
             .map(|param_type| (param_type, allowed_values.clone()))
@@ -96,6 +97,7 @@ impl Default for SysCallsParamsConfig {
                 (ParamType::Delay, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
                 (ParamType::Free, (free_start..=free_end).into()),
+                (ParamType::Version, (1..=1).into()),
             ]
             .into_iter()
             .collect(),

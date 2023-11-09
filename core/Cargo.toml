@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 gear-core-errors = { workspace = true, features = ["codec"] }
+gsys.workspace = true
 blake2-rfc.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }

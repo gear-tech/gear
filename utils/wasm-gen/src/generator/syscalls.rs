@@ -86,7 +86,7 @@ impl InvocableSysCall {
                         HashType::ActorId,
                     ))),
                     // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
                     // Size of the payload
@@ -106,7 +106,7 @@ impl InvocableSysCall {
                     // Address of value
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
                     // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
                     // Size of the payload
@@ -126,7 +126,7 @@ impl InvocableSysCall {
                         HashType::ActorId,
                     ))),
                     // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::BufferStart {
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
                     // Size of the payload
@@ -215,7 +215,8 @@ impl InvocableSysCall {
         };
 
         match underlying_syscall {
-            SysCallName::BlockHeight
+            SysCallName::EnvVars
+            | SysCallName::BlockHeight
             | SysCallName::BlockTimestamp
             | SysCallName::Debug
             | SysCallName::Panic

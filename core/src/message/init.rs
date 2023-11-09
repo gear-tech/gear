@@ -131,50 +131,40 @@ pub struct InitPacket {
 }
 
 impl InitPacket {
-    /// Create new InitPacket without gas.
-    pub fn new(
+    /// Create new InitPacket via user.
+    pub fn new_from_user(
         code_id: CodeId,
         salt: Salt,
         payload: Payload,
-        message_id: Option<MessageId>,
-        value: Value,
-    ) -> Self {
-        let program_id = if let Some(id) = message_id {
-            ProgramId::generate_from_program(code_id, salt.inner(), id)
-        } else {
-            ProgramId::generate_from_user(code_id, salt.inner())
-        };
-        Self {
-            program_id,
-            code_id,
-            salt,
-            payload,
-            value,
-            gas_limit: None,
-        }
-    }
-
-    /// Create new InitPacket with gas.
-    pub fn new_with_gas(
-        code_id: CodeId,
-        salt: Salt,
-        payload: Payload,
-        message_id: Option<MessageId>,
         gas_limit: GasLimit,
         value: Value,
     ) -> Self {
-        let program_id = if let Some(id) = message_id {
-            ProgramId::generate_from_program(code_id, salt.inner(), id)
-        } else {
-            ProgramId::generate_from_user(code_id, salt.inner())
-        };
         Self {
-            program_id,
+            program_id: ProgramId::generate_from_user(code_id, salt.inner()),
             code_id,
             salt,
             payload,
-            value,
             gas_limit: Some(gas_limit),
+            value,
+        }
+    }
+
+    /// Create new InitPacket via program.
+    pub fn new_from_program(
+        code_id: CodeId,
+        salt: Salt,
+        payload: Payload,
+        message_id: MessageId,
+        gas_limit: Option<GasLimit>,
+        value: Value,
+    ) -> Self {
+        Self {
+            program_id: ProgramId::generate_from_program(code_id, salt.inner(), message_id),
+            code_id,
+            salt,
+            payload,
+            gas_limit,
+            value,
         }
     }
 

@@ -6497,6 +6497,7 @@ fn resume_session_push_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6563,6 +6564,7 @@ fn resume_session_push_works() {
         assert!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none());
         assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .is_err());
@@ -6613,6 +6615,7 @@ fn resume_program_works() {
 
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
+            program.memory_infix,
             program.pages_with_data.iter(),
         )
         .unwrap();
@@ -6624,7 +6627,19 @@ fn resume_program_works() {
 
         assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
-        let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        let old_nonce = <ProgramStorageOf<Test> as PausedProgramStorage>::NonceStorage::get();
+        // start a session to bump nonce
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+        ));
+        assert_ne!(
+            old_nonce,
+            <ProgramStorageOf::<Test> as PausedProgramStorage>::NonceStorage::get()
+        );
+
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_3),
             program_id,
@@ -6651,6 +6666,7 @@ fn resume_program_works() {
             memory_pages.into_iter().collect()
         ));
 
+        let block_count = ResumeMinimalPeriodOf::<Test>::get();
         // access to finish session by another user is denied
         assert_err!(
             Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
@@ -6948,6 +6964,7 @@ fn uninitialized_program_terminates_on_pause() {
             assert_err!(
                 ProgramStorageOf::<Test>::get_program_data_for_pages(
                     program_id,
+                    program.memory_infix,
                     Some(*page).iter()
                 ),
                 pallet_gear_program::Error::<Test>::CannotFindDataForPage
@@ -14528,7 +14545,7 @@ fn remove_from_waitlist_after_exit_reply() {
             RuntimeOrigin::signed(USER_1),
             reply.id(),
             vec![],
-            1_000_000_000,
+            1_500_000_000,
             0,
             false,
         ));

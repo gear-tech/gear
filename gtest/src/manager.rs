@@ -22,7 +22,8 @@ use crate::{
     Result, System, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RENT_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -38,8 +39,7 @@ use gear_core::{
         StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
-    percent::Percent,
-    program::Program as CoreProgram,
+    program::{MemoryInfix, Program as CoreProgram},
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -100,12 +100,21 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+    fn get_pages_data_mut(&mut self) -> Option<(MemoryInfix, &mut BTreeMap<GearPage, PageBuf>)> {
         match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
-                Some(pages_data)
-            }
+            TestActor::Initialized(Program::Genuine {
+                pages_data,
+                program,
+                ..
+            })
+            | TestActor::Uninitialized(
+                _,
+                Some(Program::Genuine {
+                    pages_data,
+                    program,
+                    ..
+                }),
+            ) => Some((program.memory_infix(), pages_data)),
             _ => None,
         }
     }
@@ -156,6 +165,7 @@ impl TestActor {
                 initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
                 gas_reservation_map,
+                memory_infix: program.memory_infix(),
             },
             program,
         ))
@@ -303,7 +313,7 @@ impl ExtManager {
             .map(|dispatches| {
                 dispatches
                     .into_iter()
-                    .map(|dispatch| self.run_dispatch(dispatch))
+                    .map(|dispatch| self.with_externalities(|this| this.run_dispatch(dispatch)))
                     .collect()
             })
             .unwrap_or_default()
@@ -332,13 +342,18 @@ impl ExtManager {
         externalities.execute_with(|| f(self))
     }
 
-    fn update_storage_pages(program_id: ProgramId, memory_pages: &BTreeMap<GearPage, PageBuf>) {
+    fn update_storage_pages(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        memory_pages: &BTreeMap<GearPage, PageBuf>,
+    ) {
         // write pages into storage so lazy-pages can access them
         for (page, buf) in memory_pages {
             let page_no: u32 = (*page).into();
             let prefix = [
                 System::PAGE_STORAGE_PREFIX.as_slice(),
                 program_id.into_bytes().as_slice(),
+                memory_infix.inner().to_le_bytes().as_slice(),
                 page_no.to_le_bytes().as_slice(),
             ]
             .concat();
@@ -471,7 +486,7 @@ impl ExtManager {
                 String::from("state"),
                 program.code().clone(),
                 Some(program.allocations().clone()),
-                Some(*program_id),
+                Some((*program_id, program.memory_infix())),
                 payload,
                 u64::MAX,
                 self.block_info,
@@ -609,12 +624,22 @@ impl ExtManager {
             TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
         };
 
-        match program {
-            Program::Genuine { pages_data, .. } => *pages_data = memory_pages.clone(),
-            Program::Mock(_) => panic!("Can't read memory of mock program"),
-        }
+        let memory_infix = match program {
+            Program::Genuine {
+                pages_data,
+                program,
+                ..
+            } => {
+                *pages_data = memory_pages.clone();
 
-        self.with_externalities(|_this| Self::update_storage_pages(*program_id, &memory_pages))
+                program.memory_infix()
+            }
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        };
+
+        self.with_externalities(|_this| {
+            Self::update_storage_pages(*program_id, memory_infix, &memory_pages)
+        })
     }
 
     #[track_caller]
@@ -818,7 +843,7 @@ impl ExtManager {
             .expect("Unable to find gas limit for message");
         let block_config = BlockConfig {
             block_info: self.block_info,
-            performance_multiplier: Percent::new(100),
+            performance_multiplier: gsys::Percent::new(100),
             max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
@@ -839,6 +864,7 @@ impl ExtManager {
             code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
             code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
             rent_cost: RENT_COST,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
         };
 
         let (actor_data, code) = match data {
@@ -1018,8 +1044,8 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Some(actor_pages_data) = actor.get_pages_data_mut() {
-            Self::update_storage_pages(program_id, &pages_data);
+        if let Some((memory_infix, actor_pages_data)) = actor.get_pages_data_mut() {
+            Self::update_storage_pages(program_id, memory_infix, &pages_data);
 
             actor_pages_data.append(&mut pages_data);
         } else {
@@ -1100,7 +1126,7 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
-                    let candidate = CoreProgram::new(candidate_id, code);
+                    let candidate = CoreProgram::new(candidate_id, Default::default(), code);
                     self.store_new_actor(
                         candidate_id,
                         Program::new(candidate, code_id, Default::default(), Default::default()),

@@ -145,6 +145,15 @@ type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 /// The current storage version.
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
+#[macro_export]
+macro_rules! impl_config {
+    ($runtime:ty) => {
+        impl pallet_gear_gas::Config for $runtime {
+            type BlockGasLimit = BlockGasLimit;
+        }
+    };
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
