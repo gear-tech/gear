@@ -144,7 +144,7 @@ pub mod pallet_tests;
 pub mod pallet {
     use super::*;
     use common::{
-        paused_program_storage::{ResumeSession, SessionId},
+        paused_program_storage::{PausingProgramInfo, ResumeSession, SessionId},
         scheduler::*,
         storage::*,
         CodeMetadata, Program,
@@ -382,6 +382,18 @@ pub mod pallet {
         value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type PausingProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, PausingProgramInfo<BlockNumberFor<T>>>;
+
+    common::wrap_storage_map!(
+        storage: PausingProgramStorage,
+        name: PausingProgramStorageWrap,
+        key: ProgramId,
+        value: PausingProgramInfo<BlockNumberFor<T>>
+    );
+
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -406,6 +418,7 @@ pub mod pallet {
 
     impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
         type PausedProgramMap = PausedProgramStorageWrap<T>;
+        type PausingProgramMap = PausingProgramStorageWrap<T>;
         type CodeStorage = Self;
         type NonceStorage = ResumeSessionsNonceWrap<T>;
         type ResumeSessions = ResumeSessionsWrap<T>;

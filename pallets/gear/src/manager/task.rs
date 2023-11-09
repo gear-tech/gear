@@ -26,10 +26,10 @@ use common::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
         SystemReason, UserMessageReadSystemReason,
     },
-    paused_program_storage::SessionId,
+    paused_program_storage::{PauseResult, SessionId},
     scheduler::*,
     storage::*,
-    ActiveProgram, Gas, Origin, PausedProgramStorage, Program, ProgramState, ProgramStorage,
+    Gas, Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use core::cmp;
 use gear_core::{
@@ -37,6 +37,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
     pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    reservation::GasReservationMap,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 use sp_core::Get;
@@ -85,6 +86,106 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
     }
 }
 
+fn clean<T: Config>(program_id: ProgramId, gas_reservation_map: GasReservationMap)
+where
+    T::AccountId: Origin,
+{
+    // clean wait list from the messages
+    let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+    WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+        let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+
+        QueueOf::<T>::queue(message)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+    });
+
+    ExtManager::<T>::remove_gas_reservation_map(program_id, gas_reservation_map);
+}
+
+fn handle_paused<T: Config>(
+    program_id: ProgramId,
+    gas_reservation_map: GasReservationMap,
+    page_count: u32,
+) -> Gas
+where
+    T::AccountId: Origin,
+{
+    clean::<T>(program_id, gas_reservation_map);
+
+    Pallet::<T>::deposit_event(Event::ProgramChanged {
+        id: program_id,
+        change: ProgramChangeKind::Paused,
+    });
+
+    let gas = <T as Config>::WeightInfo::tasks_pause_program(page_count).ref_time();
+    log::trace!("Task gas: tasks_pause_program = {gas}");
+
+    gas
+}
+
+fn handle_uninitialized<T: Config>(program_id: ProgramId, init_message_id: MessageId) -> Gas
+where
+    T::AccountId: Origin,
+{
+    // clean wait list from the messages
+    let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+    let origin = WaitlistOf::<T>::drain_key(program_id)
+        .fold(None, |maybe_origin, entry| {
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+            let result = match maybe_origin {
+                Some(_) => maybe_origin,
+                None if init_message_id == message.message().id() => {
+                    Some(message.message().source())
+                }
+                _ => None,
+            };
+
+            QueueOf::<T>::queue(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+            result
+        })
+        .unwrap_or_else(|| unreachable!("Failed to find init-message."));
+
+    ProgramStorageOf::<T>::waiting_init_remove(program_id);
+
+    // set program status to Terminated
+    let page_count = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
+        let page_count = match p {
+            Program::Active(program) => {
+                ExtManager::<T>::remove_gas_reservation_map(
+                    program_id,
+                    core::mem::take(&mut program.gas_reservation_map),
+                );
+
+                ExtManager::<T>::clean_inactive_program(program_id, program.memory_infix, origin);
+
+                program.pages_with_data.len() as u32
+            }
+            _ => unreachable!("Action executed only for active program"),
+        };
+
+        *p = Program::Terminated(origin);
+
+        page_count
+    })
+    .unwrap_or_else(|e| {
+        unreachable!(
+            "Program terminated status may only be set to an existing active program: {e:?}"
+        );
+    });
+
+    Pallet::<T>::deposit_event(Event::ProgramChanged {
+        id: program_id,
+        change: ProgramChangeKind::Terminated,
+    });
+
+    let gas = <T as Config>::WeightInfo::tasks_pause_program_uninited(page_count).ref_time();
+    log::trace!("Task gas: tasks_pause_program_uninited = {gas}");
+
+    gas
+}
+
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
@@ -116,99 +217,21 @@ where
             return DbWeightOf::<T>::get().writes(1).ref_time();
         }
 
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .unwrap_or_else(|| unreachable!("Program to pause not found."))
-            .try_into()
-            .unwrap_or_else(|e| unreachable!("Pause program task logic corrupted: {e:?}"));
-
-        let pages_with_data = program.pages_with_data.len() as u32;
-
-        let ProgramState::Uninitialized {
-            message_id: init_message_id,
-        } = program.state
-        else {
-            // pause initialized program
-            let gas_reservation_map =
-                ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
-                    .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e));
-
-            // clean wait list from the messages
-            let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-            WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
-                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-            });
-
-            Self::remove_gas_reservation_map(program_id, gas_reservation_map);
-            Pallet::<T>::deposit_event(Event::ProgramChanged {
-                id: program_id,
-                change: ProgramChangeKind::Paused,
-            });
-
-            let gas = <T as Config>::WeightInfo::tasks_pause_program(pages_with_data).ref_time();
-            log::trace!("Task gas: tasks_pause_program = {gas}");
-
-            return gas;
-        };
-
-        // terminate uninitialized program
-
-        // clean wait list from the messages
-        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-        let origin = WaitlistOf::<T>::drain_key(program_id)
-            .fold(None, |maybe_origin, entry| {
-                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-                let result = match maybe_origin {
-                    Some(_) => maybe_origin,
-                    None if init_message_id == message.message().id() => {
-                        Some(message.message().source())
-                    }
-                    _ => None,
-                };
-
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-
-                result
-            })
-            .unwrap_or_else(|| unreachable!("Failed to find init-message."));
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
-
-        // set program status to Terminated
-        ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
-            match p {
-                Program::Active(program) => {
-                    Self::remove_gas_reservation_map(
-                        program_id,
-                        core::mem::take(&mut program.gas_reservation_map),
-                    );
-
-                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
-                }
-                _ => unreachable!("Action executed only for active program"),
+        match ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
+            .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e))
+        {
+            PauseResult::Paused(gas_reservation_map, page_count) => {
+                handle_paused::<T>(program_id, gas_reservation_map, page_count)
             }
 
-            *p = Program::Terminated(origin);
-        })
-        .unwrap_or_else(|e| {
-            unreachable!(
-                "Program terminated status may only be set to an existing active program: {e:?}"
-            );
-        });
+            PauseResult::Uninitialized(init_message_id) => {
+                handle_uninitialized::<T>(program_id, init_message_id)
+            }
 
-        Pallet::<T>::deposit_event(Event::ProgramChanged {
-            id: program_id,
-            change: ProgramChangeKind::Terminated,
-        });
-
-        let gas =
-            <T as Config>::WeightInfo::tasks_pause_program_uninited(pages_with_data).ref_time();
-        log::trace!("Task gas: tasks_pause_program_uninited = {gas}");
-
-        gas
+            PauseResult::Finished => todo!(),
+            PauseResult::Started(_gas_reservation_map) => todo!(),
+            PauseResult::InProcess => todo!(),
+        }
     }
 
     fn remove_code(&mut self, _code_id: CodeId) -> Gas {

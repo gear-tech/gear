@@ -84,9 +84,43 @@ pub struct ResumeResult<BlockNumber> {
     pub info: Option<(ProgramId, BlockNumber)>,
 }
 
+/// The enumeration defines result of the [`PausedProgramStorage::pause_program()`] method.
+pub enum PauseResult {
+    /// Pausing a program has been started. The variant contains
+    /// the corresponding map with gas reservations.
+    Started(GasReservationMap),
+    /// The current step of pausing a program has been finished.
+    InProcess,
+    /// Pausing a program has been finished.
+    Finished,
+    /// Program has been paused in one step. The variant contains
+    /// the corresponding map with gas reservations.
+    Paused(GasReservationMap, u32),
+    /// Program is not initialized. The variant contains the id
+    /// of the corresponding init message.
+    Uninitialized(MessageId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct PausingProgramInfo<BlockNumber> {
+    pub block_number: BlockNumber,
+    pub batch_capacity: u16,
+    pub memory_infix: MemoryInfix,
+    pub allocations: BTreeSet<WasmPage>,
+    pub code_hash: H256,
+    pub remaining_pages: BTreeSet<GearPage>,
+    pub hashes: Vec<H256>,
+}
+
 /// Trait to pause/resume programs.
 pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
+    type PausingProgramMap: MapStorage<
+        Key = ProgramId,
+        Value = PausingProgramInfo<Self::BlockNumber>,
+    >;
     type CodeStorage: super::CodeStorage;
     type NonceStorage: ValueStorage<Value = SessionId>;
     type ResumeSessions: MapStorage<
@@ -105,60 +139,70 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         Self::PausedProgramMap::contains_key(program_id)
     }
 
-    /// Pause an active program with the given key `program_id`.
-    ///
-    /// Return corresponding map with gas reservations if the program was paused.
+    /// Try to pause an active program with the given key `program_id`.
     fn pause_program(
         program_id: ProgramId,
         block_number: Self::BlockNumber,
-    ) -> Result<GasReservationMap, Self::Error> {
-        let (mut program, memory_pages) = Self::ProgramMap::mutate(program_id, |maybe| {
-            let Some(program) = maybe.take() else {
-                return Err(Self::InternalError::program_not_found().into());
-            };
-
-            let Program::Active(program) = program else {
-                *maybe = Some(program);
-
-                return Err(Self::InternalError::not_active_program().into());
-            };
-
-            let memory_pages = match Self::get_program_data_for_pages(
-                program_id,
-                program.memory_infix,
-                program.pages_with_data.iter(),
-            ) {
-                Ok(memory_pages) => memory_pages,
-                Err(e) => {
-                    *maybe = Some(Program::Active(program));
-
-                    return Err(e);
-                }
-            };
-
-            Self::waiting_init_remove(program_id);
-            Self::remove_program_pages(program_id, program.memory_infix);
-
-            Ok((program, memory_pages))
-        })?;
-
-        let gas_reservations = mem::take(&mut program.gas_reservation_map);
-
-        let batch_capacity = Self::BatchCapacity::get().get() as usize;
-        if memory_pages.len() > batch_capacity {
-            unimplemented!("todo");
+    ) -> Result<PauseResult, Self::Error> {
+        if let Some(result) = continue_to_pause_program::<Self>(program_id) {
+            return Ok(result);
         }
 
-        let hashes = if !memory_pages.is_empty() {
-            vec![batch_hash(&memory_pages)]
+        let ActiveProgram {
+            allocations,
+            pages_with_data,
+            memory_infix,
+            gas_reservation_map,
+            code_hash,
+            ..
+        } = match Self::get_program(program_id) {
+            Some(Program::Active(p)) => match p.state {
+                ProgramState::Initialized => p,
+                ProgramState::Uninitialized { message_id } => {
+                    return Ok(PauseResult::Uninitialized(message_id))
+                }
+            },
+            Some(_) => return Err(Self::InternalError::not_active_program().into()),
+            None => return Err(Self::InternalError::program_not_found().into()),
+        };
+
+        Self::ProgramMap::remove(program_id);
+        Self::waiting_init_remove(program_id);
+
+        let batch_capacity = Self::BatchCapacity::get().get();
+        let page_count = pages_with_data.len();
+        if page_count >= batch_capacity as usize {
+            let info = PausingProgramInfo {
+                allocations,
+                batch_capacity,
+                block_number,
+                code_hash,
+                hashes: vec![],
+                memory_infix,
+                remaining_pages: pages_with_data,
+            };
+
+            Self::PausingProgramMap::insert(program_id, info);
+
+            return Ok(PauseResult::Started(gas_reservation_map));
+        }
+
+        let pages =
+            Self::get_program_data_for_pages(program_id, memory_infix, pages_with_data.iter())
+                .unwrap_or_else(|e| {
+                    unreachable!("Start to pause a program so memory pages exist: {e:?}")
+                });
+        Self::remove_program_pages(program_id, memory_infix);
+
+        let hashes = if !pages.is_empty() {
+            vec![batch_hash(&pages)]
         } else {
             vec![]
         };
-        let hash = hash(&program.allocations, program.code_hash, &hashes);
-
+        let hash = hash(&allocations, code_hash, &hashes);
         Self::PausedProgramMap::insert(program_id, (block_number, hash));
 
-        Ok(gas_reservations)
+        Ok(PauseResult::Paused(gas_reservation_map, page_count as u32))
     }
 
     /// Create a session for program resume. Returns the session id on success.
@@ -372,4 +416,42 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             None => Err(Self::InternalError::program_not_found().into()),
         })
     }
+}
+
+fn continue_to_pause_program<Storage: PausedProgramStorage + ?Sized>(
+    program_id: ProgramId,
+) -> Option<PauseResult> {
+    Storage::PausingProgramMap::mutate(program_id, |maybe| {
+        let Some(info) = maybe.as_mut() else {
+            return None;
+        };
+
+        if info.remaining_pages.is_empty() {
+            let hash = hash(&info.allocations, info.code_hash, &info.hashes);
+            Storage::PausedProgramMap::insert(program_id, (info.block_number, hash));
+
+            *maybe = None;
+
+            return Some(PauseResult::Finished);
+        }
+
+        let pages = Storage::get_program_data_for_pages(
+            program_id,
+            info.memory_infix,
+            info.remaining_pages
+                .iter()
+                .take(info.batch_capacity as usize),
+        )
+        .unwrap_or_else(|e| {
+            unreachable!("Program is being paused so memory pages still exist: {e:?}")
+        });
+        for page_num in pages.keys() {
+            Storage::remove_program_page_data(program_id, info.memory_infix, *page_num);
+            info.remaining_pages.pop_first();
+        }
+
+        info.hashes.push(batch_hash(&pages));
+
+        Some(PauseResult::InProcess)
+    })
 }
