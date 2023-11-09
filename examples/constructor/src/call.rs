@@ -1,5 +1,5 @@
 use crate::Arg;
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]

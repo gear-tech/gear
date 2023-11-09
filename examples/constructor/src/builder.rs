@@ -1,5 +1,5 @@
 use crate::{Arg, Call};
-use alloc::{boxed::Box, string::ToString, vec, vec::Vec};
+use alloc::{string::ToString, vec, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
 use parity_scale_codec::{WrapperTypeDecode, WrapperTypeEncode};
 
@@ -297,8 +297,8 @@ impl Calls {
     pub fn if_else(
         self,
         bool_arg: impl Into<Arg<bool>>,
-        mut true_calls: Self,
-        mut false_calls: Self,
+        true_calls: Self,
+        false_calls: Self,
     ) -> Self {
         self.add_call(Call::IfElse(
             bool_arg.into(),
