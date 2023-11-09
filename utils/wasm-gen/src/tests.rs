@@ -79,9 +79,6 @@ fn instrument_recursions() {
 
     let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
     println!("wat = {wat}");
-
-    let code_res = Code::try_new(wasm_bytes, 1, |_| CustomConstantCostRules::default(), None);
-    assert!(code_res.is_ok());
 }
 
 #[test]

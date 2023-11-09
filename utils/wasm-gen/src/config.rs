@@ -103,7 +103,10 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
+use crate::InvocableSysCall;
+
 use gear_utils::NonEmpty;
+use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::Hash;
 
 /// Trait which describes a type that stores and manages data for generating
@@ -197,6 +200,11 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             unreachable_enabled,
             ..SelectableParams::default()
         };
+
+        let mut injection_types = injection_types;
+        if remove_recursion {
+            injection_types.enable_syscall_import(InvocableSysCall::Loose(SysCallName::GasAvailable));
+        }
 
         let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {

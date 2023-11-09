@@ -242,8 +242,7 @@ pub fn instrument_recursion(module: Module) -> Module {
         return module;
     };
 
-    let call_depth_ptr = mem_size - mem::size_of::<u32>() as u32;
-    let gas_ptr = call_depth_ptr - mem::size_of::<u64>() as u32;
+    let gas_ptr = mem_size - mem::size_of::<u64>() as u32;
 
     let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
         section
@@ -304,7 +303,18 @@ pub fn instrument_recursion(module: Module) -> Module {
         let signature = &types[signature_index.type_ref() as usize];
         let Type::Function(signature) = signature;
         let results = signature.results();
-        let mut body = Vec::with_capacity(results.len() + 2);
+
+        let mut body = Vec::with_capacity(results.len() + 9);
+        body.extend_from_slice(&[
+            Instruction::I32Const(gas_ptr as i32),
+            Instruction::Call(gr_gas_available_index),
+            Instruction::I32Const(gas_ptr as i32),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Const(1_000_000),
+            Instruction::I64LeU,
+            Instruction::If(BlockType::NoResult),
+        ]);
+
         for result in results {
             let instruction = match result {
                 ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
@@ -315,71 +325,21 @@ pub fn instrument_recursion(module: Module) -> Module {
             body.push(instruction);
         }
 
-        body.extend([Instruction::Return, Instruction::End]);
+        body.extend_from_slice(&[Instruction::Return, Instruction::End]);
 
         let instructions = func_body.code_mut().elements_mut();
-
-        instructions.splice(
-            0..0,
-            [
-                vec![
-                    //if call_depth > 512 { call_depth = 0; return; }
-                    Instruction::I32Const(0),
-                    Instruction::I32Load(2, call_depth_ptr),
-                    Instruction::I32Const(512),
-                    Instruction::I32GtU,
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::I32Const(0),
-                    Instruction::I32Const(0),
-                    Instruction::I32Store(2, call_depth_ptr),
-                ],
-                body.clone(),
-                vec![
-                    //call_depth += 1;
-                    Instruction::I32Const(0),
-                    Instruction::I32Const(0),
-                    Instruction::I32Load(2, call_depth_ptr),
-                    Instruction::I32Const(1),
-                    Instruction::I32Add,
-                    Instruction::I32Store(2, call_depth_ptr),
-                ],
-            ]
-            .concat(),
-        );
-
-        let last = instructions.len() - 1;
-        instructions.splice(
-            last..last,
-            [
-                //call_depth -= 1;
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::I32Load(2, call_depth_ptr),
-                Instruction::I32Const(-1),
-                Instruction::I32Add,
-                Instruction::I32Store(2, call_depth_ptr),
-            ],
-        );
 
         let original_instructions =
             mem::replace(instructions, Vec::with_capacity(instructions.len()));
         let new_instructions = instructions;
 
+        new_instructions.extend_from_slice(&body);
+
         for instruction in original_instructions {
             match instruction {
-                Instruction::Loop(_) => {
+                Instruction::Block(_) | Instruction::Loop(_) | Instruction::If(_) => {
                     new_instructions.push(instruction);
-
-                    new_instructions.extend([
-                        Instruction::I32Const(gas_ptr as i32),
-                        Instruction::Call(gr_gas_available_index),
-                        Instruction::I32Const(gas_ptr as i32),
-                        Instruction::I64Load(3, 0),
-                        Instruction::I64Const(1_000_000),
-                        Instruction::I64LeU,
-                        Instruction::If(BlockType::NoResult),
-                    ]);
-                    new_instructions.extend(body.clone());
+                    new_instructions.extend_from_slice(&body);
                 }
                 Instruction::Call(call_index)
                     if rewrite_calls && call_index >= gr_gas_available_index =>
