@@ -29,6 +29,15 @@ pub fn handle_reply() -> Calls {
     Calls::builder().noop()
 }
 
+pub fn handle_signal() -> Calls {
+    Calls::builder().noop()
+}
+
 pub fn scheme(send_before_exit: bool) -> Scheme {
-    Scheme::predefined(init(send_before_exit), handle(), handle_reply())
+    Scheme::predefined(
+        init(send_before_exit),
+        handle(),
+        handle_reply(),
+        handle_signal(),
+    )
 }
