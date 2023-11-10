@@ -256,7 +256,7 @@ mod wasm {
             let calls = if flag { true_calls } else { false_calls };
 
             for call in calls {
-                previous = call.process(previous);
+                previous = Some(call.process(previous));
             }
 
             previous.map(|res| res.1).flatten()
