@@ -28,6 +28,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use alloc::collections::btree_map::Entry;
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
     scale::{Decode, Encode},
@@ -127,7 +128,7 @@ pub struct ContextOutcome {
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
     reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
-    awakening: Vec<(MessageId, u32)>,
+    awakening: BTreeMap<MessageId, u32>,
     // u64 is gas limit
     // TODO: add Option<ReservationId> after #1828
     reply_deposits: Vec<(MessageId, u64)>,
@@ -170,7 +171,7 @@ impl ContextOutcome {
 
         ContextOutcomeDrain {
             outgoing_dispatches: dispatches,
-            awakening: self.awakening,
+            awakening: self.awakening.into_iter().collect(),
             reply_deposits: self.reply_deposits,
         }
     }
@@ -483,9 +484,13 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        self.outcome.awakening.push((waker_id, delay));
-
-        Ok(())
+        if let Entry::Vacant(entry) = self.outcome.awakening.entry(waker_id) {
+            entry.insert(delay);
+            Ok(())
+        }
+        else {
+            Err(Error::DuplicateWaking)
+        }
     }
 
     /// Create deposit to handle future reply on message id was sent.
