@@ -1762,7 +1762,7 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `block_count`: the specified period of rent.
         #[pallet::call_index(11)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_commit(0u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_commit())]
         pub fn resume_session_commit(
             origin: OriginFor<T>,
             session_id: SessionId,
@@ -1821,15 +1821,16 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Appends memory pages to the resume session.
+        /// Checks uploaded memory pages to the specified
+        /// batch of the resume session.
         ///
         /// The origin must be Signed and should be the owner of the session.
         ///
         /// Parameters:
         /// - `session_id`: id of the resume session.
-        /// - `memory_pages`: program memory (or its part) before it was paused.
+        /// - `batch_index`: index of the memory pages batch.
         #[pallet::call_index(12)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(0u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_check(ProgramStorageOf::<T>::resume_session_batch_count(&session_id, *batch_index as usize).unwrap_or(0)))]
         pub fn resume_session_check(
             origin: OriginFor<T>,
             session_id: SessionId,

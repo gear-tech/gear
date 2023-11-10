@@ -120,15 +120,21 @@ where
     )
     .expect("submit program failed");
 
-    init_block::<T>(None);
+    process_queue::<T>();
+
+    let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+        .expect("program should exist")
+        .try_into()
+        .expect("program should be active");
 
     ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
     Gear::<T>::resume_session_init(
         RawOrigin::Signed(caller).into(),
         program_id,
-        Default::default(),
-        CodeId::default(),
+        program.allocations,
+        CodeId::from_origin(program.code_hash),
+        vec![],
     )
     .expect("failed to start resume session");
 
