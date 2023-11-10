@@ -6,7 +6,7 @@
 </p>
 
 <h3 align="center">
-Gear Protocol is a Substrate-based platform for developers allowing anyone to run dApp in a few minutes.
+Gear Protocol is a Substrate-based solution for developers, enabling anyone to run a dApp in just a few minutes.
 </h3>
 
 #
