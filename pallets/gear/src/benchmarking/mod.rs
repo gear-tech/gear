@@ -58,9 +58,10 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
+    weights::WeightInfo,
     BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    GasAllowanceOf, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf, MAX_BATCH_CAPACITY,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -82,6 +83,7 @@ use core_processor::{
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
     codec::Encode,
+    pallet_prelude::DispatchClass,
     traits::{Currency, Get, Hooks},
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
@@ -440,6 +442,40 @@ benchmarks! {
     #[extra]
     check_lazy_pages_gas_exceed {
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+    }: {}
+
+    #[extra]
+    check_batch_capacity {
+        let batch_capacity: u32 = <ProgramStorageOf::<T> as PausedProgramStorage>::BatchCapacity::get().get().into();
+        assert!(batch_capacity <= MAX_BATCH_CAPACITY);
+
+        let limit = <T as frame_system::Config>::BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap_or_default().ref_time();
+        let weight = <T as Config>::WeightInfo::resume_session_check(batch_capacity).ref_time();
+        log::debug!("resume_session_check = {weight}, limit = {limit}");
+        assert!(weight <= limit);
+
+        let gas_allowance = GasAllowanceOf::<T>::get();
+        log::debug!("batch_capacity = {batch_capacity}, MAX_BATCH_CAPACITY = {MAX_BATCH_CAPACITY}, gas_allowance = {gas_allowance}");
+
+        let weight = <T as Config>::WeightInfo::tasks_pause_program(MAX_BATCH_CAPACITY).ref_time();
+        log::debug!("tasks_pause_program = {weight}");
+        assert!(weight <= gas_allowance);
+
+        let weight = <T as Config>::WeightInfo::tasks_pause_program_started().ref_time();
+        log::debug!("tasks_pause_program_started = {weight}");
+        assert!(weight <= gas_allowance);
+
+        let weight = <T as Config>::WeightInfo::tasks_pause_program_in_process(MAX_BATCH_CAPACITY).ref_time();
+        log::debug!("tasks_pause_program_in_process = {weight}");
+        assert!(weight <= gas_allowance);
+
+        let weight = <T as Config>::WeightInfo::tasks_pause_program_finished().ref_time();
+        log::debug!("tasks_pause_program_finished = {weight}");
+        assert!(weight <= gas_allowance);
+
+        let weight = <T as Config>::WeightInfo::tasks_pause_program_uninited(MAX_BATCH_CAPACITY).ref_time();
+        log::debug!("tasks_pause_program_uninited = {weight}");
+        assert!(weight <= gas_allowance);
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that

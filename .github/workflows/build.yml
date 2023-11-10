@@ -99,6 +99,8 @@ jobs:
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check also lazy-pages benchmarks tests for native runtime
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
+          # check (max) batch capacity when pausing programs
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_batch_capacity" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release

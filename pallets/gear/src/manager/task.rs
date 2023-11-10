@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, weights::WeightInfo, Config, DbWeightOf, DispatchStashOf, Event, Pallet,
-    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, MAX_BATCH_CAPACITY,
 };
 use alloc::string::ToString;
 use common::{
@@ -33,10 +33,8 @@ use common::{
 };
 use core::cmp;
 use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
     reservation::GasReservationMap,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
@@ -48,14 +46,19 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
 
     match task {
         PauseProgram(_) => {
-            // TODO: #3079
             if <T as Config>::ProgramRentEnabled::get() {
-                let count =
-                    u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
-                cmp::max(
-                    <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
-                    <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
-                )
+                [
+                    <T as Config>::WeightInfo::tasks_pause_program(MAX_BATCH_CAPACITY).ref_time(),
+                    <T as Config>::WeightInfo::tasks_pause_program_started().ref_time(),
+                    <T as Config>::WeightInfo::tasks_pause_program_in_process(MAX_BATCH_CAPACITY)
+                        .ref_time(),
+                    <T as Config>::WeightInfo::tasks_pause_program_finished().ref_time(),
+                    <T as Config>::WeightInfo::tasks_pause_program_uninited(MAX_BATCH_CAPACITY)
+                        .ref_time(),
+                ]
+                .into_iter()
+                .max()
+                .expect("Max exists for non empty array of u64s")
             } else {
                 DbWeightOf::<T>::get().writes(2).ref_time()
             }
@@ -236,10 +239,6 @@ where
     T::AccountId: Origin,
 {
     fn pause_program(&mut self, program_id: ProgramId) -> Gas {
-        //
-        // TODO: #3079
-        //
-
         if !<T as Config>::ProgramRentEnabled::get() {
             log::debug!("Program rent logic is disabled.");
 

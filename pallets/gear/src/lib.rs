@@ -89,6 +89,10 @@ use sp_std::{
     prelude::*,
 };
 
+/// The constant represents the maximum value of the batch capacity using in pausing
+/// of programs. Values greater than that lead to memory allocation errors.
+pub const MAX_BATCH_CAPACITY: u32 = 2_047;
+
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
 pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;

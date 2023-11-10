@@ -49,7 +49,7 @@ pub struct PauseBatchCapacity;
 
 impl sp_core::Get<NonZeroU16> for PauseBatchCapacity {
     fn get() -> NonZeroU16 {
-        const PAUSE_BATCH_CAPACITY: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(256) };
+        const PAUSE_BATCH_CAPACITY: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(1_024) };
 
         PAUSE_BATCH_CAPACITY
     }
