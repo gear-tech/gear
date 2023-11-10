@@ -25,10 +25,9 @@ use crate::{
     reservation::{GasReserver, ReservationNonce},
 };
 use alloc::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     vec::Vec,
 };
-use alloc::collections::btree_map::Entry;
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
     scale::{Decode, Encode},
@@ -487,8 +486,7 @@ impl MessageContext {
         if let Entry::Vacant(entry) = self.outcome.awakening.entry(waker_id) {
             entry.insert(delay);
             Ok(())
-        }
-        else {
+        } else {
             Err(Error::DuplicateWaking)
         }
     }
