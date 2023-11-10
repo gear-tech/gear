@@ -35,8 +35,13 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
-    /// This is a hardcoded version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = env!("WORKSPACE_TOOLCHAIN");
+    /// This is a version of nightly toolchain, tested on our CI.
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = match option_env!("WORKSPACE_TOOLCHAIN") {
+        // get pinned toolchain from rust-toolchain.toml file
+        Some(toolchain) => toolchain,
+        // fallback to hardcoded constant (this will work for crates.io package)
+        None => "nightly-2023-09-18",
+    };
 
     /// Returns `Toolchain` representing the most recent nightly version.
     pub fn nightly() -> Self {
