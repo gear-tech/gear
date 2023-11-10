@@ -30,23 +30,10 @@
 //!
 //! # Crate features
 //!
-//! - **debug** - Enables debug logging; this heavily
-//!   impacts gas cost and is thus disabled by default.
-//! - **default** - Includes all default features.
-//!   - **default-stable** - Includes default stable features
-//!     - **panic-handler** - When enabled, a panic handler is provided by this
-//!       crate.
-//!   - **nightly** - Includes default nightly features. These features depend
-//!     on unstable Rust API and require nightly toolchain.
-//!     - **panic-messages** - When enabled, additional context information is
-//!       available from panic messages in debug mode. Relies on
-//!       [`panic_info_message`][rust-66745].
-//!     - **oom-handler** - When enabled, an OOM error handler is provided.
-//!       Relies on [`alloc_error_handler`][rust-51540]
-//!
-//! [rust-66745]: https://github.com/rust-lang/rust/issues/66745
-//! [rust-51540]: https://github.com/rust-lang/rust/issues/51540
-//!
+#![cfg_attr(
+    feature = "document-features",
+    cfg_attr(doc, doc = ::document_features::document_features!())
+)]
 //! # Examples
 //!
 //! Decode input payload using a custom type:
