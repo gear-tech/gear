@@ -154,7 +154,7 @@ Modern blockchains solve many issues of the older blockchain networks, such as:
  - Absence of intercommunication tools
 
 But the room for improvements remains related to:
- - Optimization of the user experience when using web3 applications
+ - Optimisation of the user experience when using Web3 applications
  - Lack of interoperability with other networks
 
 # How does it work?
