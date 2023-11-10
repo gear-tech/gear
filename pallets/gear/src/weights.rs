@@ -229,6 +229,7 @@ pub trait WeightInfo {
     fn tasks_remove_from_mailbox() -> Weight;
     fn tasks_pause_program(c: u32, ) -> Weight;
     fn tasks_pause_program_uninited(c: u32, ) -> Weight;
+    fn tasks_pause_program_started() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2217,6 +2218,15 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
             .saturating_add(Weight::from_parts(0, 2947).saturating_mul(c.into()))
     }
+    fn tasks_pause_program_started() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `3509`
+        //  Estimated: `44858`
+        // Minimum execution time: 106_882_000 picoseconds.
+        Weight::from_parts(109_417_000, 44858)
+            .saturating_add(T::DbWeight::get().reads(7_u64))
+            .saturating_add(T::DbWeight::get().writes(4_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -4198,5 +4208,14 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(9_u64))
             .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
             .saturating_add(Weight::from_parts(0, 2947).saturating_mul(c.into()))
+    }
+    fn tasks_pause_program_started() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `3509`
+        //  Estimated: `44858`
+        // Minimum execution time: 106_882_000 picoseconds.
+        Weight::from_parts(109_417_000, 44858)
+            .saturating_add(RocksDbWeight::get().reads(7_u64))
+            .saturating_add(RocksDbWeight::get().writes(4_u64))
     }
 }

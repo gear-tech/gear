@@ -41,7 +41,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 use sp_core::Get;
-use sp_runtime::Saturating;
+use sp_runtime::{traits::One, Saturating};
 
 pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Gas {
     use ScheduledTask::*;
@@ -186,6 +186,22 @@ where
     gas
 }
 
+fn handle_started<T: Config>(program_id: ProgramId, gas_reservation_map: GasReservationMap) -> Gas
+where
+    T::AccountId: Origin,
+{
+    clean::<T>(program_id, gas_reservation_map);
+
+    let task = ScheduledTask::PauseProgram(program_id);
+    TaskPoolOf::<T>::add(Pallet::<T>::block_number().saturating_add(One::one()), task)
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+    let gas = <T as Config>::WeightInfo::tasks_pause_program_started().ref_time();
+    log::trace!("Task gas: tasks_pause_program_started = {gas}");
+
+    gas
+}
+
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
@@ -228,8 +244,11 @@ where
                 handle_uninitialized::<T>(program_id, init_message_id)
             }
 
+            PauseResult::Started(gas_reservation_map) => {
+                handle_started::<T>(program_id, gas_reservation_map)
+            }
+
             PauseResult::Finished => todo!(),
-            PauseResult::Started(_gas_reservation_map) => todo!(),
             PauseResult::InProcess => todo!(),
         }
     }

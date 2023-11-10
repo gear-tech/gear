@@ -2919,6 +2919,17 @@ benchmarks! {
         ext_manager.pause_program(program_id);
     }
 
+    tasks_pause_program_started {
+        let c = 2 * <ProgramStorageOf::<T> as PausedProgramStorage>::BatchCapacity::get().get() - 1;
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c.into(), code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:
