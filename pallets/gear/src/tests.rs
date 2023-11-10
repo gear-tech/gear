@@ -3334,11 +3334,11 @@ fn memory_access_cases() {
 #[test]
 fn gas_limit_exceeded_oob_case() {
     let wat = r#"(module
-		(import "env" "memory" (memory 512))
+	    (import "env" "memory" (memory 512))
         (import "env" "gr_send_init" (func $send_init (param i32)))
         (import "env" "gr_send_push" (func $send_push (param i32 i32 i32 i32)))
-		(export "init" (func $init))
-		(func $init
+	    (export "init" (func $init))
+	    (func $init
             (local $addr i32)
             (local $handle i32)
 
@@ -3376,7 +3376,6 @@ fn gas_limit_exceeded_oob_case() {
         let gas_limit = 10_000_000_000;
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
-        // let prog_id = generate_program_id(&code, &salt);
         Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
