@@ -202,6 +202,20 @@ where
     gas
 }
 
+fn handle_in_process<T: Config>(program_id: ProgramId, page_count: u32) -> Gas
+where
+    T::AccountId: Origin,
+{
+    let task = ScheduledTask::PauseProgram(program_id);
+    TaskPoolOf::<T>::add(Pallet::<T>::block_number().saturating_add(One::one()), task)
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+    let gas = <T as Config>::WeightInfo::tasks_pause_program_in_process(page_count).ref_time();
+    log::trace!("Task gas: tasks_pause_program_in_process = {gas}");
+
+    gas
+}
+
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
@@ -248,8 +262,9 @@ where
                 handle_started::<T>(program_id, gas_reservation_map)
             }
 
+            PauseResult::InProcess(page_count) => handle_in_process::<T>(program_id, page_count),
+
             PauseResult::Finished => todo!(),
-            PauseResult::InProcess => todo!(),
         }
     }
 

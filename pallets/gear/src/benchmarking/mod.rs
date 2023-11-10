@@ -69,7 +69,7 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::{self, SessionId},
-    scheduler::{ScheduledTask, TaskHandler},
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
@@ -2926,6 +2926,30 @@ benchmarks! {
         let program_id = tasks::pause_program_prepare::<T>(c.into(), code);
 
         let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.pause_program(program_id);
+    }
+
+    tasks_pause_program_in_process {
+        let c in 1 .. <ProgramStorageOf::<T> as PausedProgramStorage>::BatchCapacity::get().get().into();
+
+        // The parameter c should be in range [1; batch_capacity] so the Substrate
+        // benchmarking mechanism correctly determines amount of DB read/writes.
+        // In the same time the number of memory pages should be in the range [batch_capacity + 1; 2 * batch_capacity].
+        let c = c + u32::from(<ProgramStorageOf::<T> as PausedProgramStorage>::BatchCapacity::get().get());
+
+        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
+
+        let mut ext_manager = ExtManager::<T>::default();
+        // start pausing program
+        ext_manager.pause_program(program_id);
+
+        TaskPoolOf::<T>::clear();
+        // skip one step of pausing
+        ext_manager.pause_program(program_id);
+
+        TaskPoolOf::<T>::clear();
     }: {
         ext_manager.pause_program(program_id);
     }

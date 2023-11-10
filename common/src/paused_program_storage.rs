@@ -90,7 +90,8 @@ pub enum PauseResult {
     /// the corresponding map with gas reservations.
     Started(GasReservationMap),
     /// The current step of pausing a program has been finished.
-    InProcess,
+    /// The variant contains the number of hashed memory pages.
+    InProcess(u32),
     /// Pausing a program has been finished.
     Finished,
     /// Program has been paused in one step. The variant contains
@@ -452,6 +453,6 @@ fn continue_to_pause_program<Storage: PausedProgramStorage + ?Sized>(
 
         info.hashes.push(batch_hash(&pages));
 
-        Some(PauseResult::InProcess)
+        Some(PauseResult::InProcess(pages.len() as u32))
     })
 }

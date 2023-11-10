@@ -230,6 +230,7 @@ pub trait WeightInfo {
     fn tasks_pause_program(c: u32, ) -> Weight;
     fn tasks_pause_program_uninited(c: u32, ) -> Weight;
     fn tasks_pause_program_started() -> Weight;
+    fn tasks_pause_program_in_process(c: u32, ) -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2227,6 +2228,21 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(4_u64))
     }
+    /// The range of component `c` is `[1, 256]`.
+    fn tasks_pause_program_in_process(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `935 + c * (16401 ±0)`
+        //  Estimated: `15550 + c * (84480 ±0)`
+        // Minimum execution time: 76_705_000 picoseconds.
+        Weight::from_parts(78_308_000, 15550)
+            // Standard Error: 123_196
+            .saturating_add(Weight::from_parts(32_764_506, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(4_u64))
+            .saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(T::DbWeight::get().writes(3_u64))
+            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
+    }
 }
 
 // For backwards compatibility and tests
@@ -4217,5 +4233,20 @@ impl WeightInfo for () {
         Weight::from_parts(109_417_000, 44858)
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(4_u64))
+    }
+    /// The range of component `c` is `[1, 256]`.
+    fn tasks_pause_program_in_process(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `935 + c * (16401 ±0)`
+        //  Estimated: `15550 + c * (84480 ±0)`
+        // Minimum execution time: 76_705_000 picoseconds.
+        Weight::from_parts(78_308_000, 15550)
+            // Standard Error: 123_196
+            .saturating_add(Weight::from_parts(32_764_506, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(4_u64))
+            .saturating_add(RocksDbWeight::get().reads((1_u64).saturating_mul(c.into())))
+            .saturating_add(RocksDbWeight::get().writes(3_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
     }
 }
