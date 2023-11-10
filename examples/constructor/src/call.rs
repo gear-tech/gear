@@ -259,7 +259,7 @@ mod wasm {
                 previous = Some(call.process(previous));
             }
 
-            previous.and_then(|res| res.1).flatten()
+            previous.and_then(|res| res.1)
         }
 
         fn value(self) -> Option<Vec<u8>> {
