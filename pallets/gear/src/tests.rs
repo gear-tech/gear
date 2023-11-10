@@ -14770,6 +14770,214 @@ fn test_gas_info_of_terminated_program() {
     })
 }
 
+#[test]
+fn critical_section_works() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Normal.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_succeed(mid);
+
+        MailboxOf::<Test>::iter_key(USER_1)
+            .find(|(msg, _)| msg.payload_bytes() == b"normal0")
+            .unwrap();
+        MailboxOf::<Test>::iter_key(USER_1)
+            .find(|(msg, _)| msg.payload_bytes() == b"normal1")
+            .unwrap();
+    });
+}
+
+#[test]
+fn critical_section_with_panic() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Panic.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
+        );
+
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+    });
+}
+
+#[test]
+fn critical_section_with_wait() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Wait.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert_succeed(mid);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"before_wait");
+    });
+}
+
+#[test]
+fn critical_section_with_wait_and_panic() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitAndPanic.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let wait_mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert_succeed(mid);
+        assert_failed(
+            wait_mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
+        );
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"before_wait");
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

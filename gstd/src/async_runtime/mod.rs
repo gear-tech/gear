@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub mod critical;
 mod futures;
 mod locks;
 mod signals;
@@ -55,6 +56,8 @@ pub fn record_reply() {
 
 /// Default signal handler.
 pub fn handle_signal() {
+    critical::Sections::get().execute_all();
+
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );

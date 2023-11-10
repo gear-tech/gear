@@ -113,6 +113,7 @@ demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
+demo-async-critical = { workspace = true, features = ["debug"] }
 test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }

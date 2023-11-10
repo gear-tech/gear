@@ -19,6 +19,7 @@ members = [
     "core-processor",
     "core-errors",
     "examples/async",
+    "examples/async-critical",
     "examples/async-custom-entry",
     "examples/async-init",
     "examples/async-signal-entry",
@@ -375,6 +376,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 # Examples
 test-syscalls = { path = "examples/sys-calls", default-features = false }
 demo-async = { path = "examples/async" }
+demo-async-critical = { path = "examples/async-critical" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }
 demo-async-recursion = { path = "examples/async-recursion" }

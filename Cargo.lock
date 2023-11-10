@@ -2013,6 +2013,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-critical"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -7561,6 +7571,7 @@ version = "1.0.2"
 dependencies = [
  "blake2-rfc",
  "demo-async",
+ "demo-async-critical",
  "demo-async-custom-entry",
  "demo-async-init",
  "demo-async-recursion",
