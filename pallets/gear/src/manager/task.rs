@@ -216,6 +216,21 @@ where
     gas
 }
 
+fn handle_finished<T: Config>(program_id: ProgramId) -> Gas
+where
+    T::AccountId: Origin,
+{
+    Pallet::<T>::deposit_event(Event::ProgramChanged {
+        id: program_id,
+        change: ProgramChangeKind::Paused,
+    });
+
+    let gas = <T as Config>::WeightInfo::tasks_pause_program_finished().ref_time();
+    log::trace!("Task gas: tasks_pause_program_finished = {gas}");
+
+    gas
+}
+
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
@@ -264,7 +279,7 @@ where
 
             PauseResult::InProcess(page_count) => handle_in_process::<T>(program_id, page_count),
 
-            PauseResult::Finished => todo!(),
+            PauseResult::Finished => handle_finished::<T>(program_id),
         }
     }
 

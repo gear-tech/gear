@@ -231,6 +231,7 @@ pub trait WeightInfo {
     fn tasks_pause_program_uninited(c: u32, ) -> Weight;
     fn tasks_pause_program_started() -> Weight;
     fn tasks_pause_program_in_process(c: u32, ) -> Weight;
+    fn tasks_pause_program_finished() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2243,6 +2244,15 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
             .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
     }
+    fn tasks_pause_program_finished() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `667`
+        //  Estimated: `6284`
+        // Minimum execution time: 37_030_000 picoseconds.
+        Weight::from_parts(38_623_000, 6284)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -4248,5 +4258,14 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(3_u64))
             .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
             .saturating_add(Weight::from_parts(0, 84480).saturating_mul(c.into()))
+    }
+    fn tasks_pause_program_finished() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `667`
+        //  Estimated: `6284`
+        // Minimum execution time: 37_030_000 picoseconds.
+        Weight::from_parts(38_623_000, 6284)
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
     }
 }
