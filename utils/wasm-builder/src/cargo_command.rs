@@ -141,7 +141,7 @@ impl CargoCommand {
 
         // https://doc.rust-lang.org/cargo/reference/environment-variables.html
         // `RUSTC_WRAPPER` and `RUSTC_WORKSPACE_WRAPPER` are not removed due to tools like sccache.
-        for env_var in [
+        const INHERITED_ENV_VARS: &[&str] = &[
             "CARGO",
             "CARGO_MANIFEST_DIR",
             "CARGO_MANIFEST_LINKS",
@@ -156,12 +156,17 @@ impl CargoCommand {
             "RUSTDOC",
             "RUSTC_LINKER",
             "CARGO_ENCODED_RUSTFLAGS",
-        ] {
+        ];
+
+        for env_var in INHERITED_ENV_VARS {
             command.env_remove(env_var);
         }
 
+        const INHERITED_ENV_VARS_WITH_PREFIX: &[&str] =
+            &["CARGO_FEATURE_", "CARGO_CFG_", "DEP_", "CARGO_PKG_"];
+
         for (env_var, _) in env::vars() {
-            for prefix in ["CARGO_FEATURE_", "CARGO_CFG_", "DEP_", "CARGO_PKG_"] {
+            for prefix in INHERITED_ENV_VARS_WITH_PREFIX {
                 if env_var.starts_with(prefix) {
                     command.env_remove(&env_var);
                 }
