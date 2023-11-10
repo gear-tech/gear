@@ -3332,6 +3332,80 @@ fn memory_access_cases() {
 }
 
 #[test]
+fn gas_limit_exceeded_oob_case() {
+    let wat = r#"(module
+		(import "env" "memory" (memory 512))
+        (import "env" "gr_send_init" (func $send_init (param i32)))
+        (import "env" "gr_send_push" (func $send_push (param i32 i32 i32 i32)))
+		(export "init" (func $init))
+		(func $init
+            (local $addr i32)
+            (local $handle i32)
+
+            ;; init message sending
+            i32.const 0x0
+            call $send_init
+
+            ;; load handle and set it to local
+            i32.const 0x0
+            i32.load
+            local.set $handle
+
+            ;; push message payload out of bounds
+            ;; each iteration we change gear page where error is returned
+            (loop
+                local.get $handle
+                i32.const 0x1000_0000 ;; out of bounds payload addr
+                i32.const 0x1
+                local.get $addr
+                call $send_push
+
+                local.get $addr
+                i32.const 0x4000
+                i32.add
+                local.tee $addr
+                i32.const 0x0200_0000
+                i32.ne
+                br_if 0
+            )
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let gas_limit = 10_000_000_000;
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        // let prog_id = generate_program_id(&code, &salt);
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_limit,
+            0,
+            false,
+        )
+        .unwrap();
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+
+        // We have sent message with `gas_limit`, but it must not be enough,
+        // because one write access to memory costs 100_000_000 gas (storage write cost).
+        // Fallible syscall error is written in each iteration to new gear page,
+        // so to successfully finish execution must be at least 100_000_000 * 512 * 4 = 204_800_000_000 gas,
+        // which is bigger than than provided `gas_limit`.
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
+    });
+}
+
+#[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
     use gear_runtime_interface as gear_ri;
