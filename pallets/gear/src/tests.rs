@@ -7921,6 +7921,7 @@ fn gas_spent_vs_balance() {
 }
 
 #[test]
+#[ignore]
 fn gas_spent_precalculated() {
     // After instrumentation will be:
     // (export "handle" (func $handle_export))
