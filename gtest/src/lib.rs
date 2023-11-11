@@ -311,6 +311,8 @@
 //! assert_eq!(prog.balance(), 1000);
 //! ```
 #![deny(missing_docs)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 mod error;
 mod log;
