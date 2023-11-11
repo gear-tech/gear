@@ -31,10 +31,15 @@ pub fn handle_reply(checker: [u8; 32]) -> Calls {
         .send_wgas(checker, Arg::bytes(SUCCESS_MESSAGE), 10_000)
 }
 
+pub fn handle_signal() -> Calls {
+    Calls::builder().noop()
+}
+
 pub fn scheme(checker: [u8; 32], destination: [u8; 32], gas_to_send: u64) -> Scheme {
     Scheme::predefined(
         init(),
         handle(destination, gas_to_send),
         handle_reply(checker),
+        handle_signal(),
     )
 }

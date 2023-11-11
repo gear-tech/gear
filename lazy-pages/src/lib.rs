@@ -27,6 +27,8 @@
 //! It's not necessary behavior, but more simple and safe.
 
 #![allow(clippy::items_after_test_module)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 mod common;
 mod globals;
