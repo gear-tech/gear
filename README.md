@@ -5,12 +5,12 @@
   </a>
 </p>
 
-<h4 align="center">
-Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in a few minutes.
-</h4>
+<h3 align="center">
+Gear Protocol is a Substrate-based solution for developers, enabling anyone to run a dApp in just a few minutes.
+</h3>
 
 #
-
+  
 <div align="center">
 
 [![CI][c1]][c2]
@@ -35,19 +35,19 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 [l2]: https://github.com/gear-tech/gear/blob/master/LICENSE
 </div>
 
-<p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with our daily progress!</p>
+<p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with daily protocol's development progress!</p>
 
 # Getting Started
 
-1. :open_hands: The easiest way to get started with Gear is by using the demo environment at [https://idea.gear-tech.io](https://idea.gear-tech.io).
+1. :open_hands: The easiest way to get started with Gear Protocol is by using the demo environment at [https://idea.gear-tech.io](https://idea.gear-tech.io).
 
-2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test smart contract to Wasm. :running: Upload and run smart contract in Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara-network.io), send a message to a program, check how it is going.
+2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test program to Wasm. :running: Upload and run the program on the Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara-network.io), send a message to a program, check how it is going.
 
-3. :scroll: Write your own smart contract or choose one from the available comprehensive [examples](https://github.com/gear-foundation/dapps) for a convenient and swift onboarding process.
+3. :scroll: Write your own program or use one from the comprehensive [examples library](https://github.com/gear-foundation/dapps) as a basis for a convenient and swift onboarding process.
 
 4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
-5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/docs/developing-contracts/introduction) of the Gear Wiki for more details about how to implement and run your dApp in Gear.
+5. :dolphin: Deep dive to the [Examples section](https://wiki.gear-tech.io/docs/developing-contracts/introduction) of the Gear Wiki for more details about how to implement and run your dApp with Gear.
 
 ## Run Gear Node
 
@@ -92,39 +92,41 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 ## Implement and run your own blockchain application
 
-1. Visit the [Gear Wiki](https://wiki.gear-tech.io/docs/examples/prerequisites) to explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own smart contract or take one from the available templates. Adapt a template in accordance with your business needs.
+1. Visit the [Gear Wiki](https://wiki.gear-tech.io/docs/examples/prerequisites) to explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own program or take one from the available templates. Adapt a template in accordance with your business needs.
 
-2. Test your smart contract off-chain, test it on-chain using a local node, then upload to Gear-powered network via [Gear Idea](https://idea.gear-tech.io/).
+2. Test your program off-chain, test it on-chain using a local node, then upload to Gear-powered network via [Gear Idea](https://idea.gear-tech.io/).
 
-3. Implement frontend applications that interact with your smart contracts using [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend).
+3. Implement frontend application that interacts with your program using [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend).
 
-# Gear components
+# Gear Protocol components
 
-* [core](https://github.com/gear-tech/gear/tree/master/core) - Gear engine for distributed computing core components.
+* [core](https://github.com/gear-tech/gear/tree/master/core) - engine for distributed computing core components.
 
-* [node](https://github.com/gear-tech/gear/tree/master/node) - Gear substrate-based node, ready for hacking :rocket:.
+* [node](https://github.com/gear-tech/gear/tree/master/node) - substrate-based node, ready for hacking :rocket:.
 
-* [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - Standard library for Gear smart contracts.
+* [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - standard library for implementing programs with Gear Protocol.
+
+* [gtest](https://github.com/gear-tech/gear/tree/master/gtest) - fast and lightweight tool for debugging program logic.
+
+* [gclient](https://github.com/gear-tech/gear/tree/master/gclient) - a tool for testing programs with a real blockchain network.
 
 * [gear-js](https://github.com/gear-tech/gear-js/tree/main/api) - JSON-RPC API of Gear backend.
 
-* [examples](https://github.com/gear-foundation/dapps) - Smart contract examples.
+Go to https://docs.gear.rs to dive into the documentation on Gear Protocol crates.
 
-Go to https://docs.gear.rs to dive into the documentation on Gear crates.
-
-# What does Gear do?
+# What does Gear Protocol do?
 
 <p align="center">
-<img src="images/rust.png" height="64"><br>Gear provides the easiest and most cost-effective way <br>to run WebAssembly programs (smart-contracts) compiled from <br>many popular languages, such as Rust, C/C++ and more.
+<img src="images/rust.png" height="64"><br>Gear Protocol provides the easiest and most cost-effective way <br>to run Wasm programs compiled from <br>many popular languages, such as Rust, C/C++ and more.
 </p>
 <p align="center">
-<img src="images/api.png" height="64"><br>Gear ensures very minimal, intuitive, and sufficient API <br>for running both newly written and existing programs <br>on multiple networks without the need to rewrite them.
+<img src="images/api.png" height="64"><br>It ensures very minimal, intuitive, and sufficient API <br>for running both newly written and existing programs <br>on multiple Gear-powered networks without the need to rewrite them.
 </p>
 <p align="center">
-<img src="images/state.png" height="64"><br>Smart Contracts are stored in the blockchain’s state <br>and are invoked preserving their state upon request.
+<img src="images/state.png" height="64"><br>Programs are stored in the blockchain’s state <br>and are invoked preserving their state upon request.
 </p>
 <p align="center">
-<img src="images/apps.png" height="64"><br>Gear facilitates a seamless transition to Web3, <br>enabling the operation of dApps, microservices, middleware, and open APIs.
+<img src="images/apps.png" height="64"><br>Gear Protocol facilitates a seamless transition to Web3, <br>enabling the operation of dApps, microservices, middleware, and open APIs.
 </p>
 
 ### :fire: Key features
@@ -132,24 +134,24 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
  - Programs run in Wasm VM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
  - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
- - dApp in minutes using Gear libraries
+ - **Unique** :crown: : Continued messaging automation, payless transactions, and other features enable the implementation of truly on-chain user-friendly dApps.
+ - **Unique** :crown: : dApp in minutes using Gear Protocol's libraries
  - Based on Substrate
 
 ### Main capabilities
 
-Gear enables anyone to create and run any custom-logic dApp and is a go-to solution for the following types of applications:
-  - **Run dApps** that support business logic of any project in the **decentralized Gear network** (such as the [Vara Network](https://vara-network.io/)). Upload programs to the network and interact with them.
-  - Being a **Polkadot parachain**, Gear establishes cross-chain communications between other blockchains, allowing anyone to run a dApp in the Polkadot network in a very **cost-less** manner.
-  - Join Substrate-supported blockchains in any other platform outside Polkadot.
-  - A standalone instance running microservices, middleware, open API and more
+  - Gear Protocol enables anyone to create and run a custom-logic **decentralized programs**. 
+  - Programs can support business logic of any other projects running in the **Gear-powered network** (such as the [Vara Network](https://vara-network.io/)) and interact with them.
+  - Establish cross-chain communications between other Substrate-supported blockchains, allowing anyone to run a dApp in the Dotsama ecosystem in a very **cost-less** manner.
+  - A Gear node can run as a standalone instance running microservices, middleware, open API and more.
 
-  # Why?
+# Why?
 
 The blockchain technology launched a rapid transition from centralized, server-based internet (Web2) to decentralized, distributed one (Web3).
 
-Web3 introduces a new type of decentralized applications (dApps) that enable the existence of DeFi, DEX, Decentralized marketplaces, NFTs, Creators and Social Tokens.
+Web3 introduces a new type of applications (dApps) that enable the existence of decentralized Gaming, DeFi, DEX, Decentralized marketplaces, NFTs, Creators and Social Tokens.
 
-Smart Contract is an equivalent of a microservice which is stored on the blockchain network and is the essential building block of a decentralized application.
+Programs running on the blockchain network can serve as the equivalent of microservices, which are the essential building blocks of decentralized applications.
 
 Modern blockchains solve many issues of the older blockchain networks, such as:
  - Lack of scalability, low transaction speed, high transaction costs
@@ -157,23 +159,17 @@ Modern blockchains solve many issues of the older blockchain networks, such as:
  - Complex and inefficient native consensus protocols
  - Absence of intercommunication tools
 
-But still have room for improvements due to:
- - Fixated, rigid native consensus protocols
+But the room for improvements remains related to:
+ - Optimisation of the user experience when using Web3 applications
  - Lack of interoperability with other networks
-
-To resolve the interoperability issue, Parity technologies focused on creating a technology that connects every other blockchain:
-  - Polkadot - a blockchain of blockchains. Provides a “relay chain” (the primary blockchain) that enables “parachains” (functional blockchains) to be deployed on top of it. All parachains are interconnected, creating a massive network of multifunctional blockchain services.
-  - Substrate - a modular framework that allows to create custom-built blockchains with consensus mechanism, core functionality and security out of the box.
-
-Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama. Substrate serves as a layer of communication between the relay chain and the parachain.
 
 # How does it work?
 
-The internal flow of Gear:
+The internal flow of Gear Protocol:
 
   <img src="images/internal_flow.jpg" alt="Snow" style="width:100%;">
 
-Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how Gear works internally.
+Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how it works internally.
 
 # Performance
 
@@ -186,7 +182,7 @@ Here are some features in progress or planned: https://github.com/gear-tech/gear
 
 # License
 
-Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
+Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
 
 ##
 
