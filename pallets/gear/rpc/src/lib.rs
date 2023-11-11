@@ -20,6 +20,8 @@
 
 #![allow(clippy::too_many_arguments)]
 #![allow(where_clauses_object_safety)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 use gear_common::Origin;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
