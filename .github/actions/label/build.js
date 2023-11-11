@@ -43,7 +43,7 @@ const skip = async ({ core, github }) => {
       run.name === "build / linux"
       || run.name === "build / macos-x86"
       || (run.name === "build" && run.conclusion !== "skipped")) {
-      return true;
+      return [true];
     }
   }
 
