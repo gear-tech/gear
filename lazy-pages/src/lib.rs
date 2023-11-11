@@ -42,11 +42,11 @@ mod utils;
 mod tests;
 
 pub use crate::common::LazyPagesStorage;
-pub use common::{LazyPagesVersion, PagePrefix, PageSizes};
+pub use common::{LazyPagesVersion, PageSizes};
 pub use host_func::pre_process_memory_accesses;
 
 use crate::{
-    common::{ContextError, LazyPagesContext, WeightNo, Weights},
+    common::{ContextError, LazyPagesContext, PagePrefix, WeightNo, Weights},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };

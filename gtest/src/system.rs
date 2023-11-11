@@ -22,6 +22,7 @@ use crate::{
     manager::{Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
 };
+use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
@@ -29,9 +30,8 @@ use gear_core::{
     memory::PageBuf,
     message::Dispatch,
     pages::GearPage,
-    program::MemoryInfix,
 };
-use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion, PagePrefix};
+use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{
@@ -40,11 +40,19 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     env, fs,
     io::Write,
-    mem,
     path::Path,
     rc::Rc,
     thread,
 };
+
+#[derive(Decode)]
+#[codec(crate = codec)]
+struct PageKey {
+    _page_storage_prefix: [u8; 32],
+    program_id: ProgramId,
+    _memory_infix: u32,
+    page: GearPage,
+}
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct PagesData(Rc<RefCell<HashMap<ProgramId, BTreeMap<GearPage, PageBuf>>>>);
@@ -72,6 +80,14 @@ impl PagesData {
             .unwrap_or_default()
     }
 
+    pub fn contains_page(&self, program_id: ProgramId, page: GearPage) -> bool {
+        self.0
+            .borrow()
+            .get(&program_id)
+            .map(|pages| pages.contains_key(&page))
+            .unwrap_or(false)
+    }
+
     pub fn get_page(&self, program_id: ProgramId, page: GearPage) -> Option<PageBuf> {
         self.0.borrow().get(&program_id)?.get(&page).cloned()
     }
@@ -90,30 +106,18 @@ struct PagesStorage {
     pages_data: PagesData,
 }
 
-impl PagesStorage {
-    fn parse_key(prefix: &[u8]) -> (ProgramId, MemoryInfix) {
-        let (page_prefix, key) = prefix.split_at(System::PAGE_STORAGE_PREFIX.len());
-        assert_eq!(page_prefix, System::PAGE_STORAGE_PREFIX);
-
-        let (program_id, prefix) = key.split_at(mem::size_of::<ProgramId>());
-        let program_id = ProgramId::from(program_id);
-
-        let memory_infix: [u8; 4] = prefix.try_into().unwrap();
-        let memory_infix = u32::from_le_bytes(memory_infix);
-        let memory_infix = MemoryInfix::new(memory_infix);
-
-        (program_id, memory_infix)
-    }
-}
-
 impl LazyPagesStorage for PagesStorage {
-    fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
-        let (program_id, _infix) = Self::parse_key(prefix.as_slice());
-        self.pages_data.get_page(program_id, page).is_some()
+    fn page_exists(&self, mut key: &[u8]) -> bool {
+        let PageKey {
+            program_id, page, ..
+        } = PageKey::decode_all(&mut key).expect("Invalid key");
+        self.pages_data.contains_page(program_id, page)
     }
 
-    fn load_page(&mut self, prefix: &PagePrefix, page: GearPage, buffer: &mut [u8]) -> Option<u32> {
-        let (program_id, _infix) = Self::parse_key(prefix.as_slice());
+    fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
+        let PageKey {
+            program_id, page, ..
+        } = PageKey::decode_all(&mut key).expect("Invalid key");
         let page_buf = self.pages_data.get_page(program_id, page)?;
         buffer.copy_from_slice(&page_buf);
         Some(page_buf.len() as u32)

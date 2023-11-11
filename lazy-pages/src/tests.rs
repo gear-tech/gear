@@ -18,7 +18,7 @@
 
 use crate::{
     common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesStorage,
-    LazyPagesVersion, PagePrefix, UserSignalHandler,
+    LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::{
     pages::{GearPage, PageDynSize, PageU32Size, WasmPage},
@@ -31,16 +31,11 @@ use region::Protection;
 struct NoopStorage;
 
 impl LazyPagesStorage for NoopStorage {
-    fn page_exists(&self, _prefix: &PagePrefix, _page: GearPage) -> bool {
+    fn page_exists(&self, _key: &[u8]) -> bool {
         unreachable!()
     }
 
-    fn load_page(
-        &mut self,
-        _prefix: &PagePrefix,
-        _page: GearPage,
-        _buffer: &mut [u8],
-    ) -> Option<u32> {
+    fn load_page(&mut self, _key: &[u8], _buffer: &mut [u8]) -> Option<u32> {
         unreachable!()
     }
 }

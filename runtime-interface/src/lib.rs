@@ -28,11 +28,10 @@ use codec::{Decode, Encode};
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
-    pages::GearPage,
     str::LimitedStr,
 };
 #[cfg(feature = "std")]
-use gear_lazy_pages::{LazyPagesStorage, PagePrefix};
+use gear_lazy_pages::LazyPagesStorage;
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -121,14 +120,12 @@ struct SpIoProgramStorage;
 
 #[cfg(feature = "std")]
 impl LazyPagesStorage for SpIoProgramStorage {
-    fn page_exists(&self, prefix: &PagePrefix, page: GearPage) -> bool {
-        let key = prefix.key_for_page(page);
-        sp_io::storage::exists(&key)
+    fn page_exists(&self, key: &[u8]) -> bool {
+        sp_io::storage::exists(key)
     }
 
-    fn load_page(&mut self, prefix: &PagePrefix, page: GearPage, buffer: &mut [u8]) -> Option<u32> {
-        let key = prefix.key_for_page(page);
-        sp_io::storage::read(&key, buffer, 0)
+    fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32> {
+        sp_io::storage::read(key, buffer, 0)
     }
 }
 

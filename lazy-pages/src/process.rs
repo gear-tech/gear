@@ -166,7 +166,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                 }
 
                 let unprotected = if rt_ctx
-                    .page_has_data_in_storage(&exec_ctx.program_storage_prefix, page)
+                    .page_has_data_in_storage(&mut exec_ctx.program_storage_prefix, page)
                 {
                     // Charge for page data loading from storage.
                     let status = handler.charge_for_page_data_loading()?;
@@ -180,7 +180,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                     // Load and write data to memory.
                     let buffer_as_slice = slice::from_raw_parts_mut(page_buffer_ptr, page_size);
                     if !rt_ctx.load_page_data_from_storage(
-                        &exec_ctx.program_storage_prefix,
+                        &mut exec_ctx.program_storage_prefix,
                         page,
                         buffer_as_slice,
                     )? {
