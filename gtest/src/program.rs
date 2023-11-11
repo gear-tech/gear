@@ -451,6 +451,7 @@ impl<'a> Program<'a> {
             InnerProgram::Genuine {
                 program,
                 code_id,
+                pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
             },
         )
@@ -506,7 +507,8 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
@@ -515,6 +517,7 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
+        drop(actors);
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
@@ -532,12 +535,14 @@ impl<'a> Program<'a> {
         );
         let message = SignalMessage::new(origin_msg_id, code);
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
         };
 
+        drop(actors);
         let dispatch = message.into_dispatch(origin_msg_id, self.id);
         system.validate_and_run_dispatch(dispatch)
     }
@@ -733,7 +738,7 @@ impl<'a> Program<'a> {
 
         self.manager
             .borrow_mut()
-            .override_memory_pages(&self.id, mem);
+            .update_storage_pages(&self.id, mem);
         self.manager
             .borrow_mut()
             .override_balance(&self.id, balance);

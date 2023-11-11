@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Balance, ExtManager},
+    manager::{Actors, Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
 };
 use codec::{Decode, DecodeAll};
@@ -27,23 +27,13 @@ use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
     ids::{CodeId, ProgramId},
-    memory::PageBuf,
     message::Dispatch,
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap},
-    env, fs,
-    io::Write,
-    path::Path,
-    rc::Rc,
-    thread,
-};
+use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 #[derive(Decode)]
 #[codec(crate = codec)]
@@ -54,56 +44,9 @@ struct PageKey {
     page: GearPage,
 }
 
-#[derive(Debug, Default, Clone)]
-pub(crate) struct PagesData(Rc<RefCell<HashMap<ProgramId, BTreeMap<GearPage, PageBuf>>>>);
-
-impl PagesData {
-    pub fn insert(&mut self, program_id: ProgramId, page: GearPage, page_data: PageBuf) {
-        self.0
-            .borrow_mut()
-            .entry(program_id)
-            .or_default()
-            .insert(page, page_data);
-    }
-
-    pub fn remove(&mut self, program_id: ProgramId, page: GearPage) {
-        self.0.borrow_mut().entry(program_id).and_modify(|set| {
-            set.remove(&page);
-        });
-    }
-
-    pub fn get(&self, program_id: ProgramId) -> BTreeMap<GearPage, PageBuf> {
-        self.0
-            .borrow()
-            .get(&program_id)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    pub fn contains_page(&self, program_id: ProgramId, page: GearPage) -> bool {
-        self.0
-            .borrow()
-            .get(&program_id)
-            .map(|pages| pages.contains_key(&page))
-            .unwrap_or(false)
-    }
-
-    pub fn get_page(&self, program_id: ProgramId, page: GearPage) -> Option<PageBuf> {
-        self.0.borrow().get(&program_id)?.get(&page).cloned()
-    }
-
-    pub fn pages_keys(&self, program_id: ProgramId) -> BTreeSet<GearPage> {
-        self.0
-            .borrow()
-            .get(&program_id)
-            .map(|map| map.keys().copied().collect())
-            .unwrap_or_default()
-    }
-}
-
 #[derive(Debug)]
 struct PagesStorage {
-    pages_data: PagesData,
+    actors: Actors,
 }
 
 impl LazyPagesStorage for PagesStorage {
@@ -111,15 +54,23 @@ impl LazyPagesStorage for PagesStorage {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        self.pages_data.contains_page(program_id, page)
+        self.actors
+            .borrow()
+            .get(&program_id)
+            .and_then(|(actor, _)| actor.get_pages_data())
+            .map(|pages_data| pages_data.contains_key(&page))
+            .unwrap_or(false)
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
         let PageKey {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
-        let page_buf = self.pages_data.get_page(program_id, page)?;
-        buffer.copy_from_slice(&page_buf);
+        let actors = self.actors.borrow();
+        let (actor, _balance) = actors.get(&program_id)?;
+        let pages_data = actor.get_pages_data()?;
+        let page_buf = pages_data.get(&page)?;
+        buffer.copy_from_slice(page_buf);
         Some(page_buf.len() as u32)
     }
 }
@@ -153,8 +104,8 @@ impl System {
     pub fn new() -> Self {
         let ext_manager = ExtManager::new();
 
-        let pages_data = ext_manager.pages_data.clone();
-        let pages_storage = PagesStorage { pages_data };
+        let actors = ext_manager.actors.clone();
+        let pages_storage = PagesStorage { actors };
         gear_lazy_pages::init(
             LazyPagesVersion::Version1,
             LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
