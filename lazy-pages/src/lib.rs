@@ -151,12 +151,7 @@ pub fn initialize_for_program(
             wasm_mem_addr,
             wasm_mem_size,
             program_storage_prefix: PagePrefix::new_from_program_prefix(
-                runtime_ctx
-                    .pages_storage_prefix
-                    .iter()
-                    .chain(program_key.iter())
-                    .copied()
-                    .collect(),
+                [runtime_ctx.pages_storage_prefix.as_slice(), &program_key].concat(),
             ),
             accessed_pages: Default::default(),
             write_accessed_pages: Default::default(),
