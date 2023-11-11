@@ -326,7 +326,7 @@ impl ExtManager {
             .map(|dispatches| {
                 dispatches
                     .into_iter()
-                    .map(|dispatch| self.with_externalities(|this| this.run_dispatch(dispatch)))
+                    .map(|dispatch| self.run_dispatch(dispatch))
                     .collect()
             })
             .unwrap_or_default()
