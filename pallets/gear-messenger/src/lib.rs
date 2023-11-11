@@ -133,6 +133,8 @@
 //! length overflow (see Gear Payment Pallet).
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 // Runtime mock for running tests.
 #[cfg(test)]
@@ -141,6 +143,8 @@ mod mock;
 // Unit tests module.
 #[cfg(test)]
 mod tests;
+
+pub mod pallet_tests;
 
 // Public exports from pallet.
 pub use pallet::*;
