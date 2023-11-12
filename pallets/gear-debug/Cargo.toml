@@ -36,6 +36,7 @@ pallet-authorship.workspace = true
 [dev-dependencies]
 serde.workspace = true
 env_logger.workspace = true
+common = { workspace = true, features = ["std"] }
 wabt.workspace = true
 hex-literal.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }

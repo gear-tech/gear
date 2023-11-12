@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "1024")]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 extern crate alloc;
 
@@ -37,6 +39,8 @@ mod mock;
 
 #[cfg(test)]
 mod tests;
+
+pub mod pallet_tests;
 
 pub use crate::{
     manager::{ExtManager, HandleKind},
@@ -1894,13 +1898,19 @@ pub mod pallet {
                     .try_into()
                     .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
+                let existence_requirement = if keep_alive {
+                    ExistenceRequirement::KeepAlive
+                } else {
+                    ExistenceRequirement::AllowDeath
+                };
+
                 CurrencyOf::<T>::transfer(
                     &who,
                     &<T as frame_system::Config>::AccountId::from_origin(
                         message.destination().into_origin(),
                     ),
                     value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
+                    existence_requirement,
                 )?;
 
                 Pallet::<T>::deposit_event(Event::UserMessageSent {

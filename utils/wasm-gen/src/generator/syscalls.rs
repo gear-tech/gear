@@ -215,8 +215,8 @@ impl InvocableSysCall {
         })
     }
 
-    /// Returns the index of the destination param.
-    fn has_destination_param(&self) -> Option<usize> {
+    /// Returns the index of the destination param if a syscall has it.
+    fn destination_param_idx(&self) -> Option<usize> {
         use InvocableSysCall::*;
         use SysCallName::*;
 
@@ -226,6 +226,13 @@ impl InvocableSysCall {
             Loose(SendCommit | SendCommitWGas) => Some(1),
             _ => None,
         }
+    }
+
+    /// Returns `true` for every syscall which has a destination param idx and that is not `gr_exit` syscall,
+    /// as it only has destination param.
+    fn has_destination_param_with_value(&self) -> bool {
+        self.destination_param_idx().is_some()
+            && !matches!(self, InvocableSysCall::Loose(SysCallName::Exit))
     }
 
     // If syscall changes from fallible into infallible or vice versa in future,
