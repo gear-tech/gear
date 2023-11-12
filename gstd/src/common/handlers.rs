@@ -36,15 +36,16 @@ mod panic_handler {
     use crate::ext;
     use core::panic::PanicInfo;
 
-    #[cfg(not(all(feature = "panic-message", feature = "debug")))]
+    #[cfg(not(all(feature = "panic-messages", feature = "debug")))]
     #[panic_handler]
     pub fn panic(_: &PanicInfo) -> ! {
         ext::panic("no info")
     }
 
-    #[cfg(all(feature = "panic-message", feature = "debug"))]
+    #[cfg(all(feature = "panic-messages", feature = "debug"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
+        use crate::prelude::format;
         let msg = match (panic_info.message(), panic_info.location()) {
             (Some(msg), Some(loc)) => format!(
                 "'{:?}', {}:{}:{}",
