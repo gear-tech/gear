@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, CliConfiguration, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -149,8 +149,6 @@ pub fn run() -> sc_cli::Result<()> {
 
     let base = &mut cli.run.base;
 
-    let is_dev = base.is_dev().unwrap_or(false);
-
     // Force setting `Wasm` as default execution strategy.
     let execution_strategy = base
         .import_params
@@ -158,9 +156,10 @@ pub fn run() -> sc_cli::Result<()> {
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
 
+    let is_dev = base.shared_params.dev;
+
     // Checking if node supposed to be validator (explicitly or by shortcuts).
     let is_validator = base.validator
-        || base.shared_params.dev
         || base.alice
         || base.bob
         || base.charlie
