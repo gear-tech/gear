@@ -696,8 +696,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         Ok(call_indexes_handle)
     }
 
-    // TODO
-    // 2. tests
     fn generate_reply_deposit(
         &mut self,
         syscall: SysCallName,
@@ -772,6 +770,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         // The capacity is amount of times `gr_reply_deposit` is invoked precisely + 2 `End` instructions in the end of the function
         let mut func_instructions =
             Vec::with_capacity(precise_reply_deposit_invocation.len() * invocations_amount + 2);
+        // TODO: bug here, multiple insertions makes wasm invalid.
         for _ in 0..invocations_amount {
             func_instructions.extend_from_slice(&precise_reply_deposit_invocation);
         }

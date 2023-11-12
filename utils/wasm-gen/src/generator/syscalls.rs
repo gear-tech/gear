@@ -71,6 +71,7 @@ impl InvocableSysCall {
                 SysCallName::ReservationReply => "precise_gr_reservation_reply",
                 SysCallName::SendCommit => "precise_gr_send_commit",
                 SysCallName::SendCommitWGas => "precise_gr_send_commit_wgas",
+                SysCallName::ReplyDeposit => "precise_gr_reply_deposit",
                 _ => unimplemented!(),
             },
         }

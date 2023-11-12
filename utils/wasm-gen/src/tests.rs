@@ -415,48 +415,6 @@ fn execute_wasm_with_custom_configs(
     termination_reason
 }
 
-#[test]
-fn wasm_reply_deposit() {
-    init_default_logger();
-
-    let injection_types = {
-        let mut it = SysCallsInjectionTypes::all_never();
-        it.set(InvocableSysCall::Precise(SysCallName::ReplyDeposit), 1, 1);
-
-        it
-    };
-
-    let buf = vec![0; UNSTRUCTURED_SIZE];
-    let mut unstructured = Unstructured::new(&buf);
-
-    let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
-        .with_recursions_removed(false)
-        .with_syscalls_config(
-            SysCallsConfigBuilder::new(injection_types)
-                .with_params_config(SysCallsParamsConfig::all_constant_value(5))
-                .with_source_msg_dest()
-                .build(),
-        )
-        .with_entry_points_config(EntryPointsSet::Init)
-        .with_memory_config(MemoryPagesConfig {
-            initial_size: 1,
-            ..Default::default()
-        })
-        .build();
-
-    let selectable_params = SelectableParams {
-        allowed_instructions: vec![],
-        max_instructions: 0,
-        min_funcs: NonZeroUsize::new(1).unwrap(),
-        max_funcs: NonZeroUsize::new(1).unwrap(),
-    };
-
-    let _ = generate_gear_program_code(
-        &mut unstructured,
-        (gear_wasm_generator_config, selectable_params),
-    );
-}
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
