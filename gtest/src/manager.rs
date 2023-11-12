@@ -491,6 +491,8 @@ impl ExtManager {
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         if let Some((_, program)) = actor.get_executable_actor_data() {
+            drop(actors);
+
             core_processor::informational::execute_for_reply::<Ext, _>(
                 String::from("state"),
                 program.code().clone(),
