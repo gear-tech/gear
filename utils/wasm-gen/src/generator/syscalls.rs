@@ -149,14 +149,22 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
                 SysCallName::ReplyDeposit => SysCallSignature::gr([
-                    // Address of recipient and value (HashWithValue struct)
+                    // Address of recipient and value (HashWithValue struct). That's needed
+                    // because first `gr_send_input` is invoked and resulting message id is
+                    // used as an input to `gr_reply_deposit`.
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                         HashType::ActorId,
                     ))),
+                    // An offset defining starting index in the received payload (related to `gr_send_input`).
                     ParamType::Size,
+                    // Length of the slice of the received message payload (related to `gr_send_input`).
                     ParamType::Size,
+                    // Delay (related to `gr_send_input`).
                     ParamType::Delay,
+                    // Amount of gas deposited for a message id got from `gr_send_input`.
+                    // That's an actual input for `gr_reply_deposit`
                     ParamType::Gas,
+                    // Error pointer
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                         HashType::MessageId,
                     ))),

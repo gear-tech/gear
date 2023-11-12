@@ -123,7 +123,7 @@ fn injecting_addresses_works() {
         })
         .with_syscalls_config(
             SysCallsConfigBuilder::new(Default::default())
-                .with_data_offset_msg_dest(addresses)
+                .with_addresses_msg_dest(addresses)
                 .build(),
         )
         .build();

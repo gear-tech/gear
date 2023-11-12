@@ -697,7 +697,6 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     // TODO
-    // 1. check signature for the precise call and potential values there
     // 2. tests
     fn generate_reply_deposit(
         &mut self,
