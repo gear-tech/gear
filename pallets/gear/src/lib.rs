@@ -1836,7 +1836,7 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `batch_index`: index of the memory pages batch.
         #[pallet::call_index(12)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_check(ProgramStorageOf::<T>::resume_session_batch_count(&session_id, *batch_index as usize).unwrap_or(0)))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_check(ProgramStorageOf::<T>::resume_session_batch_count(session_id, *batch_index as usize).unwrap_or(0)))]
         pub fn resume_session_check(
             origin: OriginFor<T>,
             session_id: SessionId,
