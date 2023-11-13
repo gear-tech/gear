@@ -13678,19 +13678,13 @@ fn free_range_oob_error() {
     const WAT: &str = r#"
 (module
     (import "env" "memory" (memory 1))
-    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32)))
     (export "init" (func $init))
     (func $init
         ;; free impossible and non-existing range
         i32.const 0x0
         i32.const 0xffffff
         call $free_range
-
-        i32.const 1
-        i32.ne
-        if
-            unreachable
-        end
     )
 )
     "#;
@@ -13725,19 +13719,15 @@ fn free_range_invalid_range_error() {
     const WAT: &str = r#"
 (module
     (import "env" "memory" (memory 1))
-    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32)))
     (export "init" (func $init))
     (func $init
         ;; free invalid range (start > end)
         i32.const 0x55
         i32.const 0x2
         call $free_range
-
-        i32.const 0
-        i32.ne
-        if
-            unreachable
-        end
+        i32.const 0x0
+        call $free_range
     )
 )
     "#;
@@ -13758,7 +13748,6 @@ fn free_range_invalid_range_error() {
         let mid = get_last_message_id();
 
         run_to_next_block(None);
-
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
@@ -13774,7 +13763,7 @@ fn free_range_success() {
     (import "env" "memory" (memory 1))
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
     (import "env" "free" (func $free (param i32) (result i32)))
-    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32)))
     (export "init" (func $init))
     (func $init
         ;; allocate 4 pages
@@ -13801,12 +13790,6 @@ fn free_range_success() {
         i32.const 0x1
         i32.const 0x4
         call $free_range
-
-        i32.const 0
-        i32.ne
-        if
-            unreachable
-        end
     )
 )
     "#;

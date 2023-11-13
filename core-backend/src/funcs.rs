@@ -675,29 +675,26 @@ where
         })
     }
 
-    pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i32> {
-        InfallibleSysCall::new(
-            RuntimeCosts::FreeRangeBase,
-            move |ctx: &mut CallerWrap<Ext>| {
-                let page_err = |_| {
-                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
-                        TrapExplanation::Unknown,
-                    ))
-                };
+    pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext> {
+        InfallibleSysCall::new(RuntimeCosts::FreeRange, move |ctx: &mut CallerWrap<Ext>| {
+            let page_err = |_| {
+                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                    TrapExplanation::Unknown,
+                ))
+            };
 
-                let start = WasmPage::new(start).map_err(page_err)?;
-                let end = WasmPage::new(end).map_err(page_err)?;
+            let start = WasmPage::new(start).map_err(page_err)?;
+            let end = WasmPage::new(end).map_err(page_err)?;
 
-                // TODO #3494
-                ctx.ext_mut().free_range(start, end).map_err(|_| {
-                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
-                        TrapExplanation::Unknown,
-                    ))
-                })?;
+            // TODO #3494
+            ctx.ext_mut().free_range(start, end).map_err(|_| {
+                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                    TrapExplanation::Unknown,
+                ))
+            })?;
 
-                Ok(0)
-            },
-        )
+            Ok(())
+        })
     }
 
     pub fn env_vars(vars_ver: u32, vars_ptr: u32) -> impl SysCall<Ext> {
