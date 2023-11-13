@@ -133,6 +133,8 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
+        let built_in_actor_ids = T::BuiltInActor::ids();
+
         loop {
             if QueueProcessingOf::<T>::denied() {
                 return Err(
@@ -150,37 +152,44 @@ where
             let dispatch_id = queued_dispatch.id();
             let dispatch_reply = queued_dispatch.reply_details().is_some();
 
-            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                actor_id.into_origin(),
-            ));
-
-            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
-                // At this point gas counters should be changed accordingly so fetch the program data.
-                match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
-                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                    ActorResult::Continue => Err(precharged_dispatch),
-                }
-            };
-
-            let dispatch_id = queued_dispatch.id();
-            let success_reply = queued_dispatch
-                .reply_details()
-                .map(|rd| rd.to_reply_code().is_success())
-                .unwrap_or(false);
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
+            let mut skip_if_allowed = false;
 
-            let skip_if_allowed = success_reply && gas_limit == 0;
+            let journal = if built_in_actor_ids.contains(&actor_id)
+                && matches!(queued_dispatch.kind(), DispatchKind::Handle)
+            {
+                T::BuiltInActor::handle(queued_dispatch, gas_limit)
+            } else {
+                let balance = CurrencyOf::<T>::free_balance(
+                    &<T::AccountId as Origin>::from_origin(actor_id.into_origin()),
+                );
 
-            let step = QueueStep {
-                block_config: &block_config,
-                ext_manager: &mut ext_manager,
-                gas_limit,
-                dispatch: queued_dispatch,
-                balance: balance.unique_saturated_into(),
-                get_actor_data,
+                let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
+                    // At this point gas counters should be changed accordingly so fetch the program data.
+                    match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
+                        ActorResult::Data(data) => Ok((precharged_dispatch, data)),
+                        ActorResult::Continue => Err(precharged_dispatch),
+                    }
+                };
+
+                let success_reply = queued_dispatch
+                    .reply_details()
+                    .map(|rd| rd.to_reply_code().is_success())
+                    .unwrap_or(false);
+
+                skip_if_allowed = success_reply && gas_limit == 0;
+
+                let step = QueueStep {
+                    block_config: &block_config,
+                    ext_manager: &mut ext_manager,
+                    gas_limit,
+                    dispatch: queued_dispatch,
+                    balance: balance.unique_saturated_into(),
+                    get_actor_data,
+                };
+                step.execute().unwrap_or_else(|e| unreachable!("{e:?}"))
             };
-            let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance

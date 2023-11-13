@@ -10,6 +10,7 @@ galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen = { path = "codegen" }
 gear-core-errors.workspace = true
+gear-built-in-actor-common.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }

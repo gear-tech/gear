@@ -143,6 +143,32 @@ impl DebugInfo for () {
     }
 }
 
+/// A trait representing an interface of a built-in actor that can receive a message
+/// and produce a set of outputs that can then be converted into a reply message.
+pub trait BuiltInActor<ActorId> {
+    type Message;
+    type Output;
+
+    /// Returns available actors identifiers.
+    fn ids() -> BTreeSet<ActorId>;
+
+    /// Handles a message and returns an ordered sequence of outputs.
+    fn handle(message: Self::Message, gas_limit: u64) -> Vec<Self::Output>;
+}
+
+impl<ActorId> BuiltInActor<ActorId> for () {
+    type Message = StoredDispatch;
+    type Output = JournalNote;
+
+    fn ids() -> BTreeSet<ActorId> {
+        Default::default()
+    }
+
+    fn handle(_message: Self::Message, _gas_limit: u64) -> Vec<Self::Output> {
+        Default::default()
+    }
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -247,6 +273,9 @@ pub mod pallet {
             BalanceOf<Self>,
             VoucherId = Self::AccountId,
         >;
+
+        /// A built-in actor enabling staking features for programs.
+        type BuiltInActor: BuiltInActor<ProgramId, Message = StoredDispatch, Output = JournalNote>;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -456,6 +485,10 @@ pub mod pallet {
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
         ProgramRentDisabled,
+        /// User messages to this destination are not allowed.
+        ///
+        /// Occurs if a user attempts to send a message to a built-in actor.
+        IllegalDestination,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -858,10 +891,12 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Returns true if there is a program with the specified id (it may be paused).
+        /// Returns true if there is a program with the specified `program_id`` (it may be paused)
+        /// or this `program_id` belongs to the built-in actor.
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
+                || T::BuiltInActor::ids().contains(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -1847,6 +1882,12 @@ pub mod pallet {
                     gas_limit,
                     value.unique_saturated_into(),
                 ),
+            );
+
+            // Sending messages to a built-in actor is only allowed from programs.
+            ensure!(
+                !T::BuiltInActor::ids().contains(&destination),
+                Error::<T>::IllegalDestination
             );
 
             if Self::program_exists(destination) {

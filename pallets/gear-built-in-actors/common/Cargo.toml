@@ -1,0 +1,12 @@
+[package]
+name = "gear-built-in-actor-common"
+version = "1.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[dependencies]
+derive_more.workspace = true
+scale-info = { workspace = true, features = ["derive"] }

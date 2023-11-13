@@ -167,6 +167,9 @@ where
             T::DebugInfo::remap_id();
         }
 
+        // Retrieving the built-in actor's ids (chaching them if missing in storage).
+        let built_in_actor_ids = T::BuiltInActor::ids();
+
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
@@ -201,6 +204,23 @@ where
             let program_id = dispatch.destination();
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply_details().is_some();
+
+            // In case the destination is a built-in actor, process the dispatch differently.
+            if built_in_actor_ids.contains(&program_id) {
+                // TODO: confirm that we can skip the check of the message source being an active
+                // program: it can't be otherwise because user messages can only be sent to active
+                // programs while the built-in actor is not considered one.
+
+                // To play safe, check the dispatch kind is correct
+                match dispatch.kind() {
+                    DispatchKind::Handle => {
+                        let journal = T::BuiltInActor::handle(dispatch, gas_limit);
+                        core_processor::handle_journal(journal, &mut ext_manager);
+                    }
+                    _ => unreachable!("Built-in actor can only handle messages"),
+                }
+                continue;
+            }
 
             let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
                 program_id.into_origin(),

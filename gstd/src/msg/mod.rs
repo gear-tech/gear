@@ -52,4 +52,7 @@ pub use basic::*;
 mod encoded;
 pub use encoded::*;
 
+/// Export `gear-built-in-actor-common` crate.
+pub mod built_in;
+
 mod utils;

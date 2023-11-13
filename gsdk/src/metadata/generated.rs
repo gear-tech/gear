@@ -2675,6 +2675,11 @@ pub mod runtime_types {
                     #[codec(index = 16)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
+                    #[codec(index = 17)]
+                    #[doc = "User messages to this destination are not allowed."]
+                    #[doc = ""]
+                    #[doc = "Occurs if a user attempts to send a message to a built-in actor."]
+                    IllegalDestination,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -3017,6 +3022,27 @@ pub mod runtime_types {
                     #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientDeposit,
                 }
+            }
+        }
+        pub mod pallet_gear_built_in_actor {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "Message executed."]
+                    MessageExecuted {
+                        result:
+                            ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
+                    },
+                }
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum ActorType {
+                #[codec(index = 100)]
+                StakingProxy,
             }
         }
         pub mod pallet_gear_debug {
@@ -9222,6 +9248,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
+                #[codec(index = 109)]
+                GearBuiltInActor(runtime_types::pallet_gear_built_in_actor::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 199)]
@@ -10236,6 +10264,18 @@ pub mod storage {
             }
         }
     }
+    #[doc = "Storage of pallet `GearBuiltInActor`."]
+    pub enum GearBuiltInActorStorage {
+        Actors,
+    }
+    impl StorageInfo for GearBuiltInActorStorage {
+        const PALLET: &'static str = "GearBuiltInActor";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Actors => "Actors",
+            }
+        }
+    }
     #[doc = "Storage of pallet `GearDebug`."]
     pub enum GearDebugStorage {
         DebugMode,
@@ -10897,6 +10937,9 @@ pub mod exports {
     }
     pub mod gear_voucher {
         pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
+    }
+    pub mod gear_built_in_actor {
+        pub use super::runtime_types::pallet_gear_built_in_actor::pallet::Event;
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;

@@ -223,6 +223,8 @@ fn rewards_account_doesnt_get_deleted() {
 
 #[test]
 fn validators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
 
     let mut ext = ExtBuilder::default()
@@ -394,6 +396,8 @@ fn validators_rewards_disbursement_works() {
 
 #[test]
 fn nominators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -604,6 +608,8 @@ fn nominators_rewards_disbursement_works() {
 
 #[test]
 fn staking_blacklist_works() {
+    init_logger();
+
     use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
 
     let extra: SignedExtra = StakingBlackList::<Test>::new();
@@ -742,6 +748,8 @@ fn staking_blacklist_works() {
 
 #[test]
 fn inflation_at_ideal_staked_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -877,6 +885,8 @@ fn inflation_at_ideal_staked_adds_up() {
 
 #[test]
 fn inflation_when_nobody_stakes_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1022,6 +1032,8 @@ fn inflation_when_nobody_stakes_adds_up() {
 
 #[test]
 fn inflation_with_too_many_stakers_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1162,6 +1174,8 @@ fn inflation_with_too_many_stakers_adds_up() {
 
 #[test]
 fn unclaimed_rewards_burn() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1284,6 +1298,8 @@ fn unclaimed_rewards_burn() {
 
 #[test]
 fn empty_rewards_pool_causes_inflation() {
+    init_logger();
+
     let (target_inflation, ideal_stake, _, non_stakeable) = sensible_defaults();
     let pool_balance = 0; // empty rewards pool
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
@@ -1335,6 +1351,8 @@ fn empty_rewards_pool_causes_inflation() {
 
 #[test]
 fn election_solution_rewards_add_up() {
+    init_logger();
+
     use pallet_election_provider_multi_phase::{Config as MPConfig, RawSolution};
     use sp_npos_elections::ElectionScore;
 

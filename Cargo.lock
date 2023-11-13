@@ -2462,6 +2462,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-staking-broker"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gclient",
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "hashbrown 0.14.2",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "statrs",
+ "tokio",
+]
+
+[[package]]
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
@@ -4025,6 +4043,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-built-in-actor-common"
+version = "1.0.0"
+dependencies = [
+ "derive_more",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-call-gen"
 version = "0.1.0"
 dependencies = [
@@ -4853,6 +4879,7 @@ dependencies = [
  "futures",
  "galloc",
  "gcore",
+ "gear-built-in-actor-common",
  "gear-core-errors",
  "gstd-codegen",
  "hashbrown 0.14.2",
@@ -7601,6 +7628,7 @@ dependencies = [
  "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
+ "demo-staking-broker",
  "demo-state-rollback",
  "demo-sync-duplicate",
  "demo-wait",
@@ -7675,6 +7703,51 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-built-in-actor"
+version = "1.0.2"
+dependencies = [
+ "demo-staking-broker",
+ "derive_more",
+ "enum-iterator 1.4.1",
+ "env_logger",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-executive",
+ "frame-support",
+ "frame-support-test",
+ "frame-system",
+ "gear-built-in-actor-common",
+ "gear-common",
+ "gear-core",
+ "gear-core-errors",
+ "gear-core-processor",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-authorship",
+ "pallet-bags-list",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-authority-discovery",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 5.0.0",
 ]
 
 [[package]]
@@ -13653,6 +13726,7 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-built-in-actor",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
