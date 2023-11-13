@@ -62,7 +62,8 @@
 //! let wasm_gen_config = GearWasmGeneratorConfig {
 //!     memory_config: memory_pages_config,
 //!     entry_points_config: entry_points_set,
-//!     remove_recursions: true,
+//!     remove_recursions: false,
+//!     critical_gas_limit: Some(1_000_000),
 //!     syscalls_config,
 //! };
 //! ```
