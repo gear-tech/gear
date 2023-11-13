@@ -13726,8 +13726,6 @@ fn free_range_invalid_range_error() {
         i32.const 0x55
         i32.const 0x2
         call $free_range
-        i32.const 0x0
-        call $free_range
     )
 )
     "#;
