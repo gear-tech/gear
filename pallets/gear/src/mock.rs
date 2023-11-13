@@ -27,7 +27,12 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, limits::BlockWeights};
+use frame_system::{
+    self as system,
+    limits::BlockWeights,
+    mocking::{MockBlock, MockUncheckedExtrinsic},
+    pallet_prelude::BlockNumberFor,
+};
 use sp_core::H256;
 use sp_runtime::{
     generic,
@@ -38,8 +43,8 @@ use sp_std::{
     convert::{TryFrom, TryInto},
 };
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type UncheckedExtrinsic = MockUncheckedExtrinsic<Test>;
+type Block = MockBlock<Test>;
 type AccountId = u64;
 pub type BlockNumber = u32;
 type Balance = u128;
@@ -65,6 +70,69 @@ macro_rules! dry_run {
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };
+}
+
+pub fn run_to_block_step<Runtime>(
+    block_number: BlockNumberFor<Runtime>,
+    remaining_weight: Option<u64>,
+    gear_run: Option<bool>,
+) where
+    Runtime:
+        Config + frame_system::Config + pallet_gear_gas::Config + pallet_gear_messenger::Config,
+    <Runtime as frame_system::Config>::AccountId: Origin,
+{
+    system::Pallet::<Runtime>::set_block_number(block_number);
+    system::Pallet::<Runtime>::on_initialize(block_number);
+    pallet_gear_gas::Pallet::<Runtime>::on_initialize(block_number);
+    pallet_gear_messenger::Pallet::<Runtime>::on_initialize(block_number);
+    pallet_gear::Pallet::<Runtime>::on_initialize(block_number);
+
+    if let Some(remaining_weight) = remaining_weight {
+        GasAllowanceOf::<Runtime>::put(remaining_weight);
+        let max_block_weight = <BlockWeightsOf<Runtime> as Get<BlockWeights>>::get().max_block;
+        system::Pallet::<Runtime>::register_extra_weight_unchecked(
+            max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
+            DispatchClass::Normal,
+        );
+    }
+
+    if let Some(process_messages) = gear_run {
+        if !process_messages {
+            QueueProcessingOf::<Runtime>::deny();
+        }
+
+        pallet_gear::Pallet::<Runtime>::run(frame_support::dispatch::RawOrigin::None.into(), None)
+            .unwrap();
+    }
+
+    pallet_gear::Pallet::<Runtime>::on_finalize(block_number);
+
+    if gear_run.is_some() {
+        assert!(!system::Pallet::<Runtime>::events().iter().any(|e| {
+            let event = <<Runtime as Config>::RuntimeEvent as From<_>>::from(e.event.clone());
+            let Ok(event): Result<pallet_gear::Event<Runtime>, _> = event.try_into() else {
+                return false;
+            };
+
+            matches!(event, pallet_gear::Event::QueueNotProcessed)
+        }))
+    }
+}
+
+pub fn run_to_block_maybe_with_queue_impl<Runtime>(
+    n: BlockNumberFor<Runtime>,
+    remaining_weight: Option<u64>,
+    gear_run: Option<bool>,
+) where
+    Runtime:
+        Config + frame_system::Config + pallet_gear_gas::Config + pallet_gear_messenger::Config,
+    <Runtime as frame_system::Config>::AccountId: Origin,
+{
+    while system::Pallet::<Runtime>::block_number() < n {
+        let block_number = system::Pallet::<Runtime>::block_number();
+        system::Pallet::<Runtime>::on_finalize(block_number);
+        run_to_block_step::<Runtime>(block_number + One::one(), remaining_weight, gear_run);
+    }
 }
 
 // Configure a mock runtime to test the pallet.
@@ -228,57 +296,22 @@ pub fn get_weight_of_adding_task() -> Weight {
     }) - minimal_weight
 }
 
-pub fn run_to_block(n: BlockNumber, remaining_weight: Option<u64>) {
-    run_to_block_maybe_with_queue(n, remaining_weight, Some(true))
-}
-
 pub fn run_to_block_maybe_with_queue(
     n: BlockNumber,
     remaining_weight: Option<u64>,
     gear_run: Option<bool>,
 ) {
-    while System::block_number() < n {
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        GearGas::on_initialize(System::block_number());
-        GearMessenger::on_initialize(System::block_number());
-        Gear::on_initialize(System::block_number());
-
-        if let Some(remaining_weight) = remaining_weight {
-            GasAllowanceOf::<Test>::put(remaining_weight);
-            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
-            System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
-                DispatchClass::Normal,
-            );
-        }
-
-        if let Some(process_messages) = gear_run {
-            if !process_messages {
-                QueueProcessingOf::<Test>::deny();
-            }
-
-            Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
-        }
-
-        Gear::on_finalize(System::block_number());
-
-        if gear_run.is_some() {
-            assert!(!System::events().iter().any(|e| {
-                matches!(
-                    e.event,
-                    RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
-                )
-            }))
-        }
-    }
+    run_to_block_maybe_with_queue_impl::<Test>(n, remaining_weight, gear_run)
 }
 
-pub fn run_to_next_block(remaining_weight: Option<u64>) {
-    run_for_blocks(1, remaining_weight)
+pub fn run_to_block(n: BlockNumber, remaining_weight: Option<u64>) {
+    run_to_block_maybe_with_queue(n, remaining_weight, Some(true))
 }
 
 pub fn run_for_blocks(block_count: BlockNumber, remaining_weight: Option<u64>) {
     run_to_block(System::block_number() + block_count, remaining_weight);
+}
+
+pub fn run_to_next_block(remaining_weight: Option<u64>) {
+    run_for_blocks(1, remaining_weight)
 }
