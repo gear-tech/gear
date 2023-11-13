@@ -48,7 +48,7 @@ use std::{mem, num::NonZeroUsize};
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
 #[test]
-fn instrument_recursions() {
+fn inject_critical_gas_limit_works() {
     let wat1 = r#"
     (module
         (memory $memory0 (import "env" "memory") 16)
@@ -70,9 +70,9 @@ fn instrument_recursions() {
     let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
     let module =
         parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
-    let limited_recursions_module = utils::instrument_recursion(module);
+    let module_with_critical_gas_limit = utils::inject_critical_gas_limit(module, 1_000_000);
 
-    let wasm_bytes = limited_recursions_module
+    let wasm_bytes = module_with_critical_gas_limit
         .into_bytes()
         .expect("invalid pw module");
     assert!(wasmparser::validate(&wasm_bytes).is_ok());

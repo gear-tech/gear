@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![allow(dead_code)]
-
 use crate::wasm::PageCount as WasmPageCount;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -224,7 +222,7 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
-pub fn instrument_recursion(module: Module) -> Module {
+pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Module {
     let Some(mem_size) = module
         .import_section()
         .and_then(|section| {
@@ -310,7 +308,7 @@ pub fn instrument_recursion(module: Module) -> Module {
             Instruction::Call(gr_gas_available_index),
             Instruction::I32Const(gas_ptr as i32),
             Instruction::I64Load(3, 0),
-            Instruction::I64Const(1_000_000),
+            Instruction::I64Const(critical_gas_limit as i64),
             Instruction::I64LeU,
             Instruction::If(BlockType::NoResult),
         ]);
