@@ -679,28 +679,23 @@ where
         InfallibleSysCall::new(
             RuntimeCosts::FreeRangeBase,
             move |ctx: &mut CallerWrap<Ext>| {
-                let err = |_| {
+                let page_err = |_| {
                     UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                         TrapExplanation::Unknown,
                     ))
                 };
 
-                let start = WasmPage::new(start).map_err(err)?;
-                let end = WasmPage::new(end).map_err(err)?;
+                let start = WasmPage::new(start).map_err(page_err)?;
+                let end = WasmPage::new(end).map_err(page_err)?;
 
-                let res = ctx.ext_mut().free_range(start, end);
-                let res = ctx.process_alloc_func_result(res)?;
+                // TODO #3494
+                ctx.ext_mut().free_range(start, end).map_err(|_| {
+                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                        TrapExplanation::Unknown,
+                    ))
+                })?;
 
-                match &res {
-                    Ok(()) => {
-                        log::trace!("Free range {start:?}:{end:?}");
-                    }
-                    Err(err) => {
-                        log::trace!("Free failed: {err}");
-                    }
-                };
-
-                Ok(res.is_err() as i32)
+                Ok(0)
             },
         )
     }
