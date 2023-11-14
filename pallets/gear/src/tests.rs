@@ -3396,7 +3396,7 @@ fn gas_limit_exceeded_oob_case() {
         // because one write access to memory costs 100_000_000 gas (storage write cost).
         // Fallible syscall error is written in each iteration to new gear page,
         // so to successfully finish execution must be at least 100_000_000 * 512 * 4 = 204_800_000_000 gas,
-        // which is bigger than than provided `gas_limit`.
+        // which is bigger than provided `gas_limit`.
         assert_failed(
             message_id,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
