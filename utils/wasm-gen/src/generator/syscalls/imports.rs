@@ -759,6 +759,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
             Instruction::GetLocal(5),
             // Invocation of `gr_reply_deposit`.
             Instruction::Call(reply_deposit_idx as u32),
+            Instruction::End,
         ];
 
         let invocations_amount = self.unstructured.int_in_range(
@@ -767,14 +768,13 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 .range_of_send_input_calls(),
         )?;
 
-        // The capacity is amount of times `gr_reply_deposit` is invoked precisely + 2 `End` instructions in the end of the function
+        // The capacity is amount of times `gr_reply_deposit` is invoked precisely + 1 for `End` instruction.
         let mut func_instructions =
-            Vec::with_capacity(precise_reply_deposit_invocation.len() * invocations_amount + 2);
-        // TODO: bug here, multiple insertions makes wasm invalid.
+            Vec::with_capacity(precise_reply_deposit_invocation.len() * invocations_amount + 1);
         for _ in 0..invocations_amount {
             func_instructions.extend_from_slice(&precise_reply_deposit_invocation);
         }
-        func_instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
+        func_instructions.extend_from_slice(&[Instruction::End]);
 
         let func_instructions = Instructions::new(func_instructions);
         let call_indexes_handle =

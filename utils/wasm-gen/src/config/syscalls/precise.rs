@@ -53,6 +53,6 @@ impl PreciseSysCallsConfig {
 
 impl Default for PreciseSysCallsConfig {
     fn default() -> Self {
-        Self::new(0..=3, 1..=3)
+        Self::new(0..=3, 1..=1)
     }
 }
