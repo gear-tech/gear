@@ -708,11 +708,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         let precise_reply_deposit_invocation = [
             // Pointer to pid_value argument of HashWithValue type.
             Instruction::GetLocal(0),
-            // Pointer to offset defining starting index in the received message payload.
+            // Offset value defining starting index in the received message payload.
             Instruction::GetLocal(1),
-            // Pointer to length of the slice of the received message payload.
+            // Length of the slice of the received message payload.
             Instruction::GetLocal(2),
-            // Pointer to value of delay.
+            // Delay.
             Instruction::GetLocal(3),
             // Pointer to the result of the `gr_send_input`, which is of type ErrorWithHash.
             Instruction::GetLocal(5),
@@ -774,7 +774,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         for _ in 0..invocations_amount {
             func_instructions.extend_from_slice(&precise_reply_deposit_invocation);
         }
-        func_instructions.extend_from_slice(&[Instruction::End]);
+        func_instructions.push(Instruction::End);
 
         let func_instructions = Instructions::new(func_instructions);
         let call_indexes_handle =

@@ -45,7 +45,7 @@ impl PreciseSysCallsConfig {
         self.range_of_send_push_calls.clone()
     }
 
-    /// Get the range of `send_push*` syscalls.
+    /// Get the range of `send_input*` syscalls.
     pub fn range_of_send_input_calls(&self) -> RangeInclusive<usize> {
         self.range_of_send_input_calls.clone()
     }

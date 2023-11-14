@@ -33,7 +33,7 @@ use gear_core_backend::{
     error::{TerminationReason, TrapExplanation},
 };
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
-use gear_utils::{init_default_logger, NonEmpty};
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
