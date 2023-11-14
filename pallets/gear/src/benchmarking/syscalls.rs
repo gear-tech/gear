@@ -279,13 +279,7 @@ where
                     .checked_sub(1)
                     .and_then(|x| start.checked_add(x))
                     .unwrap();
-                instructions.extend([
-                    I32Const(start as i32),
-                    I32Const(end as i32),
-                    Call(1),
-                    I32Const(0),
-                ]);
-                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
+                instructions.extend([I32Const(start as i32), I32Const(end as i32), Call(1)]);
             }
         }
 

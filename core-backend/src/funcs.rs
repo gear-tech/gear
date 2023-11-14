@@ -691,9 +691,7 @@ where
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
                 ))
-            })?;
-
-            Ok(())
+            })
         })
     }
 

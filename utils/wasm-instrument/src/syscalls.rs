@@ -245,7 +245,7 @@ impl SysCallName {
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
-            Self::FreeRange => SysCallSignature::system([Free, FreeUpperBound], [I32]),
+            Self::FreeRange => SysCallSignature::system([Free, FreeUpperBound], []),
             Self::Debug => SysCallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
