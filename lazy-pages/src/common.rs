@@ -240,7 +240,7 @@ impl LazyPagesExecutionContext {
 /// First part is always the same, so we can copy it to buffer
 /// once and then use it for all pages.
 #[derive(Debug)]
-pub struct PagePrefix {
+pub(crate) struct PagePrefix {
     buffer: Vec<u8>,
 }
 
@@ -254,7 +254,7 @@ impl PagePrefix {
     }
 
     /// Returns key in storage for `page`.
-    pub fn key_for_page(&mut self, page: GearPage) -> &[u8] {
+    fn key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         let page_no: u32 = page.into();
         self.buffer[len - mem::size_of::<u32>()..len]
