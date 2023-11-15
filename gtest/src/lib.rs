@@ -28,6 +28,16 @@
 //! Rust compiler is required for running tests based on `gtest`. It is
 //! predictable and robust when used in continuous integration.
 //!
+//! ## Main concepts
+//!
+//! `gtest` is a library that provides a set of tools for testing Gear programs. The most important structures are:
+//!
+//! - [`System`] — a structure that represents the environment of the Gear network. It contains the current block number, timestamp, and other parameters. It also stores the mailbox and the list of programs.
+//! - [`Program`] — a structure that represents a Gear program. It contains the information about program and allows sending messages to other programs.
+//! - [`Log`] — a structure that represents a message log. It allows check the result of the program execution.
+//!
+//! Let's take a closer look at how to write tests using `gtest`.
+//!
 //! ## Import `gtest` lib
 //!
 //! To use the `gtest` library, you must import it into your `Cargo.toml` file
@@ -48,6 +58,59 @@
 //!
 //! [dev-dependencies]
 //! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
+//! ```
+//!
+//! ## Program example
+//!
+//! Let's write a simple program that will receive a message and reply to it.
+//!
+//! ```
+//! use gstd::{msg, prelude::*};
+//!
+//! #[cfg(test)]
+//! mod tests;
+//!
+//! #[no_mangle]
+//! extern "C" fn handle() {
+//!     let payload = msg::load_bytes().expect("Failed to load payload");
+//!
+//!     if payload == b"PING" {
+//!         msg::reply_bytes("PONG", 0).expect("Failed to send reply");
+//!     }
+//! }
+//! ```
+//!
+//! We will add a test that will check the program's behavior. To do this, we will use the `gtest` library.
+//!
+//! Our test will consist of the following steps:
+//!
+//! 1. Initialize the `System` structure.
+//! 2. Initialize the `Program` structure.
+//! 3. Send a message to the program.
+//! 4. Check the result of the program execution.
+//!
+//! Add these lines to the `tests.rs` module of your program:
+//!
+//! ```
+//! use gtest::{Log, Program, System};
+//!
+//!     #[test]
+//!     fn test_ping_pong() {
+//!        // Initialization of the common environment for running smart contracts.
+//!        let sys = System::new();
+//!        // Initialization of the current program structure.
+//!        let prog = Program::current(&sys);
+//!        // Send a message to the program.
+//!        let res = prog.send_bytes(100001, "PING");
+//!        // Check the result of the program execution.
+//!        // Create a log with the expected result.
+//!        let log = Log::builder()
+//!            .source(prog.id())
+//!            .dest(100001)
+//!            .payload_bytes("PONG");
+//!        // Make sure the log entry is in the result.
+//!        assert!(res.contains(&log));
+//!     }
 //! ```
 //!
 //! ## `gtest` capabilities
