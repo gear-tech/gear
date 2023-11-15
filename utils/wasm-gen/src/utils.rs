@@ -231,13 +231,13 @@ fn find_recursion_impl<Callback>(
 ///     loop { }
 /// }
 /// ```
-/// 
+///
 /// Code after injection gas limiter:
 /// ```no_run
 /// use gcore::exec;
 ///
 /// const CRITICAL_GAS_LIMIT: u64 = 1_000_000;
-/// 
+///
 /// fn func() {
 ///     // exit from recursions
 ///     if exec::gas_available() <= CRITICAL_GAS_LIMIT {
