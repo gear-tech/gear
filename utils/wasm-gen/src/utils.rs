@@ -225,7 +225,7 @@ fn find_recursion_impl<Callback>(
 /// Injects a critical gas limit to a given wasm module.
 ///
 /// Code before injection gas limiter:
-/// ```no_run
+/// ```ignore
 /// fn func() {
 ///     func();
 ///     loop { }
@@ -233,7 +233,7 @@ fn find_recursion_impl<Callback>(
 /// ```
 ///
 /// Code after injection gas limiter:
-/// ```no_run
+/// ```ignore
 /// use gcore::exec;
 ///
 /// const CRITICAL_GAS_LIMIT: u64 = 1_000_000;
