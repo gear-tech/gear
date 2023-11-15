@@ -1,7 +1,7 @@
 name: Crates IO
 
 on:
-  workflow_dispatch:
+  # workflow_dispatch:
 
 env:
   CARGO_INCREMENTAL: 0

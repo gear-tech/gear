@@ -89,11 +89,6 @@ pub fn login_as_alice() -> Result<()> {
     Ok(())
 }
 
-// /// Generate program id from code id and salt
-// pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-//     ProgramId::generate_from_user(CodeId::generate(bin), salt)
-// }
-
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
     AccountId32::from_ss58check("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW")

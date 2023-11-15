@@ -14,18 +14,18 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, features = ["std"] }
-environmental = "1.1.3"
+environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmer = { version = "2.2", features = ["singlepass"] }
+wasmer = { workspace = true, features = ["singlepass"] }
 wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
-wasmer-types = "2.2"
+wasmer-types.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
-wasmer-cache = { version = "2.2.1", optional = true }
-once_cell = "1.17.1"
-tempfile = "3.5.0"
+wasmer-cache = { workspace = true, optional = true }
+once_cell.workspace = true
+tempfile.workspace = true
 
 [features]
 default = ["wasmer-cache"]
