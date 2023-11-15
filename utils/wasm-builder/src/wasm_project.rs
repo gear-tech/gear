@@ -91,15 +91,12 @@ impl WasmProject {
             .to_string_lossy()
             .into();
 
-        let target_dir_name = env::var("CARGO_TARGET_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_err| "target".into());
-        let mut target_dir = out_dir.clone();
-        while target_dir.pop() {
-            if target_dir.ends_with(&target_dir_name) {
-                break;
-            }
-        }
+        let mut target_dir = out_dir
+            .ancestors()
+            .find(|path| path.ends_with(&profile))
+            .and_then(|path| path.parent())
+            .map(|p| p.to_owned())
+            .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
         wasm_target_dir.push("wasm32-unknown-unknown");
