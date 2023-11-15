@@ -222,7 +222,38 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
+/// Injects a critical gas limit to a given wasm module.
+///
+/// Code before injection gas limiter:
+/// ```no_run
+/// fn func() {
+///     func();
+///     loop { }
+/// }
+/// ```
+/// 
+/// Code after injection gas limiter:
+/// ```no_run
+/// use gcore::exec;
+///
+/// const CRITICAL_GAS_LIMIT: u64 = 1_000_000;
+/// 
+/// fn func() {
+///     // exit from recursions
+///     if exec::gas_available() <= CRITICAL_GAS_LIMIT {
+///         return;
+///     }
+///     func();
+///     loop {
+///         // exit from heavy loops
+///         if exec::gas_available() <= CRITICAL_GAS_LIMIT {
+///             return;
+///         }
+///     }
+/// }
+/// ```
 pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Module {
+    // get initial memory size of program
     let Some(mem_size) = module
         .import_section()
         .and_then(|section| {
@@ -240,8 +271,10 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         return module;
     };
 
+    // store available gas pointer on the last memory page
     let gas_ptr = mem_size - mem::size_of::<u64>() as u32;
 
+    // add gr_gas_available import if needed
     let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
         section
             .entries()
@@ -253,7 +286,8 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
                     .then_some(i as u32)
             })
     });
-    let rewrite_calls = maybe_gr_gas_available_index.is_none();
+    // sections should only be rewritten if the module did not previously have gr_gas_available import
+    let rewrite_sections = maybe_gr_gas_available_index.is_none();
 
     let (gr_gas_available_index, mut module) = match maybe_gr_gas_available_index {
         Some(gr_gas_available_index) => (gr_gas_available_index, module),
@@ -302,17 +336,22 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         let Type::Function(signature) = signature;
         let results = signature.results();
 
+        // create the body of the gas limiter:
         let mut body = Vec::with_capacity(results.len() + 9);
         body.extend_from_slice(&[
+            // gr_gas_available(gas_ptr)
             Instruction::I32Const(gas_ptr as i32),
             Instruction::Call(gr_gas_available_index),
+            // gas_available = *gas_ptr
             Instruction::I32Const(gas_ptr as i32),
             Instruction::I64Load(3, 0),
             Instruction::I64Const(critical_gas_limit as i64),
+            // if gas_available <= critical_gas_limit { return result; }
             Instruction::I64LeU,
             Instruction::If(BlockType::NoResult),
         ]);
 
+        // exit the current function with dummy results
         for result in results {
             let instruction = match result {
                 ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
@@ -331,8 +370,11 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             mem::replace(instructions, Vec::with_capacity(instructions.len()));
         let new_instructions = instructions;
 
+        // insert gas limiter at the beginning of each function to limit recursions
         new_instructions.extend_from_slice(&body);
 
+        // also insert gas limiter at the beginning of each block, loop and condition
+        // to limit control instructions
         for instruction in original_instructions {
             match instruction {
                 Instruction::Block(_) | Instruction::Loop(_) | Instruction::If(_) => {
@@ -340,8 +382,9 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
                     new_instructions.extend_from_slice(&body);
                 }
                 Instruction::Call(call_index)
-                    if rewrite_calls && call_index >= gr_gas_available_index =>
+                    if rewrite_sections && call_index >= gr_gas_available_index =>
                 {
+                    // fix function indexes if import gr_gas_available was inserted
                     new_instructions.push(Instruction::Call(call_index + 1));
                 }
                 _ => {
@@ -351,7 +394,8 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         }
     }
 
-    if rewrite_calls {
+    // fix other sections if import gr_gas_available was inserted
+    if rewrite_sections {
         let sections = module.sections_mut();
         sections.retain(|section| !matches!(section, Section::Custom(_)));
 
