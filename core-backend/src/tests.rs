@@ -595,3 +595,62 @@ fn test_register_write_as_with_zero_size() {
         core::mem::size_of::<u8>() as u32
     );
 }
+
+/// Check that all sys calls are supported by backend.
+#[test]
+fn test_sys_calls_table() {
+    use crate::{
+        env::{BackendReport, Environment},
+        error::ActorTerminationReason,
+        mock::MockExt,
+    };
+    use gear_core::message::DispatchKind;
+    use gear_wasm_instrument::{
+        gas_metering::ConstantCostRules,
+        inject,
+        parity_wasm::{self, builder},
+        SysCallName,
+    };
+
+    // Make module with one empty function.
+    let mut module = builder::module()
+        .function()
+        .signature()
+        .build()
+        .build()
+        .build();
+
+    // Insert syscalls imports.
+    for name in SysCallName::instrumentable() {
+        let sign = name.signature();
+        let types = module.type_section_mut().unwrap().types_mut();
+        let type_no = types.len() as u32;
+        types.push(parity_wasm::elements::Type::Function(sign.func_type()));
+
+        module = builder::from_module(module)
+            .import()
+            .module("env")
+            .external()
+            .func(type_no)
+            .field(name.to_str())
+            .build()
+            .build();
+    }
+
+    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let code = module.into_bytes().unwrap();
+
+    // Execute wasm and check success.
+    let ext = MockExt::default();
+    let env =
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
+    let report = env
+        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
+        .unwrap();
+
+    let BackendReport {
+        termination_reason, ..
+    } = report;
+
+    assert_eq!(termination_reason, ActorTerminationReason::Success.into());
+}
