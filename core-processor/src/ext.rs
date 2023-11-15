@@ -721,6 +721,13 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+        self.context
+            .allocations_context
+            .free(page)
+            .map_err(Into::into)
+    }
+
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
         if start > end {
             return Err(AllocExtError::Alloc(AllocError::InvalidRange(
@@ -1314,7 +1321,7 @@ mod tests {
         assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
-        assert!(ext.free(non_existing_page).is_ok());
+        assert!(ext.free(non_existing_page).is_err());
         assert_eq!(ext.gas_left(), gas_left);
     }
 

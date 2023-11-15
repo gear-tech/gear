@@ -13810,6 +13810,7 @@ fn free_range_success() {
         run_to_next_block(None);
 
         assert_succeed(mid);
+        assert!(Gear::is_initialized(pid));
         assert!(Gear::is_active(pid));
     });
 }

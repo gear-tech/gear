@@ -192,10 +192,8 @@ pub trait Externalities {
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError>;
 
-    /// Free specific memory page
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.free_range(page, page)
-    }
+    /// Free specific page
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Free specific memory range
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError>;
