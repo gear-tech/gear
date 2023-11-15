@@ -33,7 +33,10 @@ impl Listener {
 
     /// Listen to finalized blocks.
     pub async fn listen_finalized(&self) -> Result<Blocks> {
-        self.api.finalized_blocks().await.map_err(Into::into)
+        self.api
+            .subscribe_finalized_blocks()
+            .await
+            .map_err(Into::into)
     }
 
     /// Run validator checks.

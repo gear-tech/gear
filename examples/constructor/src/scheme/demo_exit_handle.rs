@@ -22,6 +22,10 @@ pub fn handle_reply() -> Calls {
     Calls::builder().noop()
 }
 
+pub fn handle_signal() -> Calls {
+    Calls::builder().noop()
+}
+
 pub fn scheme() -> Scheme {
-    Scheme::predefined(init(), handle(), handle_reply())
+    Scheme::predefined(init(), handle(), handle_reply(), handle_signal())
 }
