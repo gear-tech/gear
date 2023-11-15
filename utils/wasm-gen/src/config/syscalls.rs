@@ -104,6 +104,15 @@ impl SysCallsConfigBuilder {
         self
     }
 
+    /// Set whether programs should have a critical gas limit.
+    pub fn with_critical_gas_limit(mut self) -> Self {
+        self.0
+            .injection_types
+            .enable_syscall_import(InvocableSysCall::Loose(SysCallName::GasAvailable));
+
+        self
+    }
+
     /// Setup fallible syscalls error processing options.
     pub fn set_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
         self.0.error_processing_config = config;

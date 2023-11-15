@@ -102,10 +102,7 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-use crate::InvocableSysCall;
-
 use gear_utils::NonEmpty;
-use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::Hash;
 
 /// Trait which describes a type that stores and manages data for generating
@@ -195,12 +192,6 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let selectable_params = SelectableParams::default();
 
-        let mut injection_types = injection_types;
-        if critical_gas_limit.is_some() {
-            injection_types
-                .enable_syscall_import(InvocableSysCall::Loose(SysCallName::GasAvailable));
-        }
-
         let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
@@ -209,6 +200,9 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             syscalls_config_builder = syscalls_config_builder.with_data_offset_msg_dest(addresses);
         } else {
             syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
+        }
+        if critical_gas_limit.is_some() {
+            syscalls_config_builder = syscalls_config_builder.with_critical_gas_limit();
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 
