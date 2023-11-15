@@ -4130,8 +4130,6 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "region",
- "sp-io",
- "sp-std 5.0.0",
  "sp-wasm-interface",
  "winapi",
 ]
@@ -4154,7 +4152,6 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
- "gear-wasm-instrument",
  "log",
  "sp-std 5.0.0",
 ]
@@ -4291,6 +4288,7 @@ dependencies = [
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
+ "sp-io",
  "sp-runtime-interface",
  "sp-std 5.0.0",
  "sp-wasm-interface",
@@ -4826,7 +4824,8 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
- "gear-lazy-pages-interface",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
@@ -4835,7 +4834,6 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
- "sp-io",
 ]
 
 [[package]]

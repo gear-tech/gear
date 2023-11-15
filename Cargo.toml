@@ -420,9 +420,10 @@ demo-wat = { path = "examples/wat" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
+errno = "0.3"                                                             # gear-lazy-pages
+nix = "0.26.4"                                                            # gear-lazy-pages
 # TODO: upgrade this package ( issue #2694 )
 cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
-errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
@@ -430,7 +431,6 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
-nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
