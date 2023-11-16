@@ -45,38 +45,46 @@
 //!
 //! ```toml
 //! [package]
-//! name = "first-gear-app"
+//! name = "my-gear-app"
 //! version = "0.1.0"
 //! authors = ["Your Name"]
 //! edition = "2021"
 //!
 //! [dependencies]
-//! gstd = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
+//! gstd = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //!
 //! [build-dependencies]
-//! gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
+//! gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //!
 //! [dev-dependencies]
-//! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
+//! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //! ```
 //!
 //! ## Program example
 //!
 //! Let's write a simple program that will receive a message and reply to it.
 //!
-//! ```
-//! use gstd::{msg, prelude::*};
+//! `lib.rs`:
 //!
-//! #[cfg(test)]
-//! mod tests;
+//! ```
+//! #![no_std]
+//! use gstd::msg;
 //!
 //! #[no_mangle]
 //! extern "C" fn handle() {
 //!     let payload = msg::load_bytes().expect("Failed to load payload");
 //!
 //!     if payload == b"PING" {
-//!         msg::reply_bytes("PONG", 0).expect("Failed to send reply");
+//!         msg::reply_bytes(b"PONG", 0).expect("Failed to send reply");
 //!     }
+//! }
+//! ```
+//!
+//! `build.rs`:
+//!
+//! ```
+//! fn main() {
+//!     gear_wasm_builder::build();
 //! }
 //! ```
 //!
@@ -86,31 +94,56 @@
 //!
 //! 1. Initialize the `System` structure.
 //! 2. Initialize the `Program` structure.
-//! 3. Send a message to the program.
-//! 4. Check the result of the program execution.
+//! 3. Send an init message to the program. We don't have an `init` function in our program, but the first message to the program is always the init message while using `gtest`.
+//! 4. Send a handle message to the program.
+//! 5. Check the result of the program execution.
 //!
-//! Add these lines to the `tests.rs` module of your program:
+//! Add these lines to the bottom of the `lib.rs` file:
 //!
 //! ```
-//! use gtest::{Log, Program, System};
+//! #[cfg(test)]
+//! mod tests {
+//!     use gtest::{Log, Program, System};
+//!
+//!     const USER_ID: u64 = 100001;
 //!
 //!     #[test]
 //!     fn test_ping_pong() {
-//!        // Initialization of the common environment for running smart contracts.
-//!        let sys = System::new();
-//!        // Initialization of the current program structure.
-//!        let prog = Program::current(&sys);
-//!        // Send a message to the program.
-//!        let res = prog.send_bytes(100001, "PING");
-//!        // Check the result of the program execution.
-//!        // Create a log with the expected result.
-//!        let log = Log::builder()
-//!            .source(prog.id())
-//!            .dest(100001)
-//!            .payload_bytes("PONG");
-//!        // Make sure the log entry is in the result.
-//!        assert!(res.contains(&log));
+//!         // Initialization of the common environment for running smart contracts.
+//!         let sys = System::new();
+//!
+//!         // Initialization of the current program structure.
+//!         let prog = Program::current(&sys);
+//!
+//!         // Send an init message to the program.
+//!         let res = prog.send_bytes(USER_ID, b"Doesn't matter");
+//!
+//!         // Check whether the program was initialized successfully.
+//!         assert!(!res.main_failed());
+//!
+//!         // Send a handle message to the program.
+//!         let res = prog.send_bytes(USER_ID, b"PING");
+//!
+//!         // Check the result of the program execution.
+//!         // 1. Create a log with the expected result.
+//!         let log = Log::builder()
+//!             .source(prog.id())
+//!             .dest(USER_ID)
+//!             .payload_bytes(b"PONG");
+//!
+//!         // 2. Check whether the program was executed successfully.
+//!         assert!(!res.main_failed());
+//!
+//!         // 3. Make sure the log entry is in the result.
+//!         assert!(res.contains(&log));
 //!     }
+//! }
+//! ```
+//!
+//! To run the test, use the following command:
+//!
+//! ```bash
+//! cargo test
 //! ```
 //!
 //! ## `gtest` capabilities
