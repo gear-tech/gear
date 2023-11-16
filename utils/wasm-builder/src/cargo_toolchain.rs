@@ -59,7 +59,7 @@ impl Toolchain {
             .and_then(|s| std::str::from_utf8(s).ok())
             .expect("unexpected `rustup` output");
 
-        // TODO: replace it with `std::sync::LazyLock` when it becomes stable
+        // TODO #3499: replace it with `std::sync::LazyLock` when it becomes stable
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
             // This regex is borrowed from the rustup code and modified (added non-capturing groups)
             let pattern = format!(
