@@ -186,6 +186,9 @@ pub enum ReservationError {
     /// An error occurs in attempt to reserve gas less than mailbox threshold.
     #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
     ReservationBelowMailboxThreshold = 504,
+    /// An error occurs in attempt to charge more gas from reservation than available for operation.
+    #[display(fmt = "Not enough reservation gas for operation")]
+    NotEnoughGas = 505,
 }
 
 /// Program rent error.
@@ -286,6 +289,7 @@ impl ExtError {
             502 => Some(ReservationError::ZeroReservationDuration.into()),
             503 => Some(ReservationError::ZeroReservationAmount.into()),
             504 => Some(ReservationError::ReservationBelowMailboxThreshold.into()),
+            505 => Some(ReservationError::NotEnoughGas.into()),
             //
             600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
