@@ -238,6 +238,64 @@ fn delayed_reservations_sending_validation() {
 }
 
 #[test]
+fn delayed_reservations_to_mailbox() {
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        let sending_delay = 10;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            ReservationSendingShowcase::ToSourceInPlace {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1,
+                sending_delay,
+            }
+            .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
+        run_for_blocks(sending_delay, None);
+
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
+
+        let mailed_msg = utils::get_last_mail(USER_1);
+        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
+
+        run_to_block(expiration, None);
+
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+    });
+}
+
+#[test]
 fn default_wait_lock_timeout() {
     use demo_async_tester::{Kind, WASM_BINARY};
 
