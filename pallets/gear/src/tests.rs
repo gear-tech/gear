@@ -84,6 +84,162 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+#[should_panic]
+fn calculate_gas_delayed_reservations_sending() {
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        // I. In-place case
+        assert!(Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            ReservationSendingShowcase::ToSourceInPlace {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                sending_delay: 10,
+            }
+            .encode(),
+            0,
+            true,
+            true,
+        )
+        .is_ok());
+
+        // II. After-wait case (never failed before, added for test coverage).
+        assert!(Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            ReservationSendingShowcase::ToSourceAfterWait {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                wait_for: 3,
+                sending_delay: 10,
+            }
+            .encode(),
+            0,
+            true,
+            true,
+        )
+        .is_ok());
+    });
+}
+
+#[test]
+#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
+fn delayed_reservations_sending_validation() {
+    use demo_delayed_reservation_sender::{
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        // I. In place sending can't appear if not enough gas limit in gas reservation.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            ReservationSendingShowcase::ToSourceInPlace {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                    + CostsPerBlockOf::<Test>::reserve_for()
+                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+            }
+            .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "{SENDING_EXPECT}: {:?}",
+                GstdError::Core(ExtError::Reservation(ReservationError::NotEnoughGas).into())
+            )
+        } else {
+            String::from("no info")
+        };
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
+
+        // II. After-wait sending can't appear if not enough gas limit in gas reservation.
+        let wait_for = 5;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            ReservationSendingShowcase::ToSourceAfterWait {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                wait_for,
+                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                    + CostsPerBlockOf::<Test>::reserve_for()
+                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+            }
+            .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_for_blocks(wait_for + 1, None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "{SENDING_EXPECT}: {:?}",
+                GstdError::Core(ExtError::Reservation(ReservationError::NotEnoughGas).into())
+            )
+        } else {
+            String::from("no info")
+        };
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+        );
+    });
+}
+
+#[test]
 fn default_wait_lock_timeout() {
     use demo_async_tester::{Kind, WASM_BINARY};
 
